@@ -26,6 +26,15 @@
     "README.md",
     "LICENSE"
   ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "npm run test:pi",
+    "test:pi": "node --test tests/pi/smoke.test.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.19",
+    "typescript": "5.9.3"
+  },
   "publishConfig": {
     "access": "public"
   }
