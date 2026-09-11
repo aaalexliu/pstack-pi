@@ -12,5 +12,5 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["tests/**/*.mjs"]
+  "include": ["scripts/**/*.mjs", "tests/**/*.mjs"]
 }

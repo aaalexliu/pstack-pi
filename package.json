@@ -29,7 +29,8 @@
   "scripts": {
     "check": "npm run typecheck && npm test",
     "typecheck": "tsc --noEmit",
-    "test": "npm run test:pi",
+    "test": "npm run test:sync && npm run test:pi",
+    "test:sync": "node --test tests/sync/*.test.mjs",
     "test:pi": "node --test tests/pi/smoke.test.mjs"
   },
   "devDependencies": {
