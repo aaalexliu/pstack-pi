@@ -171,7 +171,7 @@ test('CLI rejects missing, empty, and unknown review reason fields before writes
   const lockPath = path.join(f.root, 'lock.json');
   await writeFile(lockPath, JSON.stringify(f.lock));
   await writeFile(manifestPath, JSON.stringify(f.manifest));
-  const valid = spawnSync(process.execPath, [script, 'sync', f.repositoryPath, f.outputRoot, manifestPath, lockPath, f.replacementRoot], { encoding: 'utf8' });
+  const valid = spawnSync(process.execPath, [script, 'sync', 'git', f.repositoryPath, f.outputRoot, manifestPath, lockPath, f.replacementRoot], { encoding: 'utf8' });
   assert.equal(valid.status, 0, valid.stderr);
   const before = await snapshot(f.outputRoot);
   for (const [index, file] of f.manifest.files.entries()) {
@@ -181,7 +181,7 @@ test('CLI rejects missing, empty, and unknown review reason fields before writes
       const files = f.manifest.files.map((entry, i) => i === index ? invalid : entry);
       await writeFile(manifestPath, JSON.stringify({ ...f.manifest, files }));
       for (const mode of ['sync', 'check']) {
-        const result = spawnSync(process.execPath, [script, mode, f.repositoryPath, f.outputRoot, manifestPath, lockPath, f.replacementRoot], { encoding: 'utf8' });
+        const result = spawnSync(process.execPath, [script, mode, 'git', f.repositoryPath, f.outputRoot, manifestPath, lockPath, f.replacementRoot], { encoding: 'utf8' });
         assert.equal(result.status, 1, `${mode} ${file.kind}: ${result.stderr}`);
         assert.match(result.stderr, /Expected fields|nonempty review reason/u);
         assert.equal(result.stdout, '');
@@ -198,7 +198,7 @@ test('CLI sync and check share the API contract and exit codes', async (t) => {
   await writeFile(manifestPath, JSON.stringify(f.manifest));
   await writeFile(lockPath, JSON.stringify(f.lock));
   /** @param {string} mode */
-  const cli = (mode) => spawnSync(process.execPath, [script, mode, f.repositoryPath, f.outputRoot, manifestPath, lockPath, f.replacementRoot], { encoding: 'utf8' });
+  const cli = (mode) => spawnSync(process.execPath, [script, mode, 'git', f.repositoryPath, f.outputRoot, manifestPath, lockPath, f.replacementRoot], { encoding: 'utf8' });
   const missing = cli('check');
   assert.equal(missing.status, 1, missing.stderr);
   assert.match(missing.stdout, /missing skills\/shared\/copy.bin/u);

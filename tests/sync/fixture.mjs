@@ -15,8 +15,8 @@ export function git(cwd, args) {
   }).toString().trim();
 }
 
-/** @param {import('node:test').TestContext} t */
-export async function fixture(t) {
+/** @param {import('node:test').TestContext} t @param {'sha1' | 'sha256'} [objectFormat] */
+export async function fixture(t, objectFormat = 'sha1') {
   const root = await mkdtemp(path.join(tmpdir(), 'sync-test-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const repositoryPath = path.join(root, 'repo');
@@ -25,7 +25,7 @@ export async function fixture(t) {
   await mkdir(path.join(repositoryPath, 'plugin'), { recursive: true });
   await mkdir(outputRoot);
   await mkdir(replacementRoot);
-  git(repositoryPath, ['init', '-q']);
+  git(repositoryPath, ['init', '-q', `--object-format=${objectFormat}`]);
   git(repositoryPath, ['config', 'user.name', 'Sync Test']);
   git(repositoryPath, ['config', 'user.email', 'sync@example.invalid']);
   git(repositoryPath, ['config', 'core.fileMode', 'true']);
@@ -76,7 +76,7 @@ export async function fixture(t) {
   await mkdir(path.join(outputRoot, 'skills/native'), { recursive: true });
   await writeFile(path.join(outputRoot, 'skills/native/sentinel'), Buffer.from([0, 42, 255]));
   await writeFile(path.join(outputRoot, 'package.json'), 'native package\n');
-  const options = { repositoryPath, outputRoot, replacementRoot, manifest, lock };
+  const options = { source: { kind: /** @type {const} */ ('git'), repositoryPath }, outputRoot, replacementRoot, manifest, lock };
   /** @param {string} message */
   function advance(message) {
     git(repositoryPath, ['add', '-A']);
@@ -84,7 +84,7 @@ export async function fixture(t) {
     lock.commit = git(repositoryPath, ['rev-parse', 'HEAD']);
     lock.sourceTree = git(repositoryPath, ['rev-parse', `${lock.commit}:plugin`]);
   }
-  return { ...options, root, expected, options, advance };
+  return { ...options, repositoryPath, root, expected, options, advance };
 }
 
 /** @param {string} root @returns {Promise<Record<string, string>>} */
