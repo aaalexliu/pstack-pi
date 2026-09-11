@@ -1,0 +1,32 @@
+{
+  "name": "@aaalexliu/pstack-pi",
+  "version": "0.1.0",
+  "description": "Package identity and provenance for a planned Pi port of pstack.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aaalexliu/pstack-pi.git"
+  },
+  "keywords": [
+    "pi-package",
+    "pstack"
+  ],
+  "engines": {
+    "node": ">=22.19.0",
+    "pi": "0.85.1"
+  },
+  "pi": {
+    "extensions": [],
+    "skills": [],
+    "prompts": [],
+    "themes": []
+  },
+  "files": [
+    "package.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}
