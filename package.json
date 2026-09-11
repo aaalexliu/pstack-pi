@@ -27,6 +27,7 @@
     "LICENSE"
   ],
   "scripts": {
+    "check": "npm run typecheck && npm test",
     "typecheck": "tsc --noEmit",
     "test": "npm run test:pi",
     "test:pi": "node --test tests/pi/smoke.test.mjs"

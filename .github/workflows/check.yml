@@ -1,0 +1,23 @@
+name: Check
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.19.0"
+          cache: npm
+      - run: npm ci
+      - run: npm install --global --ignore-scripts @earendil-works/pi-coding-agent@0.85.1
+      - run: npm run check
+      - run: npm pack --dry-run
