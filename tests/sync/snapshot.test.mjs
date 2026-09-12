@@ -5,7 +5,7 @@ import { syncBuiltinESMExports } from 'node:module';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { importUpstream, relockUpstream, serializeLock, syncUpstream } from '../../scripts/sync-upstream.mjs';
+import { importUpstream, relockUpstream, serializeLock, sha256, syncUpstream } from '../../scripts/sync-upstream.mjs';
 import { fixture, git, snapshot } from './fixture.mjs';
 
 const script = fileURLToPath(new URL('../../scripts/sync-upstream.mjs', import.meta.url));
@@ -192,6 +192,26 @@ test('Git tree reconstruction handles nested directories, UTF-8 names, and Git s
   for (const file of imported.files) assert.equal(file.blob, git(f.repositoryPath, ['rev-parse', `HEAD:plugin/${file.source}`]));
   await syncUpstream({ ...f.options, lock: imported, source: { kind: 'snapshot', snapshotRoot: path.join(f.outputRoot, 'vendor/cursor-pstack') }, mode: 'sync' });
 });
+
+for (const name of ['\uFEFFfile.bin', '\uFEFFdirectory/file.bin']) {
+  test(`Git and snapshot preserve a leading U+FEFF in ${JSON.stringify(name)}`, async (t) => {
+    const f = await snapshotFixture(t);
+    const bytes = Buffer.from([255, 0, 13, 10]);
+    for (const root of [path.join(f.repositoryPath, 'plugin'), f.snapshotRoot]) {
+      await mkdir(path.dirname(path.join(root, name)), { recursive: true });
+      await writeFile(path.join(root, name), bytes);
+    }
+    f.manifest.files.push({ kind: 'copy', source: name, destination: 'skills/shared/bom.bin' });
+    f.advance('leading U+FEFF name');
+    f.lock.files.push({ source: name, blob: git(f.repositoryPath, ['rev-parse', `HEAD:plugin/${name}`]), mode: '100644', adaptationSha256: null,
+      output: { destination: 'skills/shared/bom.bin', sha256: sha256(bytes), mode: '100644' } });
+    const expected = await syncUpstream({ ...f.options, mode: 'check' });
+    assert.deepEqual(await syncUpstream({ ...f.snapshotOptions, mode: 'check' }), expected);
+    await syncUpstream({ ...f.snapshotOptions, mode: 'sync' });
+    assert.equal((await syncUpstream({ ...f.options, mode: 'check' })).clean, true);
+    assert.equal(serializeLock(await importUpstream(importOptions(f))), serializeLock(f.lock));
+  });
+}
 
 test('import requires full commit identity, reviewed coverage, and regular Git blobs', async (t) => {
   const f = await fixture(t);

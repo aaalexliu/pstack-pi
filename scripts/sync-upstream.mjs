@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { chmod, lstat, mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { chmod, lstat, mkdir, mkdtemp, open, readdir, readFile, realpath, rename, rm, unlink, writeFile } from 'node:fs/promises';
+import { hostname } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -274,7 +276,7 @@ async function inventory(source, identity) {
     const directory = relative ? await safePath(root, relative) : root;
     const children = await readdir(directory, { encoding: 'buffer' });
     requireValue(children.length > 0, `Empty snapshot directory: ${relative}`);
-    const names = children.map((child) => new TextDecoder('utf-8', { fatal: true }).decode(child));
+    const names = children.map((child) => new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(child));
     uniquePaths(names, 'snapshot directory');
     for (const name of names.sort(byteOrder)) {
       const child = relative ? `${relative}/${name}` : name;
@@ -426,10 +428,57 @@ function compare(expected, actual) {
   return differences;
 }
 
+class RecoveryRequired extends Error {}
+
+/** @template T @param {string} root @param {() => Promise<T>} operation @returns {Promise<T>} */
+async function withProjectLock(root, operation) {
+  const projectRoot = path.resolve(root);
+  const stat = await lstat(projectRoot);
+  requireValue(stat.isDirectory() && !stat.isSymbolicLink(), 'Project root must be a real directory');
+  const filename = path.join(await realpath(projectRoot), '.pstack-sync.lock');
+  const recovery = `Verify that no sync process is running. Inspect .pstack-sync-* backups and restore a matching snapshot and lock, and any managed outputs, before you manually remove ${filename}.`;
+  let handle;
+  try {
+    handle = await open(filename, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && (error.code === 'EEXIST' || error.code === 'ELOOP')) {
+      throw new Error(`Project is locked at ${filename}. ${recovery}`, { cause: error });
+    }
+    throw error;
+  }
+  try {
+    const owner = await handle.stat();
+    await handle.writeFile(`${JSON.stringify({ pid: process.pid, host: hostname(), startedAt: new Date().toISOString() })}\n`);
+    let preserveLock = false;
+    try {
+      return await operation();
+    } catch (error) {
+      if (error instanceof RecoveryRequired) {
+        preserveLock = true;
+        throw new Error(`${error.message}. ${recovery}`, { cause: error });
+      }
+      throw error;
+    } finally {
+      if (!preserveLock) {
+        const current = await statOrMissing(filename);
+        requireValue(current?.isFile() && current.dev === owner.dev && current.ino === owner.ino, `Project lock changed at ${filename}. ${recovery}`);
+        await unlink(filename);
+      }
+    }
+  } finally {
+    await handle.close();
+  }
+}
+
+/** @param {Parameters<typeof syncProject>[0]} options */
+export async function syncUpstream(options) {
+  return withProjectLock(options.outputRoot, () => syncProject(options));
+}
+
 /**
  * @param {{source: Source, outputRoot: string, replacementRoot?: string, manifest: unknown, lock: unknown, mode: 'sync' | 'check', signal?: AbortSignal}} options
  */
-export async function syncUpstream(options) {
+async function syncProject(options) {
   requireValue(options.mode === 'sync' || options.mode === 'check', 'Expected sync or check mode');
   const manifest = parseManifest(options.manifest);
   const lock = parseLock(options.lock);
@@ -509,12 +558,15 @@ async function stagedPromotion(outputRoot, prepare, signal) {
       }
       if (failures.length > 1) {
         preserveBackup = true;
-        throw new AggregateError(failures, `Rollback failed; backups remain at ${stage}`);
+        throw new RecoveryRequired(`Rollback failed; backups remain at ${stage}`, { cause: new AggregateError(failures) });
       }
       throw error;
     }
   } finally {
-    if (!preserveBackup) await rm(stage, { recursive: true, force: true });
+    if (!preserveBackup) {
+      try { await rm(stage, { recursive: true, force: true }); }
+      catch (error) { throw new RecoveryRequired(`Cleanup failed at ${stage}`, { cause: error }); }
+    }
   }
 }
 
@@ -528,8 +580,13 @@ async function stageLock(content, lock) {
   requireValue(await readFile(filename, 'utf8') === bytes, 'Staged lock validation failed');
 }
 
-/** @param {{source: {kind: 'git', repositoryPath: string}, commit: string, manifest: unknown, projectRoot: string, replacementRoot?: string, signal?: AbortSignal}} options */
+/** @param {Parameters<typeof importProject>[0]} options */
 export async function importUpstream(options) {
+  return withProjectLock(options.projectRoot, () => importProject(options));
+}
+
+/** @param {{source: {kind: 'git', repositoryPath: string}, commit: string, manifest: unknown, projectRoot: string, replacementRoot?: string, signal?: AbortSignal}} options */
+async function importProject(options) {
   requireValue(options.source.kind === 'git', 'Import requires a Git source');
   objectId(options.commit);
   const manifest = parseManifest(options.manifest);
@@ -550,8 +607,13 @@ export async function importUpstream(options) {
   return lock;
 }
 
-/** @param {{projectRoot: string, manifest: unknown, replacementRoot?: string, signal?: AbortSignal}} options */
+/** @param {Parameters<typeof relockProject>[0]} options */
 export async function relockUpstream(options) {
+  return withProjectLock(options.projectRoot, () => relockProject(options));
+}
+
+/** @param {{projectRoot: string, manifest: unknown, replacementRoot?: string, signal?: AbortSignal}} options */
+async function relockProject(options) {
   const projectRoot = path.resolve(options.projectRoot);
   const manifest = parseManifest(options.manifest);
   options.signal?.throwIfAborted();
@@ -577,20 +639,20 @@ async function main(args) {
   if (mode === 'import') {
     const [repositoryPath, commit, projectRoot, manifestPath, replacementRoot] = rest;
     requireValue(rest.length === 4 || rest.length === 5, 'Usage: node scripts/sync-upstream.mjs import <repository> <full-commit> <project-root> <manifest.json> [replacement-root]');
-    await importUpstream({ source: { kind: 'git', repositoryPath }, commit, projectRoot, manifest: JSON.parse(await readFile(manifestPath, 'utf8')), replacementRoot });
+    await withProjectLock(projectRoot, async () => importProject({ source: { kind: 'git', repositoryPath }, commit, projectRoot, manifest: JSON.parse(await readFile(manifestPath, 'utf8')), replacementRoot }));
     return;
   }
   if (mode === 'relock') {
     const [projectRoot, manifestPath, replacementRoot] = rest;
     requireValue(rest.length === 2 || rest.length === 3, 'Usage: node scripts/sync-upstream.mjs relock <project-root> <manifest.json> [replacement-root]');
-    await relockUpstream({ projectRoot, manifest: JSON.parse(await readFile(manifestPath, 'utf8')), replacementRoot });
+    await withProjectLock(projectRoot, async () => relockProject({ projectRoot, manifest: JSON.parse(await readFile(manifestPath, 'utf8')), replacementRoot }));
     return;
   }
   const [kind, sourcePath, outputRoot, manifestPath, lockPath, replacementRoot] = rest;
   requireValue((rest.length === 5 || rest.length === 6) && (mode === 'sync' || mode === 'check') && (kind === 'git' || kind === 'snapshot'), 'Usage: node scripts/sync-upstream.mjs <sync|check> <git|snapshot> <source-path> <output-root> <manifest.json> <lock.json> [replacement-root]');
   /** @type {Source} */
   const source = kind === 'git' ? { kind, repositoryPath: sourcePath } : { kind, snapshotRoot: sourcePath };
-  const result = await syncUpstream({ mode, source, outputRoot, manifest: JSON.parse(await readFile(manifestPath, 'utf8')), lock: JSON.parse(await readFile(lockPath, 'utf8')), replacementRoot });
+  const result = await withProjectLock(outputRoot, async () => syncProject({ mode, source, outputRoot, manifest: JSON.parse(await readFile(manifestPath, 'utf8')), lock: JSON.parse(await readFile(lockPath, 'utf8')), replacementRoot }));
   for (const difference of result.differences) console.log(`${difference.kind} ${difference.path}`);
   if (!result.clean) process.exitCode = 1;
 }
