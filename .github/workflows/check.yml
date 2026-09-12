@@ -20,4 +20,5 @@ jobs:
       - run: npm ci
       - run: npm install --global --ignore-scripts @earendil-works/pi-coding-agent@0.85.1
       - run: npm run check
+      - run: npm run sync:check
       - run: npm pack --dry-run

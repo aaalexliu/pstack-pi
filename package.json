@@ -31,7 +31,10 @@
     "typecheck": "tsc --noEmit",
     "test": "npm run test:sync && npm run test:pi",
     "test:sync": "node --test tests/sync/*.test.mjs",
-    "test:pi": "node --test tests/pi/smoke.test.mjs"
+    "test:pi": "node --test tests/pi/smoke.test.mjs",
+    "sync": "node scripts/sync-upstream.mjs sync snapshot vendor/cursor-pstack . sync/manifest.json sync/upstream.lock.json",
+    "sync:check": "node scripts/sync-upstream.mjs check snapshot vendor/cursor-pstack . sync/manifest.json sync/upstream.lock.json",
+    "sync:relock": "node scripts/sync-upstream.mjs relock . sync/manifest.json"
   },
   "devDependencies": {
     "@types/node": "22.19.19",
