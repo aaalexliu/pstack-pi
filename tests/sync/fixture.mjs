@@ -49,7 +49,7 @@ export async function fixture(t, objectFormat = 'sha1') {
   await writeFile(path.join(replacementRoot, 'policy.md'), replacement);
   /** @type {Manifest} */
   const manifest = {
-    version: 1, repository: 'https://example.invalid/upstream.git', sourceRoot: 'plugin', managedRoots: ['skills/shared', 'agents/shared'],
+    version: 2, additions: [], repository: 'https://example.invalid/upstream.git', sourceRoot: 'plugin', managedRoots: ['skills/shared', 'agents/shared'],
     files: [
       { kind: 'copy', source: 'copy.bin', destination: 'skills/shared/copy.bin' },
       { kind: 'transform', source: 'transform.md', destination: 'skills/shared/transform.md', expectedBlob: blob('transform.md'), transforms, reason: 'Use Pi host names instead of Cursor names.' },
@@ -66,7 +66,7 @@ export async function fixture(t, objectFormat = 'sha1') {
   ]);
   /** @type {Lock} */
   const lock = {
-    version: 1, repository: manifest.repository, commit, sourceRoot: 'plugin', sourceTree: git(repositoryPath, ['rev-parse', `${commit}:plugin`]),
+    version: 2, additions: [], repository: manifest.repository, commit, sourceRoot: 'plugin', sourceTree: git(repositoryPath, ['rev-parse', `${commit}:plugin`]),
     files: manifest.files.map((file) => ({
       source: file.source, blob: blob(file.source), mode: file.source === 'run.sh' ? '100755' : '100644',
       adaptationSha256: file.kind === 'transform' ? transformDigest(transforms) : file.kind === 'replace' ? sha256(replacement) : null,

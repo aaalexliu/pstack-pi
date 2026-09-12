@@ -18,7 +18,7 @@ test('manifest rejects unknown fields and illegal dispositions', async (t) => {
     { kind: 'transform', source: 'x', destination: 'skills/shared/x', expectedBlob: 'a'.repeat(40), transforms: [], reason: 'Use Pi names.' },
     { kind: 'patch', source: 'x', destination: 'skills/shared/x' },
   ]) assert.throws(() => parseManifest({ ...manifest, files: [file] }));
-  assert.throws(() => parseManifest({ ...manifest, version: 2 }));
+  assert.throws(() => parseManifest({ ...manifest, version: 1 }));
   assert.throws(() => parseManifest({ ...manifest, extra: true }));
   assert.throws(() => parseManifest({ ...manifest, files: [] }));
   assert.throws(() => parseManifest({ ...manifest, managedRoots: ['extensions'] }));

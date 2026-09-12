@@ -26,6 +26,7 @@ test('production contains exactly the reviewed pre-runtime slice and locked tran
     { source: 'skills/typescript-best-practices/SKILL.md', expectedBlob: '2c0279d9a5f800192605e47b55cae4e75a17ec27', transforms: [{ find: 'paths: ["**/*.ts", "**/*.tsx"]\n', replace: '', count: 1 }] },
   ]);
   for (const [destination, { disposition, locked }] of inventory.byDestination) {
+    assert.ok('blob' in locked);
     const original = await readFile(path.join(root, 'vendor/cursor-pstack', disposition.source));
     const actual = await readFile(path.join(root, destination));
     assert.equal(createHash('sha1').update(`blob ${original.length}\0`).update(original).digest('hex'), locked.blob, `Source blob: ${destination}`);

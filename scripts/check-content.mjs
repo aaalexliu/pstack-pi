@@ -4,11 +4,12 @@ import { lstat, readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseDocument } from 'yaml';
-import { parseLock, parseManifest, sha256, transformDigest } from './sync-upstream.mjs';
+import { parseLock, parseManifest, readAdditions, sha256, transformDigest } from './sync-upstream.mjs';
 
 /** @typedef {{disposition: import('./sync-upstream.mjs').Disposition, locked: import('./sync-upstream.mjs').LockedFile}} ContentRecord */
+/** @typedef {{disposition: import('./sync-upstream.mjs').Addition & {kind: 'addition'}, locked: import('./sync-upstream.mjs').LockedAddition}} AdditionRecord */
 /** @typedef {{name: string, description: string, disabled: boolean, body: string, text: string, destination: string}} Skill */
-/** @typedef {{bySource: Map<string, ContentRecord>, byDestination: Map<string, ContentRecord>, bySkillName: Map<string, Skill>}} ContentInventory */
+/** @typedef {{bySource: Map<string, ContentRecord>, byDestination: Map<string, ContentRecord | AdditionRecord>, bySkillName: Map<string, Skill>}} ContentInventory */
 
 /** @param {unknown} value @returns {Record<string, unknown>} */
 function object(value) {
@@ -70,6 +71,17 @@ export function contentInventory(rawManifest, rawLock) {
       assert.equal(entry.adaptationSha256, transformDigest(disposition.transforms), 'Transform digest differs');
     } else assert.equal(entry.adaptationSha256, null, 'Copy has adaptation');
     inventory.byDestination.set(disposition.destination, record);
+  }
+  const additions = new Map(lock.additions.map((entry) => [entry.source, entry]));
+  assert.equal(additions.size, manifest.additions.length, 'Addition lock membership differs');
+  for (const addition of manifest.additions) {
+    const entry = additions.get(addition.source);
+    assert.ok(entry, `Missing locked addition: ${addition.source}`);
+    assert.equal(entry.output.destination, addition.destination, 'Locked addition destination differs');
+    assert.equal(entry.output.mode, addition.mode, 'Locked addition mode differs');
+    assert.equal(addition.mode, '100644', 'Content must not be executable');
+    assert.ok(/^skills\/[^/]+\/(?:SKILL\.md|references\/[^/]+\.md)$/u.test(addition.destination), `Unsupported addition destination: ${addition.destination}`);
+    inventory.byDestination.set(addition.destination, { disposition: { ...addition, kind: 'addition' }, locked: entry });
   }
   return inventory;
 }
@@ -158,6 +170,10 @@ function dependencies(text, filename, inventory) {
 /** @param {{root: string, manifest: unknown, lock: unknown}} options */
 export async function checkContent({ root, manifest, lock }) {
   const inventory = contentInventory(manifest, lock);
+  const inputs = await readAdditions(root, parseManifest(manifest).additions);
+  for (const entry of parseLock(lock).additions) {
+    assert.equal(sha256(inputs.get(entry.source)?.bytes ?? Buffer.alloc(0)), entry.output.sha256, `Addition bytes differ: ${entry.source}`);
+  }
   const files = await fileInventory(root, ['skills', 'agents']);
   assert.deepEqual([...files.keys()].sort(), [...inventory.byDestination.keys()].sort(), 'Generated file membership differs');
   const descriptions = new Set();

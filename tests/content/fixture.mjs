@@ -22,7 +22,7 @@ export async function contentFixture(t) {
   const blob = (text) => createHash('sha1').update(`blob ${Buffer.byteLength(text)}\0`).update(text).digest('hex');
   /** @type {import('../../scripts/sync-upstream.mjs').Manifest} */
   const manifest = {
-    version: 1, repository: 'https://example.invalid/upstream.git', sourceRoot: 'pstack', managedRoots: ['skills', 'agents'],
+    version: 2, additions: [], repository: 'https://example.invalid/upstream.git', sourceRoot: 'pstack', managedRoots: ['skills', 'agents'],
     files: [...source].map(([name, text]) => name.includes('/omitted/')
       ? { kind: 'omit', source: name, reason: 'Fixture deferred workflow.' }
       : name.includes('/transformed/')
@@ -32,7 +32,7 @@ export async function contentFixture(t) {
   const output = new Map([...source].filter(([name]) => !name.includes('/omitted/')).map(([name, text]) => [name, name.includes('/transformed/') ? text.replace('/transformed', '/skill:transformed') : text]));
   /** @type {import('../../scripts/sync-upstream.mjs').Lock} */
   const lock = {
-    version: 1, repository: manifest.repository, sourceRoot: manifest.sourceRoot, commit: 'a'.repeat(40), sourceTree: 'b'.repeat(40),
+    version: 2, additions: [], repository: manifest.repository, sourceRoot: manifest.sourceRoot, commit: 'a'.repeat(40), sourceTree: 'b'.repeat(40),
     files: manifest.files.map((file) => ({ source: file.source, blob: blob(source.get(file.source) ?? ''), mode: '100644',
       adaptationSha256: file.kind === 'transform' ? transformDigest(transforms) : null,
       output: file.kind === 'omit' ? null : { destination: file.destination, sha256: sha256(output.get(file.destination) ?? ''), mode: '100644' },
