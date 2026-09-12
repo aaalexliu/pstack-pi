@@ -2,7 +2,11 @@ import { spawn } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 
 const mode = process.argv[2];
-if (mode === 'descendant') {
+if (mode === 'unobserved') {
+  process.on('SIGTERM', () => {});
+  writeFileSync(process.argv[3], JSON.stringify({ pid: process.pid, descendants: [] }));
+  setInterval(() => {}, 1000);
+} else if (mode === 'descendant') {
   process.on('SIGTERM', () => {});
   setInterval(() => {}, 1000);
 } else {

@@ -21,8 +21,8 @@ Each skill keeps upstream's `disable-model-invocation: true` flag.
 Pi hides these skills from model discovery but expands explicit commands with their arguments.
 The TypeScript skill includes `references/patterns.md`.
 
-The package ships nine generated skill files, one generated agent, four extension modules, and `LICENSE`, `README.md`, and `package.json`.
-It registers exactly one `subagent` tool and no prompts, themes, commands, or event hooks.
+The package ships nine generated skill files, one generated agent, five extension modules, and `LICENSE`, `README.md`, and `package.json`.
+At root depth it registers one `subagent` tool and one `session_shutdown` cleanup hook, with no prompts, themes, or commands.
 Parallel and chained requests, role-based model routing, usage totals, todos, and broader workflows remain deferred.
 `/skill:how`, `/skill:poteto-mode`, and `/skill:setup-pstack` do not expand.
 
@@ -38,7 +38,9 @@ Call `subagent` with one agent and one task:
 {"agent":"general-purpose","task":"Read src/index.ts and explain its exports."}
 ```
 
-The public fields are `agent`, `task`, and optional `cwd`.
+The public fields are `agent`, `task`, optional `cwd`, and optional `limits`.
+`limits.timeoutMs` and `limits.outputBytes` accept positive integers that lower the host's 120,000 ms deadline and 32,768-byte output cap.
+Larger values clamp to the host limits and produce diagnostics.
 There is no trust or approval argument.
 An omitted `cwd` uses the current Pi working directory.
 A supplied path must name that same real directory.
@@ -71,25 +73,49 @@ Missing tools, comma-delimited strings, unknown fields, duplicate YAML keys, dup
 Any catalog diagnostic stops delegation rather than silently choosing a fallback.
 Each directory allows at most 128 entries; each agent file allows at most 64 KiB.
 
-Each request starts a separate `pi` process from `PATH` with the parent's provider-qualified model and available thinking level.
+Each request starts a child with the current Node executable and Pi entrypoint, resolved to absolute real paths.
+The runner validates the entrypoint against the installed Pi `0.85.1` package and its declared CLI before spawn.
+It does not search `PATH` for `pi` or use a shell to launch it.
+An invalid or unsupported host invocation disables delegation.
+The child uses the parent's provider-qualified model and available thinking level.
 The child gets an explicit tools allowlist or `--no-tools`.
 It loads no extensions, skills, prompt templates, context files, or saved session.
 It receives a private `0600` system-prompt file and an empty append prompt, which prevents `APPEND_SYSTEM.md` discovery.
 The task travels through stdin, so leading `@` and CLI-looking text stay task text.
 Children expose no `subagent` tool.
-Tool restrictions are not an operating-system sandbox. A user agent with `bash` can run arbitrary commands.
+The host permits delegation only at depth zero and sets the child to depth one, the leaf boundary.
+It removes inherited `PSTACK_*` variables before setting the child depth.
+Malformed depth values or depth one and above disable this extension's tool and hook.
+Tool allowlists are not an OS sandbox. A user agent with `bash` can run arbitrary commands, including launching processes outside this delegation API.
 
 The runner accepts LF-delimited JSON with strict UTF-8 decoding.
 Its limits are 256 KiB per record, 4,096 events, 8 MiB stdout, and 64 KiB stderr.
-It caps returned text at 32 KiB and retained stderr diagnostics at 4 KiB.
-A successful result requires a settled final assistant message with `stopReason: "stop"`, the requested model, and exit code zero.
-Truncation is explicit. Tool details include identity, agent provenance, canonical cwd, outcome, diagnostics, and `usage: null`.
+It caps returned text at 32 KiB and does not return raw stderr.
+A successful result requires a settled final assistant message with `stopReason: "stop"`, the requested model, exit code zero, and verified cleanup.
+Truncation is explicit. Tool details include identity, agent provenance, canonical cwd, outcome, limits, cleanup, diagnostics, and `usage: null`.
 Child failures throw from `execute`, so Pi marks the tool result as an error.
 
-The execution signal sends `SIGTERM` to the immediate child and waits for close before removing temporary files and listeners.
-There is no execution deadline, process-tree escalation, recursion-depth policy, or scheduler.
-A child that ignores `SIGTERM` can keep the call waiting.
-The runtime has not been verified on Windows.
+Each extension instance admits one delegation at a time, including preparation and cleanup.
+A concurrent request fails rather than waiting in a queue.
+The host starts its 120-second deadline at admission, not at child startup.
+User cancellation, the deadline, and Pi's `session_shutdown` hook all request cleanup.
+Shutdown rejects new work and awaits the active delegation.
+
+The runner creates a detached process group and polls `/bin/ps` on macOS and Linux for descendants and process identities.
+It sends `SIGTERM` through the live direct child handle even if process observation fails.
+After a one-second grace period, it sends `SIGKILL` to the still-live child handle, its safe initial group, and observed owned processes and groups.
+An observed group remains owned only while a current member matches a recorded identity in that group, or the live direct child proves the initial group.
+A stale group ID alone cannot establish ownership.
+The runner then allows two seconds to verify cleanup.
+It does not return while the direct child handle remains live, so an OS refusal to terminate the child can extend cleanup beyond these timers.
+The execution deadline starts cancellation; it is not a hard bound on tool return time.
+
+Observation failures, unsafe identities, and unverified cleanup fail the request and quarantine further delegation in that extension instance.
+The runner removes temporary prompt files and listeners after cleanup.
+macOS and Linux polling cannot guarantee containment of an unseen fast double-fork or cleanup after host `SIGKILL`.
+Process-table snapshots and signals are not atomic, and `ps` start times have only second-level precision.
+These checks do not provide adversarial process isolation.
+Delegation rejects unsupported operating systems, including Windows.
 
 ## Local installation
 
@@ -156,14 +182,18 @@ CI runs the same command in the checkout and in a clean Git archive with no `.gi
 
 `check:content` validates exact membership, YAML frontmatter, dependency closure, local links, file modes, explicit package exposure, and the dry-run pack inventory.
 The fixture tests reject duplicate YAML keys, unresolved dependencies, Cursor-only mechanics, undeclared agents, and unexpected runtime registration.
-A fake ExtensionAPI asserts that the extension accesses only `registerTool`, exactly once.
+A fake ExtensionAPI checks the single `registerTool` call and the `session_shutdown` hook, with no command gate.
 They preserve genuine protocol identifiers such as review author `cursor` and `CURSOR_AUTOMATION_ID`.
 
 The real Pi tests pack and move the package into an isolated profile.
 They inspect provider requests for all eight commands, exact skill bodies, arguments, relocated paths, and the single declared extension tool.
 A scripted real parent delegates a fixture read to a real child, receives the result, and runs harmless bash containing literal `git push` and `gh pr edit` text.
 Other runs deny project agents and cwd changes before any child request, and prove that an empty-tools user override has no tools.
-All child requests lack `subagent`; process checks reject surviving descendants and leftover prompt files.
+Production child requests lack `subagent`; process checks reject surviving observed descendants and leftover prompt files.
+The packed execution tests cover reduced deadlines, one-at-a-time admission, depth rejection, fake `pi` in `PATH`, and parent `SIGTERM` and `SIGHUP` cleanup.
+They retain the controlled detached-work test, which keeps ancestry visible long enough for polling.
+Focused process tests cover continuous observation failure with a real stalled child and deterministic group-ID reuse.
+The unchanged Phase 6 recursion fixture is an unsafe positive control, not the production delegation path.
 The main delegation test retains its tarball and `run.json` under the artifact path printed in test output.
 Other test profiles are removed.
 Runtime tests copy only the pinned `yaml` dependency into the relocated package. Pi supplies its own host modules.

@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { ChildProcess, spawn } from 'node:child_process';
 import { getEventListeners } from 'node:events';
+import { PassThrough } from 'node:stream';
 import { chmod, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
-import { PiInvocation, parseProcessTable, processTable, processBackend } from '../../extensions/subagent/process.ts';
+import { OwnedProcessTree, PiInvocation, cleanupLimits, parseProcessTable, processTable, processBackend } from '../../extensions/subagent/process.ts';
 import { parseDepth, reduceLimits, RunRegistry } from '../../extensions/subagent/domain.ts';
 import { resolveCwd, runChild } from '../../extensions/subagent/runner.ts';
 
@@ -102,7 +103,20 @@ for (const fault of ['ps', 'EPERM', 'identity']) {
     const lease = registry.admit(parseDepth(undefined), 500);
     let pid = 0;
     let injected = false;
-    const backend = { ...args.backend,
+    /** @type {typeof args.backend.spawn} */
+    const spawnChild = (...inputs) => {
+      const child = args.backend.spawn(...inputs);
+      const kill = child.kill.bind(child);
+      child.kill = (signal) => {
+        if (fault === 'EPERM' && signal === 'SIGTERM') {
+          child.emit('error', Object.assign(new Error('PRIVATE_PROCESS_DATA'), { code: 'EPERM', syscall: 'kill' }));
+          return false;
+        }
+        return kill(signal);
+      };
+      return child;
+    };
+    const backend = { ...args.backend, spawn: spawnChild,
       table: () => {
         const rows = processTable();
         if (pid && !injected) {
@@ -111,10 +125,6 @@ for (const fault of ['ps', 'EPERM', 'identity']) {
           if (fault === 'identity') return rows.map((row) => row.pid === pid ? { ...row, start: 'changed' } : row);
         }
         return rows;
-      },
-      signal: (/** @type {number} */ target, /** @type {NodeJS.Signals | 0} */ signal) => {
-        if (fault === 'EPERM' && signal === 'SIGTERM') throw Object.assign(new Error('PRIVATE_PROCESS_DATA'), { code: 'EPERM' });
-        processBackend.signal(target, signal);
       },
     };
     const running = runChild({ ...args, backend, lease });
@@ -126,6 +136,195 @@ for (const fault of ['ps', 'EPERM', 'identity']) {
     assert.throws(() => registry.admit(parseDepth(undefined), 500), /quarantined/);
     assert.ok(!JSON.stringify(result).includes('PRIVATE_'));
     assert.ok(Buffer.byteLength(JSON.stringify(result)) < 2048);
+  });
+}
+
+test('continuous observation failure kills the live child before cleanup returns', { timeout: 7000 }, async (t) => {
+  const cwd = await mkdtemp(path.join(tmpdir(), 'unobserved-child-'));
+  t.after(() => rm(cwd, { recursive: true, force: true }));
+  const marker = path.join(cwd, 'started.json');
+  const child = spawn(process.execPath, [fixture, 'unobserved', marker], { detached: true, stdio: 'pipe' });
+  /** @type {[number | undefined, NodeJS.Signals | number | undefined][]} */
+  const signals = [];
+  const kill = child.kill.bind(child);
+  child.kill = (signal) => { signals.push([child.pid, signal]); return kill(signal); };
+  try {
+    const { pid } = await started(marker);
+    const registry = new RunRegistry();
+    const lease = registry.admit(parseDepth(undefined), 5000);
+    lease.prepare(); lease.run();
+    let polls = 0;
+    const owner = new OwnedProcessTree({ invocation, args: [], cwd, env: {}, lease, backend: {
+      spawn: () => child,
+      table: () => {
+        if (polls++ === 0) return processTable();
+        throw new Error('PRIVATE_PS_FAILURE');
+      },
+      signal: (target, signal) => { signals.push([target, signal]); processBackend.signal(target, signal); },
+    } });
+    await owner.ready;
+    const report = await owner.cleanup();
+    let alive = true;
+    try { process.kill(pid, 0); } catch (error) {
+      if (error instanceof Error && 'code' in error && error.code === 'ESRCH') alive = false;
+      else throw error;
+    }
+    t.diagnostic(JSON.stringify({ pid, aliveBeforeRescue: alive, failedPolls: polls - 1, signals, report }));
+    assert.equal(alive, false, 'direct child must be gone before return, without test rescue');
+    assert.deepEqual(signals, [[pid, 'SIGTERM'], [-pid, 'SIGKILL'], [pid, 'SIGKILL']]);
+    assert.equal(report.verified, false);
+    assert.equal(report.forced, true);
+    lease.finish(report.verified);
+    assert.throws(() => registry.admit(parseDepth(undefined), 500), /quarantined/);
+  } finally {
+    if (child.exitCode === null && child.signalCode === null) kill('SIGKILL');
+  }
+});
+
+/** @param {string} fault */
+function fakeUnsettledProcess(fault) {
+  const root = 800001;
+  const host = { pid: process.pid, ppid: 1, pgid: 800000, start: 'Mon Jan 1 00:00:00 2024' };
+  let rows = [host, { ...host, pid: root, ppid: process.pid, pgid: root }];
+  /** @type {[PassThrough, PassThrough, PassThrough, undefined, undefined]} */
+  const stdio = [new PassThrough(), new PassThrough(), new PassThrough(), undefined, undefined];
+  const child = Object.assign(new ChildProcess(), { pid: root, stdin: stdio[0], stdout: stdio[1], stderr: stdio[2], stdio });
+  /** @type {[number, NodeJS.Signals | number | undefined][]} */
+  const signals = [];
+  const denied = () => Object.assign(new Error('PRIVATE_KILL_FAILURE'), { code: 'EPERM', syscall: 'kill' });
+  child.kill = (signal) => {
+    signals.push([root, signal]);
+    if (fault === 'false') return false;
+    if (fault === 'EPERM') throw denied();
+    if (fault === 'EPERM-event') { child.emit('error', denied()); return false; }
+    if (fault === 'missing-exit' || fault === 'missing-close' || fault === 'false-after-exit') {
+      rows = [host];
+      queueMicrotask(() => {
+        Object.defineProperty(child, 'signalCode', { value: 'SIGTERM', configurable: true });
+        if (fault !== 'missing-exit') child.emit('exit', null, 'SIGTERM');
+        if (fault !== 'missing-close') child.emit('close', null, 'SIGTERM');
+      });
+    }
+    return fault !== 'false-after-exit';
+  };
+  let polls = 0;
+  /** @type {import('../../extensions/subagent/process.ts').ProcessBackend} */
+  const backend = {
+    spawn: () => child,
+    table: () => {
+      if (polls++ > 0 && fault === 'observation') throw new Error('PRIVATE_PS_FAILURE');
+      return rows;
+    },
+    signal: (pid, signal) => {
+      signals.push([pid, signal]);
+      if (fault === 'EPERM' || fault === 'EPERM-event') throw denied();
+    },
+  };
+  return { child, backend, signals };
+}
+
+const cleanupUpperMs = cleanupLimits.graceMs + cleanupLimits.verifyMs + 500;
+for (const fault of ['false', 'EPERM', 'EPERM-event', 'missing-events', 'missing-exit', 'missing-close', 'observation', 'force-error', 'false-after-exit']) {
+  test(`bounded cleanup quarantines ${fault} without rescue`, { timeout: cleanupUpperMs + 1000 }, async (t) => {
+    const { child, backend, signals } = fakeUnsettledProcess(fault);
+    const registry = new RunRegistry();
+    const lease = registry.admit(parseDepth(undefined), 10_000);
+    lease.prepare(); lease.run();
+    if (fault === 'force-error') lease.force = () => { throw new Error('PRIVATE_FORCE_FAILURE'); };
+    const owner = new OwnedProcessTree({ invocation, args: [], cwd: process.cwd(), env: {}, lease, backend });
+    const startedAt = performance.now();
+    owner.requestStop({ kind: 'cancelled', reason: 'user' });
+    const cleaning = owner.cleanup();
+    assert.equal(owner.cleanup(), cleaning);
+    const report = await cleaning;
+    const elapsedMs = performance.now() - startedAt;
+    lease.finish(report.verified);
+    t.diagnostic(JSON.stringify({ fault, elapsedMs, signals: signals.length, report }));
+    assert.ok(elapsedMs < cleanupUpperMs, `cleanup took ${elapsedMs} ms`);
+    assert.ok(Math.abs(report.durationMs - elapsedMs) < 100, 'report includes all cleanup waits');
+    assert.equal(report.verified, false);
+    assert.equal(lease.state.kind, 'quarantined');
+    assert.throws(() => registry.admit(parseDepth(undefined), 500), /quarantined/);
+    assert.equal(child.listenerCount('exit'), 0);
+    assert.equal(child.listenerCount('close'), 0);
+    assert.ok(child.stdin.destroyed && child.stdout.destroyed && child.stderr.destroyed);
+    if (['false', 'EPERM', 'EPERM-event', 'missing-events', 'observation', 'force-error'].includes(fault)) {
+      assert.equal(child.exitCode, null);
+      assert.equal(child.signalCode, null);
+      assert.ok(signals.filter(([pid, signal]) => pid === child.pid && signal === 'SIGKILL').length > 1, 'retry direct child within the bound');
+    }
+    const count = signals.length;
+    await delay(cleanupLimits.pollMs * 2);
+    assert.equal(signals.length, count, 'no background retries after return');
+  });
+}
+
+for (const fault of ['false', 'EPERM', 'missing-events', 'missing-close']) {
+  test(`session shutdown completes with ${fault} cleanup quarantined without rescue`, { timeout: cleanupUpperMs + 1000 }, async (t) => {
+    const { child, backend } = fakeUnsettledProcess(fault);
+    const registry = new RunRegistry();
+    const lease = registry.admit(parseDepth(undefined), 10_000);
+    const inputFinished = new Promise((resolve) => child.stdin.once('finish', resolve));
+    const cwd = await resolveCwd({ current: process.cwd() });
+    const running = runChild({ identity: { id: 'test', agent: { name: agent.name, provenance: agent.provenance }, cwd }, agent, model, task: 'test', invocation, backend, lease, signal: undefined });
+    await inputFinished;
+    const startedAt = performance.now();
+    await registry.shutdown();
+    const elapsedMs = performance.now() - startedAt;
+    const result = await running;
+    t.diagnostic(JSON.stringify({ fault, elapsedMs, result }));
+    assert.ok(elapsedMs < cleanupUpperMs, `shutdown took ${elapsedMs} ms`);
+    assert.equal(result.cleanup.verified, false);
+    assert.equal(result.kind, 'failed');
+    assert.match(result.reason, /quarantined/);
+    assert.equal(lease.state.kind, 'quarantined');
+    assert.equal(lease.cancellation, 'parentShutdown');
+    assert.ok(!JSON.stringify(result).includes('PRIVATE_'));
+    const settledAt = performance.now();
+    await registry.shutdown();
+    assert.ok(performance.now() - settledAt < 100);
+  });
+}
+
+for (const reuse of ['initial', 'detached', 'member-moved', 'unobserved-root', 'leader-reused']) {
+  test(`previously owned ${reuse} group cannot adopt or signal a reused group`, { timeout: 5000 }, async (t) => {
+    const root = 800001;
+    const group = ['initial', 'unobserved-root'].includes(reuse) ? root : 800002;
+    const stranger = reuse === 'unobserved-root' ? root : reuse === 'leader-reused' ? group : 800004;
+    /** @type {(pid: number, ppid: number, pgid: number, start?: string) => import('../../extensions/subagent/process.ts').ProcessIdentity} */
+    const identity = (pid, ppid, pgid, start = 'Mon Jan 1 00:00:00 2024') => ({ pid, ppid, pgid, start });
+    const host = identity(process.pid, 1, 800000);
+    /** @type {[PassThrough, PassThrough, PassThrough, undefined, undefined]} */
+    const stdio = [new PassThrough(), new PassThrough(), new PassThrough(), undefined, undefined];
+    const child = Object.assign(new ChildProcess(), { pid: root, stdin: stdio[0], stdout: stdio[1], stderr: stdio[2], stdio });
+    /** @type {[number, NodeJS.Signals | number | undefined][]} */
+    const signals = [];
+    child.kill = (signal) => { signals.push([root, signal]); return true; };
+    let rows = reuse === 'unobserved-root' ? [host] : [host, identity(root, process.pid, root)];
+    if (group !== root) rows.push(identity(group, root, group), identity(800003, group, group));
+    const registry = new RunRegistry();
+    const lease = registry.admit(parseDepth(undefined), 5000);
+    lease.prepare(); lease.run();
+    const owner = new OwnedProcessTree({ invocation, args: [], cwd: process.cwd(), env: {}, lease, backend: {
+      spawn: () => child,
+      table: () => rows,
+      signal: (target, signal) => {
+        signals.push([target, signal]);
+        if (signal === 'SIGKILL') rows = rows.filter((row) => row.pid !== target);
+        if (signal === 0) throw Object.assign(new Error('gone'), { code: 'ESRCH' });
+      },
+    } });
+    Object.defineProperty(child, 'exitCode', { value: 0 });
+    child.emit('exit', 0, null);
+    child.emit('close', 0, null);
+    rows = [host, identity(stranger, 1, group, 'Tue Jan 2 00:00:00 2024')];
+    if (reuse === 'member-moved') rows.push(identity(800003, 1, 800005));
+    const report = await owner.cleanup();
+    lease.finish(report.verified);
+    t.diagnostic(JSON.stringify({ reuse, signals, identities: report.identities }));
+    assert.ok(!report.identities.some((row) => row.pid === stranger && row.start === 'Tue Jan 2 00:00:00 2024'), 'group ID alone must not adopt a stranger');
+    assert.ok(!signals.some(([target]) => target === stranger || target === -group), 'no signal may target the reused group or its stranger');
+    assert.ok(rows.some((row) => row.pid === stranger), 'unrelated process survives cleanup');
   });
 }
 
