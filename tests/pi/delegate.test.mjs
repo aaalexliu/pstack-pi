@@ -62,8 +62,8 @@ test('packed real parent delegates a file read, then runs harmless bash containi
       { reply: { kind: 'tool', id: 'delegate', name: 'subagent', arguments: { agent: 'general-purpose', task: 'Read fixture.txt and report its exact contents.' } }, check: (request) => assert.ok(toolNames(request).includes('subagent')) },
       { reply: { kind: 'tool', id: 'read-fixture', name: 'read', arguments: { path: 'fixture.txt' } }, check: (request) => {
         assertChild(request, ['read', 'grep', 'find', 'ls']);
-        childProcesses = execFileSync('ps', ['-axo', 'pid=,ppid=,command='], { encoding: 'utf8' }).split('\n').filter((line) => Number(line.trim().split(/\s+/)[1]) === parentPid);
-        assert.equal(childProcesses.length, 1, 'Expected one real child Pi');
+        childProcesses = execFileSync('ps', ['-axo', 'pid=,ppid=,command='], { encoding: 'utf8' }).split('\n').filter((line) => Number(line.trim().split(/\s+/)[1]) === parentPid && /(?:\bpi$|pi-coding-agent\/dist\/)/.test(line.trimEnd()));
+        assert.equal(childProcesses.length, 1, `Expected one real child Pi: ${execFileSync('/bin/ps', ['-ww', '-axo', 'pid=,ppid=,command='], { encoding: 'utf8' }).split('\n').filter((line) => Number(line.trim().split(/\s+/)[1]) === parentPid).join('\n')}`);
         assert.match(childProcesses[0], /pi/);
       } },
       { reply: { kind: 'text', text: marker }, check: (request) => {

@@ -42,7 +42,10 @@ export function parseRequest(value: unknown): DelegationRequest {
 export type CanonicalCwd = string & { readonly __brand: 'CanonicalCwd' };
 export type TaskIdentity = { id: string; agent: { name: string; provenance: AgentProvenance }; cwd: CanonicalCwd };
 export type BoundedOutput = { text: string; bytes: number; truncated: boolean };
-export type TaskResult = TaskIdentity & { output: BoundedOutput; diagnostics: readonly string[]; usage: null } & (
+export type TaskResult = TaskIdentity & {
+  output: BoundedOutput; diagnostics: readonly string[]; usage: null;
+  cleanup: { verified: boolean; durationMs: number; forced: boolean; observedProcesses: number };
+} & (
   | { kind: 'succeeded' }
   | { kind: 'failed'; reason: string }
   | { kind: 'cancelled'; reason: string }

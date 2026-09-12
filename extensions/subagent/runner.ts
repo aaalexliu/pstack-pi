@@ -1,10 +1,10 @@
-import { spawn } from 'node:child_process';
 import { lstat, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { Type, type Static } from 'typebox';
 import { Check } from 'typebox/value';
-import { executionLimits, protocolLimits, type Agent, type BoundedOutput, type CanonicalCwd, type TaskIdentity, type TaskResult } from './domain.ts';
+import { executionLimits, protocolLimits, parseDepth, requireRoot, RunRegistry, type RunLease, type DelegationDepth, type ExecutionLimits, type Agent, type BoundedOutput, type CanonicalCwd, type TaskIdentity, type TaskResult } from './domain.ts';
+import { childEnvironment, OwnedProcessTree, PiInvocation, ProcessOwnershipError, type CleanupReport, type ProcessBackend } from './process.ts';
 
 export async function resolveCwd({ current, supplied }: { current: string; supplied?: string }): Promise<CanonicalCwd> {
   const canonical = await realpath(current);
@@ -104,75 +104,88 @@ export function childArguments({ agent, model, promptFile }: { agent: Agent; mod
   return args;
 }
 
-export async function runChild({ identity, agent, task, model, signal, command = 'pi', prefixArgs = [] }: {
+export async function runChild({ identity, agent, task, model, signal, depth = parseDepth(undefined), limits = executionLimits, lease = new RunRegistry().admit(depth, limits.timeoutMs), invocation, backend }: {
   identity: TaskIdentity; agent: Agent; task: string; model: ChildModel; signal: AbortSignal | undefined;
-  command?: string; prefixArgs?: string[];
+  depth?: DelegationDepth; limits?: ExecutionLimits; lease?: RunLease; invocation?: PiInvocation; backend?: ProcessBackend;
 }): Promise<TaskResult> {
-  signal?.throwIfAborted();
-  const temporary = await mkdtemp(path.join(tmpdir(), 'pstack-subagent-'));
+  let temporary: string | undefined;
+  let owner: OwnedProcessTree | undefined;
+  let cleanup: CleanupReport = { verified: true, durationMs: 0, identities: [], forced: false };
+  let failure: string | undefined;
+  let output = boundedOutput('');
+  const abort = () => lease.cancel('user');
+  const stop = () => { if (lease.cancellation) owner?.requestStop({ kind: 'cancelled', reason: lease.cancellation }); };
+  signal?.addEventListener('abort', abort, { once: true });
+  lease.signal.addEventListener('abort', stop, { once: true });
+  if (signal?.aborted) abort();
   try {
+    requireRoot(depth);
+    lease.signal.throwIfAborted();
+    lease.prepare();
+    const pinned = invocation ?? await PiInvocation.resolve();
+    lease.signal.throwIfAborted();
+    temporary = await mkdtemp(path.join(tmpdir(), 'pstack-subagent-'));
     const promptFile = path.join(temporary, 'system.md');
     await writeFile(promptFile, agent.systemPrompt, { mode: 0o600, flag: 'wx' });
     const args = childArguments({ agent, model, promptFile });
-    signal?.throwIfAborted();
-    const child = spawn(command, [...prefixArgs, ...args], { cwd: identity.cwd, shell: false, stdio: ['pipe', 'pipe', 'pipe'] });
+    lease.signal.throwIfAborted();
+    lease.run();
+    owner = new OwnedProcessTree({ invocation: pinned, args, cwd: identity.cwd, env: childEnvironment(depth), lease, backend });
+    const child = owner.child;
     const parser = childOutputParser();
-    let failure: string | undefined;
-    let cancelled = false;
-    let stderr = '';
-    let stderrBytes = 0;
-    let exitCode: number | null = null;
-    let exitSignal: NodeJS.Signals | null = null;
-    const stop = (reason: string) => {
-      failure ??= boundedOutput(reason, protocolLimits.diagnosticBytes).text;
-      child.kill('SIGTERM');
-    };
-    const abort = () => { cancelled = true; stop('Delegation cancelled'); };
+    const fail = (reason: string) => { failure ??= reason; owner?.requestStop({ kind: 'failed', reason }); };
     const stdout = (chunk: Buffer) => {
       if (failure) return;
-      try { parser.write(chunk); } catch (error) { stop(String(error)); }
+      try { parser.write(chunk); } catch { fail('Invalid or excessive child protocol output'); }
     };
-    const stderrData = (chunk: Buffer) => {
+    let stderrBytes = 0;
+    const stderr = (chunk: Buffer) => {
       stderrBytes += chunk.length;
-      stderr = boundedOutput(stderr + chunk.toString('utf8'), protocolLimits.diagnosticBytes).text;
-      if (stderrBytes > protocolLimits.stderrBytes) stop('Child stderr limit exceeded');
+      if (stderrBytes > protocolLimits.stderrBytes) fail('Child stderr limit exceeded');
     };
-    const processError = (error: Error) => stop(error.message);
+    child.stdout.on('data', stdout);
+    child.stderr.on('data', stderr);
     try {
-      const closed = new Promise<void>((resolve) => {
-        child.once('close', (code, signal) => { exitCode = code; exitSignal = signal; resolve(); });
-      });
-      child.on('error', processError);
-      child.stdin.on('error', processError);
-      child.stdout.on('data', stdout);
-      child.stderr.on('data', stderrData);
-      signal?.addEventListener('abort', abort, { once: true });
-      if (signal?.aborted) abort();
+      stop();
       child.stdin.end(task);
-      await closed;
+      await owner.ready;
+      cleanup = await owner.cleanup();
     } finally {
-      signal?.removeEventListener('abort', abort);
-      child.removeListener('error', processError);
-      child.stdin.removeListener('error', processError);
       child.stdout.removeListener('data', stdout);
-      child.stderr.removeListener('data', stderrData);
-      child.stdin.destroy();
-      child.stdout.destroy();
-      child.stderr.destroy();
+      child.stderr.removeListener('data', stderr);
     }
-    let output = boundedOutput('');
-    try {
-      const final = parser.end();
-      output = boundedOutput(final.content.filter((block) => block.type === 'text').map((block) => block.text).join(''));
-      if (final.provider !== model.provider || final.model !== model.id) failure ??= 'Child model differs from parent model';
-      if (final.stopReason !== 'stop') failure ??= boundedOutput(final.errorMessage || `Child stopped with ${final.stopReason}`, protocolLimits.diagnosticBytes).text;
-    } catch (error) { failure ??= boundedOutput(String(error), protocolLimits.diagnosticBytes).text; }
-    if (exitCode !== 0 || exitSignal !== null) failure ??= `Child exited with code ${exitCode}, signal ${exitSignal}`;
-    const base = { ...identity, output, diagnostics: stderr ? [stderr] : [], usage: null } satisfies Omit<TaskResult, 'kind'>;
-    if (cancelled) return { ...base, kind: 'cancelled', reason: 'Delegation cancelled' };
-    if (failure) return { ...base, kind: 'failed', reason: failure };
-    return { ...base, kind: 'succeeded' };
+    failure ??= owner.failure;
+    if (!failure && !lease.cancellation) {
+      try {
+        const final = parser.end();
+        if (final.provider !== model.provider || final.model !== model.id) failure = 'Child model differs from parent model';
+        else if (final.stopReason !== 'stop') failure = `Child stopped with ${final.stopReason}`;
+        else output = boundedOutput(final.content.filter((block) => block.type === 'text').map((block) => block.text).join(''), limits.outputBytes);
+      } catch { failure = 'Child has no valid settled final response'; }
+      if (owner.exitCode !== 0 || owner.exitSignal !== null) failure ??= 'Child exited unsuccessfully';
+    }
+  } catch (error) {
+    if (error instanceof ProcessOwnershipError) cleanup = { ...cleanup, verified: false };
+    failure ??= 'Delegation preparation or execution failed';
+    if (owner) {
+      owner.requestStop({ kind: 'failed', reason: failure });
+      cleanup = await owner.cleanup();
+    }
   } finally {
-    await rm(temporary, { recursive: true, force: true });
+    if (temporary) {
+      try { await rm(temporary, { recursive: true, force: true }); }
+      catch { cleanup = { ...cleanup, verified: false }; }
+    }
+    signal?.removeEventListener('abort', abort);
+    lease.signal.removeEventListener('abort', stop);
+    lease.verify();
+    lease.finish(cleanup.verified);
   }
+  const base = { ...identity, output, diagnostics: [], usage: null,
+    cleanup: { verified: cleanup.verified, durationMs: cleanup.durationMs, forced: cleanup.forced, observedProcesses: cleanup.identities.length },
+  } satisfies Omit<TaskResult, 'kind'>;
+  if (!cleanup.verified) return { ...base, output: boundedOutput(''), kind: 'failed', reason: 'Delegation cleanup unverified; session quarantined' };
+  if (lease.cancellation) return { ...base, output: boundedOutput(''), kind: 'cancelled', reason: `Delegation cancelled (${lease.cancellation})` };
+  if (failure) return { ...base, output: boundedOutput(''), kind: 'failed', reason: failure };
+  return { ...base, kind: 'succeeded' };
 }

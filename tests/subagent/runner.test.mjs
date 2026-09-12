@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import { PiInvocation, processBackend } from '../../extensions/subagent/process.ts';
 import { getEventListeners } from 'node:events';
 import { mkdtemp, readFile, realpath, rm, symlink, writeFile, mkdir, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -10,6 +12,11 @@ import { parseAgent } from '../../extensions/subagent/agents.ts';
 import { boundedOutput, childArguments, childOutputParser, resolveCwd, runChild } from '../../extensions/subagent/runner.ts';
 
 const fixturePath = fileURLToPath(new URL('./child-fixture.mjs', import.meta.url));
+const invocation = await PiInvocation.resolve({ entrypoint: fileURLToPath(new URL('../../node_modules/@earendil-works/pi-coding-agent/dist/cli.js', import.meta.url)) });
+/** @param {string} mode */
+function child(mode) {
+  return { invocation, backend: { ...processBackend, spawn: (/** @type {PiInvocation} */ _invocation, /** @type {string[]} */ args, /** @type {import('node:child_process').SpawnOptionsWithoutStdio} */ options) => spawn(process.execPath, [fixturePath, mode, ...args], options) } };
+}
 const agent = { ...parseAgent('---\nname: test\ndescription: Test.\ntools: [read, grep, find, ls]\n---\nDo not delegate.'), provenance: { kind: /** @type {const} */ ('bundled'), path: '/fixture/test.md', sha256: 'a'.repeat(64) } };
 const model = { provider: 'fixture', id: 'model', thinkingLevel: 'off' };
 
@@ -49,7 +56,7 @@ test('separate child gets the exact task through stdin and a private prompt that
   const f = await fixture(t);
   const controller = new AbortController();
   const task = '@not-a-file\n--tools bash\nUnicode ✓\u2028inside';
-  const result = await runChild({ ...f, agent, model, task, signal: controller.signal, command: process.execPath, prefixArgs: [fixturePath, 'success'] });
+  const result = await runChild({ ...f, agent, model, task, signal: controller.signal, ...child('success') });
   assert.equal(result.kind, 'succeeded');
   assert.equal(result.usage, null);
   assert.deepEqual(result.diagnostics, []);
@@ -65,7 +72,7 @@ test('separate child gets the exact task through stdin and a private prompt that
 for (const mode of ['malformed', 'no-lf', 'line', 'stderr', 'count', 'stdout', 'invalid-utf8', 'error', 'aborted', 'length', 'toolUse', 'no-final', 'no-settled', 'wrong-model', 'exit']) {
   test(`child failure ${mode} cannot become success`, async (t) => {
     const f = await fixture(t);
-    const result = await runChild({ ...f, agent, model, task: 'task', signal: undefined, command: process.execPath, prefixArgs: [fixturePath, mode] });
+    const result = await runChild({ ...f, agent, model, task: 'task', signal: undefined, ...child(mode) });
     assert.equal(result.kind, 'failed');
     assert.equal(result.usage, null);
     assert.ok(Buffer.byteLength(result.output.text) <= 32768);
@@ -75,7 +82,7 @@ for (const mode of ['malformed', 'no-lf', 'line', 'stderr', 'count', 'stdout', '
 
 test('output truncation preserves UTF-8 and does not retain a hidden full copy', async (t) => {
   const f = await fixture(t);
-  const result = await runChild({ ...f, agent, model, task: 'task', signal: undefined, command: process.execPath, prefixArgs: [fixturePath, 'large-output'] });
+  const result = await runChild({ ...f, agent, model, task: 'task', signal: undefined, ...child('large-output') });
   assert.equal(result.kind, 'succeeded');
   assert.equal(result.output.bytes, 60000);
   assert.equal(result.output.truncated, true);
@@ -88,7 +95,7 @@ test('execution abort stops and awaits the immediate child, removes prompt and l
   const f = await fixture(t);
   const marker = path.join(f.root, 'started.json');
   const controller = new AbortController();
-  const promise = runChild({ ...f, agent, model, task: marker, signal: controller.signal, command: process.execPath, prefixArgs: [fixturePath, 'wait'] });
+  const promise = runChild({ ...f, agent, model, task: marker, signal: controller.signal, ...child('wait') });
   let capture;
   for (let tries = 0; tries < 100; tries++) {
     try { capture = JSON.parse(await readFile(marker, 'utf8')); break; } catch { await delay(20); }
@@ -107,8 +114,8 @@ test('pre-abort and spawn errors leave no temporary prompts', async (t) => {
   const before = (await readdir(tmpdir())).filter((name) => name.startsWith('pstack-subagent-')).sort();
   const controller = new AbortController();
   controller.abort();
-  await assert.rejects(runChild({ ...f, agent, model, task: '', signal: controller.signal }));
-  const result = await runChild({ ...f, agent, model, task: '', signal: undefined, command: '/nonexistent-pi' });
+  assert.equal((await runChild({ ...f, agent, model, task: '', signal: controller.signal })).kind, 'cancelled');
+  const result = await runChild({ ...f, agent, model, task: '', signal: undefined, invocation, backend: { ...processBackend, spawn: () => spawn('/nonexistent-pi', [], { stdio: 'pipe' }) } });
   assert.equal(result.kind, 'failed');
   assert.deepEqual((await readdir(tmpdir())).filter((name) => name.startsWith('pstack-subagent-')).sort(), before);
 });
