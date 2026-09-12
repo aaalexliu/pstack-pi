@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { cp, lstat, mkdir, mkdtemp, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
+import { cp, lstat, mkdir, mkdtemp, readFile, realpath, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { StringDecoder } from "node:string_decoder";
@@ -127,10 +127,10 @@ export class PiTestError extends Error {
 }
 
 /**
- * @param {{ fixture?: import("./provider.mjs").FixtureOptions, timeoutMs?: number, executable?: string, prompt?: string, packageFixture?: {root: string, files: string[]}, allowDiagnostics?: boolean }} options
+ * @param {{ fixture?: import("./provider.mjs").FixtureOptions, timeoutMs?: number, executable?: string, prompt?: string, packageFixture?: {root: string, files: string[]}, allowDiagnostics?: boolean, expectedText?: string, expectedRequests?: number, setup?: (paths: PiTestRun['paths']) => Promise<void>, verify?: (run: PiTestRun) => Promise<void>, keepArtifacts?: boolean, onSpawn?: (pid: number) => void }} options
  * @returns {Promise<PiTestRun>}
  */
-export async function runPiSmoke({ fixture, timeoutMs = 20_000, executable = "pi", prompt = 'Return the fixture response.', packageFixture, allowDiagnostics = false } = {}) {
+export async function runPiSmoke({ fixture, timeoutMs = 20_000, executable = "pi", prompt = 'Return the fixture response.', packageFixture, allowDiagnostics = false, expectedText = FIXTURE_TEXT, expectedRequests = 1, setup, verify, keepArtifacts = false, onSpawn } = {}) {
   assert.notEqual(process.platform, "win32", "Pi process-group tests require Unix; Windows cleanup is unverified");
   assert.ok(Number.isFinite(timeoutMs) && timeoutMs > 0);
   const started = Date.now();
@@ -228,6 +228,7 @@ export async function runPiSmoke({ fixture, timeoutMs = 20_000, executable = "pi
       compaction: { enabled: false },
       retry: { enabled: false, provider: { maxRetries: 0 } },
     }));
+    await setup?.(run.paths);
     run.process.version = command(executable, ["--version"]).trim();
     assert.equal(run.process.version, "0.85.1", "Tests require Pi 0.85.1");
     run.pack.listing = command(executable, ["list", "--no-approve"]);
@@ -279,6 +280,7 @@ export async function runPiSmoke({ fixture, timeoutMs = 20_000, executable = "pi
     child = pi;
     run.process.pid = pi.pid ?? null;
     run.process.pgid = pi.pid ?? null;
+    if (pi.pid !== undefined) onSpawn?.(pi.pid);
     const parser = jsonlParser((event) => run.events.push(event));
     closed = new Promise((resolve) => {
       pi.once("close", (code, signal) => {
@@ -325,15 +327,17 @@ export async function runPiSmoke({ fixture, timeoutMs = 20_000, executable = "pi
       assert.equal(typeof content.text, "string");
       return content.text;
     }).join("");
-    assert.equal(text, FIXTURE_TEXT, "Wrong terminal assistant text");
+    assert.equal(text, expectedText, "Wrong terminal assistant text");
     const usage = record(message.usage);
     assert.equal(usage.input, FIXTURE_USAGE.input);
     assert.equal(usage.output, FIXTURE_USAGE.output);
     assert.equal(usage.totalTokens, FIXTURE_USAGE.totalTokens);
-    assert.equal(provider.state.requests, 1);
+    assert.equal(provider.state.requests, expectedRequests);
     assert.deepEqual(provider.state.errors, []);
     assert.ok(run.events.findIndex((event) => event.type === "agent_settled") > run.events.indexOf(terminal));
     assert.ok(run.process.pgid !== null && !groupAlive(run.process.pgid), "Pi left a live descendant");
+    assert.ok(!(await readdir(root)).some((name) => name.startsWith('pstack-subagent-')), 'Child left a temporary prompt');
+    await verify?.(run);
   } catch (error) {
     failures.push(error);
   } finally {
@@ -362,10 +366,16 @@ export async function runPiSmoke({ fixture, timeoutMs = 20_000, executable = "pi
       run.cleanup.providerClosed = provider?.state.closed ?? true;
     } catch (error) { failures.push(error); }
     try {
-      await rm(root, { recursive: true, force: true });
-      run.cleanup.tempRemoved = true;
+      if (!keepArtifacts) {
+        await rm(root, { recursive: true, force: true });
+        run.cleanup.tempRemoved = true;
+      }
     } catch (error) { failures.push(error); }
     run.durationMs = Date.now() - started;
+    if (keepArtifacts) {
+      try { await writeFile(join(root, 'run.json'), JSON.stringify(run, null, 2)); }
+      catch (error) { failures.push(error); }
+    }
   }
   if (failures.length) throw new PiTestError(new AggregateError(failures, failures.map(String).join("\n")), run);
   return run;

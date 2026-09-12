@@ -38,6 +38,7 @@ test('child argv always isolates resources, qualifies the model, and specifies t
   assert.equal(args[args.indexOf('--model') + 1], 'fixture/model');
   assert.equal(args[args.indexOf('--thinking') + 1], 'off');
   assert.equal(args[args.indexOf('--tools') + 1], 'read,grep,find,ls');
+  assert.equal(args[args.indexOf('--append-system-prompt') + 1], '');
   const none = childArguments({ agent: { ...agent, tools: [] }, model, promptFile: '/tmp/prompt' });
   assert.ok(none.includes('--no-tools') && !none.includes('--tools'));
   assert.ok(!childArguments({ agent, model: { ...model, thinkingLevel: undefined }, promptFile: 'p' }).includes('--thinking'));

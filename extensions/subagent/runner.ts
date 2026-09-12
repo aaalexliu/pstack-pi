@@ -100,7 +100,7 @@ export function childArguments({ agent, model, promptFile }: { agent: Agent; mod
     args.push('--thinking', model.thinkingLevel);
   }
   args.push(...(agent.tools.length ? ['--tools', agent.tools.join(',')] : ['--no-tools']));
-  args.push('--system-prompt', promptFile);
+  args.push('--system-prompt', promptFile, '--append-system-prompt', '');
   return args;
 }
 
