@@ -29,7 +29,8 @@
   "scripts": {
     "check": "npm run typecheck && npm test",
     "typecheck": "tsc --noEmit",
-    "test": "npm run test:sync && npm run test:pi",
+    "test": "npm run test:sync && npm run test:content && npm run test:pi",
+    "test:content": "node --test tests/content/*.test.mjs",
     "test:sync": "node --test tests/sync/*.test.mjs",
     "test:pi": "node --test tests/pi/smoke.test.mjs",
     "sync": "node scripts/sync-upstream.mjs sync snapshot vendor/cursor-pstack . sync/manifest.json sync/upstream.lock.json",
@@ -38,7 +39,8 @@
   },
   "devDependencies": {
     "@types/node": "22.19.19",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "yaml": "2.9.0"
   },
   "publishConfig": {
     "access": "public"
