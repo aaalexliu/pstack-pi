@@ -6,8 +6,8 @@ export const FIXTURE_MODEL = "pi-smoke-model";
 export const FIXTURE_KEY = "pi-smoke-literal-key";
 export const FIXTURE_USAGE = { input: 11, output: 7, totalTokens: 18 };
 
-/** @typedef {{kind: 'text', text: string} | {kind: 'tool', id: string, name: string, arguments: Record<string, unknown>}} FixtureReply */
-/** @typedef {{reply: FixtureReply, check?: (payload: Record<string, unknown>) => void}} ScriptStep */
+/** @typedef {{kind: 'stall'} | {kind: 'text', text: string} | {kind: 'tool', id: string, name: string, arguments: Record<string, unknown>}} FixtureReply */
+/** @typedef {{reply: FixtureReply, check?: (payload: Record<string, unknown>) => void | Promise<void>}} ScriptStep */
 /** @typedef {{ text?: string, mode?: "text" | "error" | "stall", script?: ScriptStep[] }} FixtureOptions */
 /** @typedef {{ requests: number, decodedRequests: Record<string, unknown>[], retainedBytes: number, errors: string[], closed: boolean }} FixtureState */
 
@@ -17,9 +17,13 @@ export async function startProvider({ text = FIXTURE_TEXT, mode = "text", script
   for (const step of script ?? []) assert.ok(Buffer.byteLength(JSON.stringify(step.reply)) <= 32 * 1024, 'Fixture reply exceeds 32 KiB');
   /** @type {FixtureState} */
   const state = { requests: 0, decodedRequests: [], retainedBytes: 0, errors: [], closed: false };
+  let activeRequests = 0;
   const server = createServer((request, response) => {
+    activeRequests++;
+    response.once('close', () => { activeRequests--; });
     void (async () => {
       try {
+        assert.equal(activeRequests, 1, 'Overlapping fixture requests');
         assert.equal(request.method, "POST");
         assert.equal(request.url, "/v1/chat/completions");
         assert.equal(request.headers.authorization, `Bearer ${FIXTURE_KEY}`);
@@ -53,8 +57,13 @@ export async function startProvider({ text = FIXTURE_TEXT, mode = "text", script
         const envelope = { id: "pi-fixture-1", object: "chat.completion.chunk", created: 1, model: FIXTURE_MODEL };
         const step = script?.[state.requests - 1];
         if (script) assert.ok(step, 'Unexpected scripted provider request');
-        step?.check?.(payload);
+        let checkTimer;
+        try {
+          const deadline = new Promise((_, reject) => { checkTimer = setTimeout(() => reject(new Error('Fixture check exceeded 1000 ms')), 1_000); });
+          await Promise.race([Promise.resolve().then(() => step?.check?.(payload)), deadline]);
+        } finally { clearTimeout(checkTimer); }
         const reply = step?.reply ?? { kind: 'text', text };
+        if (reply.kind === 'stall') return;
         const deltas = reply.kind === 'text'
           ? [{ role: 'assistant', content: '' }, { content: reply.text.slice(0, 5) }, { content: reply.text.slice(5) }]
           : [{ role: 'assistant', tool_calls: [{ index: 0, id: reply.id, type: 'function', function: { name: reply.name, arguments: '' } }] },

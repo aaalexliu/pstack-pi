@@ -4,9 +4,11 @@ import { existsSync } from "node:fs";
 import { cp, lstat, mkdir, mkdtemp, readFile, realpath, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { StringDecoder } from "node:string_decoder";
+import { jsonlParser } from './jsonl.mjs';
+export { jsonlParser } from './jsonl.mjs';
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
+import { CONTROL_ARGS, CONTROL_PROMPT } from './fixtures/unsafe-recursion.mjs';
 import { FIXTURE_KEY, FIXTURE_MODEL, FIXTURE_TEXT, FIXTURE_USAGE, startProvider } from "./provider.mjs";
 import { contentInventory, expectedPackFiles, checkPackedContent } from '../../scripts/check-content.mjs';
 
@@ -26,12 +28,12 @@ import { contentInventory, expectedPackFiles, checkPackedContent } from '../../s
  * @property {{ limitMs: number, expired: boolean }} timeout
  * @property {{ signals: string[], remainingPids: number[], groupAlive: boolean, providerClosed: boolean, tempRemoved: boolean }} cleanup
  * @property {import("./provider.mjs").FixtureState | null} provider
+ * @property {import('./process-observer.mjs').ProcessObservation | null} observation
  * @property {number} durationMs
  */
 
 const MAX_OUTPUT = 1024 * 1024;
 const MAX_LINE = 64 * 1024;
-const MAX_EVENTS = 256;
 const repository = fileURLToPath(new URL("../../", import.meta.url));
 
 /** @param {string} root @returns {string} */
@@ -53,37 +55,6 @@ function record(value) {
   return /** @type {Record<string, unknown>} */ (value);
 }
 
-/** @param {(event: PiEvent) => void} onEvent */
-export function jsonlParser(onEvent) {
-  const decoder = new StringDecoder("utf8");
-  let pending = "";
-  let bytes = 0;
-  let count = 0;
-  return {
-    /** @param {Buffer} chunk */
-    write(chunk) {
-      bytes += chunk.length;
-      assert.ok(bytes <= MAX_OUTPUT, "Pi stdout exceeded 1 MiB");
-      pending += decoder.write(chunk);
-      let newline;
-      while ((newline = pending.indexOf("\n")) !== -1) {
-        const line = pending.slice(0, newline).replace(/\r$/, "");
-        pending = pending.slice(newline + 1);
-        assert.ok(Buffer.byteLength(line) <= MAX_LINE, "Pi JSONL record exceeded 64 KiB");
-        const event = record(JSON.parse(line));
-        assert.equal(typeof event.type, "string", "Pi event must have a type");
-        assert.ok(++count <= MAX_EVENTS, "Pi event count exceeded 256");
-        onEvent(/** @type {PiEvent} */ (event));
-      }
-      assert.ok(Buffer.byteLength(pending) <= MAX_LINE, "Pi JSONL record exceeded 64 KiB");
-    },
-    end() {
-      pending += decoder.end();
-      assert.equal(pending, "", "Pi stdout ended without LF");
-    },
-  };
-}
-
 /** @param {Diagnostics} diagnostics @param {Buffer} chunk */
 function capture(diagnostics, chunk) {
   diagnostics.bytes += chunk.length;
@@ -100,7 +71,8 @@ function groupAlive(pgid) {
     process.kill(-pgid, 0);
     return true;
   } catch (error) {
-    if (record(error).code === "ESRCH") return false;
+    if (record(error).code === 'ESRCH') return false;
+    if (record(error).code === 'EPERM') return true;
     throw error;
   }
 }
@@ -117,6 +89,11 @@ function killGroup(run) {
   }
 }
 
+export class PiWatchdogTimeout extends Error {
+  /** @param {number} limitMs */
+  constructor(limitMs) { super(`Pi exceeded ${limitMs} ms`); this.name = 'PiWatchdogTimeout'; }
+}
+
 export class PiTestError extends Error {
   /** @param {unknown} cause @param {PiTestRun} run */
   constructor(cause, run) {
@@ -127,10 +104,13 @@ export class PiTestError extends Error {
 }
 
 /**
- * @param {{ fixture?: import("./provider.mjs").FixtureOptions, timeoutMs?: number, executable?: string, prompt?: string, packageFixture?: {root: string, files: string[]}, allowDiagnostics?: boolean, expectedText?: string, expectedRequests?: number, setup?: (paths: PiTestRun['paths']) => Promise<void>, verify?: (run: PiTestRun) => Promise<void>, keepArtifacts?: boolean, onSpawn?: (pid: number) => void }} options
+ * @typedef {{kind: 'packed'} | {kind: 'recursion-control', nonce: string}} TestLaunch
+ */
+/**
+ * @param {{ launch?: TestLaunch, observer?: import('./process-observer.mjs').ProcessObserver, verifyStopped?: (run: PiTestRun) => Promise<void>, fixture?: import("./provider.mjs").FixtureOptions, timeoutMs?: number, executable?: string, prompt?: string, packageFixture?: {root: string, files: string[]}, allowDiagnostics?: boolean, expectedText?: string, expectedRequests?: number, setup?: (paths: PiTestRun['paths']) => Promise<void>, verify?: (run: PiTestRun) => Promise<void>, keepArtifacts?: boolean, onSpawn?: (pid: number) => void }} options
  * @returns {Promise<PiTestRun>}
  */
-export async function runPiSmoke({ fixture, timeoutMs = 20_000, executable = "pi", prompt = 'Return the fixture response.', packageFixture, allowDiagnostics = false, expectedText = FIXTURE_TEXT, expectedRequests = 1, setup, verify, keepArtifacts = false, onSpawn } = {}) {
+export async function runPiSmoke({ launch = { kind: 'packed' }, observer, verifyStopped, fixture, timeoutMs = 20_000, executable = "pi", prompt = 'Return the fixture response.', packageFixture, allowDiagnostics = false, expectedText = FIXTURE_TEXT, expectedRequests = 1, setup, verify, keepArtifacts = false, onSpawn } = {}) {
   assert.notEqual(process.platform, "win32", "Pi process-group tests require Unix; Windows cleanup is unverified");
   assert.ok(Number.isFinite(timeoutMs) && timeoutMs > 0);
   const started = Date.now();
@@ -150,7 +130,9 @@ export async function runPiSmoke({ fixture, timeoutMs = 20_000, executable = "pi
     cleanup: { signals: [], remainingPids: [], groupAlive: false, providerClosed: false, tempRemoved: false },
     provider: null,
     durationMs: 0,
+    observation: observer?.state ?? null,
   };
+  /** @type {NodeJS.ProcessEnv} */
   const env = {
     PATH: process.env.PATH,
     HOME: run.paths.home,
@@ -178,6 +160,7 @@ export async function runPiSmoke({ fixture, timeoutMs = 20_000, executable = "pi
   let timer;
   /** @type {unknown[]} */
   const failures = [];
+  const parser = jsonlParser((event) => run.events.push(event));
   /** @param {string} command @param {string[]} args @param {string} [cwd] */
   const command = (command, args, cwd = run.paths.cwd) => execFileSync(command, args, {
     cwd, env, encoding: "utf8", timeout: 15_000, killSignal: "SIGKILL", maxBuffer: MAX_OUTPUT,
@@ -271,17 +254,34 @@ export async function runPiSmoke({ fixture, timeoutMs = 20_000, executable = "pi
         },
       },
     }));
-    run.process.args = [
-      "--mode", "json", "--print", "--offline", "--no-approve", "--no-context-files",
-      "--provider", "pi-fixture", "--model", FIXTURE_MODEL, "--thinking", "off",
-      "--session-dir", run.paths.sessions, "--", prompt,
-    ];
-    const pi = spawn(executable, run.process.args, { cwd: run.paths.cwd, env, detached: true, stdio: "pipe" });
+    const invocation = { node: await realpath(process.execPath), cli: await realpath(join(dirname(fileURLToPath(sdk)), 'cli.js')) };
+    switch (launch.kind) {
+      case 'packed':
+        run.process.args = [invocation.cli,
+          '--mode', 'json', '--print', '--offline', '--no-approve', '--no-context-files',
+          '--provider', 'pi-fixture', '--model', FIXTURE_MODEL, '--thinking', 'off',
+          '--session-dir', run.paths.sessions, '--', prompt,
+        ];
+        break;
+      case 'recursion-control': {
+        assert.match(launch.nonce, /^[a-f0-9]{32}$/);
+        const extension = await realpath(fileURLToPath(new URL('./fixtures/unsafe-recursion.mjs', import.meta.url)));
+        assert.ok(!run.pack.files.some((name) => name.startsWith('tests/')), 'Unsafe test files entered npm package');
+        const evidence = join(root, 'child-output');
+        await mkdir(evidence);
+        env.PSTACK_RECURSION_TEST_NONCE = launch.nonce;
+        env.PSTACK_RECURSION_TEST_CONFIG = JSON.stringify({ kind: 'unsafe-recursion-positive-control', nonce: launch.nonce, ...invocation, extension, evidence });
+        run.process.args = [invocation.cli, ...CONTROL_ARGS, '--no-extensions', '-e', extension, '--', CONTROL_PROMPT];
+        break;
+      }
+      default: throw new Error('Unknown test launch');
+    }
+    run.process.executable = invocation.node;
+    const pi = spawn(invocation.node, run.process.args, { cwd: run.paths.cwd, env, detached: true, shell: false, stdio: 'pipe' });
     child = pi;
     run.process.pid = pi.pid ?? null;
     run.process.pgid = pi.pid ?? null;
-    if (pi.pid !== undefined) onSpawn?.(pi.pid);
-    const parser = jsonlParser((event) => run.events.push(event));
+
     closed = new Promise((resolve) => {
       pi.once("close", (code, signal) => {
         run.exit = { code, signal };
@@ -291,8 +291,13 @@ export async function runPiSmoke({ fixture, timeoutMs = 20_000, executable = "pi
     await new Promise((resolve, reject) => {
       timer = setTimeout(() => {
         run.timeout.expired = true;
-        reject(new Error(`Pi exceeded ${timeoutMs} ms`));
+        try { observer?.watchdog(); } catch (error) { failures.push(error); }
+        reject(new PiWatchdogTimeout(timeoutMs));
       }, timeoutMs);
+      if (pi.pid !== undefined) {
+        observer?.start(pi.pid, invocation, reject);
+        onSpawn?.(pi.pid);
+      }
       pi.once("error", reject);
       pi.stdin.on("error", reject);
       pi.stdout.on("data", (chunk) => {
@@ -306,7 +311,6 @@ export async function runPiSmoke({ fixture, timeoutMs = 20_000, executable = "pi
       void closed?.then(() => resolve(undefined));
       pi.stdin.end();
     });
-    parser.end();
     assert.equal(run.timeout.expired, false);
     assert.deepEqual(run.exit, { code: 0, signal: null }, "Pi did not exit cleanly");
     run.diagnostics.push(...[run.stderr.text, ...run.events.filter((event) => /warning|diagnostic|error/i.test(event.type)).map((event) => JSON.stringify(event))].filter(Boolean));
@@ -342,6 +346,7 @@ export async function runPiSmoke({ fixture, timeoutMs = 20_000, executable = "pi
     failures.push(error);
   } finally {
     clearTimeout(timer);
+    observer?.stop();
     try {
       killGroup(run);
       if (closed) await Promise.race([closed, delay(2_000, undefined, { ref: false })]);
@@ -358,6 +363,10 @@ export async function runPiSmoke({ fixture, timeoutMs = 20_000, executable = "pi
         }
       }
     } catch (error) { failures.push(error); }
+    try {
+      if (child) parser.end();
+      if (observer?.state.rootPid) observer.verifyCleanup();
+    } catch (error) { failures.push(error); }
     child?.stdin.destroy();
     child?.stdout.destroy();
     child?.stderr.destroy();
@@ -365,6 +374,7 @@ export async function runPiSmoke({ fixture, timeoutMs = 20_000, executable = "pi
       await provider?.close();
       run.cleanup.providerClosed = provider?.state.closed ?? true;
     } catch (error) { failures.push(error); }
+    try { await verifyStopped?.(run); } catch (error) { failures.push(error); }
     try {
       if (!keepArtifacts) {
         await rm(root, { recursive: true, force: true });
