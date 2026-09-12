@@ -107,10 +107,10 @@ export class PiTestError extends Error {
  * @typedef {{kind: 'packed'} | {kind: 'recursion-control', nonce: string}} TestLaunch
  */
 /**
- * @param {{ launch?: TestLaunch, observer?: import('./process-observer.mjs').ProcessObserver, verifyStopped?: (run: PiTestRun) => Promise<void>, fixture?: import("./provider.mjs").FixtureOptions, timeoutMs?: number, executable?: string, prompt?: string, packageFixture?: {root: string, files: string[]}, allowDiagnostics?: boolean, expectedText?: string, expectedRequests?: number, setup?: (paths: PiTestRun['paths']) => Promise<void>, verify?: (run: PiTestRun) => Promise<void>, keepArtifacts?: boolean, onSpawn?: (pid: number) => void }} options
+ * @param {{ launch?: TestLaunch, expectedExit?: {code: number | null, signal: NodeJS.Signals | null}, launchEnvironment?: NodeJS.ProcessEnv, observer?: import('./process-observer.mjs').ProcessObserver, verifyStopped?: (run: PiTestRun) => Promise<void>, fixture?: import("./provider.mjs").FixtureOptions, timeoutMs?: number, executable?: string, prompt?: string, packageFixture?: {root: string, files: string[]}, allowDiagnostics?: boolean, expectedText?: string, expectedRequests?: number, setup?: (paths: PiTestRun['paths']) => Promise<void>, verify?: (run: PiTestRun) => Promise<void>, keepArtifacts?: boolean, onSpawn?: (pid: number) => void }} options
  * @returns {Promise<PiTestRun>}
  */
-export async function runPiSmoke({ launch = { kind: 'packed' }, observer, verifyStopped, fixture, timeoutMs = 20_000, executable = "pi", prompt = 'Return the fixture response.', packageFixture, allowDiagnostics = false, expectedText = FIXTURE_TEXT, expectedRequests = 1, setup, verify, keepArtifacts = false, onSpawn } = {}) {
+export async function runPiSmoke({ launch = { kind: 'packed' }, launchEnvironment, expectedExit = { code: 0, signal: null }, observer, verifyStopped, fixture, timeoutMs = 20_000, executable = "pi", prompt = 'Return the fixture response.', packageFixture, allowDiagnostics = false, expectedText = FIXTURE_TEXT, expectedRequests = 1, setup, verify, keepArtifacts = false, onSpawn } = {}) {
   assert.notEqual(process.platform, "win32", "Pi process-group tests require Unix; Windows cleanup is unverified");
   assert.ok(Number.isFinite(timeoutMs) && timeoutMs > 0);
   const started = Date.now();
@@ -277,7 +277,7 @@ export async function runPiSmoke({ launch = { kind: 'packed' }, observer, verify
       default: throw new Error('Unknown test launch');
     }
     run.process.executable = invocation.node;
-    const pi = spawn(invocation.node, run.process.args, { cwd: run.paths.cwd, env, detached: true, shell: false, stdio: 'pipe' });
+    const pi = spawn(invocation.node, run.process.args, { cwd: run.paths.cwd, env: { ...env, ...launchEnvironment }, detached: true, shell: false, stdio: 'pipe' });
     child = pi;
     run.process.pid = pi.pid ?? null;
     run.process.pgid = pi.pid ?? null;
@@ -312,33 +312,35 @@ export async function runPiSmoke({ launch = { kind: 'packed' }, observer, verify
       pi.stdin.end();
     });
     assert.equal(run.timeout.expired, false);
-    assert.deepEqual(run.exit, { code: 0, signal: null }, "Pi did not exit cleanly");
+    assert.deepEqual(run.exit, expectedExit, "Pi did not exit as expected");
     run.diagnostics.push(...[run.stderr.text, ...run.events.filter((event) => /warning|diagnostic|error/i.test(event.type)).map((event) => JSON.stringify(event))].filter(Boolean));
     if (!allowDiagnostics) assert.deepEqual(run.diagnostics, [], 'Pi emitted diagnostics');
     assert.equal(run.events[0]?.type, "session");
     assert.equal(run.events[0]?.cwd, run.paths.cwd);
-    assert.ok(run.events.some((event) => event.type === "agent_settled"), "Pi did not emit agent_settled");
-    const terminal = run.events.findLast((event) => event.type === "message_end" && record(event.message).role === "assistant");
-    assert.ok(terminal, "Pi did not emit a terminal assistant message");
-    const message = record(terminal.message);
-    assert.equal(message.stopReason, "stop", `Pi failed the assistant turn: ${message.errorMessage}`);
-    assert.equal(message.provider, "pi-fixture");
-    assert.equal(message.model, FIXTURE_MODEL);
-    assert.ok(Array.isArray(message.content));
-    const text = message.content.map((block) => {
-      const content = record(block);
-      assert.equal(content.type, "text");
-      assert.equal(typeof content.text, "string");
-      return content.text;
-    }).join("");
-    assert.equal(text, expectedText, "Wrong terminal assistant text");
-    const usage = record(message.usage);
-    assert.equal(usage.input, FIXTURE_USAGE.input);
-    assert.equal(usage.output, FIXTURE_USAGE.output);
-    assert.equal(usage.totalTokens, FIXTURE_USAGE.totalTokens);
+    if (expectedExit.code === 0) {
+      assert.ok(run.events.some((event) => event.type === "agent_settled"), "Pi did not emit agent_settled");
+      const terminal = run.events.findLast((event) => event.type === "message_end" && record(event.message).role === "assistant");
+      assert.ok(terminal, "Pi did not emit a terminal assistant message");
+      const message = record(terminal.message);
+      assert.equal(message.stopReason, "stop", `Pi failed the assistant turn: ${message.errorMessage}`);
+      assert.equal(message.provider, "pi-fixture");
+      assert.equal(message.model, FIXTURE_MODEL);
+      assert.ok(Array.isArray(message.content));
+      const text = message.content.map((block) => {
+        const content = record(block);
+        assert.equal(content.type, "text");
+        assert.equal(typeof content.text, "string");
+        return content.text;
+      }).join("");
+      assert.equal(text, expectedText, "Wrong terminal assistant text");
+      const usage = record(message.usage);
+      assert.equal(usage.input, FIXTURE_USAGE.input);
+      assert.equal(usage.output, FIXTURE_USAGE.output);
+      assert.equal(usage.totalTokens, FIXTURE_USAGE.totalTokens);
+      assert.ok(run.events.findIndex((event) => event.type === "agent_settled") > run.events.indexOf(terminal));
+    }
     assert.equal(provider.state.requests, expectedRequests);
     assert.deepEqual(provider.state.errors, []);
-    assert.ok(run.events.findIndex((event) => event.type === "agent_settled") > run.events.indexOf(terminal));
     assert.ok(run.process.pgid !== null && !groupAlive(run.process.pgid), "Pi left a live descendant");
     assert.ok(!(await readdir(root)).some((name) => name.startsWith('pstack-subagent-')), 'Child left a temporary prompt');
     await verify?.(run);

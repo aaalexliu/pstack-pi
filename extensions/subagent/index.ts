@@ -61,7 +61,7 @@ export default function subagentExtension(pi: ExtensionAPI, { run = runChild }: 
         const reason = lease.state.kind === 'quarantined' ? 'Delegation cleanup unverified; session quarantined'
           : lease.cancellation ? `Delegation cancelled (${lease.cancellation})`
           : error instanceof Error ? error.message : 'Delegation failed';
-        throw new Error(boundedOutput([reason, ...diagnostics].join('; '), 512).text);
+        throw new Error([boundedOutput(reason, 256).text, ...diagnostics].join('; '));
       } finally {
         signal?.removeEventListener('abort', abort);
         if (lease.state.kind !== 'finished' && lease.state.kind !== 'quarantined') {

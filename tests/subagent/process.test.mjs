@@ -55,7 +55,7 @@ test('process table is bounded and strict, and reads the real host identity', ()
   for (const invalid of ['', row.trim(), row + row, row.replace('12 1', '0 1'), row.replace('Mon', '???'), row + 'truncated', 'x'.repeat(4 * 1024 * 1024 + 1)]) assert.throws(() => parseProcessTable(invalid));
 });
 
-for (const mode of ['ignore', 'orphan', 'detached', 'pipes', 'term-spawn']) {
+for (const mode of ['ignore', 'orphan', 'detached', 'pipes', 'term-spawn', 'malformed-wait']) {
   test(`owned cleanup handles ${mode} before return without runner rescue`, { timeout: 6000 }, async (t) => {
     const args = await setup(t, mode);
     const controller = new AbortController();
@@ -69,6 +69,7 @@ for (const mode of ['ignore', 'orphan', 'detached', 'pipes', 'term-spawn']) {
     assert.equal(result.cleanup.verified, true, JSON.stringify(result));
     assert.equal(result.cleanup.forced, true);
     assert.ok(result.cleanup.durationMs < 3500);
+    assert.ok(!JSON.stringify(result).includes('PRIVATE_'));
     await gone(args.task);
     assert.equal(getEventListeners(controller.signal, 'abort').length, 0);
     assert.equal(capture.depth, mode === 'ignore' ? '1' : capture.depth);

@@ -82,6 +82,8 @@ test('invocation pins canonical Node and the real Pi package bin, never PATH', a
   const invocation = await PiInvocation.resolve({ entrypoint: cli });
   assert.equal(invocation.node, await realpath(process.execPath));
   assert.equal(invocation.cli, await realpath(cli));
+  const bundled = cli.replace('/dist/cli.js', '/dist/bundle/cli.js');
+  assert.equal((await PiInvocation.resolve({ entrypoint: bundled })).cli, await realpath(bundled));
   for (const entrypoint of ['pi', '/missing', fileURLToPath(import.meta.url), cli.replace('cli.js', 'main.js')]) {
     await assert.rejects(PiInvocation.resolve({ entrypoint }), /Cannot validate/);
   }

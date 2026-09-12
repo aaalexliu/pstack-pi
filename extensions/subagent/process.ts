@@ -60,12 +60,14 @@ export function parseProcessTable(text: string): ProcessIdentity[] {
   if (lines.length > 16_384) throw new Error('Process table limit exceeded');
   const seen = new Set<number>();
   return lines.map((line) => {
-    const match = /^\s*([1-9][0-9]*)\s+(0|[1-9][0-9]*)\s+([1-9][0-9]*)\s+([A-Z][a-z]{2} [A-Z][a-z]{2}\s+[0-9]{1,2} [0-9]{2}:[0-9]{2}:[0-9]{2} [0-9]{4})\s*$/u.exec(line);
+    const match = /^\s*([1-9][0-9]*)\s+(0|[1-9][0-9]*)\s+(0|[1-9][0-9]*)\s+([A-Z][a-z]{2} [A-Z][a-z]{2}\s+[0-9]{1,2} [0-9]{2}:[0-9]{2}:[0-9]{2} [0-9]{4})\s*$/u.exec(line);
     if (!match) throw new Error('Malformed process table');
     const [pid, ppid, pgid] = match.slice(1, 4).map(Number);
     if (![pid, ppid, pgid].every(Number.isSafeInteger) || seen.has(pid)) throw new Error('Invalid process identity');
     seen.add(pid);
-    return { pid, ppid, pgid, start: match[4].replace(/\s+/gu, ' ') };
+    const start = match[4].replace(/\s+/gu, ' ');
+    if (!Number.isFinite(Date.parse(`${start} UTC`))) throw new Error('Invalid process start time');
+    return { pid, ppid, pgid, start };
   });
 }
 
@@ -145,7 +147,7 @@ export class OwnedProcessTree {
       const previous = this.#known.get(row.pid);
       if (previous && previous.start !== row.start) {
         this.#mismatched.add(row.pid);
-        this.#unverified = true;
+        throw new Error('Process identity changed');
       } else if (previous) owned.add(row.pid);
     }
     for (let changed = true; changed;) {
@@ -158,7 +160,7 @@ export class OwnedProcessTree {
     }
     const rows = table.filter((row) => owned.has(row.pid));
     for (const row of rows) {
-      if (row.pid === process.pid || row.pgid === this.#hostGroup) throw new Error('Unsafe process ownership');
+      if (row.pid === process.pid || row.pgid === this.#hostGroup || row.pgid <= 1) throw new Error('Unsafe process ownership');
       if (!this.#known.has(row.pid)) {
         if (this.#known.size >= cleanupLimits.maxIdentities) throw new Error('Owned process limit exceeded');
         this.#known.set(row.pid, row);
@@ -189,7 +191,7 @@ export class OwnedProcessTree {
 
   requestStop(cause: StopCause, observe = true): void {
     if (this.#stopAt !== undefined) return;
-    this.#stopAt = Date.now();
+    this.#stopAt = performance.now();
     if (cause.kind === 'failed') this.#failure = cause.reason;
     this.#lease.stop(cause);
     const rows = observe ? this.#observe() : undefined;
@@ -204,13 +206,13 @@ export class OwnedProcessTree {
   }
 
   async #clean(): Promise<CleanupReport> {
-    const started = Date.now();
+    const started = performance.now();
     let forced = false;
     try {
       let rows = this.#observe();
       if (this.#stopAt === undefined && rows?.length) this.requestStop({ kind: 'failed', reason: 'Child left surviving work' });
       if (this.#stopAt !== undefined) {
-        while (Date.now() - this.#stopAt < cleanupLimits.graceMs && (rows === undefined || rows.length > 0 || !this.#closed)) {
+        while (performance.now() - this.#stopAt < cleanupLimits.graceMs && (rows === undefined || rows.length > 0 || !this.#closed)) {
           await delay(cleanupLimits.pollMs);
           rows = this.#observe();
         }
@@ -223,13 +225,14 @@ export class OwnedProcessTree {
               const members = rows.filter((row) => row.pgid === group);
               if (members.length && !members.some((row) => this.#mismatched.has(row.pid)) && !this.#mismatched.has(group)) this.#signal(-group, 'SIGKILL');
             }
-            for (const row of rows) if (!this.#mismatched.has(row.pid)) this.#signal(row.pid, 'SIGKILL');
+            rows = this.#observe();
+            for (const row of rows ?? []) if (!this.#mismatched.has(row.pid)) this.#signal(row.pid, 'SIGKILL');
           }
         }
       }
       this.#lease.verify();
-      const deadline = Date.now() + cleanupLimits.verifyMs;
-      while (Date.now() < deadline) {
+      const deadline = performance.now() + cleanupLimits.verifyMs;
+      while (performance.now() < deadline) {
         rows = this.#observe();
         if (rows?.length === 0 && this.#closed && (this.#exited || this.child.pid === undefined)) break;
         await delay(cleanupLimits.pollMs);
@@ -237,11 +240,11 @@ export class OwnedProcessTree {
       if (!rows || rows.length || !this.#closed || (!this.#exited && this.child.pid !== undefined)) this.#unverified = true;
       for (const group of this.#groups) if (this.#signal(-group, 0)) this.#unverified = true;
       for (const identity of this.#known.values()) if (this.#signal(identity.pid, 0)) this.#unverified = true;
-      return { verified: !this.#unverified, durationMs: Date.now() - started, identities: [...this.#known.values()], forced };
+      return { verified: !this.#unverified, durationMs: Math.round(performance.now() - started), identities: [...this.#known.values()], forced };
     } catch {
       this.#unverified = true;
       this.#lease.verify();
-      return { verified: false, durationMs: Date.now() - started, identities: [...this.#known.values()], forced };
+      return { verified: false, durationMs: Math.round(performance.now() - started), identities: [...this.#known.values()], forced };
     } finally {
       clearInterval(this.#timer);
       this.child.removeListener('exit', this.#exit);

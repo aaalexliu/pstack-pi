@@ -111,6 +111,9 @@ test('execution abort stops and awaits the immediate child, removes prompt and l
 
 test('pre-abort and spawn errors leave no temporary prompts', async (t) => {
   const f = await fixture(t);
+  const previous = process.env.TMPDIR;
+  process.env.TMPDIR = f.root;
+  t.after(() => { if (previous === undefined) delete process.env.TMPDIR; else process.env.TMPDIR = previous; });
   const before = (await readdir(tmpdir())).filter((name) => name.startsWith('pstack-subagent-')).sort();
   const controller = new AbortController();
   controller.abort();

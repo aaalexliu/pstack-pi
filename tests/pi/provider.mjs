@@ -6,7 +6,8 @@ export const FIXTURE_MODEL = "pi-smoke-model";
 export const FIXTURE_KEY = "pi-smoke-literal-key";
 export const FIXTURE_USAGE = { input: 11, output: 7, totalTokens: 18 };
 
-/** @typedef {{kind: 'stall'} | {kind: 'text', text: string} | {kind: 'tool', id: string, name: string, arguments: Record<string, unknown>}} FixtureReply */
+/** @typedef {{id: string, name: string, arguments: Record<string, unknown>}} FixtureTool */
+/** @typedef {{kind: 'stall'} | {kind: 'text', text: string} | ({kind: 'tool'} & FixtureTool) | {kind: 'tools', calls: FixtureTool[]}} FixtureReply */
 /** @typedef {{reply: FixtureReply, check?: (payload: Record<string, unknown>) => void | Promise<void>}} ScriptStep */
 /** @typedef {{ text?: string, mode?: "text" | "error" | "stall", script?: ScriptStep[] }} FixtureOptions */
 /** @typedef {{ requests: number, decodedRequests: Record<string, unknown>[], retainedBytes: number, errors: string[], closed: boolean }} FixtureState */
@@ -64,15 +65,17 @@ export async function startProvider({ text = FIXTURE_TEXT, mode = "text", script
         } finally { clearTimeout(checkTimer); }
         const reply = step?.reply ?? { kind: 'text', text };
         if (reply.kind === 'stall') return;
+        const calls = reply.kind === 'tools' ? reply.calls : reply.kind === 'tool' ? [reply] : [];
+        assert.ok(reply.kind === 'text' || (calls.length > 0 && calls.length <= 4));
         const deltas = reply.kind === 'text'
           ? [{ role: 'assistant', content: '' }, { content: reply.text.slice(0, 5) }, { content: reply.text.slice(5) }]
-          : [{ role: 'assistant', tool_calls: [{ index: 0, id: reply.id, type: 'function', function: { name: reply.name, arguments: '' } }] },
-            { tool_calls: [{ index: 0, function: { arguments: JSON.stringify(reply.arguments) } }] }];
+          : [{ role: 'assistant', tool_calls: calls.map((call, index) => ({ index, id: call.id, type: 'function', function: { name: call.name, arguments: '' } })) },
+            ...calls.map((call, index) => ({ tool_calls: [{ index, function: { arguments: JSON.stringify(call.arguments) } }] }))];
         response.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache" });
         for (const delta of deltas) {
           response.write(`data: ${JSON.stringify({ ...envelope, choices: [{ index: 0, delta, finish_reason: null }] })}\n\n`);
         }
-        response.write(`data: ${JSON.stringify({ ...envelope, choices: [{ index: 0, delta: {}, finish_reason: reply.kind === 'tool' ? 'tool_calls' : 'stop' }] })}\n\n`);
+        response.write(`data: ${JSON.stringify({ ...envelope, choices: [{ index: 0, delta: {}, finish_reason: reply.kind === 'text' ? 'stop' : 'tool_calls' }] })}\n\n`);
         response.write(`data: ${JSON.stringify({
           ...envelope,
           choices: [],

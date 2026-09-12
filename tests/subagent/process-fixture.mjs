@@ -22,8 +22,9 @@ if (mode === 'descendant') {
     if (mode === 'term-spawn') process.on('SIGTERM', makeChild);
     else makeChild();
   }
-  if (mode === 'ignore') process.on('SIGTERM', () => {});
+  if (mode === 'ignore' || mode === 'malformed-wait') process.on('SIGTERM', () => {});
   writeFileSync(input, JSON.stringify({ pid: process.pid, descendants, promptFile, depth: process.env.PSTACK_SUBAGENT_DEPTH, stale: process.env.PSTACK_RECURSION_TEST_CONFIG }));
+  if (mode === 'malformed-wait') process.stdout.write('PRIVATE_TRANSCRIPT_NOT_JSON\n');
   if (['orphan', 'detached', 'pipes'].includes(mode)) {
     setTimeout(() => {
       process.stdout.write(JSON.stringify({ type: 'message_end', message: { role: 'assistant', stopReason: 'stop', provider: 'fixture', model: 'model', content: [{ type: 'text', text: 'must not succeed' }] } }) + '\n{"type":"agent_settled"}\n');
