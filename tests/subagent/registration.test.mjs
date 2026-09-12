@@ -24,7 +24,7 @@ function registration() {
   const tool = tools[0];
   assert.equal(tool.name, 'subagent');
   assert.equal(tool.parameters, subagentParameters);
-  assert.deepEqual(Object.keys(tool.parameters.properties).sort(), ['agent', 'cwd', 'task']);
+  assert.deepEqual(Object.keys(tool.parameters.properties).sort(), ['agent', 'cwd', 'limits', 'task']);
   return tool;
 }
 

@@ -39,6 +39,7 @@
     "extensions/subagent/agents.ts",
     "extensions/subagent/domain.ts",
     "extensions/subagent/index.ts",
+    "extensions/subagent/process.ts",
     "extensions/subagent/runner.ts",
     "skills/bro/SKILL.md",
     "skills/principle-boundary-discipline/SKILL.md",

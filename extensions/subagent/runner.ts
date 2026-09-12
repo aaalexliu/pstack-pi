@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { Type, type Static } from 'typebox';
 import { Check } from 'typebox/value';
-import { executionLimits, type Agent, type BoundedOutput, type CanonicalCwd, type TaskIdentity, type TaskResult } from './domain.ts';
+import { executionLimits, protocolLimits, type Agent, type BoundedOutput, type CanonicalCwd, type TaskIdentity, type TaskResult } from './domain.ts';
 
 export async function resolveCwd({ current, supplied }: { current: string; supplied?: string }): Promise<CanonicalCwd> {
   const canonical = await realpath(current);
@@ -59,14 +59,14 @@ export function childOutputParser() {
   return {
     write(chunk: Buffer) {
       bytes += chunk.length;
-      if (bytes > executionLimits.stdoutBytes) throw new Error('Child stdout limit exceeded');
+      if (bytes > protocolLimits.stdoutBytes) throw new Error('Child stdout limit exceeded');
       pending += decoder.decode(chunk, { stream: true });
       let newline;
       while ((newline = pending.indexOf('\n')) !== -1) {
         const line = pending.slice(0, newline);
         pending = pending.slice(newline + 1);
-        if (Buffer.byteLength(line) > executionLimits.lineBytes) throw new Error('Child JSONL line limit exceeded');
-        if (++count > executionLimits.events) throw new Error('Child event limit exceeded');
+        if (Buffer.byteLength(line) > protocolLimits.lineBytes) throw new Error('Child JSONL line limit exceeded');
+        if (++count > protocolLimits.events) throw new Error('Child event limit exceeded');
         const event: unknown = JSON.parse(line);
         if (!Check(eventSchema, event) || !eventTypes.has(event.type)) throw new Error('Invalid child event');
         if (settled) throw new Error('Child event after settled');
@@ -79,7 +79,7 @@ export function childOutputParser() {
           }
         }
       }
-      if (Buffer.byteLength(pending) > executionLimits.lineBytes) throw new Error('Child JSONL line limit exceeded');
+      if (Buffer.byteLength(pending) > protocolLimits.lineBytes) throw new Error('Child JSONL line limit exceeded');
     },
     end() {
       pending += decoder.decode();
@@ -124,7 +124,7 @@ export async function runChild({ identity, agent, task, model, signal, command =
     let exitCode: number | null = null;
     let exitSignal: NodeJS.Signals | null = null;
     const stop = (reason: string) => {
-      failure ??= boundedOutput(reason, executionLimits.diagnosticBytes).text;
+      failure ??= boundedOutput(reason, protocolLimits.diagnosticBytes).text;
       child.kill('SIGTERM');
     };
     const abort = () => { cancelled = true; stop('Delegation cancelled'); };
@@ -134,8 +134,8 @@ export async function runChild({ identity, agent, task, model, signal, command =
     };
     const stderrData = (chunk: Buffer) => {
       stderrBytes += chunk.length;
-      stderr = boundedOutput(stderr + chunk.toString('utf8'), executionLimits.diagnosticBytes).text;
-      if (stderrBytes > executionLimits.stderrBytes) stop('Child stderr limit exceeded');
+      stderr = boundedOutput(stderr + chunk.toString('utf8'), protocolLimits.diagnosticBytes).text;
+      if (stderrBytes > protocolLimits.stderrBytes) stop('Child stderr limit exceeded');
     };
     const processError = (error: Error) => stop(error.message);
     try {
@@ -165,8 +165,8 @@ export async function runChild({ identity, agent, task, model, signal, command =
       const final = parser.end();
       output = boundedOutput(final.content.filter((block) => block.type === 'text').map((block) => block.text).join(''));
       if (final.provider !== model.provider || final.model !== model.id) failure ??= 'Child model differs from parent model';
-      if (final.stopReason !== 'stop') failure ??= boundedOutput(final.errorMessage || `Child stopped with ${final.stopReason}`, executionLimits.diagnosticBytes).text;
-    } catch (error) { failure ??= boundedOutput(String(error), executionLimits.diagnosticBytes).text; }
+      if (final.stopReason !== 'stop') failure ??= boundedOutput(final.errorMessage || `Child stopped with ${final.stopReason}`, protocolLimits.diagnosticBytes).text;
+    } catch (error) { failure ??= boundedOutput(String(error), protocolLimits.diagnosticBytes).text; }
     if (exitCode !== 0 || exitSignal !== null) failure ??= `Child exited with code ${exitCode}, signal ${exitSignal}`;
     const base = { ...identity, output, diagnostics: stderr ? [stderr] : [], usage: null } satisfies Omit<TaskResult, 'kind'>;
     if (cancelled) return { ...base, kind: 'cancelled', reason: 'Delegation cancelled' };
