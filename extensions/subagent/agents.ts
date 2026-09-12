@@ -45,12 +45,12 @@ export async function discoverAgents({ bundledDir = bundledAgentsDirectory, user
   ];
   for (const source of sources) {
     try {
-      try { await lstat(source.directory); }
+      let directory: string;
+      try { directory = await realDirectory(source.directory); }
       catch (error) {
         if (source.optional && error instanceof Error && 'code' in error && error.code === 'ENOENT') continue;
         throw error;
       }
-      const directory = await realDirectory(source.directory);
       const entries = (await readdir(directory)).sort();
       if (entries.length > MAX_AGENTS) throw new Error('Agent directory exceeds 128 entries');
       const local = new Map<string, Agent>();

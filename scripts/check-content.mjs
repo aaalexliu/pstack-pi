@@ -115,8 +115,14 @@ async function fileInventory(root, roots) {
 }
 
 /** @param {ContentInventory} inventory */
+export function extensionFiles(inventory) {
+  return inventory.byDestination.has('agents/general-purpose.md')
+    ? ['extensions/subagent/agents.ts', 'extensions/subagent/domain.ts', 'extensions/subagent/index.ts', 'extensions/subagent/runner.ts'] : [];
+}
+
+/** @param {ContentInventory} inventory */
 export function expectedPackFiles(inventory) {
-  return ['LICENSE', 'README.md', 'package.json', ...inventory.byDestination.keys()].sort();
+  return ['LICENSE', 'README.md', 'package.json', ...inventory.byDestination.keys(), ...extensionFiles(inventory)].sort();
 }
 
 /** @param {string[]} actual @param {ContentInventory} inventory */
@@ -129,11 +135,15 @@ export function assertPackageExposure(rawPackage, inventory) {
   const pkg = object(rawPackage);
   const pi = object(pkg.pi);
   assert.deepEqual(Object.keys(pi).sort(), ['extensions', 'prompts', 'skills', 'themes'], 'Unexpected Pi registration');
-  for (const key of ['extensions', 'prompts', 'themes']) assert.deepEqual(pi[key], [], `No ${key} or command-approval gate may register in pre-runtime content`);
+  const runtime = extensionFiles(inventory).length > 0;
+  assert.deepEqual(pi.extensions, runtime ? ['extensions/subagent/index.ts'] : [], 'Only the single delegate may register');
+  for (const key of ['prompts', 'themes']) assert.deepEqual(pi[key], [], `No ${key} may register`);
+  assert.deepEqual(pkg.dependencies, runtime ? { yaml: '2.9.0' } : undefined, 'Unexpected runtime dependencies');
+  if (runtime) assert.deepEqual(pkg.peerDependencies, { '@earendil-works/pi-coding-agent': '*', typebox: '*' });
   assert.deepEqual(pi.skills, [...inventory.byDestination.keys()].filter((name) => name.endsWith('/SKILL.md')).sort(), 'Pi skills must list each entrypoint explicitly');
   assert.ok(Array.isArray(pkg.files), 'Package files must be explicit');
   assertPackInventory(pkg.files, inventory);
-  for (const key of ['dependencies', 'optionalDependencies', 'bundledDependencies', 'bundleDependencies', 'bin', 'main', 'exports']) {
+  for (const key of ['optionalDependencies', 'bundledDependencies', 'bundleDependencies', 'bin', 'main', 'exports']) {
     assert.equal(pkg[key], undefined, `No runtime registration: ${key}`);
   }
   if (pkg.scripts !== undefined) {
@@ -223,7 +233,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.ar
     const inventory = await checkContent({ root, manifest: JSON.parse(await readFile('sync/manifest.json', 'utf8')), lock: JSON.parse(await readFile('sync/upstream.lock.json', 'utf8')) });
     const packed = JSON.parse(execFileSync('npm', ['pack', '--dry-run', '--json', '--ignore-scripts'], { encoding: 'utf8', timeout: 15_000, maxBuffer: 1024 * 1024 }));
     assertPackInventory(packed[0].files.map(/** @param {{path: string}} file */ (file) => file.path), inventory);
-    console.log(`${inventory.bySource.size} records, ${inventory.byDestination.size} files, ${inventory.bySkillName.size} skills, ${inventory.byAgentName.size} agents, 0 extensions`);
+    console.log(`${inventory.bySource.size} records, ${inventory.byDestination.size} files, ${inventory.bySkillName.size} skills, ${inventory.byAgentName.size} agents, ${extensionFiles(inventory).length ? 1 : 0} extensions`);
   } catch (error) {
     console.error(String(error));
     process.exitCode = 1;

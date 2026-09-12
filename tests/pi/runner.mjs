@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { lstat, mkdir, mkdtemp, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
+import { cp, lstat, mkdir, mkdtemp, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { StringDecoder } from "node:string_decoder";
@@ -214,6 +214,12 @@ export async function runPiSmoke({ fixture, timeoutMs = 20_000, executable = "pi
     }
     const manifest = JSON.parse(await readFile(join(run.paths.package, "package.json"), "utf8"));
     assert.equal(manifest.name, "@aaalexliu/pstack-pi");
+    for (const [name, version] of Object.entries(manifest.dependencies ?? {})) {
+      assert.equal(name, 'yaml', 'Unexpected fixture runtime dependency');
+      const source = join(repository, 'node_modules', name);
+      assert.equal(JSON.parse(await readFile(join(source, 'package.json'), 'utf8')).version, version);
+      await cp(source, join(run.paths.package, 'node_modules', name), { recursive: true });
+    }
     await writeFile(join(run.paths.profile, "settings.json"), JSON.stringify({
       packages: [run.paths.package],
       enableInstallTelemetry: false,

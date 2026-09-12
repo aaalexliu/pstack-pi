@@ -22,12 +22,13 @@ async function productionInventory() {
 }
 
 /** @param {import('./runner.mjs').PiTestRun} run */
-function assertNoRuntime(run) {
+function assertOnlyDeclaredTools(run) {
   assert.deepEqual(run.diagnostics, []);
-  assert.deepEqual(run.resources?.extensions, []);
+  const runtime = run.pack.files.includes('extensions/subagent/index.ts');
+  assert.deepEqual(run.resources?.extensions, runtime ? [join(run.paths.package, 'extensions/subagent/index.ts')] : []);
   const tools = run.provider?.decodedRequests[0]?.tools;
   assert.ok(Array.isArray(tools));
-  assert.deepEqual(tools.map((tool) => tool.function.name).sort(), ['bash', 'edit', 'read', 'write']);
+  assert.deepEqual(tools.map((tool) => tool.function.name).sort(), ['bash', 'edit', 'read', ...(runtime ? ['subagent'] : []), 'write']);
   assert.ok(!run.events.some((event) => event.type.startsWith('tool_execution')));
 }
 import { jsonlParser, PiTestError, repositoryRevision, runPiSmoke } from "./runner.mjs";
@@ -95,8 +96,8 @@ test("real Pi loads the packed package and settles with fixture text and usage",
   assertClean(run);
   assert.deepEqual(run.cleanup.signals, []);
   assert.deepEqual(run.pack.files, expectedPackFiles(await productionInventory()));
-  assert.equal(run.pack.files.length, 13);
-  assertNoRuntime(run);
+  assert.equal(run.pack.files.length, 17);
+  assertOnlyDeclaredTools(run);
   context.diagnostic(JSON.stringify({
     pi: run.process.version, revision: run.process.revision, pid: run.process.pid,
     events: run.events.map((event) => event.type), durationMs: run.durationMs,
@@ -171,7 +172,7 @@ for (const name of productionSkills) {
     assert.ok(skill);
     const run = await runPiSmoke({ prompt: `/skill:${name} inspect α` });
     assertClean(run);
-    assertNoRuntime(run);
+    assertOnlyDeclaredTools(run);
     const location = join(run.paths.package, skill.destination);
     const user = requestUserText(run);
     assert.equal(user, `<skill name="${name}" location="${location}">\nReferences are relative to ${dirname(location)}.\n\n${skill.body}\n</skill>\n\ninspect α`);
@@ -193,7 +194,7 @@ for (const name of ['how', 'poteto-mode', 'setup-pstack']) {
     const prompt = `/skill:${name} unsupported argument`;
     const run = await runPiSmoke({ prompt });
     assertClean(run);
-    assertNoRuntime(run);
+    assertOnlyDeclaredTools(run);
     assert.equal(requestUserText(run), prompt);
   });
 }

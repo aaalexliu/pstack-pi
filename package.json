@@ -17,7 +17,7 @@
     "pi": "0.85.1"
   },
   "pi": {
-    "extensions": [],
+    "extensions": ["extensions/subagent/index.ts"],
     "skills": [
       "skills/bro/SKILL.md",
       "skills/principle-boundary-discipline/SKILL.md",
@@ -36,6 +36,10 @@
     "README.md",
     "package.json",
     "agents/general-purpose.md",
+    "extensions/subagent/agents.ts",
+    "extensions/subagent/domain.ts",
+    "extensions/subagent/index.ts",
+    "extensions/subagent/runner.ts",
     "skills/bro/SKILL.md",
     "skills/principle-boundary-discipline/SKILL.md",
     "skills/principle-encode-lessons-in-structure/SKILL.md",
@@ -60,12 +64,23 @@
     "sync:relock": "node scripts/sync-upstream.mjs relock . sync/manifest.json"
   },
   "devDependencies": {
+    "@earendil-works/pi-coding-agent": "0.85.1",
     "@types/node": "22.19.19",
     "typebox": "1.3.7",
-    "typescript": "5.9.3",
-    "yaml": "2.9.0"
+    "typescript": "5.9.3"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-coding-agent": { "optional": true },
+    "typebox": { "optional": true }
   },
   "publishConfig": {
     "access": "public"
+  },
+  "dependencies": {
+    "yaml": "2.9.0"
   }
 }
