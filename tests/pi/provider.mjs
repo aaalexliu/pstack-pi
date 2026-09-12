@@ -7,24 +7,27 @@ export const FIXTURE_KEY = "pi-smoke-literal-key";
 export const FIXTURE_USAGE = { input: 11, output: 7, totalTokens: 18 };
 
 /** @typedef {{ text?: string, mode?: "text" | "error" | "stall" }} FixtureOptions */
-/** @typedef {{ requests: number, errors: string[], closed: boolean }} FixtureState */
+/** @typedef {{ requests: number, decodedRequests: Record<string, unknown>[], retainedBytes: number, errors: string[], closed: boolean }} FixtureState */
 
 /** @param {FixtureOptions} options */
 export async function startProvider({ text = FIXTURE_TEXT, mode = "text" } = {}) {
   /** @type {FixtureState} */
-  const state = { requests: 0, errors: [], closed: false };
+  const state = { requests: 0, decodedRequests: [], retainedBytes: 0, errors: [], closed: false };
   const server = createServer((request, response) => {
     void (async () => {
       try {
         assert.equal(request.method, "POST");
         assert.equal(request.url, "/v1/chat/completions");
         assert.equal(request.headers.authorization, `Bearer ${FIXTURE_KEY}`);
-        let body = "";
+        const chunks = [];
+        let bytes = 0;
         for await (const chunk of request) {
-          body += chunk;
-          assert.ok(Buffer.byteLength(body) <= 256 * 1024, "Fixture request exceeded 256 KiB");
+          bytes += chunk.length;
+          assert.ok(bytes <= 256 * 1024, "Fixture request exceeded 256 KiB");
+          chunks.push(chunk);
         }
-        const payload = JSON.parse(body);
+        const payload = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        assert.ok(payload !== null && typeof payload === 'object' && !Array.isArray(payload));
         assert.equal(payload.model, FIXTURE_MODEL);
         assert.equal(payload.stream, true);
         assert.equal(payload.stream_options?.include_usage, true);
@@ -33,7 +36,10 @@ export async function startProvider({ text = FIXTURE_TEXT, mode = "text" } = {})
           /** @param {{ role?: string }} message */
           (message) => message.role === "user",
         ));
+        assert.ok(state.decodedRequests.length < 16 && state.retainedBytes + bytes <= 1024 * 1024, 'Fixture capture limit exceeded');
         state.requests++;
+        state.decodedRequests.push(payload);
+        state.retainedBytes += bytes;
         if (mode === "stall") return;
         if (mode === "error") {
           response.writeHead(400, { "content-type": "application/json" });
@@ -54,7 +60,7 @@ export async function startProvider({ text = FIXTURE_TEXT, mode = "text" } = {})
         })}\n\n`);
         response.end("data: [DONE]\n\n");
       } catch (error) {
-        if (state.errors.length < 16) state.errors.push(String(error));
+        if (state.errors.length < 16) state.errors.push(String(error).slice(0, 4096));
         response.writeHead(400, { "content-type": "application/json" });
         response.end(JSON.stringify({ error: { message: "Fixture rejected the request" } }));
       }

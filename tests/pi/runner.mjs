@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { FIXTURE_KEY, FIXTURE_MODEL, FIXTURE_TEXT, FIXTURE_USAGE, startProvider } from "./provider.mjs";
+import { contentInventory, expectedPackFiles, checkPackedContent } from '../../scripts/check-content.mjs';
 
 /** @typedef {Record<string, unknown> & { type: string }} PiEvent */
 /** @typedef {{ text: string, bytes: number, truncated: boolean }} Diagnostics */
@@ -18,6 +19,8 @@ import { FIXTURE_KEY, FIXTURE_MODEL, FIXTURE_TEXT, FIXTURE_USAGE, startProvider 
  * @property {PiEvent[]} events
  * @property {Diagnostics} stdout
  * @property {Diagnostics} stderr
+ * @property {string[]} diagnostics
+ * @property {PiEvent | null} resources
  * @property {{ code: number | null, signal: NodeJS.Signals | null } | null} exit
  * @property {{ limitMs: number, expired: boolean }} timeout
  * @property {{ signals: string[], remainingPids: number[], groupAlive: boolean, providerClosed: boolean, tempRemoved: boolean }} cleanup
@@ -110,22 +113,24 @@ export class PiTestError extends Error {
 }
 
 /**
- * @param {{ fixture?: import("./provider.mjs").FixtureOptions, timeoutMs?: number, executable?: string }} options
+ * @param {{ fixture?: import("./provider.mjs").FixtureOptions, timeoutMs?: number, executable?: string, prompt?: string, packageFixture?: {root: string, files: string[]}, allowDiagnostics?: boolean }} options
  * @returns {Promise<PiTestRun>}
  */
-export async function runPiSmoke({ fixture, timeoutMs = 20_000, executable = "pi" } = {}) {
+export async function runPiSmoke({ fixture, timeoutMs = 20_000, executable = "pi", prompt = 'Return the fixture response.', packageFixture, allowDiagnostics = false } = {}) {
   assert.notEqual(process.platform, "win32", "Pi process-group tests require Unix; Windows cleanup is unverified");
   assert.ok(Number.isFinite(timeoutMs) && timeoutMs > 0);
   const started = Date.now();
   const root = await mkdtemp(join(await realpath(tmpdir()), "pstack-pi-test-"));
   /** @type {PiTestRun} */
   const run = {
-    paths: { root, home: join(root, "home"), profile: join(root, "profile"), cwd: join(root, "work"), sessions: join(root, "sessions"), package: join(root, "package") },
+    paths: { root, home: join(root, "home"), profile: join(root, "profile"), cwd: join(root, "work"), sessions: join(root, "sessions"), package: join(root, "relocated", "packed skills") },
     process: { executable, version: "", revision: "", args: [], pid: null, pgid: null },
     pack: { files: [], inventory: "", listing: "", shasum: "" },
     events: [],
     stdout: { text: "", bytes: 0, truncated: false },
     stderr: { text: "", bytes: 0, truncated: false },
+    diagnostics: [],
+    resources: null,
     exit: null,
     timeout: { limitMs: timeoutMs, expired: false },
     cleanup: { signals: [], remainingPids: [], groupAlive: false, providerClosed: false, tempRemoved: false },
@@ -169,16 +174,32 @@ export async function runPiSmoke({ fixture, timeoutMs = 20_000, executable = "pi
       await mkdir(path, { recursive: true });
     }
     run.process.revision = command("git", ["rev-parse", "HEAD"], repository).trim();
-    const packed = JSON.parse(command("npm", ["pack", "--json", "--ignore-scripts", "--pack-destination", root], repository))[0];
+    const packageRoot = packageFixture?.root ?? repository;
+    const inventory = packageFixture ? undefined : contentInventory(
+      JSON.parse(await readFile(join(repository, 'sync/manifest.json'), 'utf8')),
+      JSON.parse(await readFile(join(repository, 'sync/upstream.lock.json'), 'utf8')),
+    );
+    const expectedFiles = packageFixture?.files ?? (inventory ? expectedPackFiles(inventory) : []);
+    const packed = JSON.parse(command("npm", ["pack", "--json", "--ignore-scripts", "--pack-destination", root], packageRoot))[0];
     run.pack.files = packed.files.map(/** @param {{ path: string }} file */ (file) => file.path).sort();
-    assert.deepEqual(run.pack.files, ["LICENSE", "README.md", "package.json"]);
+    assert.deepEqual(run.pack.files, [...expectedFiles].sort());
     run.pack.shasum = packed.shasum;
     const tarball = join(root, packed.filename);
     run.pack.inventory = command("tar", ["-tf", tarball]);
+    assert.deepEqual(run.pack.inventory.trim().split('\n').sort(), expectedFiles.map((name) => `package/${name}`).sort(), 'Tar inventory differs');
     command("tar", ["-xf", tarball, "-C", root]);
+    await mkdir(join(root, 'relocated'));
+    await rename(join(root, 'package'), run.paths.package);
+    if (inventory) await checkPackedContent(run.paths.package, inventory);
+    for (const name of expectedFiles) {
+      const filename = join(run.paths.package, name);
+      const stat = await lstat(filename);
+      assert.ok(stat.isFile() && !stat.isSymbolicLink());
+      assert.equal(stat.mode & 0o7777, 0o644);
+      assert.deepEqual(await readFile(filename), await readFile(join(packageRoot, name)), `Packed bytes differ: ${name}`);
+    }
     const manifest = JSON.parse(await readFile(join(run.paths.package, "package.json"), "utf8"));
     assert.equal(manifest.name, "@aaalexliu/pstack-pi");
-    assert.deepEqual(manifest.pi, { extensions: [], skills: [], prompts: [], themes: [] });
     await writeFile(join(run.paths.profile, "settings.json"), JSON.stringify({
       packages: [run.paths.package],
       enableInstallTelemetry: false,
@@ -191,6 +212,32 @@ export async function runPiSmoke({ fixture, timeoutMs = 20_000, executable = "pi
     assert.equal(run.process.version, "0.85.1", "Tests require Pi 0.85.1");
     run.pack.listing = command(executable, ["list", "--no-approve"]);
     assert.ok(run.pack.listing.includes(run.paths.package), "Pi did not list the extracted package");
+    const cliPath = await realpath(command('which', [executable]).trim());
+    const resolveSdk = ['--input-type=module', '-e', "process.stdout.write(import.meta.resolve('@earendil-works/pi-coding-agent'))"];
+    let sdk;
+    try { sdk = command(process.execPath, resolveSdk, dirname(cliPath)); }
+    catch { sdk = command(process.execPath, resolveSdk, join(dirname(dirname(cliPath)), 'libexec/lib')); }
+    const resourceOutput = command(process.execPath, ['--input-type=module', '-e', `
+      const { DefaultResourceLoader } = await import(${JSON.stringify(sdk)});
+      const loader = new DefaultResourceLoader({ cwd: process.cwd(), agentDir: process.env.PI_CODING_AGENT_DIR });
+      await loader.reload();
+      const { skills, diagnostics } = loader.getSkills();
+      const { extensions, errors } = loader.getExtensions();
+      process.stdout.write(JSON.stringify({ type: 'resources',
+        skills: skills.map(({ name, baseDir, disableModelInvocation }) => ({ name, baseDir, disableModelInvocation })),
+        diagnostics, extensions: extensions.map(({ path }) => path), errors,
+      }) + '\\n');
+    `]);
+    const resourceParser = jsonlParser((event) => {
+      assert.equal(run.resources, null, 'Expected one resource record');
+      assert.equal(event.type, 'resources');
+      assert.ok(Array.isArray(event.diagnostics) && Array.isArray(event.errors));
+      run.resources = event;
+      run.diagnostics.push(...[...event.diagnostics, ...event.errors].map((item) => JSON.stringify(item)));
+    });
+    resourceParser.write(Buffer.from(resourceOutput));
+    resourceParser.end();
+    assert.ok(run.resources, 'Missing resource record');
     provider = await startProvider(fixture);
     run.provider = provider.state;
     await writeFile(join(run.paths.profile, "models.json"), JSON.stringify({
@@ -204,9 +251,9 @@ export async function runPiSmoke({ fixture, timeoutMs = 20_000, executable = "pi
       },
     }));
     run.process.args = [
-      "--mode", "json", "--print", "--offline", "--no-approve", "--no-context-files", "--no-tools",
+      "--mode", "json", "--print", "--offline", "--no-approve", "--no-context-files",
       "--provider", "pi-fixture", "--model", FIXTURE_MODEL, "--thinking", "off",
-      "--session-dir", run.paths.sessions, "--", "Return the fixture response.",
+      "--session-dir", run.paths.sessions, "--", prompt,
     ];
     const pi = spawn(executable, run.process.args, { cwd: run.paths.cwd, env, detached: true, stdio: "pipe" });
     child = pi;
@@ -240,7 +287,8 @@ export async function runPiSmoke({ fixture, timeoutMs = 20_000, executable = "pi
     parser.end();
     assert.equal(run.timeout.expired, false);
     assert.deepEqual(run.exit, { code: 0, signal: null }, "Pi did not exit cleanly");
-    assert.equal(run.stderr.text, "", "Pi emitted stderr diagnostics");
+    run.diagnostics.push(...[run.stderr.text, ...run.events.filter((event) => /warning|diagnostic|error/i.test(event.type)).map((event) => JSON.stringify(event))].filter(Boolean));
+    if (!allowDiagnostics) assert.deepEqual(run.diagnostics, [], 'Pi emitted diagnostics');
     assert.equal(run.events[0]?.type, "session");
     assert.equal(run.events[0]?.cwd, run.paths.cwd);
     assert.ok(run.events.some((event) => event.type === "agent_settled"), "Pi did not emit agent_settled");
