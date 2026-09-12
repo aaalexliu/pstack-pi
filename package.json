@@ -45,7 +45,7 @@
     "skills/unslop/SKILL.md"
   ],
   "scripts": {
-    "check": "npm run typecheck && npm test",
+    "check": "npm run typecheck && npm run sync:check && npm run check:content && npm test",
     "check:content": "node scripts/check-content.mjs",
     "typecheck": "tsc --noEmit",
     "test": "npm run test:sync && npm run test:content && npm run test:pi",

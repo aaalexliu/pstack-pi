@@ -72,14 +72,16 @@ For a reviewed manifest change against the existing snapshot, run:
 npm ci
 npm run sync:relock
 npm run sync
-npm run sync:check
-npm run check:content
 npm run check
 ```
 
 Relock verifies the existing snapshot before updating adaptation hashes.
 Sync writes only managed content.
 Neither command changes package metadata or documentation.
+
+`npm run check` runs type checking, `sync:check`, `check:content`, and tests in that order.
+CI uses the same command without repeating the source or pack checks.
+`npm run sync:check` and `npm run check:content` also run on their own.
 
 `check:content` validates exact membership, YAML frontmatter, dependency closure, local links, file modes, explicit package exposure, and the dry-run pack inventory.
 The fixture tests reject duplicate YAML keys, unresolved dependencies, Cursor-only mechanics, agents, and runtime or command-gate registration.
