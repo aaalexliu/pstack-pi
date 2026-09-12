@@ -311,7 +311,11 @@
       "blob": "b1701b778639c08bfc306291d70170c525c66a68",
       "mode": "100644",
       "adaptationSha256": null,
-      "output": null
+      "output": {
+        "destination": "skills/bro/SKILL.md",
+        "sha256": "aa329d0ceeeecb6822a7174ad76bb07a7826a3c52ceb6a588dec4138815084bb",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/create-verification-skill/SKILL.md",
@@ -752,7 +756,11 @@
       "blob": "dfe9a6fb0e5acd6ae43a41437ee0951adfe839cb",
       "mode": "100644",
       "adaptationSha256": null,
-      "output": null
+      "output": {
+        "destination": "skills/principle-boundary-discipline/SKILL.md",
+        "sha256": "62ac2862c2caa22dd14531f51c9c6bb445ceb198ca98a687e25b4d47c1f10a28",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/principle-build-the-lever/SKILL.md",
@@ -766,7 +774,11 @@
       "blob": "df9cd5ff2fb3c18267349cc6aecd8121848ef834",
       "mode": "100644",
       "adaptationSha256": null,
-      "output": null
+      "output": {
+        "destination": "skills/principle-encode-lessons-in-structure/SKILL.md",
+        "sha256": "77044c83a9ac6df78fc643887ea5f1f11f082adaf14b717c060cdaed03cce863",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/principle-exhaust-the-design-space/SKILL.md",
@@ -899,7 +911,11 @@
       "blob": "6030f171bee0d1902cf7ca91f06225e09f0f5433",
       "mode": "100644",
       "adaptationSha256": null,
-      "output": null
+      "output": {
+        "destination": "skills/principle-type-system-discipline/SKILL.md",
+        "sha256": "c83da8031ffb4c86410030d3e261f659598fca2b7d8158fd9dc269d70a3a025e",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/recall/SKILL.md",
@@ -983,7 +999,11 @@
       "blob": "887a98b7f4ead1ec0d147ce6e5ad6844ef16ca5f",
       "mode": "100644",
       "adaptationSha256": null,
-      "output": null
+      "output": {
+        "destination": "skills/tdd/SKILL.md",
+        "sha256": "011cab0ecc04a3632121efb493ae4d60aa282a9b72c66de74dd8ad7e4313e05a",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/teach/SKILL.md",
@@ -996,29 +1016,45 @@
       "source": "skills/technical-writing/SKILL.md",
       "blob": "70a477e42fc5f37c35bf602d86ff89c0f5258ecf",
       "mode": "100644",
-      "adaptationSha256": null,
-      "output": null
+      "adaptationSha256": "aab65c31e01fcbafae18a2f3fd3afc22b818bbc261e401da470313f5cbd50392",
+      "output": {
+        "destination": "skills/technical-writing/SKILL.md",
+        "sha256": "470d4ab987e6390eb24e52906b21a7d8ae176961def2d5ba1b4279b957c89073",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/typescript-best-practices/SKILL.md",
       "blob": "2c0279d9a5f800192605e47b55cae4e75a17ec27",
       "mode": "100644",
-      "adaptationSha256": null,
-      "output": null
+      "adaptationSha256": "b521caea2a70adebd039d821d628a79cbce784e7bcf1cbf1aad27cce2b30a633",
+      "output": {
+        "destination": "skills/typescript-best-practices/SKILL.md",
+        "sha256": "a40da091ebac92080cf0ed142051d2bef35e56358084511d599f1097c58f5c73",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/typescript-best-practices/references/patterns.md",
       "blob": "f44d22ffe9130c5340d55a2fa57028c6959479cb",
       "mode": "100644",
       "adaptationSha256": null,
-      "output": null
+      "output": {
+        "destination": "skills/typescript-best-practices/references/patterns.md",
+        "sha256": "62e9cd32d2fa066a35d0d1349aac22dce31a48ad7d5eaf142570770cfe707384",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/unslop/SKILL.md",
       "blob": "a3a7dc7baf0bed5fed4fe0f12ea7fcfe48d94c89",
       "mode": "100644",
       "adaptationSha256": null,
-      "output": null
+      "output": {
+        "destination": "skills/unslop/SKILL.md",
+        "sha256": "c6d2572294d933a428211921069e9a248490e9b466ca59437cb4d9de248600ca",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/why/SKILL.md",

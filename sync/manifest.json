@@ -10,792 +10,810 @@
     {
       "kind": "omit",
       "source": ".cursor-plugin/plugin.json",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Cursor distribution metadata does not register Pi package resources."
     },
     {
       "kind": "omit",
       "source": ".gitignore",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Cursor checkout ignore rules do not define Pi package resources."
     },
     {
       "kind": "omit",
       "source": "LICENSE",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "The package root LICENSE already preserves the upstream MIT notice unchanged."
     },
     {
       "kind": "omit",
       "source": "README.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Cursor installation and workflow guides do not describe the supported Pi slice."
     },
     {
       "kind": "omit",
       "source": "agents/comment-sicko.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Agent activation waits for Pi discovery, delegation, and execution-limit contracts."
     },
     {
       "kind": "omit",
       "source": "agents/poteto-agent.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Agent activation waits for Pi discovery, delegation, and execution-limit contracts."
     },
     {
       "kind": "omit",
       "source": "assets/logo.png",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Cursor branding assets are not needed by the Pi skill package."
     },
     {
       "kind": "omit",
       "source": "automations/benny/FOR_AGENTS.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Cursor Cloud Automations require services that this Pi package does not provide."
     },
     {
       "kind": "omit",
       "source": "automations/benny/README.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Cursor Cloud Automations require services that this Pi package does not provide."
     },
     {
       "kind": "omit",
       "source": "automations/benny/skills/reproduce-and-fix-issues/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Cursor Cloud Automations require services that this Pi package does not provide."
     },
     {
       "kind": "omit",
       "source": "automations/benny/skills/reproduce-and-fix-issues/references/control-adapter.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Cursor Cloud Automations require services that this Pi package does not provide."
     },
     {
       "kind": "omit",
       "source": "automations/benny/skills/reproduce-and-fix-issues/references/feature-map.example.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Cursor Cloud Automations require services that this Pi package does not provide."
     },
     {
       "kind": "omit",
       "source": "automations/benny/skills/reproduce-and-fix-issues/references/verify-existing-fix.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Cursor Cloud Automations require services that this Pi package does not provide."
     },
     {
       "kind": "omit",
       "source": "automations/benny/skills/setup-benny/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Cursor Cloud Automations require services that this Pi package does not provide."
     },
     {
       "kind": "omit",
       "source": "automations/benny/skills/triage-issue-reports/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Cursor Cloud Automations require services that this Pi package does not provide."
     },
     {
       "kind": "omit",
       "source": "automations/benny/skills/triage-issue-reports/references/routing.example.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Cursor Cloud Automations require services that this Pi package does not provide."
     },
     {
       "kind": "omit",
       "source": "automations/benny/templates/configuration.example.yaml",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Cursor Cloud Automations require services that this Pi package does not provide."
     },
     {
       "kind": "omit",
       "source": "automations/benny/templates/reproduce-automation-prompt.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Cursor Cloud Automations require services that this Pi package does not provide."
     },
     {
       "kind": "omit",
       "source": "automations/benny/templates/triage-automation-prompt.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Cursor Cloud Automations require services that this Pi package does not provide."
     },
     {
       "kind": "omit",
       "source": "docs/guide/01-setup.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Cursor installation and workflow guides do not describe the supported Pi slice."
     },
     {
       "kind": "omit",
       "source": "docs/guide/02-poteto-mode.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Cursor installation and workflow guides do not describe the supported Pi slice."
     },
     {
       "kind": "omit",
       "source": "docs/guide/03-understand.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Cursor installation and workflow guides do not describe the supported Pi slice."
     },
     {
       "kind": "omit",
       "source": "docs/guide/04-design.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Cursor installation and workflow guides do not describe the supported Pi slice."
     },
     {
       "kind": "omit",
       "source": "docs/guide/05-build-and-clean.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Cursor installation and workflow guides do not describe the supported Pi slice."
     },
     {
       "kind": "omit",
       "source": "docs/guide/06-verify-and-ship.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Cursor installation and workflow guides do not describe the supported Pi slice."
     },
     {
       "kind": "omit",
       "source": "docs/guide/07-overnight.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Cursor installation and workflow guides do not describe the supported Pi slice."
     },
     {
       "kind": "omit",
       "source": "docs/guide/08-principles.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Cursor installation and workflow guides do not describe the supported Pi slice."
     },
     {
       "kind": "omit",
       "source": "docs/guide/09-make-it-yours.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Cursor installation and workflow guides do not describe the supported Pi slice."
     },
     {
       "kind": "omit",
       "source": "docs/guide/10-recipes-and-pitfalls.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Cursor installation and workflow guides do not describe the supported Pi slice."
     },
     {
       "kind": "omit",
       "source": "docs/guide/README.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Cursor installation and workflow guides do not describe the supported Pi slice."
     },
     {
       "kind": "omit",
       "source": "docs/guide/images/design.jpg",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Cursor installation and workflow guides do not describe the supported Pi slice."
     },
     {
       "kind": "omit",
       "source": "docs/guide/images/overnight.jpg",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Cursor installation and workflow guides do not describe the supported Pi slice."
     },
     {
       "kind": "omit",
       "source": "docs/guide/images/recipes.jpg",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Cursor installation and workflow guides do not describe the supported Pi slice."
     },
     {
       "kind": "omit",
       "source": "docs/guide/images/router.jpg",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Cursor installation and workflow guides do not describe the supported Pi slice."
     },
     {
       "kind": "omit",
       "source": "docs/guide/images/understanding.jpg",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Cursor installation and workflow guides do not describe the supported Pi slice."
     },
     {
       "kind": "omit",
       "source": "docs/guide/images/verification.jpg",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Cursor installation and workflow guides do not describe the supported Pi slice."
     },
     {
       "kind": "omit",
       "source": "skills/architect/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Workflow activation waits for Pi runtime contracts and end-to-end evaluations."
     },
     {
       "kind": "omit",
       "source": "skills/architect/references/design-red-flags.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/architect/references/rationale-template.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/architect/references/runner-prompt.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/arena/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Workflow activation waits for Pi runtime contracts and end-to-end evaluations."
     },
     {
       "kind": "omit",
       "source": "skills/automate-me/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Workflow activation waits for Pi runtime contracts and end-to-end evaluations."
     },
     {
       "kind": "omit",
       "source": "skills/blast-radius/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Workflow activation waits for Pi runtime contracts and end-to-end evaluations."
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/bro/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "destination": "skills/bro/SKILL.md"
     },
     {
       "kind": "omit",
       "source": "skills/create-verification-skill/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Workflow activation waits for Pi runtime contracts and end-to-end evaluations."
     },
     {
       "kind": "omit",
       "source": "skills/create-verification-skill/references/feature-map-example/README.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/create-verification-skill/references/feature-map-example/create-note.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/create-verification-skill/references/feature-map-example/search.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/figure-it-out/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Workflow activation waits for Pi runtime contracts and end-to-end evaluations."
     },
     {
       "kind": "omit",
       "source": "skills/how/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Workflow activation waits for Pi runtime contracts and end-to-end evaluations."
     },
     {
       "kind": "omit",
       "source": "skills/how/references/explainer-prompt.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/how/references/explorer-prompt.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/interrogate/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Workflow activation waits for Pi runtime contracts and end-to-end evaluations."
     },
     {
       "kind": "omit",
       "source": "skills/interrogate/references/code-quality-review.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/interrogate/references/lead-judgment.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/interrogate/references/reviewer-prompt.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/interrogate/references/rubric.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/maintain-verification-skill/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Workflow activation waits for Pi runtime contracts and end-to-end evaluations."
     },
     {
       "kind": "omit",
       "source": "skills/make-bot-ui/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "make-bot-ui depends on Cursor services with no supported Pi equivalent."
     },
     {
       "kind": "omit",
       "source": "skills/no-comments/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Workflow activation waits for Pi runtime contracts and end-to-end evaluations."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Workflow activation waits for Pi runtime contracts and end-to-end evaluations."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/playbooks/authoring-a-skill.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/playbooks/autonomous-run.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/playbooks/autopilot-full.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/playbooks/autopilot-stack.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/playbooks/babysit.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/playbooks/bug-fix.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/playbooks/eval.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/playbooks/feature.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/playbooks/hillclimb.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/playbooks/investigation.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/playbooks/multi-phase-plan.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/playbooks/opening-a-pr.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/playbooks/orchestrate.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/playbooks/pause-safely.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/playbooks/perf-issue.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/playbooks/prototype.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/playbooks/refactoring.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/playbooks/runtime-forensics.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/playbooks/session-pickup.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/playbooks/shipping.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/playbooks/trace-forensics.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/playbooks/visual-parity.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/playbooks/worktree-cleanup.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/references/bugbot-triage.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/scripts/bootstrap.ts",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/scripts/bun.lock",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/scripts/check-plan.mjs",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/scripts/orch/orch.test.ts",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/scripts/orch/orch.ts",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/scripts/orch/store.ts",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/scripts/package.json",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/scripts/watch-pr/cli.test.ts",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/scripts/watch-pr/cli.ts",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/scripts/watch-pr/fakes.test-helper.ts",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/scripts/watch-pr/github.test.ts",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/scripts/watch-pr/github.ts",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/scripts/watch-pr/policy.test.ts",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/scripts/watch-pr/policy.ts",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/scripts/watch-pr/render.ts",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/scripts/watch-pr/tsconfig.json",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/scripts/watch-pr/types.compile.ts",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/scripts/watch-pr/types.ts",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/scripts/watch-pr/watch-pr",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
     },
     {
       "kind": "omit",
       "source": "skills/poteto-mode/scripts/worktree-audit.sh",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
     },
     {
       "kind": "omit",
       "source": "skills/principle-attack-the-premise/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "This principle is outside the reviewed pre-runtime dependency closure; its callers remain deferred."
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/principle-boundary-discipline/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "destination": "skills/principle-boundary-discipline/SKILL.md"
     },
     {
       "kind": "omit",
       "source": "skills/principle-build-the-lever/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "This principle is outside the reviewed pre-runtime dependency closure; its callers remain deferred."
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/principle-encode-lessons-in-structure/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "destination": "skills/principle-encode-lessons-in-structure/SKILL.md"
     },
     {
       "kind": "omit",
       "source": "skills/principle-exhaust-the-design-space/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "This principle is outside the reviewed pre-runtime dependency closure; its callers remain deferred."
     },
     {
       "kind": "omit",
       "source": "skills/principle-experience-first/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "This principle is outside the reviewed pre-runtime dependency closure; its callers remain deferred."
     },
     {
       "kind": "omit",
       "source": "skills/principle-fix-root-causes/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "This principle is outside the reviewed pre-runtime dependency closure; its callers remain deferred."
     },
     {
       "kind": "omit",
       "source": "skills/principle-foundational-thinking/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "This principle is outside the reviewed pre-runtime dependency closure; its callers remain deferred."
     },
     {
       "kind": "omit",
       "source": "skills/principle-guard-the-context-window/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "This principle is outside the reviewed pre-runtime dependency closure; its callers remain deferred."
     },
     {
       "kind": "omit",
       "source": "skills/principle-laziness-protocol/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "This principle is outside the reviewed pre-runtime dependency closure; its callers remain deferred."
     },
     {
       "kind": "omit",
       "source": "skills/principle-make-operations-idempotent/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "This principle is outside the reviewed pre-runtime dependency closure; its callers remain deferred."
     },
     {
       "kind": "omit",
       "source": "skills/principle-migrate-callers-then-delete-legacy-apis/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "This principle is outside the reviewed pre-runtime dependency closure; its callers remain deferred."
     },
     {
       "kind": "omit",
       "source": "skills/principle-minimize-reader-load/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "This principle is outside the reviewed pre-runtime dependency closure; its callers remain deferred."
     },
     {
       "kind": "omit",
       "source": "skills/principle-model-the-domain/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "This principle is outside the reviewed pre-runtime dependency closure; its callers remain deferred."
     },
     {
       "kind": "omit",
       "source": "skills/principle-never-block-on-the-human/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "This principle is outside the reviewed pre-runtime dependency closure; its callers remain deferred."
     },
     {
       "kind": "omit",
       "source": "skills/principle-outcome-oriented-execution/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "This principle is outside the reviewed pre-runtime dependency closure; its callers remain deferred."
     },
     {
       "kind": "omit",
       "source": "skills/principle-prove-it-works/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "This principle is outside the reviewed pre-runtime dependency closure; its callers remain deferred."
     },
     {
       "kind": "omit",
       "source": "skills/principle-redesign-from-first-principles/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "This principle is outside the reviewed pre-runtime dependency closure; its callers remain deferred."
     },
     {
       "kind": "omit",
       "source": "skills/principle-separate-before-serializing-shared-state/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "This principle is outside the reviewed pre-runtime dependency closure; its callers remain deferred."
     },
     {
       "kind": "omit",
       "source": "skills/principle-sequence-verifiable-units/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "This principle is outside the reviewed pre-runtime dependency closure; its callers remain deferred."
     },
     {
       "kind": "omit",
       "source": "skills/principle-subtract-before-you-add/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "This principle is outside the reviewed pre-runtime dependency closure; its callers remain deferred."
     },
     {
       "kind": "omit",
       "source": "skills/principle-test-behavior-not-implementation/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "This principle is outside the reviewed pre-runtime dependency closure; its callers remain deferred."
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/principle-type-system-discipline/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "destination": "skills/principle-type-system-discipline/SKILL.md"
     },
     {
       "kind": "omit",
       "source": "skills/recall/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Workflow activation waits for Pi runtime contracts and end-to-end evaluations."
     },
     {
       "kind": "omit",
       "source": "skills/reflect/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Workflow activation waits for Pi runtime contracts and end-to-end evaluations."
     },
     {
       "kind": "omit",
       "source": "skills/reflect/references/divergent-reviewer.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/reflect/references/judgment-reviewer.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/reflect/references/synthesizer.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/reflect/references/tooling-reviewer.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/setup-pstack/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Workflow activation waits for Pi runtime contracts and end-to-end evaluations."
     },
     {
       "kind": "omit",
       "source": "skills/show-me-your-work/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Workflow activation waits for Pi runtime contracts and end-to-end evaluations."
     },
     {
       "kind": "omit",
       "source": "skills/show-me-your-work/references/decision-log-template.tsv",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/show-me-your-work/scripts/log.sh",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
     },
     {
       "kind": "omit",
       "source": "skills/swarm/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Workflow activation waits for Pi runtime contracts and end-to-end evaluations."
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/tdd/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "destination": "skills/tdd/SKILL.md"
     },
     {
       "kind": "omit",
       "source": "skills/teach/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Workflow activation waits for Pi runtime contracts and end-to-end evaluations."
     },
     {
-      "kind": "omit",
+      "kind": "transform",
       "source": "skills/technical-writing/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "destination": "skills/technical-writing/SKILL.md",
+      "expectedBlob": "70a477e42fc5f37c35bf602d86ff89c0f5258ecf",
+      "transforms": [
+        {
+          "find": "/technical-writing",
+          "replace": "/skill:technical-writing",
+          "count": 1
+        }
+      ],
+      "reason": "Use the Pi skill command in the invocation hint."
     },
     {
-      "kind": "omit",
+      "kind": "transform",
       "source": "skills/typescript-best-practices/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "destination": "skills/typescript-best-practices/SKILL.md",
+      "expectedBlob": "2c0279d9a5f800192605e47b55cae4e75a17ec27",
+      "transforms": [
+        {
+          "find": "paths: [\"**/*.ts\", \"**/*.tsx\"]\n",
+          "replace": "",
+          "count": 1
+        }
+      ],
+      "reason": "Remove the unsupported Cursor file-pattern frontmatter field."
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/typescript-best-practices/references/patterns.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "destination": "skills/typescript-best-practices/references/patterns.md"
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/unslop/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "destination": "skills/unslop/SKILL.md"
     },
     {
       "kind": "omit",
       "source": "skills/why/SKILL.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Workflow activation waits for Pi runtime contracts and end-to-end evaluations."
     },
     {
       "kind": "omit",
       "source": "skills/why/references/epistemics.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/why/references/investigator-prompt.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/why/references/source-playbook.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/why/references/sources/code-archaeology.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/why/references/sources/databricks.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/why/references/sources/datadog.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/why/references/sources/incident-postmortem.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/why/references/sources/linear.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/why/references/sources/notion.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/why/references/sources/sentry.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/why/references/sources/slack.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
       "kind": "omit",
       "source": "skills/why/references/synthesizer-prompt.md",
-      "reason": "Activation is deferred to the reviewed Pi adaptation phase."
+      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     }
   ]
 }

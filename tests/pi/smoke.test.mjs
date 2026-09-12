@@ -5,6 +5,29 @@ import { FIXTURE_KEY, FIXTURE_MODEL, FIXTURE_TEXT, startProvider } from "./provi
 import { checkContent, expectedPackFiles } from '../../scripts/check-content.mjs';
 import { contentFixture, skillText } from '../content/fixture.mjs';
 import { dirname, join } from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import { sha256 } from '../../scripts/sync-upstream.mjs';
+
+const repository = fileURLToPath(new URL('../../', import.meta.url));
+const productionSkills = ['bro', 'principle-boundary-discipline', 'principle-encode-lessons-in-structure', 'principle-type-system-discipline', 'tdd', 'technical-writing', 'typescript-best-practices', 'unslop'];
+
+async function productionInventory() {
+  return checkContent({ root: repository,
+    manifest: JSON.parse(await readFile(join(repository, 'sync/manifest.json'), 'utf8')),
+    lock: JSON.parse(await readFile(join(repository, 'sync/upstream.lock.json'), 'utf8')),
+  });
+}
+
+/** @param {import('./runner.mjs').PiTestRun} run */
+function assertNoRuntime(run) {
+  assert.deepEqual(run.diagnostics, []);
+  assert.deepEqual(run.resources?.extensions, []);
+  const tools = run.provider?.decodedRequests[0]?.tools;
+  assert.ok(Array.isArray(tools));
+  assert.deepEqual(tools.map((tool) => tool.function.name).sort(), ['bash', 'edit', 'read', 'write']);
+  assert.ok(!run.events.some((event) => event.type.startsWith('tool_execution')));
+}
 import { jsonlParser, PiTestError, runPiSmoke } from "./runner.mjs";
 
 /** @param {import("./runner.mjs").PiTestRun} run */
@@ -47,7 +70,9 @@ test("real Pi loads the packed package and settles with fixture text and usage",
   const run = await runPiSmoke();
   assertClean(run);
   assert.deepEqual(run.cleanup.signals, []);
-  assert.deepEqual(run.pack.files, ["LICENSE", "README.md", "package.json"]);
+  assert.deepEqual(run.pack.files, expectedPackFiles(await productionInventory()));
+  assert.equal(run.pack.files.length, 12);
+  assertNoRuntime(run);
   context.diagnostic(JSON.stringify({
     pi: run.process.version, revision: run.process.revision, pid: run.process.pid,
     events: run.events.map((event) => event.type), durationMs: run.durationMs,
@@ -112,6 +137,41 @@ function requestUserText(run) {
     assert.equal(typeof block.text, 'string');
     return block.text;
   }).join('');
+}
+
+for (const name of productionSkills) {
+  test(`real packed Pi expands /skill:${name} with exact body, arguments, and relocated paths`, async (t) => {
+    const inventory = await productionInventory();
+    assert.deepEqual([...inventory.bySkillName.keys()].sort(), productionSkills);
+    const skill = inventory.bySkillName.get(name);
+    assert.ok(skill);
+    const run = await runPiSmoke({ prompt: `/skill:${name} inspect α` });
+    assertClean(run);
+    assertNoRuntime(run);
+    const location = join(run.paths.package, skill.destination);
+    const user = requestUserText(run);
+    assert.equal(user, `<skill name="${name}" location="${location}">\nReferences are relative to ${dirname(location)}.\n\n${skill.body}\n</skill>\n\ninspect α`);
+    assert.ok(!user.includes(repository));
+    const discovered = run.resources?.skills;
+    assert.ok(Array.isArray(discovered));
+    assert.deepEqual(discovered.map((entry) => entry.name).sort(), productionSkills);
+    assert.ok(discovered.every((entry) => entry.disableModelInvocation === true && entry.baseDir.startsWith(run.paths.package + '/')));
+    const messages = run.provider?.decodedRequests[0]?.messages;
+    assert.ok(Array.isArray(messages));
+    const system = JSON.stringify(messages.filter((message) => message.role === 'system'));
+    for (const selected of inventory.bySkillName.values()) assert.ok(!system.includes(selected.description), 'Manual skill leaked into model discovery');
+    t.diagnostic(JSON.stringify({ name, pi: run.process.version, bodySha256: sha256(skill.body), userBytes: Buffer.byteLength(user), location, tools: ['bash', 'edit', 'read', 'write'], diagnostics: run.diagnostics, cleanup: run.cleanup }));
+  });
+}
+
+for (const name of ['how', 'poteto-mode', 'setup-pstack']) {
+  test(`real packed Pi leaves unsupported /skill:${name} unexpanded`, async () => {
+    const prompt = `/skill:${name} unsupported argument`;
+    const run = await runPiSmoke({ prompt });
+    assertClean(run);
+    assertNoRuntime(run);
+    assert.equal(requestUserText(run), prompt);
+  });
 }
 
 for (const name of ['copied', 'transformed']) {

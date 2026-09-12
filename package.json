@@ -1,7 +1,7 @@
 {
   "name": "@aaalexliu/pstack-pi",
   "version": "0.1.0",
-  "description": "Package identity and provenance for a planned Pi port of pstack.",
+  "description": "Eight reviewed pstack skills for Pi, generated from pinned Cursor sources.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -17,17 +17,36 @@
   },
   "pi": {
     "extensions": [],
-    "skills": [],
+    "skills": [
+      "skills/bro/SKILL.md",
+      "skills/principle-boundary-discipline/SKILL.md",
+      "skills/principle-encode-lessons-in-structure/SKILL.md",
+      "skills/principle-type-system-discipline/SKILL.md",
+      "skills/tdd/SKILL.md",
+      "skills/technical-writing/SKILL.md",
+      "skills/typescript-best-practices/SKILL.md",
+      "skills/unslop/SKILL.md"
+    ],
     "prompts": [],
     "themes": []
   },
   "files": [
-    "package.json",
+    "LICENSE",
     "README.md",
-    "LICENSE"
+    "package.json",
+    "skills/bro/SKILL.md",
+    "skills/principle-boundary-discipline/SKILL.md",
+    "skills/principle-encode-lessons-in-structure/SKILL.md",
+    "skills/principle-type-system-discipline/SKILL.md",
+    "skills/tdd/SKILL.md",
+    "skills/technical-writing/SKILL.md",
+    "skills/typescript-best-practices/SKILL.md",
+    "skills/typescript-best-practices/references/patterns.md",
+    "skills/unslop/SKILL.md"
   ],
   "scripts": {
     "check": "npm run typecheck && npm test",
+    "check:content": "node scripts/check-content.mjs",
     "typecheck": "tsc --noEmit",
     "test": "npm run test:sync && npm run test:content && npm run test:pi",
     "test:content": "node --test tests/content/*.test.mjs",
