@@ -20,3 +20,11 @@ jobs:
       - run: npm ci
       - run: npm install --global --ignore-scripts @earendil-works/pi-coding-agent@0.85.1
       - run: npm run check
+      - name: Check clean archive
+        run: |
+          archive="$(mktemp -d)"
+          git archive HEAD | tar -x -C "$archive"
+          test ! -e "$archive/.git"
+          cd "$archive"
+          npm ci --ignore-scripts
+          npm run check

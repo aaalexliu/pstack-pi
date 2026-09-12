@@ -2,7 +2,7 @@
   "name": "@aaalexliu/pstack-pi",
   "version": "0.1.0",
   "type": "module",
-  "description": "Eight reviewed pstack skills for Pi, generated from pinned Cursor sources.",
+  "description": "Eight reviewed pstack skills and one read-only delegate for Pi.",
   "license": "MIT",
   "repository": {
     "type": "git",
