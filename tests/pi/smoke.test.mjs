@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { tmpdir } from "node:os";
 import test from "node:test";
 import { FIXTURE_KEY, FIXTURE_MODEL, FIXTURE_TEXT, startProvider } from "./provider.mjs";
 import { checkContent, expectedPackFiles } from '../../scripts/check-content.mjs';
 import { contentFixture, skillText } from '../content/fixture.mjs';
 import { dirname, join } from 'node:path';
-import { readFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { sha256 } from '../../scripts/sync-upstream.mjs';
 
@@ -28,7 +30,29 @@ function assertNoRuntime(run) {
   assert.deepEqual(tools.map((tool) => tool.function.name).sort(), ['bash', 'edit', 'read', 'write']);
   assert.ok(!run.events.some((event) => event.type.startsWith('tool_execution')));
 }
-import { jsonlParser, PiTestError, runPiSmoke } from "./runner.mjs";
+import { jsonlParser, PiTestError, repositoryRevision, runPiSmoke } from "./runner.mjs";
+
+test('revision is optional without metadata and preserves the full checkout SHA', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'pstack-pi-revision-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  /** @param {string[]} args */
+  const git = (args) => execFileSync('git', args, {
+    cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+    env: { PATH: process.env.PATH, HOME: root, GIT_CONFIG_NOSYSTEM: '1' },
+  }).trim();
+  assert.equal(repositoryRevision(root), 'unknown');
+  git(['init', '--object-format=sha1']);
+  assert.equal(repositoryRevision(root), 'unknown');
+  git(['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
+    '-c', 'commit.gpgsign=false', 'commit', '--allow-empty', '-m', 'fixture']);
+  const revision = git(['rev-parse', 'HEAD']);
+  assert.match(revision, /^[a-f0-9]{40}$/);
+  assert.equal(repositoryRevision(root), revision);
+  const archive = join(root, 'archive');
+  await mkdir(archive);
+  assert.equal(existsSync(join(archive, '.git')), false);
+  assert.equal(repositoryRevision(archive), 'unknown');
+});
 
 /** @param {import("./runner.mjs").PiTestRun} run */
 function assertClean(run) {

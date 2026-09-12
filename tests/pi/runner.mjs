@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { lstat, mkdir, mkdtemp, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -32,6 +33,19 @@ const MAX_OUTPUT = 1024 * 1024;
 const MAX_LINE = 64 * 1024;
 const MAX_EVENTS = 256;
 const repository = fileURLToPath(new URL("../../", import.meta.url));
+
+/** @param {string} root @returns {string} */
+export function repositoryRevision(root) {
+  if (!existsSync(join(root, ".git"))) return "unknown";
+  try {
+    return execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd: root, env: { PATH: process.env.PATH }, encoding: "utf8", timeout: 15_000,
+      killSignal: "SIGKILL", stdio: ["ignore", "pipe", "pipe"],
+    }).trim();
+  } catch {
+    return "unknown";
+  }
+}
 
 /** @param {unknown} value @returns {Record<string, unknown>} */
 function record(value) {
@@ -173,7 +187,7 @@ export async function runPiSmoke({ fixture, timeoutMs = 20_000, executable = "pi
     for (const path of [run.paths.home, run.paths.profile, run.paths.cwd, run.paths.sessions]) {
       await mkdir(path, { recursive: true });
     }
-    run.process.revision = command("git", ["rev-parse", "HEAD"], repository).trim();
+    run.process.revision = repositoryRevision(repository);
     const packageRoot = packageFixture?.root ?? repository;
     const inventory = packageFixture ? undefined : contentInventory(
       JSON.parse(await readFile(join(repository, 'sync/manifest.json'), 'utf8')),
