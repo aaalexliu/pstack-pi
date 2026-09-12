@@ -4,12 +4,13 @@ import { lstat, readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseDocument } from 'yaml';
+import { parseAgent } from '../extensions/subagent/agents.ts';
 import { parseLock, parseManifest, readAdditions, sha256, transformDigest } from './sync-upstream.mjs';
 
 /** @typedef {{disposition: import('./sync-upstream.mjs').Disposition, locked: import('./sync-upstream.mjs').LockedFile}} ContentRecord */
 /** @typedef {{disposition: import('./sync-upstream.mjs').Addition & {kind: 'addition'}, locked: import('./sync-upstream.mjs').LockedAddition}} AdditionRecord */
 /** @typedef {{name: string, description: string, disabled: boolean, body: string, text: string, destination: string}} Skill */
-/** @typedef {{bySource: Map<string, ContentRecord>, byDestination: Map<string, ContentRecord | AdditionRecord>, bySkillName: Map<string, Skill>}} ContentInventory */
+/** @typedef {{bySource: Map<string, ContentRecord>, byDestination: Map<string, ContentRecord | AdditionRecord>, bySkillName: Map<string, Skill>, byAgentName: Map<string, import('../extensions/subagent/domain.ts').AgentDefinition>}} ContentInventory */
 
 /** @param {unknown} value @returns {Record<string, unknown>} */
 function object(value) {
@@ -49,7 +50,7 @@ export function contentInventory(rawManifest, rawLock) {
   const locked = new Map(lock.files.map((entry) => [entry.source, entry]));
   assert.equal(locked.size, manifest.files.length, 'Lock membership differs');
   /** @type {ContentInventory} */
-  const inventory = { bySource: new Map(), byDestination: new Map(), bySkillName: new Map() };
+  const inventory = { bySource: new Map(), byDestination: new Map(), bySkillName: new Map(), byAgentName: new Map() };
   for (const disposition of manifest.files) {
     const entry = locked.get(disposition.source);
     assert.ok(entry, `Missing locked source: ${disposition.source}`);
@@ -80,7 +81,7 @@ export function contentInventory(rawManifest, rawLock) {
     assert.equal(entry.output.destination, addition.destination, 'Locked addition destination differs');
     assert.equal(entry.output.mode, addition.mode, 'Locked addition mode differs');
     assert.equal(addition.mode, '100644', 'Content must not be executable');
-    assert.ok(/^skills\/[^/]+\/(?:SKILL\.md|references\/[^/]+\.md)$/u.test(addition.destination), `Unsupported addition destination: ${addition.destination}`);
+    assert.ok(addition.destination === 'agents/general-purpose.md' || /^skills\/[^/]+\/(?:SKILL\.md|references\/[^/]+\.md)$/u.test(addition.destination), `Unsupported addition destination: ${addition.destination}`);
     inventory.byDestination.set(addition.destination, { disposition: { ...addition, kind: 'addition' }, locked: entry });
   }
   return inventory;
@@ -181,6 +182,12 @@ export async function checkContent({ root, manifest, lock }) {
     const bytes = files.get(destination);
     assert.ok(bytes && record.locked.output);
     assert.equal(sha256(bytes), record.locked.output.sha256, `Generated hash differs: ${destination}`);
+    if (destination.startsWith('agents/')) {
+      const agent = parseAgent(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+      assert.equal(destination, `agents/${agent.name}.md`, 'Agent name differs from destination');
+      assert.ok(!inventory.byAgentName.has(agent.name), `Duplicate agent name: ${agent.name}`);
+      inventory.byAgentName.set(agent.name, agent);
+    }
     if (destination.endsWith('/SKILL.md')) {
       const skill = parseSkill(new TextDecoder('utf-8', { fatal: true }).decode(bytes), destination);
       assert.ok(!inventory.bySkillName.has(skill.name), `Duplicate skill name: ${skill.name}`);
@@ -190,8 +197,10 @@ export async function checkContent({ root, manifest, lock }) {
     }
   }
   for (const [filename, bytes] of files) {
-    const owner = `skills/${filename.split('/')[1]}/SKILL.md`;
-    assert.ok([...inventory.bySkillName.values()].some((skill) => skill.destination === owner), `Support file has no skill: ${filename}`);
+    if (filename.startsWith('skills/')) {
+      const owner = `skills/${filename.split('/')[1]}/SKILL.md`;
+      assert.ok([...inventory.bySkillName.values()].some((skill) => skill.destination === owner), `Support file has no skill: ${filename}`);
+    }
     dependencies(new TextDecoder('utf-8', { fatal: true }).decode(bytes), filename, inventory);
   }
   assertPackageExposure(JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8')), inventory);
@@ -214,7 +223,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.ar
     const inventory = await checkContent({ root, manifest: JSON.parse(await readFile('sync/manifest.json', 'utf8')), lock: JSON.parse(await readFile('sync/upstream.lock.json', 'utf8')) });
     const packed = JSON.parse(execFileSync('npm', ['pack', '--dry-run', '--json', '--ignore-scripts'], { encoding: 'utf8', timeout: 15_000, maxBuffer: 1024 * 1024 }));
     assertPackInventory(packed[0].files.map(/** @param {{path: string}} file */ (file) => file.path), inventory);
-    console.log(`${inventory.bySource.size} records, ${inventory.byDestination.size} files, ${inventory.bySkillName.size} skills, 0 agents, 0 extensions`);
+    console.log(`${inventory.bySource.size} records, ${inventory.byDestination.size} files, ${inventory.bySkillName.size} skills, ${inventory.byAgentName.size} agents, 0 extensions`);
   } catch (error) {
     console.error(String(error));
     process.exitCode = 1;

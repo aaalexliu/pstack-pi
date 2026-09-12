@@ -1148,5 +1148,14 @@
       "output": null
     }
   ],
-  "additions": []
+  "additions": [
+    {
+      "source": "sync/additions/agents/general-purpose.md",
+      "output": {
+        "destination": "agents/general-purpose.md",
+        "sha256": "38a30fbf8ee06f5c4fdd0f68111af1d5fdaa09f821f11a13d4b7fd8e12375044",
+        "mode": "100644"
+      }
+    }
+  ]
 }

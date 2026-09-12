@@ -95,7 +95,7 @@ test("real Pi loads the packed package and settles with fixture text and usage",
   assertClean(run);
   assert.deepEqual(run.cleanup.signals, []);
   assert.deepEqual(run.pack.files, expectedPackFiles(await productionInventory()));
-  assert.equal(run.pack.files.length, 12);
+  assert.equal(run.pack.files.length, 13);
   assertNoRuntime(run);
   context.diagnostic(JSON.stringify({
     pi: run.process.version, revision: run.process.revision, pid: run.process.pid,

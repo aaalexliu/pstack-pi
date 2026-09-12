@@ -1,6 +1,13 @@
 {
   "version": 2,
-  "additions": [],
+  "additions": [
+    {
+      "source": "sync/additions/agents/general-purpose.md",
+      "destination": "agents/general-purpose.md",
+      "mode": "100644",
+      "reason": "Provide one Pi-owned read-only delegate without activating deferred upstream agents."
+    }
+  ],
   "repository": "https://github.com/cursor/plugins.git",
   "sourceRoot": "pstack",
   "managedRoots": [

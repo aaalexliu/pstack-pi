@@ -15,7 +15,9 @@ test('production contains exactly the reviewed pre-runtime slice and locked tran
   const inventory = await checkContent({ root, manifest, lock });
   assert.equal(lock.commit, 'f5bdd6826fd0a0d9cbc4347134c3a74a200b9d9d');
   assert.equal(inventory.bySource.size, 158);
-  assert.equal(inventory.byDestination.size, 9);
+  assert.equal(inventory.byDestination.size, 10);
+  assert.equal(inventory.byAgentName.size, 1);
+  assert.deepEqual(inventory.byAgentName.get('general-purpose')?.tools, ['read', 'grep', 'find', 'ls']);
   assert.equal(inventory.bySkillName.size, 8);
   assert.equal(manifest.files.filter((file) => file.kind === 'copy').length, 7);
   assert.equal(manifest.files.filter((file) => file.kind === 'omit').length, 149);
@@ -26,6 +28,10 @@ test('production contains exactly the reviewed pre-runtime slice and locked tran
     { source: 'skills/typescript-best-practices/SKILL.md', expectedBlob: '2c0279d9a5f800192605e47b55cae4e75a17ec27', transforms: [{ find: 'paths: ["**/*.ts", "**/*.tsx"]\n', replace: '', count: 1 }] },
   ]);
   for (const [destination, { disposition, locked }] of inventory.byDestination) {
+    if (disposition.kind === 'addition') {
+      assert.deepEqual(await readFile(path.join(root, destination)), await readFile(path.join(root, disposition.source)));
+      continue;
+    }
     assert.ok('blob' in locked);
     const original = await readFile(path.join(root, 'vendor/cursor-pstack', disposition.source));
     const actual = await readFile(path.join(root, destination));

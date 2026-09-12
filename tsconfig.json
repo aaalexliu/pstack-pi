@@ -4,6 +4,7 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "allowJs": true,
+    "allowImportingTsExtensions": true,
     "checkJs": true,
     "strict": true,
     "noUnusedLocals": true,
@@ -12,5 +13,5 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["scripts/**/*.mjs", "tests/**/*.mjs"]
+  "include": ["scripts/**/*.mjs", "tests/**/*.mjs", "extensions/**/*.ts"]
 }
