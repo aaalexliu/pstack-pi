@@ -99,7 +99,8 @@ test('a packed task failure does not cancel siblings and a forced leaf subagent 
       const event = run.events.find((event) => event.type === 'tool_execution_end' && event.toolCallId === 'mixed');
       assert.ok(event && event.isError === true);
       const result = /** @type {{content: {text: string}[], details?: unknown}} */ (event.result);
-      assert.deepEqual(result.details, {});
+      assert.ok(result.details && typeof result.details === 'object' && 'tasks' in result.details);
+      assert.ok(Array.isArray(result.details.tasks) && result.details.tasks.length === 8);
       assert.deepEqual([...result.content[0].text.matchAll(/\[\d\] general-purpose (\w+)/g)].map((match) => match[1]), ['failed', 'succeeded', 'succeeded', 'succeeded', 'succeeded', 'succeeded', 'succeeded', 'succeeded']);
       assert.ok(Buffer.byteLength(result.content[0].text) <= 23 + 4096);
       observer.verifyGone();

@@ -35,7 +35,7 @@ function resultIn(payload, id) {
 /** @param {import('./runner.mjs').PiEvent} event */
 function batchResult(event) {
   assert.ok(event.result && typeof event.result === 'object');
-  return /** @type {{content: {text: string}[], details?: {kind: string, tasks: {id: string, kind: string, usage: null, limits: {outputBytes: number}, model: {requested: unknown, selection: {source: string}, resolved: {provider: string, id: string, thinkingLevel: string}, observed: {provider: string, id: string}}, output: {bytes: number, truncated: boolean}, cleanup: {verified: boolean}}[]}}} */ (event.result);
+  return /** @type {{content: {text: string}[], details?: {kind: string, tasks: {id: string, kind: string, usage: import('../../extensions/subagent/usage.ts').UsageReport, limits: {outputBytes: number}, model: {requested: unknown, selection: {source: string}, resolved: {provider: string, id: string, thinkingLevel: string}, observed: {provider: string, id: string}}, output: {bytes: number, truncated: boolean}, cleanup: {verified: boolean}}[]}}} */ (event.result);
 }
 
 /** @param {() => boolean | Promise<boolean>} predicate */
@@ -106,7 +106,7 @@ test('packed relocated Pi holds four children, completes in reverse, and returns
       assert.deepEqual(result.details.tasks.map((task) => task.model.resolved.id), models);
       assert.deepEqual(result.details.tasks.map((task) => task.model.observed.id), models);
       assert.deepEqual(result.details.tasks.map((task) => task.id), ['batch/1', 'batch/2', 'batch/3', 'batch/4']);
-      assert.ok(result.details.tasks.every((task) => task.kind === 'succeeded' && task.usage === null));
+      assert.ok(result.details.tasks.every((task) => task.kind === 'succeeded' && task.usage.direct.kind === 'complete'));
       assert.deepEqual([...result.content[0].text.matchAll(/output-([0-3])/g)].map((match) => Number(match[1])), [0, 1, 2, 3]);
       await evidence(t, observer, run);
     },
@@ -221,7 +221,8 @@ test('one packed deadline cancels four active children, skips four queued tasks,
       const event = run.events.find((event) => event.type === 'tool_execution_end' && event.toolCallId === 'deadline');
       assert.ok(event && event.isError === true);
       const result = batchResult(event);
-      assert.deepEqual(result.details, {}, 'Pi supplies empty error details, not batch metadata');
+      assert.equal(result.details?.kind, 'parallel');
+      assert.deepEqual(result.details.tasks.slice(4).map((task) => task.usage.direct), Array(4).fill({ kind: 'complete', usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } } }));
       assert.deepEqual([...result.content[0].text.matchAll(/\[\d\] general-purpose (\w+)/g)].map((match) => match[1]), ['cancelled', 'cancelled', 'cancelled', 'cancelled', 'skipped', 'skipped', 'skipped', 'skipped']);
       assert.ok(Buffer.byteLength(result.content[0].text) <= 4096);
       await evidence(t, observer, run);

@@ -92,7 +92,7 @@ test('packed relocated real Pi assigns explicit models, mixed role pools, duplic
         assert.ok(event.result && typeof event.result === 'object' && 'details' in event.result);
         const details = event.result.details;
         assert.ok(details && typeof details === 'object' && 'model' in details && 'usage' in details);
-        assert.equal(details.usage, null);
+        assert.notEqual(details.usage, null);
         const routing = details.model;
         assert.ok(routing && typeof routing === 'object' && 'resolved' in routing && 'observed' in routing && 'selection' in routing);
         const { source, ...resolved } = expected[index];

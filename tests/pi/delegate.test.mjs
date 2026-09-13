@@ -82,7 +82,7 @@ test('packed real parent delegates a file read, then runs harmless bash containi
       const details = result.result.details;
       assert.ok(details && typeof details === 'object' && 'kind' in details && 'usage' in details && 'agent' in details && 'cwd' in details);
       assert.equal(details.kind, 'succeeded');
-      assert.equal(details.usage, null);
+      assert.notEqual(details.usage, null);
       assert.equal(details.cwd, run.paths.cwd);
       assert.ok(JSON.stringify(details.agent).includes(path.join(run.paths.package, 'agents/general-purpose.md')));
       assert.ok(!(await readdir(run.paths.root)).some((name) => name.startsWith('pstack-subagent-')));
