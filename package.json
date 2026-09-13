@@ -87,9 +87,6 @@
     "@earendil-works/pi-coding-agent": { "optional": true },
     "typebox": { "optional": true }
   },
-  "publishConfig": {
-    "access": "public"
-  },
   "dependencies": {
     "yaml": "2.9.0"
   }
