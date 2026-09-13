@@ -11,6 +11,7 @@ import path from 'node:path';
 import test from 'node:test';
 import extension from '../../extensions/subagent/index.ts';
 import { subagentParameters } from '../../extensions/subagent/domain.ts';
+import { ModelRuntime, ModelRegistry } from '@earendil-works/pi-coding-agent';
 
 /** @param {typeof import('../../extensions/subagent/runner.ts').runChild} [run] */
 function registration(run) {
@@ -35,7 +36,7 @@ function registration(run) {
   const tool = tools[0];
   assert.equal(tool.name, 'subagent');
   assert.equal(tool.parameters, subagentParameters);
-  assert.deepEqual(Object.keys(tool.parameters.properties).sort(), ['agent', 'cwd', 'limits', 'task']);
+  assert.deepEqual(Object.keys(tool.parameters.properties).sort(), ['agent', 'cwd', 'limits', 'model', 'role', 'task']);
   return { tool, shutdown };
 }
 
@@ -55,6 +56,7 @@ test('execute rejects unknown agents, malformed user agents, cwd changes, and in
   const { tool } = registration();
   const ctx = new Proxy(/** @type {import('@earendil-works/pi-coding-agent').ExtensionContext} */ ({}), {
     get(_target, name) {
+      if (name === 'model' || name === 'thinkingLevel') return undefined;
       assert.equal(name, 'cwd', `Runtime reached unexpected context access: ${String(name)}`);
       return root;
     },
@@ -92,7 +94,13 @@ async function runtime(t) {
     await rm(root, { recursive: true, force: true });
   });
   const invocation = await PiInvocation.resolve({ entrypoint: fileURLToPath(new URL('../../node_modules/@earendil-works/pi-coding-agent/dist/cli.js', import.meta.url)) });
-  const ctx = /** @type {import('@earendil-works/pi-coding-agent').ExtensionContext} */ ({ cwd: root, model: { provider: 'fixture', id: 'model' }, thinkingLevel: 'off' });
+  const profile = process.env.PI_CODING_AGENT_DIR;
+  await mkdir(profile, { recursive: true });
+  await writeFile(path.join(profile, 'models.json'), JSON.stringify({ providers: { fixture: {
+    baseUrl: 'http://127.0.0.1:1/v1', api: 'openai-completions', apiKey: 'fixture-key', models: [{ id: 'model' }],
+  } } }));
+  const models = await ModelRuntime.create();
+  const ctx = /** @type {import('@earendil-works/pi-coding-agent').ExtensionContext} */ ({ cwd: root, model: models.getModel('fixture', 'model'), thinkingLevel: 'off', modelRegistry: new ModelRegistry(models) });
   return { root, invocation, ctx };
 }
 

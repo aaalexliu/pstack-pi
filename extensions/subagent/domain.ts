@@ -1,6 +1,7 @@
 import { Type, type Static } from 'typebox';
 import { Check } from 'typebox/value';
-import { modelChoiceSchema } from './model-config.ts';
+import { modelChoiceSchema, roleSchema } from './model-config.ts';
+import type { ModelIdentity } from './model-runtime.ts';
 
 export const agentNameSchema = Type.String({ pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$', maxLength: 64 });
 export const builtinTools = ['read', 'grep', 'find', 'ls', 'bash', 'edit', 'write'] as const;
@@ -32,6 +33,8 @@ export const subagentParameters = Type.Object({
   task: Type.String({ minLength: 1, maxLength: 32 * 1024, pattern: '\\S' }),
   cwd: Type.Optional(Type.String({ minLength: 1, maxLength: 4096, pattern: '^[^\\u0000]+$' })),
   limits: Type.Optional(reductionSchema),
+  model: Type.Optional(modelChoiceSchema),
+  role: Type.Optional(roleSchema),
 }, { additionalProperties: false });
 
 export type DelegationRequest = { kind: 'single'; task: Static<typeof subagentParameters> };
@@ -46,6 +49,7 @@ export type TaskIdentity = { id: string; agent: { name: string; provenance: Agen
 export type BoundedOutput = { text: string; bytes: number; truncated: boolean };
 export type TaskResult = TaskIdentity & {
   output: BoundedOutput; diagnostics: readonly string[]; usage: null;
+  observedModel: ModelIdentity | null;
   cleanup: { verified: boolean; durationMs: number; forced: boolean; observedProcesses: number };
 } & (
   | { kind: 'succeeded' }

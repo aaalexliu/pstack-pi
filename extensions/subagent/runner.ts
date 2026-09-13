@@ -5,6 +5,8 @@ import { Type, type Static } from 'typebox';
 import { Check } from 'typebox/value';
 import { executionLimits, protocolLimits, parseDepth, requireRoot, RunRegistry, type RunLease, type DelegationDepth, type ExecutionLimits, type Agent, type BoundedOutput, type CanonicalCwd, type TaskIdentity, type TaskResult } from './domain.ts';
 import { childEnvironment, OwnedProcessTree, PiInvocation, ProcessOwnershipError, type CleanupReport, type ProcessBackend } from './process.ts';
+import { parseModelChoice } from './model-config.ts';
+import type { ChildModel, ModelIdentity } from './model-runtime.ts';
 
 export async function resolveCwd({ current, supplied }: { current: string; supplied?: string }): Promise<CanonicalCwd> {
   const canonical = await realpath(current);
@@ -49,7 +51,7 @@ export function boundedOutput(text: string, limit = executionLimits.outputBytes)
   return { text: buffer.subarray(0, end).toString('utf8'), bytes, truncated: true };
 }
 
-export function childOutputParser() {
+export function childOutputParser(expected?: ModelIdentity) {
   const decoder = new TextDecoder('utf-8', { fatal: true });
   let pending = '';
   let bytes = 0;
@@ -75,6 +77,7 @@ export function childOutputParser() {
           if (!Check(messageEventSchema, event)) throw new Error('Invalid child message event');
           if (event.message.role === 'assistant') {
             if (!Check(assistantSchema, event.message)) throw new Error('Invalid child assistant message');
+            if (expected && (event.message.provider !== expected.provider || event.message.model !== expected.id)) throw new Error('Child model differs from resolved model');
             final = event.message;
           }
         }
@@ -90,29 +93,27 @@ export function childOutputParser() {
   };
 }
 
-export type ChildModel = { provider: string; id: string; thinkingLevel: string | undefined };
-
 export function childArguments({ agent, model, promptFile }: { agent: Agent; model: ChildModel; promptFile: string }): string[] {
-  if (!model.provider || !model.id || /[\s\0]/u.test(model.provider + model.id)) throw new Error('Missing or invalid parent model');
-  const args = ['--mode', 'json', '--print', '--no-session', '--no-extensions', '--no-skills', '--no-prompt-templates', '--no-context-files', '--no-approve', '--offline', '--model', `${model.provider}/${model.id}`];
-  if (model.thinkingLevel !== undefined) {
-    if (!['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(model.thinkingLevel)) throw new Error('Invalid parent thinking level');
-    args.push('--thinking', model.thinkingLevel);
-  }
+  const parsed = parseModelChoice(`${model.provider}/${model.id}`);
+  if (parsed.kind !== 'pinned' || parsed.provider !== model.provider || parsed.id !== model.id) throw new Error('Invalid exact model identity');
+  const args = ['--mode', 'json', '--print', '--no-session', '--no-extensions', '--no-skills', '--no-prompt-templates', '--no-context-files', '--no-approve', '--offline', '--provider', model.provider, '--model', model.id];
+  if (!['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(model.thinkingLevel)) throw new Error('Invalid child thinking level');
+  args.push('--thinking', model.thinkingLevel);
   args.push(...(agent.tools.length ? ['--tools', agent.tools.join(',')] : ['--no-tools']));
   args.push('--system-prompt', promptFile, '--append-system-prompt', '');
   return args;
 }
 
-export async function runChild({ identity, agent, task, model, signal, depth = parseDepth(undefined), limits = executionLimits, lease = new RunRegistry().admit(depth, limits.timeoutMs), invocation, backend }: {
+export async function runChild({ identity, agent, task, model, signal, depth = parseDepth(undefined), limits = executionLimits, lease = new RunRegistry().admit(depth, limits.timeoutMs), invocation, backend, onStart }: {
   identity: TaskIdentity; agent: Agent; task: string; model: ChildModel; signal: AbortSignal | undefined;
-  depth?: DelegationDepth; limits?: ExecutionLimits; lease?: RunLease; invocation?: PiInvocation; backend?: ProcessBackend;
+  depth?: DelegationDepth; limits?: ExecutionLimits; lease?: RunLease; invocation?: PiInvocation; backend?: ProcessBackend; onStart?: () => void;
 }): Promise<TaskResult> {
   let temporary: string | undefined;
   let owner: OwnedProcessTree | undefined;
   let cleanup: CleanupReport = { verified: true, durationMs: 0, identities: [], forced: false };
   let failure: string | undefined;
   let output = boundedOutput('');
+  let observedModel: ModelIdentity | null = null;
   const abort = () => lease.cancel('user');
   const stop = () => { if (lease.cancellation) owner?.requestStop({ kind: 'cancelled', reason: lease.cancellation }); };
   signal?.addEventListener('abort', abort, { once: true });
@@ -131,8 +132,9 @@ export async function runChild({ identity, agent, task, model, signal, depth = p
     lease.signal.throwIfAborted();
     lease.run();
     owner = new OwnedProcessTree({ invocation: pinned, args, cwd: identity.cwd, env: childEnvironment(depth), lease, backend });
+    if (owner.child.pid !== undefined && !owner.failure && !lease.signal.aborted) onStart?.();
     const child = owner.child;
-    const parser = childOutputParser();
+    const parser = childOutputParser(model);
     const fail = (reason: string) => { failure ??= reason; owner?.requestStop({ kind: 'failed', reason }); };
     const stdout = (chunk: Buffer) => {
       if (failure) return;
@@ -158,8 +160,8 @@ export async function runChild({ identity, agent, task, model, signal, depth = p
     if (!failure && !lease.cancellation) {
       try {
         const final = parser.end();
-        if (final.provider !== model.provider || final.model !== model.id) failure = 'Child model differs from parent model';
-        else if (final.stopReason !== 'stop') failure = `Child stopped with ${final.stopReason}`;
+        observedModel = { provider: final.provider, id: final.model };
+        if (final.stopReason !== 'stop') failure = `Child stopped with ${final.stopReason}`;
         else output = boundedOutput(final.content.filter((block) => block.type === 'text').map((block) => block.text).join(''), limits.outputBytes);
       } catch { failure = 'Child has no valid settled final response'; }
       if (owner.exitCode !== 0 || owner.exitSignal !== null) failure ??= 'Child exited unsuccessfully';
@@ -181,7 +183,7 @@ export async function runChild({ identity, agent, task, model, signal, depth = p
     lease.verify();
     lease.finish(cleanup.verified);
   }
-  const base = { ...identity, output, diagnostics: [], usage: null,
+  const base = { ...identity, output, diagnostics: [], usage: null, observedModel,
     cleanup: { verified: cleanup.verified, durationMs: cleanup.durationMs, forced: cleanup.forced, observedProcesses: cleanup.identities.length },
   } satisfies Omit<TaskResult, 'kind'>;
   if (!cleanup.verified) return { ...base, output: boundedOutput(''), kind: 'failed', reason: 'Delegation cleanup unverified; session quarantined' };

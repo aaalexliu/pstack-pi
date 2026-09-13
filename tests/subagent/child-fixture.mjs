@@ -21,7 +21,7 @@ else if (mode === 'invalid-utf8') process.stdout.write(Buffer.from([255]));
 else {
   const stopReason = ['error', 'aborted', 'length', 'toolUse'].includes(mode) ? mode : 'stop';
   const text = mode === 'large-output' ? '✓'.repeat(20000) : JSON.stringify({ args, prompt, task, cwd: process.cwd(), pid: process.pid, promptFile });
-  const message = { role: 'assistant', stopReason, content: [{ type: 'text', text }], provider: 'fixture', model: mode === 'wrong-model' ? 'wrong' : 'model' };
+  const message = { role: 'assistant', stopReason, content: [{ type: 'text', text }], provider: args[args.indexOf('--provider') + 1], model: mode === 'wrong-model' ? 'wrong' : args[args.indexOf('--model') + 1] };
   if (mode !== 'no-final') process.stdout.write(JSON.stringify({ type: 'message_end', message }) + '\n');
   if (mode !== 'no-settled') process.stdout.write('{"type":"agent_settled"}\n');
   if (mode === 'exit') process.exitCode = 2;

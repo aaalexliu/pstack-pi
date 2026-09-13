@@ -15,6 +15,7 @@ import { resolveCwd, runChild } from '../../extensions/subagent/runner.ts';
 const invocation = await PiInvocation.resolve({ entrypoint: fileURLToPath(new URL('../../node_modules/@earendil-works/pi-coding-agent/dist/cli.js', import.meta.url)) });
 const fixture = fileURLToPath(new URL('./process-fixture.mjs', import.meta.url));
 const agent = { name: 'test', description: 'Test', systemPrompt: 'PRIVATE_PROMPT', tools: [], provenance: { kind: /** @type {const} */ ('bundled'), path: '/test', sha256: 'a'.repeat(64) } };
+/** @type {import('../../extensions/subagent/model-runtime.ts').ChildModel} */
 const model = { provider: 'fixture', id: 'model', thinkingLevel: 'off' };
 
 /** @param {import('node:test').TestContext} t @param {string} mode */

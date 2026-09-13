@@ -21,9 +21,9 @@ Each skill keeps upstream's `disable-model-invocation: true` flag.
 Pi hides these skills from model discovery but expands explicit commands with their arguments.
 The TypeScript skill includes `references/patterns.md`.
 
-The package ships nine generated skill files, one generated agent, six extension modules, and `LICENSE`, `README.md`, and `package.json`.
+The package ships nine generated skill files, one generated agent, seven extension modules, and `LICENSE`, `README.md`, and `package.json`.
 At root depth it registers one `subagent` tool and one `session_shutdown` cleanup hook, with no prompts, themes, or commands.
-Parallel and chained requests, role-based model routing, usage totals, todos, and broader workflows remain deferred.
+Parallel and chained requests, usage totals, todos, and broader workflows remain deferred.
 `/skill:how`, `/skill:poteto-mode`, and `/skill:setup-pstack` do not expand.
 
 The package never installs a blanket command-approval gate, inspects unrelated shell strings, or requests package-wide confirmation for routine Git pushes or pull-request edits.
@@ -38,7 +38,8 @@ Call `subagent` with one agent and one task:
 {"agent":"general-purpose","task":"Read src/index.ts and explain its exports."}
 ```
 
-The public fields are `agent`, `task`, optional `cwd`, and optional `limits`.
+The public fields are `agent`, `task`, optional `cwd`, `limits`, `model`, and `role`.
+Unknown fields, unknown roles, and non-exact model values reject before spawn.
 `limits.timeoutMs` and `limits.outputBytes` accept positive integers that lower the host's 120,000 ms deadline and 32,768-byte output cap.
 Larger values clamp to the host limits and produce diagnostics.
 There is no trust or approval argument.
@@ -67,8 +68,6 @@ Answer from file evidence. Do not delegate.
 ```
 
 An optional `model` field accepts `inherit-parent` or one exact `provider/model-id`, never a pool.
-The config parser reserves `<Pi agent dir>/pstack-pi/models.json` for version-1 role assignments.
-Runtime routing follows in the next change.
 
 Names use lowercase letters, numbers, and single hyphens, with at most 64 characters.
 Accepted tools are `read`, `grep`, `find`, `ls`, `bash`, `edit`, and `write`.
@@ -81,7 +80,8 @@ Each request starts a child with the current Node executable and Pi entrypoint, 
 The runner validates the entrypoint against the installed Pi `0.85.1` package and its declared CLI before spawn.
 It does not search `PATH` for `pi` or use a shell to launch it.
 An invalid or unsupported host invocation disables delegation.
-The child uses the parent's provider-qualified model and available thinking level.
+The child uses separate exact `--provider` and `--model` arguments.
+Inherited choices preserve the captured parent thinking level. Pinned choices use `--thinking off`.
 The child gets an explicit tools allowlist or `--no-tools`.
 It loads no extensions, skills, prompt templates, context files, or saved session.
 It receives a private `0600` system-prompt file and an empty append prompt, which prevents `APPEND_SYSTEM.md` discovery.
@@ -96,7 +96,8 @@ The runner accepts LF-delimited JSON with strict UTF-8 decoding.
 Its limits are 256 KiB per record, 4,096 events, 8 MiB stdout, and 64 KiB stderr.
 It caps returned text at 32 KiB and does not return raw stderr.
 A successful result requires a settled final assistant message with `stopReason: "stop"`, the requested model, exit code zero, and verified cleanup.
-Truncation is explicit. Tool details include identity, agent provenance, canonical cwd, outcome, limits, cleanup, diagnostics, and `usage: null`.
+Every authoritative child assistant message must match the resolved model identity.
+Truncation is explicit. Tool details include identity, agent provenance, canonical cwd, outcome, limits, cleanup, diagnostics, requested/resolved/observed model identity, and `usage: null`.
 Child failures throw from `execute`, so Pi marks the tool result as an error.
 
 Each extension instance admits one delegation at a time, including preparation and cleanup.
@@ -120,6 +121,63 @@ macOS and Linux polling cannot guarantee containment of an unseen fast double-fo
 Process-table snapshots and signals are not atomic, and `ps` start times have only second-level precision.
 These checks do not provide adversarial process isolation.
 Delegation rejects unsupported operating systems, including Windows.
+
+## Model routing
+
+The only routing config is `getAgentDir()/pstack-pi/models.json`.
+A missing file means no configured roles. The extension never writes config or reads project or donor routing config.
+The format has exactly `version` and `roles`:
+
+```json
+{"version":1,"roles":{"feature":["inherit-parent","openai/gpt-4o","openai/gpt-4o"],"review":"inherit-parent"}}
+```
+
+A choice is exactly `inherit-parent` or `provider/model-id`.
+Providers use 1-64 lowercase ASCII letters, digits, dots, or hyphens, starting with a letter or digit.
+Model IDs use 1-256 ASCII letters, digits, `_`, `.`, `:`, `@`, `/`, `+`, or `-`, starting with a letter, digit, or `@`.
+Only the first slash separates provider and model. Spaces, wildcards, bare names, aliases, and thinking suffix syntax are not routing options.
+A colon can belong to an exact catalog ID.
+Pools contain 1-64 choices. They retain duplicates and `inherit-parent` entries.
+Pool length controls neither task count nor concurrency.
+
+The closed role IDs are:
+
+- `feature`, `refactoring`, `bug-fix`, `perf-issue`, `hillclimb`, `judgment`, `prose`, `hardest`
+- `how-explorer`, `how-explainer`, `how-critics`, `why-investigator`, `why-synthesizer`
+- `reflect-tooling`, `reflect-judgment`, `reflect-divergent`, `reflect-synthesizer`
+- `arena-runner`, `arena-cross-judge`, `swarm-worker`, `architect-runner`, `interrogate-reviewer`
+- `no-comments`, `review`, `test`, `verify`
+
+These IDs reserve routing for planned workflows. They do not enable those workflows.
+Resolution uses the explicit task `model`, the requested configured `role`, the agent's `model`, then the parent.
+An unknown role always rejects, even with an explicit model. A known but unconfigured role falls through.
+Each role has an in-memory round-robin counter. Explicit models consume no pool slot.
+Rejected or cancelled preparation consumes no slot. A started child consumes its slot even if execution fails.
+Counters reset only when that role's parsed assignment changes, or when Pi creates a new extension instance.
+Config formatting and role-key order do not reset them. Nothing persists counters to disk.
+
+The routing file has a 64 KiB cap and a 32-level JSON nesting cap.
+The loader rejects malformed UTF-8, BOMs, invalid JSON, duplicate keys, trailing data, unknown properties, and unknown roles.
+No-follow descriptor reads reject symlinks and non-regular files. The file and package-specific directory must belong to the current user.
+Group/other write bits and special mode bits reject. The loader checks file size and metadata before and after bounded reads, and checks directory identity.
+
+Qualification uses a new Pi `ModelRuntime`, not the parent's extension registry or runtime credentials.
+It loads only standard stored, config, and environment auth, with model network refresh disabled.
+No credential enters argv, tool details, or a copied config file.
+The parent model and thinking level are captured before the first await.
+Inheritance rejects parent providers registered by extensions and any difference in standalone model metadata.
+Pinned choices may select another standalone provider without inheriting parent overrides.
+
+Pi 0.85.1 imposes narrower rules:
+
+- Its public registry has no command-disabled auth mode. Delegation preflights the standard `auth.json`, `models.json`, and `models-store.json` with safe bounded reads. Each has a 1 MiB cap. Any leading-`!` string anywhere in those files rejects, even on unused providers. References to child-filtered `PSTACK_*` variables also reject.
+- `getAvailable()` proves configured auth, not token validity or server access. The adapter never calls `getAuth()` or runs credential commands. The child resolves its own standard credentials and may refresh standard OAuth tokens.
+- Bedrock and Vertex external credential chains are unsupported. Supported APIs are `openai-completions`, `openai-responses`, `openai-codex-responses`, `azure-openai-responses`, `anthropic-messages`, `google-generative-ai`, `mistral-conversations`, and `pi-messages`.
+- The CLI matches IDs case-insensitively and strips a repeated provider prefix. After exact lookup, a CLI round-trip check rejects choices that would select another identity or parse thinking syntax. It never accepts a fuzzy substitute.
+- Models that cannot use `off` reject pinned choices. Inheritance requires a supported captured thinking level.
+
+Standard files and environment must remain stable during preparation and child startup. Pi reopens them in the child; its public APIs cannot bind both processes to one immutable config snapshot without copying credentials.
+The file checks do not provide isolation against a hostile process running as the same user.
 
 ## Local installation
 

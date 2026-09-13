@@ -3,6 +3,8 @@ import { getAgentDir, type ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import { discoverAgents } from './agents.ts';
 import { parseDepth, requireRoot, parseRequest, reduceLimits, RunRegistry, subagentParameters } from './domain.ts';
 import { boundedOutput, resolveCwd, runChild } from './runner.ts';
+import { loadModelConfig, ModelRouter } from './model-config.ts';
+import { captureParent, qualifyModel } from './model-runtime.ts';
 
 export default function subagentExtension(pi: ExtensionAPI, { run = runChild }: { run?: typeof runChild } = {}) {
   let depth;
@@ -10,11 +12,12 @@ export default function subagentExtension(pi: ExtensionAPI, { run = runChild }: 
   catch { return; }
   const rootDepth = depth;
   const registry = new RunRegistry();
+  const router = new ModelRouter();
   pi.on('session_shutdown', async () => { await registry.shutdown(); });
   pi.registerTool({
     name: 'subagent',
     label: 'Subagent',
-    description: 'Run one bundled or user leaf agent in the current directory. Only one delegation may run or stop at a time. Children cannot delegate. The host caps execution at 120 seconds and output at 32768 bytes. limits may lower timeoutMs and outputBytes; larger values clamp. Project agents and other working directories are disabled.',
+    description: 'Run one bundled or user leaf agent in the current directory. Only one delegation may run or stop at a time. Children cannot delegate. The host caps execution at 120 seconds and output at 32768 bytes. limits may lower timeoutMs and outputBytes; larger values clamp. Project agents and other working directories are disabled. model accepts inherit-parent or an exact provider/model-id; role selects a known configured role. Explicit model overrides role, then agent default, then parent.',
     parameters: subagentParameters,
     async execute(id, params, signal, _onUpdate, ctx) {
       const request = parseRequest(params);
@@ -25,17 +28,21 @@ export default function subagentExtension(pi: ExtensionAPI, { run = runChild }: 
       signal?.addEventListener('abort', abort, { once: true });
       try {
         if (signal?.aborted) abort();
+        const parent = captureParent(ctx);
+        const agentDir = getAgentDir();
         const cwd = await resolveCwd({ current: ctx.cwd, supplied: request.task.cwd });
-        const catalog = await discoverAgents({ userDir: path.join(getAgentDir(), 'agents') });
+        const catalog = await discoverAgents({ userDir: path.join(agentDir, 'agents') });
         if (catalog.diagnostics.length) throw new Error('Invalid agent catalog');
         const agent = catalog.selected.get(request.task.agent);
         if (!agent) throw new Error(`Unknown agent: ${request.task.agent}. Project agents are disabled.`);
-        if (!ctx.model) throw new Error('Delegation requires an active parent model');
+        const config = await loadModelConfig(agentDir);
+        const ticket = router.prepare({ config, model: request.task.model, role: request.task.role, agentModel: agent.model });
+        const model = await qualifyModel({ selection: ticket.selection, parent, agentDir, signal: lease.signal });
         lease.signal.throwIfAborted();
         const result = await run({
           identity: { id: boundedOutput(id, 128).text, agent: { name: agent.name, provenance: agent.provenance }, cwd },
           agent, task: request.task.task, depth: rootDepth, limits, lease,
-          model: { provider: ctx.model.provider, id: ctx.model.id, thinkingLevel: ctx.thinkingLevel }, signal: undefined,
+          model, onStart: ticket.commit, signal: undefined,
         });
         switch (result.kind) {
           case 'succeeded': {
@@ -45,6 +52,7 @@ export default function subagentExtension(pi: ExtensionAPI, { run = runChild }: 
               details: {
                 kind: result.kind, id: result.id, agent: { name: agent.name, provenance: { ...agent.provenance, path: boundedOutput(agent.provenance.path, 1024).text } },
                 cwd: boundedOutput(cwd, 1024).text, usage: null, limits, diagnostics,
+                model: { requested: { model: request.task.model ?? null, role: request.task.role ?? null }, selection: ticket.selection, resolved: model, observed: result.observedModel },
                 output: { bytes: result.output.bytes, truncated: result.output.truncated }, cleanup: result.cleanup,
               },
             };

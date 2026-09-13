@@ -18,6 +18,7 @@ function child(mode) {
   return { invocation, backend: { ...processBackend, spawn: (/** @type {PiInvocation} */ _invocation, /** @type {string[]} */ args, /** @type {import('node:child_process').SpawnOptionsWithoutStdio} */ options) => spawn(process.execPath, [fixturePath, mode, ...args], options) } };
 }
 const agent = { ...parseAgent('---\nname: test\ndescription: Test.\ntools: [read, grep, find, ls]\n---\nDo not delegate.'), provenance: { kind: /** @type {const} */ ('bundled'), path: '/fixture/test.md', sha256: 'a'.repeat(64) } };
+/** @type {import('../../extensions/subagent/model-runtime.ts').ChildModel} */
 const model = { provider: 'fixture', id: 'model', thinkingLevel: 'off' };
 
 /** @param {import('node:test').TestContext} t */
@@ -42,14 +43,15 @@ test('cwd defaults to canonical current directory and rejects other or symlinked
 test('child argv always isolates resources, qualifies the model, and specifies tools', () => {
   const args = childArguments({ agent, model, promptFile: '/tmp/prompt' });
   for (const flag of ['--no-session', '--no-extensions', '--no-skills', '--no-prompt-templates', '--no-context-files', '--no-approve', '--offline', '--print']) assert.ok(args.includes(flag));
-  assert.equal(args[args.indexOf('--model') + 1], 'fixture/model');
+  assert.equal(args[args.indexOf('--provider') + 1], 'fixture');
+  assert.equal(args[args.indexOf('--model') + 1], 'model');
   assert.equal(args[args.indexOf('--thinking') + 1], 'off');
   assert.equal(args[args.indexOf('--tools') + 1], 'read,grep,find,ls');
   assert.equal(args[args.indexOf('--append-system-prompt') + 1], '');
   const none = childArguments({ agent: { ...agent, tools: [] }, model, promptFile: '/tmp/prompt' });
   assert.ok(none.includes('--no-tools') && !none.includes('--tools'));
-  assert.ok(!childArguments({ agent, model: { ...model, thinkingLevel: undefined }, promptFile: 'p' }).includes('--thinking'));
-  assert.throws(() => childArguments({ agent, model: { ...model, provider: '' }, promptFile: 'p' }));
+  assert.throws(() => childArguments({ agent, model: { ...model, ...JSON.parse('{"thinkingLevel":null}') }, promptFile: 'p' }));
+  for (const provider of ['', 'fixture/nested']) assert.throws(() => childArguments({ agent, model: { ...model, provider }, promptFile: 'p' }));
 });
 
 test('separate child gets the exact task through stdin and a private prompt that is removed on close', async (t) => {
@@ -59,6 +61,7 @@ test('separate child gets the exact task through stdin and a private prompt that
   const result = await runChild({ ...f, agent, model, task, signal: controller.signal, ...child('success') });
   assert.equal(result.kind, 'succeeded');
   assert.equal(result.usage, null);
+  assert.deepEqual(result.observedModel, { provider: 'fixture', id: 'model' });
   assert.deepEqual(result.diagnostics, []);
   const capture = JSON.parse(result.output.text);
   assert.equal(capture.task, task);
@@ -117,14 +120,20 @@ test('pre-abort and spawn errors leave no temporary prompts', async (t) => {
   const before = (await readdir(tmpdir())).filter((name) => name.startsWith('pstack-subagent-')).sort();
   const controller = new AbortController();
   controller.abort();
-  assert.equal((await runChild({ ...f, agent, model, task: '', signal: controller.signal })).kind, 'cancelled');
-  const result = await runChild({ ...f, agent, model, task: '', signal: undefined, invocation, backend: { ...processBackend, spawn: () => spawn('/nonexistent-pi', [], { stdio: 'pipe' }) } });
+  let started = 0;
+  const onStart = () => { started++; };
+  assert.equal((await runChild({ ...f, agent, model, task: '', signal: controller.signal, onStart })).kind, 'cancelled');
+  const result = await runChild({ ...f, agent, model, task: '', signal: undefined, invocation, onStart, backend: { ...processBackend, spawn: () => spawn('/nonexistent-pi', [], { stdio: 'pipe' }) } });
+  assert.equal(started, 0, 'rejected and cancelled preparation consume no pool slot');
   assert.equal(result.kind, 'failed');
   assert.deepEqual((await readdir(tmpdir())).filter((name) => name.startsWith('pstack-subagent-')).sort(), before);
 });
 
 test('JSONL accepts split UTF-8 and LF framing but rejects malformed authoritative messages', () => {
-  const parser = childOutputParser();
+  const expected = { provider: 'p', id: 'm' };
+  const wrong = childOutputParser(expected);
+  assert.throws(() => wrong.write(Buffer.from(JSON.stringify({ type: 'message_end', message: { role: 'assistant', stopReason: 'toolUse', provider: 'p', model: 'other', content: [] } }) + '\n')), /differs from resolved/);
+  const parser = childOutputParser(expected);
   const text = '✓\u2028and\u2029';
   const bytes = Buffer.from(JSON.stringify({ type: 'message_end', message: { role: 'assistant', stopReason: 'stop', provider: 'p', model: 'm', content: [{ type: 'text', text }] } }) + '\n{"type":"agent_settled"}\n');
   for (const byte of bytes) parser.write(Buffer.from([byte]));

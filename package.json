@@ -40,6 +40,7 @@
     "extensions/subagent/domain.ts",
     "extensions/subagent/index.ts",
     "extensions/subagent/model-config.ts",
+    "extensions/subagent/model-runtime.ts",
     "extensions/subagent/process.ts",
     "extensions/subagent/runner.ts",
     "skills/bro/SKILL.md",
