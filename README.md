@@ -1,7 +1,7 @@
 # pstack for Pi
 
 `@aaalexliu/pstack-pi` provides eight reviewed skills from Lauren Tan's pstack.
-It also provides one read-only bundled agent and a single-delegate tool.
+It also provides one read-only bundled agent and a bounded delegation tool.
 It is not a full pstack port.
 
 ## Supported scope
@@ -21,16 +21,16 @@ Each skill keeps upstream's `disable-model-invocation: true` flag.
 Pi hides these skills from model discovery but expands explicit commands with their arguments.
 The TypeScript skill includes `references/patterns.md`.
 
-The package ships nine generated skill files, one generated agent, seven extension modules, and `LICENSE`, `README.md`, and `package.json`.
+The package ships nine generated skill files, one generated agent, eight extension modules, and `LICENSE`, `README.md`, and `package.json`.
 At root depth it registers one `subagent` tool and one `session_shutdown` cleanup hook, with no prompts, themes, or commands.
-Parallel and chained requests, usage totals, todos, and broader workflows remain deferred.
+Chained requests, usage totals, todos, and broader workflows remain deferred.
 `/skill:how`, `/skill:poteto-mode`, and `/skill:setup-pstack` do not expand.
 
 The package never installs a blanket command-approval gate, inspects unrelated shell strings, or requests package-wide confirmation for routine Git pushes or pull-request edits.
 Those actions remain under host policy.
 Its validation applies only to `subagent` requests.
 
-## Single delegation
+## Delegation
 
 Call `subagent` with one agent and one task:
 
@@ -76,7 +76,7 @@ Missing tools, comma-delimited strings, unknown fields, duplicate YAML keys, dup
 Any catalog diagnostic stops delegation rather than silently choosing a fallback.
 Each directory allows at most 128 entries; each agent file allows at most 64 KiB.
 
-Each request starts a child with the current Node executable and Pi entrypoint, resolved to absolute real paths.
+Each child uses the current Node executable and Pi entrypoint, resolved to absolute real paths.
 The runner validates the entrypoint against the installed Pi `0.85.1` package and its declared CLI before spawn.
 It does not search `PATH` for `pi` or use a shell to launch it.
 An invalid or unsupported host invocation disables delegation.
@@ -100,11 +100,29 @@ Every authoritative child assistant message must match the resolved model identi
 Truncation is explicit. Tool details include identity, agent provenance, canonical cwd, outcome, limits, cleanup, diagnostics, requested/resolved/observed model identity, and `usage: null`.
 Child failures throw from `execute`, so Pi marks the tool result as an error.
 
-Each extension instance admits one delegation at a time, including preparation and cleanup.
-A concurrent request fails rather than waiting in a queue.
-The host starts its 120-second deadline at admission, not at child startup.
-User cancellation, the deadline, and Pi's `session_shutdown` hook all request cleanup.
-Shutdown rejects new work and awaits the active delegation.
+A parallel request has this shape:
+
+```json
+{"tasks":[{"agent":"general-purpose","task":"Read the API.","role":"feature"},{"agent":"general-purpose","task":"Read the tests.","model":"inherit-parent"}],"limits":{"outputBytes":8193}}
+```
+
+The host accepts 1-8 tasks and runs at most four children. These are separate limits.
+Task entries accept only `agent`, `task`, `model`, and `role`. Optional `cwd` and `limits` belong to the request.
+Each task allows 32 KiB of UTF-8 text. All task text together allows 128 KiB, and serialized request JSON allows 160 KiB.
+The host validates every task, qualifies every model, and pins the Pi invocation before admitting the immutable batch.
+A rejected or cancelled preparation starts no children and consumes no pool slots.
+
+Each extension instance reserves one request at a time, including preparation and cleanup.
+An overlapping call fails rather than waiting in a second request queue.
+The 120-second request deadline starts at reservation. Preparation and queue time count.
+The scheduler dispatches tasks in input order and holds each slot through prompt removal and verified process cleanup.
+Results keep input order. Ordinary task failure does not stop siblings.
+The retained-output budget splits by input index, with one extra byte for each leading index covered by the remainder.
+Quotas never move between tasks. Small budgets can give later tasks zero bytes.
+Successful calls return bounded ordered output and metadata. Any failed, cancelled, or skipped task makes the tool throw one bounded ordered summary.
+Summary labels and failure reasons have a separate overhead bound of 4 KiB. Errors carry no structured tool details in Pi 0.85.1.
+User cancellation, the deadline, and `session_shutdown` stop dispatch and cancel every active lease before awaiting them together.
+Queued tasks become skipped. Shutdown rejects new work and waits for request cleanup.
 
 The runner creates a detached process group and polls `/bin/ps` on macOS and Linux for descendants and process identities.
 It sends `SIGTERM` through the live direct child handle even if process observation fails.
@@ -152,7 +170,8 @@ These IDs reserve routing for planned workflows. They do not enable those workfl
 Resolution uses the explicit task `model`, the requested configured `role`, the agent's `model`, then the parent.
 An unknown role always rejects, even with an explicit model. A known but unconfigured role falls through.
 Each role has an in-memory round-robin counter. Explicit models consume no pool slot.
-Rejected or cancelled preparation consumes no slot. A started child consumes its slot even if execution fails.
+The scheduler plans all choices in input order against copied counters, then commits the batch and counters together.
+Rejected or cancelled preparation consumes no slot. Every admitted task consumes its assigned slot, even if queued or later cancelled.
 Counters reset only when that role's parsed assignment changes, or when Pi creates a new extension instance.
 Config formatting and role-key order do not reset them. Nothing persists counters to disk.
 

@@ -137,7 +137,7 @@ test('JSONL accepts split UTF-8 and LF framing but rejects malformed authoritati
   const text = '✓\u2028and\u2029';
   const bytes = Buffer.from(JSON.stringify({ type: 'message_end', message: { role: 'assistant', stopReason: 'stop', provider: 'p', model: 'm', content: [{ type: 'text', text }] } }) + '\n{"type":"agent_settled"}\n');
   for (const byte of bytes) parser.write(Buffer.from([byte]));
-  assert.deepEqual(parser.end().content, [{ type: 'text', text }]);
+  assert.equal(parser.end().output.text, text);
   for (const event of [[], {}, { type: 'made-up' }, { type: 'message_end' }, { type: 'message_end', message: { role: 'assistant', stopReason: 'stop' } }]) {
     assert.throws(() => childOutputParser().write(Buffer.from(JSON.stringify(event) + '\n')));
   }

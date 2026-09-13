@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { processTable } from './process-observer.mjs';
 
 export class ProductionObserver {
+  /** @param {{maxLivePi?: number}} [options] */
+  constructor({ maxLivePi = 2 } = {}) { this.maxLivePi = maxLivePi; }
   root = 0;
   startedAt = 0;
   /** @type {Map<number, import('./process-observer.mjs').ProcessIdentity>} */
@@ -53,7 +55,7 @@ export class ProductionObserver {
       }
       this.maxDepth = Math.max(this.maxDepth, depth);
     }
-    assert.ok(this.peakLivePi <= 2, 'Production spawned more than one child Pi');
+    assert.ok(this.peakLivePi <= this.maxLivePi, 'Production exceeded its Pi process limit');
     assert.ok(this.maxDepth <= 1, 'Production exceeded one delegation edge');
     this.samples.push({ atMs: Date.now() - this.startedAt, pids: rows.map((row) => row.pid), piPids: pi.map((row) => row.pid) });
     return rows;

@@ -104,7 +104,7 @@ test('catalog permits an absent user directory and never scans project agents', 
 test('single requests reject unknown fields, modes, blank tasks, and trust arguments', () => {
   const valid = { agent: 'general-purpose', task: 'Read a file.' };
   assert.deepEqual(parseRequest(valid), { kind: 'single', task: valid });
-  for (const input of [null, [], {}, { ...valid, kind: 'single' }, { tasks: [valid] }, { ...valid, task: ' ' }, { ...valid, task: 'x'.repeat(32769) }, { ...valid, cwd: '' }, { ...valid, cwd: '\0' }, { ...valid, agentScope: 'project' }, { ...valid, confirmProjectAgents: false }]) {
+  for (const input of [null, [], {}, { ...valid, kind: 'single' }, { ...valid, tasks: [valid] }, { ...valid, task: ' ' }, { ...valid, task: 'x'.repeat(32769) }, { ...valid, cwd: '' }, { ...valid, cwd: '\0' }, { ...valid, agentScope: 'project' }, { ...valid, confirmProjectAgents: false }]) {
     assert.throws(() => parseRequest(input));
   }
 });

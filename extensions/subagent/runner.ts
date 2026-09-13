@@ -51,12 +51,12 @@ export function boundedOutput(text: string, limit = executionLimits.outputBytes)
   return { text: buffer.subarray(0, end).toString('utf8'), bytes, truncated: true };
 }
 
-export function childOutputParser(expected?: ModelIdentity) {
+export function childOutputParser(expected?: ModelIdentity, outputBytes = executionLimits.outputBytes) {
   const decoder = new TextDecoder('utf-8', { fatal: true });
   let pending = '';
   let bytes = 0;
   let count = 0;
-  let final: Static<typeof assistantSchema> | undefined;
+  let final: Pick<Static<typeof assistantSchema>, 'stopReason' | 'provider' | 'model'> & { output: BoundedOutput } | undefined;
   let settled = false;
   return {
     write(chunk: Buffer) {
@@ -78,7 +78,10 @@ export function childOutputParser(expected?: ModelIdentity) {
           if (event.message.role === 'assistant') {
             if (!Check(assistantSchema, event.message)) throw new Error('Invalid child assistant message');
             if (expected && (event.message.provider !== expected.provider || event.message.model !== expected.id)) throw new Error('Child model differs from resolved model');
-            final = event.message;
+            final = {
+              stopReason: event.message.stopReason, provider: event.message.provider, model: event.message.model,
+              output: boundedOutput(event.message.content.filter((block) => block.type === 'text').map((block) => block.text).join(''), outputBytes),
+            };
           }
         }
       }
@@ -134,7 +137,7 @@ export async function runChild({ identity, agent, task, model, signal, depth = p
     owner = new OwnedProcessTree({ invocation: pinned, args, cwd: identity.cwd, env: childEnvironment(depth), lease, backend });
     if (owner.child.pid !== undefined && !owner.failure && !lease.signal.aborted) onStart?.();
     const child = owner.child;
-    const parser = childOutputParser(model);
+    const parser = childOutputParser(model, limits.outputBytes);
     const fail = (reason: string) => { failure ??= reason; owner?.requestStop({ kind: 'failed', reason }); };
     const stdout = (chunk: Buffer) => {
       if (failure) return;
@@ -162,7 +165,7 @@ export async function runChild({ identity, agent, task, model, signal, depth = p
         const final = parser.end();
         observedModel = { provider: final.provider, id: final.model };
         if (final.stopReason !== 'stop') failure = `Child stopped with ${final.stopReason}`;
-        else output = boundedOutput(final.content.filter((block) => block.type === 'text').map((block) => block.text).join(''), limits.outputBytes);
+        else output = final.output;
       } catch { failure = 'Child has no valid settled final response'; }
       if (owner.exitCode !== 0 || owner.exitSignal !== null) failure ??= 'Child exited unsuccessfully';
     }

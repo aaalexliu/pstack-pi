@@ -36,7 +36,8 @@ function registration(run) {
   const tool = tools[0];
   assert.equal(tool.name, 'subagent');
   assert.equal(tool.parameters, subagentParameters);
-  assert.deepEqual(Object.keys(tool.parameters.properties).sort(), ['agent', 'cwd', 'limits', 'model', 'role', 'task']);
+  assert.deepEqual(Object.keys(tool.parameters.anyOf[0].properties).sort(), ['agent', 'cwd', 'limits', 'model', 'role', 'task']);
+  assert.deepEqual(Object.keys(tool.parameters.anyOf[1].properties).sort(), ['cwd', 'limits', 'tasks']);
   return { tool, shutdown };
 }
 
@@ -161,6 +162,35 @@ test('depth is parsed once; request reductions truncate UTF-8 and report clamps 
   assert.ok(JSON.stringify(result.content).includes('timeoutMs clamped to 120000'));
   assert.ok(!JSON.stringify(result).includes('�'));
   assert.ok(Buffer.byteLength(JSON.stringify(result)) < 2048);
+});
+
+test('parallel preparation validates the last task before any runner starts', async (t) => {
+  const f = await runtime(t);
+  let started = 0;
+  const { tool } = registration(async () => { started++; throw new Error('Must not run'); });
+  const task = { agent: 'general-purpose', task: 'task' };
+  for (const last of [{ ...task, agent: 'missing' }, { ...task, model: 'fixture/missing' }, { ...task, model: 'fixture/mod' }]) {
+    await assert.rejects(tool.execute('batch', { tasks: [...Array(7).fill(task), last] }, undefined, undefined, f.ctx));
+  }
+  await assert.rejects(tool.execute('nine', { tasks: Array(9).fill(task) }, undefined, undefined, f.ctx));
+  assert.equal(started, 0);
+});
+
+test('parallel output retains only deterministic quotas with remainder bytes and no hidden full text', async (t) => {
+  const f = await runtime(t);
+  const { tool } = registration((args) => runChild({ ...args, invocation: f.invocation, backend: {
+    ...processBackend,
+    spawn: (_invocation, args, options) => spawn(process.execPath, [fileURLToPath(new URL('./child-fixture.mjs', import.meta.url)), 'large-output', ...args], options),
+  } }));
+  const result = await tool.execute('batch', { tasks: Array(8).fill({ agent: 'general-purpose', task: 'task' }), limits: { outputBytes: 27 } }, undefined, undefined, f.ctx);
+  assert.ok(result.details && 'tasks' in result.details);
+  const details = /** @type {{limits: {outputBytes: number}, output: {bytes: number, truncated: boolean}, usage: null}[]} */ (result.details.tasks);
+  assert.deepEqual(details.map((task) => task.limits.outputBytes), [4, 4, 4, 3, 3, 3, 3, 3]);
+  assert.ok(details.every((task) => task.output.bytes === 60000 && task.output.truncated && task.usage === null));
+  assert.equal(result.content[0].type, 'text');
+  assert.ok(JSON.stringify(result).length < 16000);
+  assert.ok(!JSON.stringify(result).includes('�'));
+  assert.ok(!JSON.stringify(result.details).includes('✓'));
 });
 
 test('cleanup uncertainty makes every later call fail closed', async (t) => {

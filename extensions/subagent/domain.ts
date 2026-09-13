@@ -28,20 +28,36 @@ export const reductionSchema = Type.Object({
   outputBytes: Type.Optional(Type.Integer({ minimum: 1, maximum: Number.MAX_SAFE_INTEGER })),
 }, { additionalProperties: false });
 
-export const subagentParameters = Type.Object({
+const taskFields = {
   agent: agentNameSchema,
   task: Type.String({ minLength: 1, maxLength: 32 * 1024, pattern: '\\S' }),
-  cwd: Type.Optional(Type.String({ minLength: 1, maxLength: 4096, pattern: '^[^\\u0000]+$' })),
-  limits: Type.Optional(reductionSchema),
   model: Type.Optional(modelChoiceSchema),
   role: Type.Optional(roleSchema),
+};
+const requestFields = {
+  cwd: Type.Optional(Type.String({ minLength: 1, maxLength: 4096, pattern: '^[^\\u0000]+$' })),
+  limits: Type.Optional(reductionSchema),
+};
+export const delegationTaskSchema = Type.Object(taskFields, { additionalProperties: false });
+const singleParameters = Type.Object({ ...taskFields, ...requestFields }, { additionalProperties: false });
+const parallelParameters = Type.Object({
+  tasks: Type.Array(delegationTaskSchema, { minItems: 1, maxItems: 8 }), ...requestFields,
 }, { additionalProperties: false });
-
-export type DelegationRequest = { kind: 'single'; task: Static<typeof subagentParameters> };
+export const subagentParameters = Type.Union([singleParameters, parallelParameters]);
+export type DelegationTask = Static<typeof delegationTaskSchema>;
+export type DelegationRequest =
+  | { kind: 'single'; task: Static<typeof singleParameters> }
+  | { kind: 'parallel'; request: Static<typeof parallelParameters> };
+export const inputLimits = Object.freeze({ taskBytes: 32 * 1024, aggregateTaskBytes: 128 * 1024, requestBytes: 160 * 1024 });
 
 export function parseRequest(value: unknown): DelegationRequest {
-  if (!Check(subagentParameters, value)) throw new Error('Invalid single delegation request');
-  return { kind: 'single', task: value };
+  if (!Check(subagentParameters, value)) throw new Error('Invalid single or parallel delegation request');
+  const tasks = 'tasks' in value ? value.tasks : [value];
+  const sizes = tasks.map((task) => Buffer.byteLength(task.task));
+  if (sizes.some((bytes) => bytes > inputLimits.taskBytes)
+    || sizes.reduce((sum, bytes) => sum + bytes, 0) > inputLimits.aggregateTaskBytes
+    || Buffer.byteLength(JSON.stringify(value)) > inputLimits.requestBytes) throw new Error('Delegation input exceeds byte limit');
+  return 'tasks' in value ? { kind: 'parallel', request: value } : { kind: 'single', task: value };
 }
 
 export type CanonicalCwd = string & { readonly __brand: 'CanonicalCwd' };
@@ -55,12 +71,13 @@ export type TaskResult = TaskIdentity & {
   | { kind: 'succeeded' }
   | { kind: 'failed'; reason: string }
   | { kind: 'cancelled'; reason: string }
+  | { kind: 'skipped'; reason: string }
 );
 export type ExecutionLimits = Readonly<{
-  maxTasks: 1; maxConcurrent: 1; maxDepth: 1; timeoutMs: number; outputBytes: number;
+  maxTasks: 8; maxConcurrent: 4; maxDepth: 1; timeoutMs: number; outputBytes: number;
 }>;
 export const executionLimits: ExecutionLimits = Object.freeze({
-  maxTasks: 1, maxConcurrent: 1, maxDepth: 1, timeoutMs: 120_000, outputBytes: 32_768,
+  maxTasks: 8, maxConcurrent: 4, maxDepth: 1, timeoutMs: 120_000, outputBytes: 32_768,
 });
 
 export const protocolLimits = Object.freeze({
@@ -95,7 +112,7 @@ export function requireRoot(depth: DelegationDepth): void {
   if (depth >= executionLimits.maxDepth) throw new Error('Delegation depth limit reached');
 }
 
-export type CancellationReason = 'user' | 'deadline' | 'parentShutdown';
+export type CancellationReason = 'user' | 'deadline' | 'parentShutdown' | 'unsafeCleanup';
 export type StopCause = { kind: 'cancelled'; reason: CancellationReason } | { kind: 'failed'; reason: string };
 export type RunState =
   | { kind: 'admitted' | 'preparing' | 'running' }

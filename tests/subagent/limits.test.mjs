@@ -8,7 +8,7 @@ import { PiInvocation, childEnvironment } from '../../extensions/subagent/proces
 const root = parseDepth(undefined);
 
 test('host policy is immutable and separate from protocol caps', () => {
-  assert.deepEqual(executionLimits, { maxTasks: 1, maxConcurrent: 1, maxDepth: 1, timeoutMs: 120000, outputBytes: 32768 });
+  assert.deepEqual(executionLimits, { maxTasks: 8, maxConcurrent: 4, maxDepth: 1, timeoutMs: 120000, outputBytes: 32768 });
   assert.ok(Object.isFrozen(executionLimits));
   assert.ok(Object.isFrozen(protocolLimits));
   assert.ok(!('outputBytes' in protocolLimits));
