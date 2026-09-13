@@ -117,7 +117,7 @@ async function fileInventory(root, roots) {
 /** @param {ContentInventory} inventory */
 export function extensionFiles(inventory) {
   return inventory.byDestination.has('agents/general-purpose.md')
-    ? ['extensions/subagent/agents.ts', 'extensions/subagent/domain.ts', 'extensions/subagent/index.ts', 'extensions/subagent/model-config.ts', 'extensions/subagent/model-runtime.ts', 'extensions/subagent/process.ts', 'extensions/subagent/protocol.ts', 'extensions/subagent/runner.ts', 'extensions/subagent/scheduler.ts', 'extensions/subagent/usage.ts'] : [];
+    ? ['extensions/pstack/index.ts', 'extensions/pstack/todo.ts', 'extensions/subagent/agents.ts', 'extensions/subagent/domain.ts', 'extensions/subagent/index.ts', 'extensions/subagent/model-config.ts', 'extensions/subagent/model-runtime.ts', 'extensions/subagent/process.ts', 'extensions/subagent/protocol.ts', 'extensions/subagent/runner.ts', 'extensions/subagent/scheduler.ts', 'extensions/subagent/usage.ts'] : [];
 }
 
 /** @param {ContentInventory} inventory */
@@ -136,7 +136,7 @@ export function assertPackageExposure(rawPackage, inventory) {
   const pi = object(pkg.pi);
   assert.deepEqual(Object.keys(pi).sort(), ['extensions', 'prompts', 'skills', 'themes'], 'Unexpected Pi registration');
   const runtime = extensionFiles(inventory).length > 0;
-  assert.deepEqual(pi.extensions, runtime ? ['extensions/subagent/index.ts'] : [], 'Only the single delegate may register');
+  assert.deepEqual(pi.extensions, runtime ? ['extensions/pstack/index.ts', 'extensions/subagent/index.ts'] : [], 'Only package-owned extensions may register');
   for (const key of ['prompts', 'themes']) assert.deepEqual(pi[key], [], `No ${key} may register`);
   assert.deepEqual(pkg.dependencies, runtime ? { yaml: '2.9.0' } : undefined, 'Unexpected runtime dependencies');
   if (runtime) assert.deepEqual(pkg.peerDependencies, { '@earendil-works/pi-coding-agent': '*', typebox: '*' });
@@ -233,7 +233,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.ar
     const inventory = await checkContent({ root, manifest: JSON.parse(await readFile('sync/manifest.json', 'utf8')), lock: JSON.parse(await readFile('sync/upstream.lock.json', 'utf8')) });
     const packed = JSON.parse(execFileSync('npm', ['pack', '--dry-run', '--json', '--ignore-scripts'], { encoding: 'utf8', timeout: 15_000, maxBuffer: 1024 * 1024 }));
     assertPackInventory(packed[0].files.map(/** @param {{path: string}} file */ (file) => file.path), inventory);
-    console.log(`${inventory.bySource.size} records, ${inventory.byDestination.size} files, ${inventory.bySkillName.size} skills, ${inventory.byAgentName.size} agents, ${extensionFiles(inventory).length ? 1 : 0} extensions`);
+    console.log(`${inventory.bySource.size} records, ${inventory.byDestination.size} files, ${inventory.bySkillName.size} skills, ${inventory.byAgentName.size} agents, ${extensionFiles(inventory).length ? 2 : 0} extensions`);
   } catch (error) {
     console.error(String(error));
     process.exitCode = 1;

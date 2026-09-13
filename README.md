@@ -1,8 +1,7 @@
 # pstack for Pi
 
 `@aaalexliu/pstack-pi` provides eight reviewed skills from Lauren Tan's pstack.
-It also provides a bounded delegation runtime with exact model routing, parallel leaf agents, process cleanup, and delegated usage accounting.
-This first release focuses on safe local delegation rather than the full pstack workflow set.
+It also provides branch-aware task tracking and a bounded delegation runtime with exact model routing, parallel leaf agents, process cleanup, and delegated usage accounting.
 
 ## Install
 
@@ -60,15 +59,31 @@ Each skill keeps upstream's `disable-model-invocation: true` flag.
 Pi hides these skills from model discovery but expands explicit commands with their arguments.
 The TypeScript skill includes `references/patterns.md`.
 
-The package ships nine generated skill files, one generated agent, ten extension modules, and `LICENSE`, `README.md`, and `package.json`.
-At root depth it registers one `subagent` tool, a `session_shutdown` cleanup hook, and a `tool_result` hook limited to its own failed delegations.
-It registers no prompts, themes, or commands.
-Chained requests, a usage command, todos, and broader workflows remain deferred.
+The package ships nine generated skill files, one generated agent, twelve extension modules, and `LICENSE`, `README.md`, and `package.json`.
+It registers `pstack_todo` and, at root depth, `subagent`.
+The delegation runtime owns one `session_shutdown` cleanup hook and a `tool_result` hook limited to its own failed delegations.
+Todo state uses `session_start` and `session_tree` hooks. The package registers no prompts, themes, or commands.
+Chained requests, a usage command, and broader workflows remain deferred.
 `/skill:how`, `/skill:poteto-mode`, and `/skill:setup-pstack` do not expand.
 
 The package never installs a blanket command-approval gate, inspects unrelated shell strings, or requests package-wide confirmation for routine Git pushes or pull-request edits.
 Those actions remain under host policy.
 Its validation applies only to `subagent` requests.
+
+## Todos
+
+The `pstack_todo` tool stores a checklist in versioned Pi custom entries. Its state follows the active session branch, so branching from an earlier point restores the checklist from that point rather than a later sibling.
+
+The tool supports four strict actions:
+
+```json
+{"action":"get"}
+{"action":"set","items":["Reproduce the bug","Fix it","Verify the fix"]}
+{"action":"add","item":"Review the diff"}
+{"action":"complete","item":"Reproduce the bug"}
+```
+
+`complete` marks every exact matching open item with `[done] `. `set` and `add` accept at most 128 nonblank items of at most 4,096 characters each. Reads do not add session entries. The loader ignores malformed entries and entries from newer state versions.
 
 ## Delegation
 

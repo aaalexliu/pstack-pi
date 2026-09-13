@@ -2,7 +2,7 @@
   "name": "@aaalexliu/pstack-pi",
   "version": "0.1.0",
   "type": "module",
-  "description": "Reviewed pstack skills and a bounded delegation runtime for Pi.",
+  "description": "Reviewed pstack workflows, branch-aware todos, and bounded delegation for Pi.",
   "license": "MIT",
   "homepage": "https://github.com/aaalexliu/pstack-pi#readme",
   "bugs": {
@@ -21,7 +21,7 @@
     "pi": "0.85.1"
   },
   "pi": {
-    "extensions": ["extensions/subagent/index.ts"],
+    "extensions": ["extensions/pstack/index.ts", "extensions/subagent/index.ts"],
     "skills": [
       "skills/bro/SKILL.md",
       "skills/principle-boundary-discipline/SKILL.md",
@@ -40,6 +40,8 @@
     "README.md",
     "package.json",
     "agents/general-purpose.md",
+    "extensions/pstack/index.ts",
+    "extensions/pstack/todo.ts",
     "extensions/subagent/agents.ts",
     "extensions/subagent/domain.ts",
     "extensions/subagent/index.ts",
