@@ -14,7 +14,7 @@ function skipped(task: ResolvedTask, reason: string): TaskResult {
   return { ...task.identity, kind: 'skipped', reason, output: boundedOutput(''), diagnostics: [], usage: null, observedModel: null,
     cleanup: { verified: true, durationMs: 0, forced: false, observedProcesses: 0 } };
 }
-type RequestState = 'reserved' | 'admitted' | 'stopping' | 'finished' | 'quarantined';
+type RequestState = 'reserved' | 'admitted' | 'running' | 'stopping' | 'finished' | 'quarantined';
 
 export function immutable<T>(value: T): T {
   if (value !== null && typeof value === 'object') {
@@ -31,7 +31,7 @@ export class RequestLease {
   #deadline = this.#started + executionLimits.timeoutMs;
   #timer: ReturnType<typeof setTimeout>;
   #active = new Set<RunLease>();
-  #batch: readonly ResolvedTask[] = [];
+  #batch: readonly ResolvedTask[] | undefined;
   #resolve!: () => void;
   readonly done = new Promise<void>((resolve) => { this.#resolve = resolve; });
   get state(): RequestState { return this.#state; }
@@ -49,6 +49,19 @@ export class RequestLease {
     if (performance.now() >= this.#deadline) this.cancel('deadline');
     this.signal.throwIfAborted();
   }
+  async wait<T>(operation: () => Promise<T>): Promise<T> {
+    this.check();
+    let rejectAbort: (reason?: unknown) => void = () => {};
+    const abort = () => rejectAbort(this.cancellation);
+    const cancelled = new Promise<never>((_resolve, reject) => { rejectAbort = reject; });
+    this.signal.addEventListener('abort', abort, { once: true });
+    try { return await Promise.race([Promise.resolve().then(() => { this.check(); return operation(); }), cancelled]); }
+    finally { this.signal.removeEventListener('abort', abort); }
+  }
+  #quarantine = (): void => {
+    this.cancel('unsafeCleanup');
+    this.#state = 'quarantined';
+  };
   cancel(reason: CancellationReason): void {
     if (this.#state === 'finished' || this.#state === 'quarantined') return;
     this.#state = 'stopping';
@@ -60,45 +73,53 @@ export class RequestLease {
     if (this.#state !== 'reserved') throw new Error('Request is not reserved');
     if (!batch.length || batch.length > executionLimits.maxTasks) throw new Error('Invalid batch size');
     const frozen = immutable(batch);
+    this.check();
     commit();
     this.#batch = frozen;
     this.#state = 'admitted';
   }
   async run(run: typeof runChild): Promise<TaskResult[]> {
-    if (this.#state !== 'admitted' && this.#state !== 'stopping') throw new Error('Request is not admitted');
-    const results = this.#batch.map((task) => skipped(task, 'Not dispatched'));
+    const batch = this.#batch;
+    if (!batch || this.#state !== 'admitted' && this.#state !== 'stopping') throw new Error('Request is not admitted');
+    this.#batch = undefined;
+    if (this.#state === 'admitted') this.#state = 'running';
+    const results = batch.map((task) => skipped(task, 'Not dispatched'));
     let next = 0;
     const worker = async () => {
-      while (next < this.#batch.length) {
+      while (next < batch.length) {
         if (performance.now() >= this.#deadline) this.cancel('deadline');
         if (this.signal.aborted) return;
         const index = next++;
-        const task = this.#batch[index];
+        const task = batch[index];
         const lease = new RunLease();
+        lease.cleanupUncertainty.addEventListener('abort', this.#quarantine, { once: true });
         this.#active.add(lease);
         try {
           results[index] = await run({ ...task, lease, signal: undefined });
         } catch {
           results[index] = { ...skipped(task, 'Child runner failed'), kind: 'failed', reason: 'Child runner failed' };
         } finally {
-          if (lease.state.kind !== 'finished' || !results[index].cleanup.verified) {
-            this.cancel('unsafeCleanup');
-            this.#state = 'quarantined';
+          if (lease.state.kind !== 'finished' || lease.cleanupUncertainty.aborted || !results[index].cleanup.verified) {
+            this.#quarantine();
             if (lease.state.kind !== 'finished' && lease.state.kind !== 'quarantined') { lease.verify(); lease.finish(false); }
+            results[index] = { ...results[index], kind: 'failed', reason: 'Delegation cleanup unverified; session quarantined',
+              output: boundedOutput(''), cleanup: { ...results[index].cleanup, verified: false } };
           }
+          lease.cleanupUncertainty.removeEventListener('abort', this.#quarantine);
           this.#active.delete(lease);
         }
       }
     };
-    await Promise.all(Array.from({ length: Math.min(this.#batch.length, executionLimits.maxConcurrent) }, worker));
-    for (let index = next; index < this.#batch.length; index++) {
-      results[index] = skipped(this.#batch[index], `Delegation cancelled (${this.cancellation ?? 'unsafeCleanup'})`);
+    await Promise.all(Array.from({ length: Math.min(batch.length, executionLimits.maxConcurrent) }, worker));
+    for (let index = next; index < batch.length; index++) {
+      results[index] = skipped(batch[index], `Delegation cancelled (${this.cancellation ?? 'unsafeCleanup'})`);
     }
     return results;
   }
   finish(): void {
     if (this.#active.size) throw new Error('Request still owns child cleanup');
     if (this.#state !== 'quarantined') this.#state = 'finished';
+    this.#batch = undefined;
     clearTimeout(this.#timer);
     this.#resolve();
   }

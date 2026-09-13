@@ -4,7 +4,7 @@ import path from 'node:path';
 import { Type, type Static } from 'typebox';
 import { Check } from 'typebox/value';
 import { executionLimits, protocolLimits, parseDepth, requireRoot, RunRegistry, type RunLease, type DelegationDepth, type ExecutionLimits, type Agent, type BoundedOutput, type CanonicalCwd, type TaskIdentity, type TaskResult } from './domain.ts';
-import { childEnvironment, OwnedProcessTree, PiInvocation, ProcessOwnershipError, type CleanupReport, type ProcessBackend } from './process.ts';
+import { childEnvironment, cleanupLimits, OwnedProcessTree, PiInvocation, ProcessOwnershipError, type CleanupReport, type ProcessBackend } from './process.ts';
 import { parseModelChoice } from './model-config.ts';
 import type { ChildModel, ModelIdentity } from './model-runtime.ts';
 
@@ -107,11 +107,53 @@ export function childArguments({ agent, model, promptFile }: { agent: Agent; mod
   return args;
 }
 
-export async function runChild({ identity, agent, task, model, signal, depth = parseDepth(undefined), limits = executionLimits, lease = new RunRegistry().admit(depth, limits.timeoutMs), invocation, backend, onStart }: {
+const promptBackend = { mkdtemp, writeFile, rm };
+export type PromptBackend = typeof promptBackend;
+
+async function abortable<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
+  let abort = () => {};
+  const cancelled = new Promise<never>((_resolve, reject) => {
+    abort = () => reject(signal.reason);
+    signal.addEventListener('abort', abort, { once: true });
+    if (signal.aborted) abort();
+  });
+  try { return await Promise.race([work, cancelled]); }
+  finally { signal.removeEventListener('abort', abort); }
+}
+
+class PrivatePrompt {
+  readonly ready: Promise<string>;
+  readonly #files: PromptBackend;
+  #directory: string | undefined;
+  constructor(text: string, signal: AbortSignal, files: PromptBackend) {
+    this.#files = files;
+    this.ready = (async () => {
+      this.#directory = await files.mkdtemp(path.join(tmpdir(), 'pstack-subagent-'));
+      signal.throwIfAborted();
+      const filename = path.join(this.#directory, 'system.md');
+      await files.writeFile(filename, text, { mode: 0o600, flag: 'wx', signal });
+      return filename;
+    })();
+  }
+  async remove(): Promise<void> {
+    const removal = (async () => {
+      try { await this.ready; } catch {}
+      if (this.#directory) await this.#files.rm(this.#directory, { recursive: true, force: true });
+    })();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([removal, new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error('Prompt cleanup deadline exceeded')), cleanupLimits.verifyMs);
+      })]);
+    } finally { clearTimeout(timer); }
+  }
+}
+
+export async function runChild({ identity, agent, task, model, signal, depth = parseDepth(undefined), limits = executionLimits, lease = new RunRegistry().admit(depth, limits.timeoutMs), invocation, backend, onStart, promptFiles = promptBackend }: {
   identity: TaskIdentity; agent: Agent; task: string; model: ChildModel; signal: AbortSignal | undefined;
-  depth?: DelegationDepth; limits?: ExecutionLimits; lease?: RunLease; invocation?: PiInvocation; backend?: ProcessBackend; onStart?: () => void;
+  depth?: DelegationDepth; limits?: ExecutionLimits; lease?: RunLease; invocation?: PiInvocation; backend?: ProcessBackend; onStart?: () => void; promptFiles?: PromptBackend;
 }): Promise<TaskResult> {
-  let temporary: string | undefined;
+  let prompt: PrivatePrompt | undefined;
   let owner: OwnedProcessTree | undefined;
   let cleanup: CleanupReport = { verified: true, durationMs: 0, identities: [], forced: false };
   let failure: string | undefined;
@@ -126,11 +168,10 @@ export async function runChild({ identity, agent, task, model, signal, depth = p
     requireRoot(depth);
     lease.signal.throwIfAborted();
     lease.prepare();
-    const pinned = invocation ?? await PiInvocation.resolve();
+    const pinned = invocation ?? await abortable(PiInvocation.resolve(), lease.signal);
     lease.signal.throwIfAborted();
-    temporary = await mkdtemp(path.join(tmpdir(), 'pstack-subagent-'));
-    const promptFile = path.join(temporary, 'system.md');
-    await writeFile(promptFile, agent.systemPrompt, { mode: 0o600, flag: 'wx' });
+    prompt = new PrivatePrompt(agent.systemPrompt, lease.signal, promptFiles);
+    const promptFile = await abortable(prompt.ready, lease.signal);
     const args = childArguments({ agent, model, promptFile });
     lease.signal.throwIfAborted();
     lease.run();
@@ -170,19 +211,20 @@ export async function runChild({ identity, agent, task, model, signal, depth = p
       if (owner.exitCode !== 0 || owner.exitSignal !== null) failure ??= 'Child exited unsuccessfully';
     }
   } catch (error) {
-    if (error instanceof ProcessOwnershipError) cleanup = { ...cleanup, verified: false };
+    if (error instanceof ProcessOwnershipError) { lease.distrustCleanup(); cleanup = { ...cleanup, verified: false }; }
     failure ??= 'Delegation preparation or execution failed';
     if (owner) {
       owner.requestStop({ kind: 'failed', reason: failure });
       cleanup = await owner.cleanup();
     }
   } finally {
-    if (temporary) {
-      try { await rm(temporary, { recursive: true, force: true }); }
-      catch { cleanup = { ...cleanup, verified: false }; }
+    if (prompt) {
+      try { await prompt.remove(); }
+      catch { lease.distrustCleanup(); cleanup = { ...cleanup, verified: false }; }
     }
     signal?.removeEventListener('abort', abort);
     lease.signal.removeEventListener('abort', stop);
+    if (lease.cleanupUncertainty.aborted) cleanup = { ...cleanup, verified: false };
     lease.verify();
     lease.finish(cleanup.verified);
   }

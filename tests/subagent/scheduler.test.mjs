@@ -21,6 +21,8 @@ function task(index) {
 function controlledRun() {
   /** @type {Map<string, () => void>} */
   const finish = new Map();
+  /** @type {Map<string, import('../../extensions/subagent/domain.ts').RunLease>} */
+  const leases = new Map();
   /** @type {string[]} */
   const started = [];
   /** @type {string[]} */
@@ -29,6 +31,7 @@ function controlledRun() {
   const run = async ({ identity, lease }) => {
     assert.ok(lease);
     started.push(identity.id);
+    leases.set(identity.id, lease);
     lease.prepare(); lease.run();
     lease.signal.addEventListener('abort', () => aborted.push(identity.id), { once: true });
     await new Promise((resolve) => { finish.set(identity.id, () => resolve(undefined)); });
@@ -37,7 +40,7 @@ function controlledRun() {
       cleanup: { verified: true, durationMs: 0, forced: false, observedProcesses: 1 } };
     return lease.cancellation ? { ...base, kind: 'cancelled', reason: lease.cancellation } : { ...base, kind: 'succeeded' };
   };
-  return { run, finish, started, aborted };
+  return { run, finish, started, aborted, leases };
 }
 
 test('parallel boundary rejects mixed shapes, unknown fields at every level, and UTF-8 overflow', () => {
@@ -115,6 +118,58 @@ test('ordinary failure leaves siblings and queued tasks running', async () => {
   assert.equal(results[0].kind, 'failed');
   assert.ok(results.slice(1).every((result) => result.kind === 'succeeded'));
   assert.deepEqual(fixture.aborted, []);
+  request.finish();
+});
+
+test('early uncertainty is sticky and prevents a finished sibling from releasing a queued slot', async () => {
+  const scheduler = new DelegationScheduler();
+  const request = scheduler.reserve(root);
+  const fixture = controlledRun();
+  request.admit(Array.from({ length: 8 }, (_, index) => task(index)), () => {});
+  const pending = request.run(fixture.run);
+  const uncertain = fixture.leases.get('2');
+  assert.ok(uncertain);
+  uncertain.distrustCleanup();
+  uncertain.distrustCleanup();
+  assert.deepEqual(fixture.aborted, ['0', '1', '2', '3']);
+  assert.equal(request.state, 'quarantined');
+  fixture.finish.get('0')?.();
+  await delay(0);
+  assert.deepEqual(fixture.started, ['0', '1', '2', '3']);
+  assert.throws(() => scheduler.reserve(root), /quarantined/);
+  for (const finish of fixture.finish.values()) finish();
+  const results = await pending;
+  assert.equal(results[2].kind, 'failed');
+  assert.equal(results[2].cleanup.verified, false);
+  assert.equal(uncertain.state.kind, 'quarantined', 'A later verified finish cannot repair lost trust');
+  assert.ok(results.slice(4).every((result) => result.kind === 'skipped'));
+  request.finish();
+  assert.throws(() => scheduler.reserve(root), /quarantined/);
+});
+
+test('non-cooperative spawn-free preparation cannot hold shutdown open or commit after cancellation', async () => {
+  const scheduler = new DelegationScheduler();
+  const request = scheduler.reserve(root);
+  let completed = false;
+  const waiting = request.wait(() => new Promise(() => {})).catch(() => { completed = true; });
+  const shutdown = scheduler.shutdown();
+  await waiting;
+  assert.equal(completed, true);
+  assert.equal(request.cancellation, 'parentShutdown');
+  request.finish();
+  await shutdown;
+});
+
+test('each admitted batch can dispatch only once', async () => {
+  const request = new DelegationScheduler().reserve(root);
+  const fixture = controlledRun();
+  request.admit([task(0)], () => {});
+  const pending = request.run(fixture.run);
+  await assert.rejects(request.run(fixture.run));
+  request.cancel('user');
+  await assert.rejects(request.run(fixture.run));
+  fixture.finish.get('0')?.();
+  await pending;
   request.finish();
 });
 

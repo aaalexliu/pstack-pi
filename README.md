@@ -130,11 +130,16 @@ After a one-second grace period, it sends `SIGKILL` to the still-live child hand
 An observed group remains owned only while a current member matches a recorded identity in that group, or the live direct child proves the initial group.
 A stale group ID alone cannot establish ownership.
 The runner then allows two seconds to verify cleanup.
-It does not return while the direct child handle remains live, so an OS refusal to terminate the child can extend cleanup beyond these timers.
-The execution deadline starts cancellation; it is not a hard bound on tool return time.
+If cleanup cannot prove that the child exited within those timers, it returns an unverified report and quarantines the extension instance.
+A deadline starts cancellation rather than guaranteeing termination by that instant. Process-table commands can each take up to 250 ms, and OS scheduling or filesystem stalls can delay timer callbacks.
 
-Observation failures, unsafe identities, and unverified cleanup fail the request and quarantine further delegation in that extension instance.
-The runner removes temporary prompt files and listeners after cleanup.
+Observation failures, unsafe identities, and unverified cleanup immediately stop dispatch and broadcast cancellation to active siblings.
+This signal is sticky even if a later process-table read succeeds. Finished siblings cannot release new queued work after trust is lost.
+The request waits for all active cleanup, marks queued tasks skipped, and quarantines further delegation in that extension instance.
+Prompt removal gets at most another two seconds, including any pending prompt write.
+If filesystem work outlives that wait, the request returns an unverified cleanup failure and quarantines the session.
+Late filesystem completion still attempts prompt removal but cannot start a child or restore trust.
+The runner removes listeners after cleanup.
 macOS and Linux polling cannot guarantee containment of an unseen fast double-fork or cleanup after host `SIGKILL`.
 Process-table snapshots and signals are not atomic, and `ps` start times have only second-level precision.
 These checks do not provide adversarial process isolation.

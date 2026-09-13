@@ -193,6 +193,43 @@ test('parallel output retains only deterministic quotas with remainder bytes and
   assert.ok(!JSON.stringify(result.details).includes('✓'));
 });
 
+test('process observation uncertainty cancels all active leases before cleanup finishes and never starts queued work', { timeout: 10000 }, async (t) => {
+  const f = await runtime(t);
+  /** @type {import('../../extensions/subagent/domain.ts').RunLease[]} */
+  const leases = [];
+  let distrust = false;
+  const { tool, shutdown } = registration((args) => {
+    assert.ok(args.lease);
+    const index = leases.push(args.lease) - 1;
+    return runChild({ ...args, invocation: f.invocation, backend: {
+      ...processBackend,
+      table: () => { if (distrust && index === 1) throw new Error('Injected observation failure'); return processBackend.table(); },
+      spawn: (_invocation, argv, options) => spawn(process.execPath, [fileURLToPath(new URL('./process-fixture.mjs', import.meta.url)), 'ignore', ...argv], options),
+    } });
+  });
+  const tasks = Array.from({ length: 8 }, (_, index) => ({ agent: 'general-purpose', task: path.join(f.root, `${index}.json`) }));
+  const pending = tool.execute('batch', { tasks }, undefined, undefined, f.ctx).then(() => 'unexpected success', String);
+  try {
+    const deadline = Date.now() + 2000;
+    while (Date.now() < deadline) {
+      try { await Promise.all(tasks.slice(0, 4).map((task) => readFile(task.task))); break; } catch { await delay(10); }
+    }
+    assert.equal(leases.length, 4);
+    await Promise.all(tasks.slice(0, 4).map((task) => readFile(task.task)));
+    distrust = true;
+    await delay(200);
+    assert.ok(leases.every((lease) => lease.signal.aborted), 'Uncertainty must broadcast before the three-second cleanup wait');
+    assert.match(await pending, /quarantined/);
+    assert.equal(leases.length, 4);
+    await assert.rejects(tool.execute('later', tasks[0], undefined, undefined, f.ctx), /quarantined/);
+    for (const task of tasks.slice(0, 4)) {
+      const capture = JSON.parse(await readFile(task.task, 'utf8'));
+      assert.throws(() => process.kill(capture.pid, 0), { code: 'ESRCH' });
+      await assert.rejects(readFile(capture.promptFile), { code: 'ENOENT' });
+    }
+  } finally { await shutdown(); await pending; }
+});
+
 test('cleanup uncertainty makes every later call fail closed', async (t) => {
   const f = await runtime(t);
   const { tool, shutdown } = registration((args) => runChild({ ...args, invocation: f.invocation, backend: {

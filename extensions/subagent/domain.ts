@@ -122,11 +122,14 @@ export type RunState =
 export class RunLease {
   #state: RunState = { kind: 'admitted' };
   #controller = new AbortController();
+  #cleanupUncertainty = new AbortController();
   #timer: ReturnType<typeof setTimeout> | undefined;
   #resolve!: () => void;
   readonly done = new Promise<void>((resolve) => { this.#resolve = resolve; });
   get state(): RunState { return this.#state; }
   get signal(): AbortSignal { return this.#controller.signal; }
+  get cleanupUncertainty(): AbortSignal { return this.#cleanupUncertainty.signal; }
+  distrustCleanup(): void { this.#cleanupUncertainty.abort(); }
   get cancellation(): CancellationReason | undefined {
     return this.#controller.signal.aborted ? this.#controller.signal.reason : undefined;
   }
@@ -158,7 +161,8 @@ export class RunLease {
   }
   finish(verified: boolean): void {
     if (this.#state.kind !== 'verifying') throw new Error('Run cleanup has not been verified');
-    this.#state = { kind: verified ? 'finished' : 'quarantined', cause: this.#state.cause };
+    if (!verified) this.distrustCleanup();
+    this.#state = { kind: verified && !this.cleanupUncertainty.aborted ? 'finished' : 'quarantined', cause: this.#state.cause };
     clearTimeout(this.#timer);
     this.#resolve();
   }

@@ -134,10 +134,15 @@ export class OwnedProcessTree {
     this.#observe();
   }
 
+  #distrust(): void {
+    if (this.#unverified) return;
+    this.#unverified = true;
+    this.#lease.distrustCleanup();
+  }
   #exit = () => { this.#exited = true; this.#wake(); };
   #close = () => { this.#closed = true; this.#wake(); };
   #error = (error: Error) => {
-    if ('syscall' in error && error.syscall === 'kill') this.#unverified = true;
+    if ('syscall' in error && error.syscall === 'kill') this.#distrust();
     this.requestStop({ kind: 'failed', reason: 'Child process or pipe failed' });
   };
 
@@ -181,18 +186,18 @@ export class OwnedProcessTree {
   #observe(): ProcessIdentity[] | undefined {
     try { return this.#snapshot(); }
     catch {
-      this.#unverified = true;
+      this.#distrust();
       this.requestStop({ kind: 'failed', reason: 'Process observation failed' }, false);
       return undefined;
     }
   }
 
   #signal(pid: number, signal: NodeJS.Signals | 0): boolean {
-    if (pid === process.pid || pid === -this.#hostGroup || Math.abs(pid) <= 1) { this.#unverified = true; return true; }
+    if (pid === process.pid || pid === -this.#hostGroup || Math.abs(pid) <= 1) { this.#distrust(); return true; }
     try { this.#backend.signal(pid, signal); return true; }
     catch (error) {
       if (error instanceof Error && 'code' in error && error.code === 'ESRCH') return false;
-      this.#unverified = true;
+      this.#distrust();
       return true;
     }
   }
@@ -203,8 +208,8 @@ export class OwnedProcessTree {
 
   #signalChild(signal: 'SIGTERM' | 'SIGKILL'): void {
     if (!this.#liveChild()) return;
-    try { if (!this.child.kill(signal)) this.#unverified = true; }
-    catch { this.#unverified = true; }
+    try { if (!this.child.kill(signal)) this.#distrust(); }
+    catch { this.#distrust(); }
   }
 
   #forceChild(): void {
@@ -262,7 +267,7 @@ export class OwnedProcessTree {
         }
       }
     } catch {
-      this.#unverified = true;
+      this.#distrust();
     }
     this.#lease.verify();
     try {
@@ -275,7 +280,7 @@ export class OwnedProcessTree {
           this.#forceChild();
         }
       }
-      if (!rows || rows.length || !this.#closed || (!this.#exited && this.child.pid !== undefined) || this.#liveChild()) this.#unverified = true;
+      if (!rows || rows.length || !this.#closed || (!this.#exited && this.child.pid !== undefined) || this.#liveChild()) this.#distrust();
     } finally {
       this.child.removeListener('exit', this.#exit);
       this.child.removeListener('close', this.#close);

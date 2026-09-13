@@ -6,7 +6,7 @@ import { boundedOutput, resolveCwd, runChild } from './runner.ts';
 import { loadModelConfig, ModelRouter } from './model-config.ts';
 import { captureParent, qualifyModel } from './model-runtime.ts';
 import { PiInvocation } from './process.ts';
-import { DelegationScheduler, outputQuota, type ResolvedTask } from './scheduler.ts';
+import { DelegationScheduler, immutable, outputQuota, type ResolvedTask } from './scheduler.ts';
 
 class BatchExecutionError extends Error {}
 
@@ -48,28 +48,28 @@ export default function subagentExtension(pi: ExtensionAPI, { run = runChild, pi
         if (signal?.aborted) abort();
         lease.check();
         const parent = captureParent(ctx);
-        const request = parseRequest(params);
+        const request = immutable(structuredClone(parseRequest(params)));
         const input = request.kind === 'single' ? { tasks: [request.task], cwd: request.task.cwd, limits: request.task.limits } : request.request;
         const reduced = reduceLimits(input.limits);
         const limits = reduced.limits;
         diagnostics = reduced.diagnostics;
         lease.lowerDeadline(limits.timeoutMs);
         const agentDir = getAgentDir();
-        const cwd = await resolveCwd({ current: ctx.cwd, supplied: input.cwd });
-        const catalog = await discoverAgents({ userDir: path.join(agentDir, 'agents') });
+        const cwd = await lease.wait(() => resolveCwd({ current: ctx.cwd, supplied: input.cwd }));
+        const catalog = await lease.wait(() => discoverAgents({ userDir: path.join(agentDir, 'agents') }));
         if (catalog.diagnostics.length) throw new Error('Invalid agent catalog');
         const agents = input.tasks.map((task) => {
           const agent = catalog.selected.get(task.agent);
           if (!agent) throw new Error(`Unknown agent: ${task.agent}. Project agents are disabled.`);
           return agent;
         });
-        const config = await loadModelConfig(agentDir);
+        const config = await lease.wait(() => loadModelConfig(agentDir));
         const ticket = router.prepareBatch(config, input.tasks.map((task, index) => ({ model: task.model, role: task.role, agentModel: agents[index].model })));
         const models: Awaited<ReturnType<typeof qualifyModel>>[] = [];
         for (const selection of ticket.selections) {
-          models.push(await qualifyModel({ selection, parent, agentDir, signal: lease.signal }));
+          models.push(await lease.wait(() => qualifyModel({ selection, parent, agentDir, signal: lease.signal })));
         }
-        const invocation = await pin();
+        const invocation = await lease.wait(pin);
         const batch: ResolvedTask[] = input.tasks.map((task, index) => ({
           identity: { id: request.kind === 'single' ? boundedOutput(id, 128).text : `${boundedOutput(id, 120).text}/${index + 1}`, agent: { name: agents[index].name, provenance: agents[index].provenance }, cwd },
           agent: agents[index], task: task.task, depth: rootDepth, invocation,
