@@ -9,7 +9,7 @@ import { PiInvocation } from './process.ts';
 import { DelegationScheduler, immutable, outputQuota, type ResolvedTask } from './scheduler.ts';
 import { aggregateUsage, type Usage } from './usage.ts';
 
-const failureLimits = Object.freeze({ records: 32, envelopeBytes: 64 * 1024, retentionMs: 30_000 });
+const failureLimits = Object.freeze({ records: 32, envelopeBytes: 64 * 1024, retentionMs: 30_000, toolCallIdBytes: 1024 });
 type Envelope = { content: [{ type: 'text'; text: string }]; details: unknown; usage: Usage };
 type OwnedFailure = { input: object; toolCallId: string } & (
   | { kind: 'running' }
@@ -123,6 +123,7 @@ export default function subagentExtension(pi: ExtensionAPI, { run = runChild, pi
         if (signal?.aborted) abort();
         lease.check();
         const request = immutable(structuredClone(parseRequest(params)));
+        if (Buffer.byteLength(id) > failureLimits.toolCallIdBytes) throw new Error('Delegation tool call ID exceeds byte limit');
         if (closed || owned.size >= failureLimits.records || inputs.has(params)) throw new Error('Delegation result capacity unavailable');
         key = Symbol();
         inputs.set(params, key);

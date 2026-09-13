@@ -68,6 +68,17 @@ test('charged failed attempts count before retries; completed compactions count 
   assert.deepEqual(parser.report().direct.usage, addUsage(addUsage(usage, usage), usage));
 });
 
+test('a duplicate completed compaction fails without adding its usage twice', () => {
+  const parser = childOutputParser();
+  start(parser); end(parser);
+  send(parser, { type: 'compaction_start', reason: 'manual' });
+  const completion = { type: 'compaction_end', reason: 'manual', result: { usage }, aborted: false, willRetry: false };
+  send(parser, completion);
+  assert.throws(() => send(parser, completion));
+  assert.deepEqual(parser.report().direct.usage, addUsage(usage, usage));
+  assert.equal(parser.report().direct.kind, 'partial');
+});
+
 test('unexpected nested tool usage is retained once and fails the leaf contract without dropping later direct usage', () => {
   const parser = childOutputParser();
   start(parser, { stopReason: 'toolUse' }); end(parser, { stopReason: 'toolUse' });

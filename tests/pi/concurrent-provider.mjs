@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
+import { setTimeout as delay } from 'node:timers/promises';
 import { FIXTURE_KEY, FIXTURE_USAGE } from './provider.mjs';
 
-/** @typedef {Omit<import('./routing-provider.mjs').RoutingStep, 'reply'> & {reply: import('./provider.mjs').ScriptStep['reply'] | {kind: 'failure'}}} ConcurrentStep */
+/** @typedef {{prompt_tokens: number, completion_tokens: number, total_tokens: number, prompt_tokens_details?: {cached_tokens: number}, completion_tokens_details?: {reasoning_tokens: number}}} WireUsage */
+/** @typedef {Omit<import('./routing-provider.mjs').RoutingStep, 'reply'> & {usage?: WireUsage, finishReason?: 'length', reply: import('./provider.mjs').ScriptStep['reply'] | {kind: 'failure'} | {kind: 'partial', updates: {text: string, usage: WireUsage}[]}}} ConcurrentStep */
 /** @typedef {{marker: string, steps: ConcurrentStep[]}} ConcurrentRoute */
 /** @param {ConcurrentRoute[]} routes */
 export async function startConcurrentProvider(routes) {
@@ -15,6 +17,7 @@ export async function startConcurrentProvider(routes) {
     for (const step of route.steps) {
       assert.ok(step.model.length > 0 && step.model.length <= 256);
       assert.ok(Buffer.byteLength(JSON.stringify(step.reply)) <= 32768);
+      if (step.reply.kind === 'partial') assert.ok(step.reply.updates.length > 0 && step.reply.updates.length <= 8);
     }
   }
   const scripts = new Map(routes.map((route) => [route.marker, { steps: route.steps, next: 0 }]));
@@ -89,6 +92,15 @@ export async function startConcurrentProvider(routes) {
           state.completions.push(marker);
           return;
         }
+        if (reply.kind === 'partial') {
+          response.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' });
+          for (const update of reply.updates) {
+            response.write(`data: ${JSON.stringify({ id: `partial-${state.requests}`, object: 'chat.completion.chunk', created: 1, model: step.model,
+              choices: [{ index: 0, delta: { role: 'assistant', content: update.text }, finish_reason: null }], usage: update.usage })}\n\n`);
+            await delay(50, undefined, { signal: controller.signal });
+          }
+          return;
+        }
         const calls = reply.kind === 'tools' ? reply.calls : reply.kind === 'tool' ? [reply] : [];
         assert.ok(reply.kind === 'text' || calls.length > 0 && calls.length <= 4);
         const delta = reply.kind === 'text' ? { role: 'assistant', content: reply.text }
@@ -96,8 +108,8 @@ export async function startConcurrentProvider(routes) {
         const envelope = { id: `parallel-${state.requests}`, object: 'chat.completion.chunk', created: 1, model: step.model };
         response.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' });
         response.write(`data: ${JSON.stringify({ ...envelope, choices: [{ index: 0, delta, finish_reason: null }] })}\n\n`);
-        response.write(`data: ${JSON.stringify({ ...envelope, choices: [{ index: 0, delta: {}, finish_reason: reply.kind === 'text' ? 'stop' : 'tool_calls' }] })}\n\n`);
-        response.write(`data: ${JSON.stringify({ ...envelope, choices: [], usage: { prompt_tokens: FIXTURE_USAGE.input, completion_tokens: FIXTURE_USAGE.output, total_tokens: FIXTURE_USAGE.totalTokens } })}\n\n`);
+        response.write(`data: ${JSON.stringify({ ...envelope, choices: [{ index: 0, delta: {}, finish_reason: step.finishReason ?? (reply.kind === 'text' ? 'stop' : 'tool_calls') }] })}\n\n`);
+        response.write(`data: ${JSON.stringify({ ...envelope, choices: [], usage: step.usage ?? { prompt_tokens: FIXTURE_USAGE.input, completion_tokens: FIXTURE_USAGE.output, total_tokens: FIXTURE_USAGE.totalTokens } })}\n\n`);
         response.end('data: [DONE]\n\n');
         state.completions.push(marker);
       } catch (error) {

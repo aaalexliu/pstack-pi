@@ -81,6 +81,9 @@ for (const mode of ['malformed', 'no-lf', 'line', 'stderr', 'count', 'stdout', '
     const result = await runChild({ ...f, agent, model, task: 'task', signal: undefined, ...child(mode) });
     assert.equal(result.kind, 'failed');
     assert.equal(result.usage.scope, 'pi-reported');
+    if (['error', 'aborted', 'length', 'toolUse', 'deferred', 'no-settled', 'exit'].includes(mode)) {
+      assert.equal(result.usage.direct.usage.totalTokens, 18, 'Failure lost completed usage');
+    }
     assert.ok(Buffer.byteLength(result.output.text) <= 32768);
     assert.ok(result.diagnostics.every((text) => Buffer.byteLength(text) <= 4096));
   });
@@ -129,6 +132,7 @@ test('pre-abort and spawn errors leave no temporary prompts', async (t) => {
   const result = await runChild({ ...f, agent, model, task: '', signal: undefined, invocation, onStart, backend: { ...processBackend, spawn: () => spawn('/nonexistent-pi', [], { stdio: 'pipe' }) } });
   assert.equal(started, 0, 'rejected and cancelled preparation consume no pool slot');
   assert.equal(result.kind, 'failed');
+  assert.deepEqual(result.usage.direct, { kind: 'complete', usage: zeroUsage() });
   assert.deepEqual((await readdir(tmpdir())).filter((name) => name.startsWith('pstack-subagent-')).sort(), before);
 });
 

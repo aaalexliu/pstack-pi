@@ -12,7 +12,7 @@ function record(value) {
   return /** @type {Record<string, unknown>} */ (value);
 }
 
-const usage = { input: 101, output: 23, cacheRead: 5, cacheWrite: 7, totalTokens: 136,
+const usage = { input: 101, output: 23, cacheRead: 5, cacheWrite: 7, totalTokens: 999,
   cost: { input: 0.11, output: 0.23, cacheRead: 0.05, cacheWrite: 0.07, total: 0.46 } };
 const content = [{ type: 'text', text: 'owned contract failure' }];
 const details = { marker: 'retained details' };

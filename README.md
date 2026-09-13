@@ -22,8 +22,9 @@ Pi hides these skills from model discovery but expands explicit commands with th
 The TypeScript skill includes `references/patterns.md`.
 
 The package ships nine generated skill files, one generated agent, ten extension modules, and `LICENSE`, `README.md`, and `package.json`.
-At root depth it registers one `subagent` tool and one `session_shutdown` cleanup hook, with no prompts, themes, or commands.
-Chained requests, usage totals, todos, and broader workflows remain deferred.
+At root depth it registers one `subagent` tool, a `session_shutdown` cleanup hook, and a `tool_result` hook limited to its own failed delegations.
+It registers no prompts, themes, or commands.
+Chained requests, a usage command, todos, and broader workflows remain deferred.
 `/skill:how`, `/skill:poteto-mode`, and `/skill:setup-pstack` do not expand.
 
 The package never installs a blanket command-approval gate, inspects unrelated shell strings, or requests package-wide confirmation for routine Git pushes or pull-request edits.
@@ -89,7 +90,7 @@ The task travels through stdin, so leading `@` and CLI-looking text stay task te
 Children expose no `subagent` tool.
 The host permits delegation only at depth zero and sets the child to depth one, the leaf boundary.
 It removes inherited `PSTACK_*` variables before setting the child depth.
-Malformed depth values or depth one and above disable this extension's tool and hook.
+Malformed depth values or depth one and above disable this extension's tool and both hooks.
 Tool allowlists are not an OS sandbox. A user agent with `bash` can run arbitrary commands, including launching processes outside this delegation API.
 
 The runner accepts LF-delimited JSON with strict UTF-8 decoding.
@@ -97,8 +98,8 @@ Its limits are 256 KiB per record, 4,096 events, 8 MiB stdout, and 64 KiB stderr
 It caps returned text at 32 KiB and does not return raw stderr.
 A successful result requires a settled final assistant message with `stopReason: "stop"`, the requested model, exit code zero, and verified cleanup.
 Every authoritative child assistant message must match the resolved model identity.
-Truncation is explicit. Tool details include identity, agent provenance, canonical cwd, outcome, limits, cleanup, diagnostics, requested/resolved/observed model identity, and `usage: null`.
-Child failures throw from `execute`, so Pi marks the tool result as an error.
+Truncation is explicit. Tool details include identity, bounded agent provenance and cwd, outcome, limits, cleanup, diagnostics, requested/resolved/observed model identity, and a usage report.
+Child failures throw from `execute`, so a missed result hook still leaves a real error.
 
 A parallel request has this shape:
 
@@ -119,9 +120,12 @@ The scheduler dispatches tasks in input order and holds each slot through prompt
 Results keep input order. Ordinary task failure does not stop siblings.
 The retained-output budget splits by input index, with one extra byte for each leading index covered by the remainder.
 Quotas never move between tasks. Small budgets can give later tasks zero bytes.
-Successful calls return bounded ordered output and metadata. Any failed, cancelled, or skipped task makes the tool throw one bounded ordered summary.
-Summary labels and failure reasons have a separate overhead bound of 4 KiB.
-Pi 0.85.1 creates an empty `details` object for thrown errors, not task metadata.
+Successful calls return bounded ordered output, task metadata, and one aggregate top-level Pi `usage` value.
+Any failed, cancelled, or skipped task makes the tool throw one bounded ordered summary.
+Request cancellation also fails the call if every child has already finished.
+The 32,768-byte result-text cap includes summary labels and notices. A 64 KiB serialized envelope cap can shorten text further.
+`details.resultOutput` reports the pre-truncation byte count and whether the envelope shortened the text.
+Pi 0.85.1 discards details and usage attached to thrown errors. The owned-result hook restores those fields after cleanup.
 User cancellation, the deadline, and `session_shutdown` stop dispatch and cancel every active lease before awaiting them together.
 Queued tasks become skipped. Shutdown rejects new work and waits for request cleanup.
 
@@ -145,6 +149,49 @@ macOS and Linux polling cannot guarantee containment of an unseen fast double-fo
 Process-table snapshots and signals are not atomic, and `ps` start times have only second-level precision.
 These checks do not provide adversarial process isolation.
 Delegation rejects unsupported operating systems, including Windows.
+
+## Usage and failed results
+
+`protocol.ts` owns bounded UTF-8/LF JSONL parsing and message lifecycle state. `usage.ts` owns validation, arithmetic, and reports.
+The parser uses Pi 0.85.1's JSON-mode projection. Assistant `message_start` opens a provisional snapshot, `message_update.usage` replaces it, and `message_end` commits it once.
+It counts charged failed assistant attempts before retries and completed `compaction_end.result.usage` once.
+Retry events control execution but add no usage. Repeated `turn_end`, `agent_end`, entry copies, and tool-execution events add nothing.
+The parser rejects malformed consumed fields, unknown event names, duplicate or unmatched ends, events after settlement, unsafe numbers, overflow, and protocol bounds.
+Only a final `stop` can succeed. Recognized terminal `length`, `toolUse`, `error`, `aborted`, and `deferred` outcomes remain failures.
+
+Every task has `details.usage.scope: "pi-reported"` with `direct` and `descendant` reports.
+Each report has `kind: "complete"` or `kind: "partial"` and a known `usage` value.
+Partial reports add bounded reason codes and a `provisional` snapshot, or `null` when no assistant remains open.
+The direct known amount includes that provisional snapshot once. Never add `provisional` to it again.
+Later stream failure, cancellation, and cleanup uncertainty preserve earlier valid usage.
+A never-started queued task has complete zero usage. An unexpected runner failure has partial usage, not a claim of zero work.
+
+The primary token fields are `input`, `output`, `cacheRead`, `cacheWrite`, and `totalTokens`.
+All tokens must be nonnegative safe integers; all five cost fields must be finite and nonnegative.
+Optional `reasoning` and `cacheWrite1h` remain reported subsets. They do not increase the primary fields.
+The extension neither prices tokens nor forces `totalTokens` to equal the other fields.
+Pi stores `totalTokens`, but Pi 0.85.1 computes its displayed session token total from input, output, cache reads, and cache writes.
+Batch aggregation follows input order. If an aggregate cannot represent another charge safely, the request fails and retains the representable known amounts with an overflow diagnostic.
+
+Supported children are leaves, so their descendant report is complete known-zero.
+Unexpected top-level usage on a child's final tool-result message counts once as descendant evidence, makes that report partial, and fails the leaf contract.
+The production tool has no flag that enables nested delegates.
+These reports describe Pi-emitted usage, not provider invoice proof. Missing provider charges, failed summarization attempts with no completion usage, and arbitrary processes launched by a user agent remain outside that evidence.
+
+The synchronous `tool_result` hook first rejects every tool name except `subagent` without inspecting other fields.
+A private WeakMap associates the original validated request object with a fresh Symbol and a bounded record. Matching also requires the exact tool-call ID.
+The hook patches only a retained failed record whose input identity, native error text and shape, empty details, absent usage, and `isError: true` remain unchanged.
+It discards changed owned results instead of overwriting another handler. Copied JSON, duplicate IDs alone, matching text, foreign same-name tools, and preflight-rejected calls cannot match.
+The hook erases the record before returning ordered details, bounded content, and one aggregate usage value with `isError: true`.
+Pi counts and persists that final tool result once. Reload reads the persisted result; the extension does not replay charges.
+
+There are at most 32 correlation records and 64 KiB of serialized result data per retained envelope.
+Tool-call IDs above 1,024 UTF-8 bytes reject before correlation reservation, rather than retaining an unbounded host-supplied ID.
+Running records never expire or get evicted. Failed records expire 30 seconds after cleanup through one lazy timer.
+Success, preflight failure, hook consumption, expiry, and shutdown erase records. Shutdown closes the state before awaiting scheduler cleanup, so late completion cannot restore it.
+A full record table rejects new work. An expired, changed, or missed hook leaves Pi's native error intact but cannot restore its discarded accounting.
+Hostile in-process extensions are outside this boundary. They share process privileges and can replace tools or alter results after this hook.
+There are no `tool_call`, `user_bash`, or command interception hooks.
 
 ## Model routing
 
@@ -270,7 +317,7 @@ CI runs the same command in the checkout and in a clean Git archive with no `.gi
 
 `check:content` validates exact membership, YAML frontmatter, dependency closure, local links, file modes, explicit package exposure, and the dry-run pack inventory.
 The fixture tests reject duplicate YAML keys, unresolved dependencies, Cursor-only mechanics, undeclared agents, and unexpected runtime registration.
-A fake ExtensionAPI checks the single `registerTool` call and the `session_shutdown` hook, with no command gate.
+A fake ExtensionAPI checks the single `registerTool` call and exactly the `session_shutdown` and scoped `tool_result` hooks, with no command gate.
 They preserve genuine protocol identifiers such as review author `cursor` and `CURSOR_AUTOMATION_ID`.
 
 The real Pi tests pack and move the package into an isolated profile.
@@ -294,7 +341,10 @@ Each production observer verifies process and prompt cleanup before test rescue.
 Focused tests cover user abort with four real child processes, early cleanup uncertainty, and bounded cleanup when prompt writes or removal stall.
 The concurrent fixture allows twelve seconds for a check that spans several serial child replacements; this does not raise any production deadline.
 The unchanged Phase 6 recursion fixture is an unsafe positive control, not the production delegation path.
-The main delegation and model-routing tests retain their tarballs and `run.json` under the artifact paths printed in test output.
+The accounting tests verify installed Pi's returned-error, thrown-error, and patched-error behavior through provider requests, JSONL events, persisted session totals, and reload.
+Packed child reads, charged length failures, cumulative updates, truncation, and cancellation use exact known provider tokens and costs.
+An injected child JSONL control tests unsupported descendant evidence without enabling production nesting.
+The main delegation, model-routing, and accounting tests retain their tarballs and `run.json` under the artifact paths printed in test output.
 Other test profiles are removed.
 Runtime tests copy only the pinned `yaml` dependency into the relocated package. Pi supplies its own host modules.
 `skipLibCheck` skips defective third-party declarations in Pi's dependency tree; project TypeScript still uses strict checking.

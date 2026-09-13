@@ -335,6 +335,10 @@ test('same-name foreign tools, duplicate IDs, invalid inputs, and preflight fail
   t.after(shutdown);
   const a = { agent: 'general-purpose', task: 'a' };
   const b = { agent: 'general-purpose', task: 'b' };
+  for (const toolCallId of ['x'.repeat(1025), '✓'.repeat(342)]) {
+    await assert.rejects(tool.execute(toolCallId, a, undefined, undefined, f.ctx), /tool call ID exceeds byte limit/);
+    assert.equal(resultHook(nativeFailure(a, 'Delegation tool call ID exceeds byte limit', { toolCallId })), undefined);
+  }
   const text = await failureText(tool, f.ctx, a);
   const otherText = await failureText(tool, f.ctx, b);
   assert.equal(text, otherText);
