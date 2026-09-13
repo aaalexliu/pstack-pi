@@ -170,6 +170,7 @@ Pinned choices may select another standalone provider without inheriting parent 
 
 Pi 0.85.1 imposes narrower rules:
 
+- `ModelRuntime.create()` creates a missing `auth.json`. Delegation instead requires the existing file that Pi creates at startup, so qualification does not create config files.
 - Its public registry has no command-disabled auth mode. Delegation preflights the standard `auth.json`, `models.json`, and `models-store.json` with safe bounded reads. Each has a 1 MiB cap. Any leading-`!` string anywhere in those files rejects, even on unused providers. References to child-filtered `PSTACK_*` variables also reject.
 - `getAvailable()` proves configured auth, not token validity or server access. The adapter never calls `getAuth()` or runs credential commands. The child resolves its own standard credentials and may refresh standard OAuth tokens.
 - Bedrock and Vertex external credential chains are unsupported. Supported APIs are `openai-completions`, `openai-responses`, `openai-codex-responses`, `azure-openai-responses`, `anthropic-messages`, `google-generative-ai`, `mistral-conversations`, and `pi-messages`.
@@ -255,8 +256,12 @@ Production child requests lack `subagent`; process checks reject surviving obser
 The packed execution tests cover reduced deadlines, one-at-a-time admission, depth rejection, fake `pi` in `PATH`, and parent `SIGTERM` and `SIGHUP` cleanup.
 They retain the controlled detached-work test, which keeps ancestry visible long enough for polling.
 Focused process tests cover continuous observation failure with a real stalled child and deterministic group-ID reuse.
+The packed routing tests use a separate exact-model fixture without changing the Phase 6 provider.
+Seven real children prove cross-provider explicit choices, mixed pools, duplicate entries, agent defaults, and inherited thinking.
+Provider request bodies and authoritative child observations must match the expected sequence.
+Other real runs reject unknown roles, fuzzy names, unavailable pool entries, duplicate config keys, and unused credential commands before a child request.
 The unchanged Phase 6 recursion fixture is an unsafe positive control, not the production delegation path.
-The main delegation test retains its tarball and `run.json` under the artifact path printed in test output.
+The main delegation and model-routing tests retain their tarballs and `run.json` under the artifact paths printed in test output.
 Other test profiles are removed.
 Runtime tests copy only the pinned `yaml` dependency into the relocated package. Pi supplies its own host modules.
 `skipLibCheck` skips defective third-party declarations in Pi's dependency tree; project TypeScript still uses strict checking.

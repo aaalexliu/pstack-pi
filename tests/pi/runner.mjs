@@ -107,10 +107,10 @@ export class PiTestError extends Error {
  * @typedef {{kind: 'packed'} | {kind: 'recursion-control', nonce: string}} TestLaunch
  */
 /**
- * @param {{ launch?: TestLaunch, expectedExit?: {code: number | null, signal: NodeJS.Signals | null}, launchEnvironment?: NodeJS.ProcessEnv, observer?: import('./process-observer.mjs').ProcessObserver, verifyStopped?: (run: PiTestRun) => Promise<void>, fixture?: import("./provider.mjs").FixtureOptions, timeoutMs?: number, executable?: string, prompt?: string, packageFixture?: {root: string, files: string[]}, allowDiagnostics?: boolean, expectedText?: string, expectedRequests?: number, setup?: (paths: PiTestRun['paths']) => Promise<void>, verify?: (run: PiTestRun) => Promise<void>, keepArtifacts?: boolean, onSpawn?: (pid: number) => void }} options
+ * @param {{ startFixture?: typeof startProvider, thinkingLevel?: 'off' | 'high', configureModels?: (paths: PiTestRun['paths'], baseUrl: string) => Promise<void>, launch?: TestLaunch, expectedExit?: {code: number | null, signal: NodeJS.Signals | null}, launchEnvironment?: NodeJS.ProcessEnv, observer?: import('./process-observer.mjs').ProcessObserver, verifyStopped?: (run: PiTestRun) => Promise<void>, fixture?: import("./provider.mjs").FixtureOptions, timeoutMs?: number, executable?: string, prompt?: string, packageFixture?: {root: string, files: string[]}, allowDiagnostics?: boolean, expectedText?: string, expectedRequests?: number, setup?: (paths: PiTestRun['paths']) => Promise<void>, verify?: (run: PiTestRun) => Promise<void>, keepArtifacts?: boolean, onSpawn?: (pid: number) => void }} options
  * @returns {Promise<PiTestRun>}
  */
-export async function runPiSmoke({ launch = { kind: 'packed' }, launchEnvironment, expectedExit = { code: 0, signal: null }, observer, verifyStopped, fixture, timeoutMs = 20_000, executable = "pi", prompt = 'Return the fixture response.', packageFixture, allowDiagnostics = false, expectedText = FIXTURE_TEXT, expectedRequests = 1, setup, verify, keepArtifacts = false, onSpawn } = {}) {
+export async function runPiSmoke({ startFixture = startProvider, thinkingLevel = 'off', configureModels, launch = { kind: 'packed' }, launchEnvironment, expectedExit = { code: 0, signal: null }, observer, verifyStopped, fixture, timeoutMs = 20_000, executable = "pi", prompt = 'Return the fixture response.', packageFixture, allowDiagnostics = false, expectedText = FIXTURE_TEXT, expectedRequests = 1, setup, verify, keepArtifacts = false, onSpawn } = {}) {
   assert.notEqual(process.platform, "win32", "Pi process-group tests require Unix; Windows cleanup is unverified");
   assert.ok(Number.isFinite(timeoutMs) && timeoutMs > 0);
   const started = Date.now();
@@ -242,7 +242,7 @@ export async function runPiSmoke({ launch = { kind: 'packed' }, launchEnvironmen
     resourceParser.write(Buffer.from(resourceOutput));
     resourceParser.end();
     assert.ok(run.resources, 'Missing resource record');
-    provider = await startProvider(fixture);
+    provider = await startFixture(fixture);
     run.provider = provider.state;
     await writeFile(join(run.paths.profile, "models.json"), JSON.stringify({
       providers: {
@@ -254,12 +254,13 @@ export async function runPiSmoke({ launch = { kind: 'packed' }, launchEnvironmen
         },
       },
     }));
+    await configureModels?.(run.paths, provider.baseUrl);
     const invocation = { node: await realpath(process.execPath), cli: await realpath(join(dirname(fileURLToPath(sdk)), 'cli.js')) };
     switch (launch.kind) {
       case 'packed':
         run.process.args = [invocation.cli,
           '--mode', 'json', '--print', '--offline', '--no-approve', '--no-context-files',
-          '--provider', 'pi-fixture', '--model', FIXTURE_MODEL, '--thinking', 'off',
+          '--provider', 'pi-fixture', '--model', FIXTURE_MODEL, '--thinking', thinkingLevel,
           '--session-dir', run.paths.sessions, '--', prompt,
         ];
         break;

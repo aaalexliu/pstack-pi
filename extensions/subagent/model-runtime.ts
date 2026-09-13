@@ -36,6 +36,7 @@ export async function qualifyModel({ selection, parent, agentDir, signal }: {
   if (inherited && parent.extensionProvider) throw new Error('Parent provider depends on an extension');
   for (const name of ['auth.json', 'models.json', 'models-store.json']) {
     const bytes = await readConfigFile(path.join(agentDir, name), 1024 * 1024);
+    if (name === 'auth.json' && bytes === undefined) throw new Error('Standalone Pi auth file is missing; start Pi first');
     if (bytes) {
       let value: unknown;
       try { value = parseStrictJson(bytes, 1024 * 1024); }

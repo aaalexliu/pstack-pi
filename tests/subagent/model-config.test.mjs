@@ -59,6 +59,13 @@ test('bounded no-follow loading rejects unsafe directories, modes, links, specia
   const good = '{"version":1,"roles":{"feature":"inherit-parent"}}';
   await writeFile(file, good, { mode: 0o600 });
   assert.equal((await loadModelConfig(root)).size, 1);
+  await writeFile(file, good.padEnd(65536, ' '));
+  assert.equal((await loadModelConfig(root)).size, 1, 'exactly 64 KiB is accepted');
+  const getuid = process.getuid;
+  assert.ok(getuid);
+  process.getuid = () => getuid() + 1;
+  try { await assert.rejects(loadModelConfig(root), /ownership/); }
+  finally { process.getuid = getuid; }
   for (const mode of [0o666, 0o620, 0o4600]) {
     await chmod(file, mode); await assert.rejects(loadModelConfig(root), /Unsafe/);
   }

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -30,7 +30,11 @@ async function fixture(t) {
 
 test('standalone exact models use off when pinned and preserve inherited thinking', async (t) => {
   const f = await fixture(t);
+  const files = await readdir(f.agentDir);
+  const before = await Promise.all(files.map((name) => readFile(path.join(f.agentDir, name))));
   assert.deepEqual(await f.qualify('inherit-parent'), { provider: 'fixture', id: 'parent', thinkingLevel: 'high' });
+  assert.deepEqual(await readdir(f.agentDir), files);
+  assert.deepEqual(await Promise.all(files.map((name) => readFile(path.join(f.agentDir, name)))), before);
   assert.deepEqual(await f.qualify('fixture/pinned'), { provider: 'fixture', id: 'pinned', thinkingLevel: 'off' });
   assert.deepEqual(await f.qualify('fixture/org/model:tag'), { provider: 'fixture', id: 'org/model:tag', thinkingLevel: 'off' });
   assert.deepEqual(await f.qualify('fixture/pinned', { model: undefined }), { provider: 'fixture', id: 'pinned', thinkingLevel: 'off' });
@@ -68,6 +72,9 @@ test('stored and config environment auth remain standard and credentials never e
   await writeFile(f.authPath, JSON.stringify({ fixture: { type: 'api_key', key: 'stored-private-value' } }), { mode: 0o600 });
   assert.deepEqual(await f.qualify('fixture/pinned'), { provider: 'fixture', id: 'pinned', thinkingLevel: 'off' });
   await rm(f.authPath);
+  await assert.rejects(f.qualify('fixture/pinned'), /auth file is missing/);
+  await assert.rejects(readFile(f.authPath), { code: 'ENOENT' });
+  await writeFile(f.authPath, '{}', { mode: 0o600 });
   const key = 'MODEL_RUNTIME_TEST_KEY';
   process.env[key] = 'environment-private-value';
   t.after(() => { delete process.env[key]; });
