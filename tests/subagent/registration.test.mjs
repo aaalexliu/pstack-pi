@@ -176,6 +176,35 @@ test('parallel preparation validates the last task before any runner starts', as
   assert.equal(started, 0);
 });
 
+test('user abort cancels four real child processes, skips four queued tasks, and releases a clean request', { timeout: 7000 }, async (t) => {
+  const f = await runtime(t);
+  const controller = new AbortController();
+  let starts = 0;
+  const { tool, shutdown } = registration((args) => runChild({ ...args, invocation: f.invocation, backend: {
+    ...processBackend,
+    spawn: (_invocation, argv, options) => { starts++; return spawn(process.execPath, [fileURLToPath(new URL('./child-fixture.mjs', import.meta.url)), 'wait', ...argv], options); },
+  } }));
+  const tasks = Array.from({ length: 8 }, (_, index) => ({ agent: 'general-purpose', task: path.join(f.root, `user-${index}.json`) }));
+  const pending = tool.execute('batch', { tasks }, controller.signal, undefined, f.ctx).then(() => 'unexpected success', String);
+  try {
+    const deadline = Date.now() + 2000;
+    while (Date.now() < deadline) { try { await Promise.all(tasks.slice(0, 4).map((task) => readFile(task.task))); break; } catch { await delay(10); } }
+    await Promise.all(tasks.slice(0, 4).map((task) => readFile(task.task)));
+    controller.abort('PRIVATE_USER_DATA');
+    const result = await pending;
+    assert.deepEqual([...result.matchAll(/\[\d\] general-purpose (\w+)/g)].map((match) => match[1]), ['cancelled', 'cancelled', 'cancelled', 'cancelled', 'skipped', 'skipped', 'skipped', 'skipped']);
+    assert.ok(!result.includes('PRIVATE_USER_DATA'));
+    assert.equal(starts, 4);
+    assert.equal(getEventListeners(controller.signal, 'abort').length, 0);
+    for (const task of tasks.slice(0, 4)) {
+      const capture = JSON.parse(await readFile(task.task, 'utf8'));
+      assert.throws(() => process.kill(capture.pid, 0), { code: 'ESRCH' });
+      await assert.rejects(readFile(capture.promptFile), { code: 'ENOENT' });
+    }
+    await assert.rejects(tool.execute('later', { agent: 'missing', task: 'x' }, undefined, undefined, f.ctx), /Unknown agent/);
+  } finally { await shutdown(); await pending; }
+});
+
 test('parallel output retains only deterministic quotas with remainder bytes and no hidden full text', async (t) => {
   const f = await runtime(t);
   const { tool } = registration((args) => runChild({ ...args, invocation: f.invocation, backend: {

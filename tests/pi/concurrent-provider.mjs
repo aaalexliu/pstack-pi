@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { FIXTURE_KEY, FIXTURE_USAGE } from './provider.mjs';
 
-/** @typedef {{marker: string, steps: import('./routing-provider.mjs').RoutingStep[]}} ConcurrentRoute */
+/** @typedef {Omit<import('./routing-provider.mjs').RoutingStep, 'reply'> & {reply: import('./provider.mjs').ScriptStep['reply'] | {kind: 'failure'}}} ConcurrentStep */
+/** @typedef {{marker: string, steps: ConcurrentStep[]}} ConcurrentRoute */
 /** @param {ConcurrentRoute[]} routes */
 export async function startConcurrentProvider(routes) {
   assert.ok(routes.length > 0 && routes.length <= 17);
@@ -73,7 +74,7 @@ export async function startConcurrentProvider(routes) {
         try {
           await Promise.race([
             Promise.resolve().then(() => step.check?.(payload)),
-            new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Concurrent check timeout')), 5000); }),
+            new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Concurrent check timeout')), 12000); }),
             new Promise((_, reject) => { rejectAbort = reject; if (controller.signal.aborted) aborted(); }),
           ]);
         } finally {
@@ -82,6 +83,12 @@ export async function startConcurrentProvider(routes) {
         }
         const reply = step.reply;
         if (reply.kind === 'stall') return;
+        if (reply.kind === 'failure') {
+          response.writeHead(400, { 'content-type': 'application/json' });
+          response.end(JSON.stringify({ error: { message: 'Fixture task failed' } }));
+          state.completions.push(marker);
+          return;
+        }
         const calls = reply.kind === 'tools' ? reply.calls : reply.kind === 'tool' ? [reply] : [];
         assert.ok(reply.kind === 'text' || calls.length > 0 && calls.length <= 4);
         const delta = reply.kind === 'text' ? { role: 'assistant', content: reply.text }

@@ -120,7 +120,8 @@ Results keep input order. Ordinary task failure does not stop siblings.
 The retained-output budget splits by input index, with one extra byte for each leading index covered by the remainder.
 Quotas never move between tasks. Small budgets can give later tasks zero bytes.
 Successful calls return bounded ordered output and metadata. Any failed, cancelled, or skipped task makes the tool throw one bounded ordered summary.
-Summary labels and failure reasons have a separate overhead bound of 4 KiB. Errors carry no structured tool details in Pi 0.85.1.
+Summary labels and failure reasons have a separate overhead bound of 4 KiB.
+Pi 0.85.1 creates an empty `details` object for thrown errors, not task metadata.
 User cancellation, the deadline, and `session_shutdown` stop dispatch and cancel every active lease before awaiting them together.
 Queued tasks become skipped. Shutdown rejects new work and waits for request cleanup.
 
@@ -284,6 +285,14 @@ The packed routing tests use a separate exact-model fixture without changing the
 Seven real children prove cross-provider explicit choices, mixed pools, duplicate entries, agent defaults, and inherited thinking.
 Provider request bodies and authoritative child observations must match the expected sequence.
 Other real runs reject unknown roles, fuzzy names, unavailable pool entries, duplicate config keys, and unused credential commands before a child request.
+The parallel tests use a separate concurrent provider keyed by the exact final user marker, never global request order.
+Four real leaf children complete in reverse while their assignments and results retain input order. Eight tasks prove FIFO replacement after cleanup.
+The tests cover independent role counters across requests, duplicate and inherited pool entries, explicit overrides, fixed UTF-8 output quotas, and overlapping request rejection.
+A request-wide deadline cancels four active children and skips four queued tasks without refunding their model assignments.
+Parent `SIGTERM` and `SIGHUP` clean all four children without harming an unrelated sibling. Ordinary failure leaves siblings running.
+Each production observer verifies process and prompt cleanup before test rescue. Existing observers still default to one child.
+Focused tests cover user abort with four real child processes, early cleanup uncertainty, and bounded cleanup when prompt writes or removal stall.
+The concurrent fixture allows twelve seconds for a check that spans several serial child replacements; this does not raise any production deadline.
 The unchanged Phase 6 recursion fixture is an unsafe positive control, not the production delegation path.
 The main delegation and model-routing tests retain their tarballs and `run.json` under the artifact paths printed in test output.
 Other test profiles are removed.

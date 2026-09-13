@@ -33,7 +33,9 @@ test('single execute captures parent before await and routes admission without c
       return (/** @type {import('@earendil-works/pi-coding-agent').ToolDefinition<typeof subagentParameters>} */ value) => { tool = value; };
     },
   });
-  extension(api, { pin: async () => invocation, run: (args) => runChild({ ...args, invocation, backend: { ...processBackend, spawn: (_invocation, argv, options) => spawn(process.execPath, [fileURLToPath(new URL('./child-fixture.mjs', import.meta.url)), 'success', ...argv], options) } }) });
+  let denyPin = false;
+  let spawns = 0;
+  extension(api, { pin: async () => { if (denyPin) throw new Error('Unsupported Pi invocation'); return invocation; }, run: (args) => runChild({ ...args, invocation, backend: { ...processBackend, spawn: (_invocation, argv, options) => { spawns++; return spawn(process.execPath, [fileURLToPath(new URL('./child-fixture.mjs', import.meta.url)), 'success', ...argv], options); } } }) });
   assert.ok(tool);
   const execute = tool.execute;
   const request = { agent: 'general-purpose', task: 'task', role: /** @type {const} */ ('feature') };
@@ -43,6 +45,10 @@ test('single execute captures parent before await and routes admission without c
   const controller = new AbortController();
   const cancelled = new Proxy(context(), { get(target, name) { if (name === 'cwd') controller.abort(); return Reflect.get(target, name); } });
   await assert.rejects(execute('cancel', request, controller.signal, undefined, cancelled), /cancelled/);
+  denyPin = true;
+  await assert.rejects(execute('bad-invocation', { tasks: [request, request] }, undefined, undefined, context()), /Unsupported Pi/);
+  denyPin = false;
+  assert.equal(spawns, 0, 'Rejection, cancellation, and invocation validation stay spawn-free');
   const explicit = await execute('explicit', { ...request, model: 'fixture/explicit' }, undefined, undefined, context());
   assert.ok(JSON.stringify(explicit.details).includes('"id":"explicit","thinkingLevel":"off"'));
   const first = await execute('first', request, undefined, undefined, context());
