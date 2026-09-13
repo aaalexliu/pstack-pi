@@ -62,7 +62,7 @@ export function contentInventory(rawManifest, rawLock) {
       continue;
     }
     assert.ok(disposition.kind === 'copy' || disposition.kind === 'transform' || disposition.kind === 'replace', 'Content supports only copy, transform, replace, and omit');
-    assert.ok(/^skills\/[^/]+\/(?:SKILL\.md|references\/[^/]+\.md|playbooks\/[^/]+\.md)$/u.test(disposition.destination) || disposition.destination === 'agents/poteto-agent.md', `Unsupported content destination: ${disposition.destination}`);
+    assert.ok(/^skills\/[^/]+\/(?:SKILL\.md|(?:references|playbooks)\/.+)$/u.test(disposition.destination) || /^agents\/(?:comment-sicko|poteto-agent)\.md$/u.test(disposition.destination), `Unsupported content destination: ${disposition.destination}`);
     assert.ok(entry.output, `Missing locked output: ${disposition.source}`);
     assert.equal(entry.output.destination, disposition.destination, 'Locked destination differs');
     assert.equal(entry.output.mode, '100644', 'Content must not be executable');
@@ -159,7 +159,7 @@ export function assertPackageExposure(rawPackage, inventory) {
 /** @param {string} text @param {string} filename @param {ContentInventory} inventory */
 function dependencies(text, filename, inventory) {
   assert.ok(!/(?:\bsubagent_type\b|\brun_in_background\b|\bAskQuestion\b|\.cursor\/|\bcursor-agent\b|\bTask\s+(?:tool|subagent|call)\b|`Task`\s+(?:tool|call)|\breadonly`?\s*:\s*`?true\b)/u.test(text), `Unsupported Cursor mechanics: ${filename}`);
-  assert.ok(!/(?:\bpstack_(?:config|sessions)\b|\bsubagent\s*\(|\bpi\.(?:on|registerTool)\s*\(|\bcommand-approval\s+gate\b)/u.test(text), `Unavailable runtime or command-gate dependency: ${filename}`);
+  assert.ok(!/(?:\bsubagent\s*\(|\bpi\.(?:on|registerTool)\s*\(|\bcommand-approval\s+gate\b)/u.test(text), `Unavailable runtime or command-gate dependency: ${filename}`);
   const sourceSkills = new Set([...inventory.bySource.keys()].flatMap((source) => /^skills\/([^/]+)\/SKILL\.md$/u.exec(source)?.slice(1) ?? []));
   for (const match of text.matchAll(/(?:^|[\s`(])\/(skill:)?([a-z0-9]+(?:-[a-z0-9]+)*)\b/gu)) {
     if (match[1]) assert.ok(inventory.bySkillName.has(match[2]), `Missing skill dependency: ${match[2]}`);

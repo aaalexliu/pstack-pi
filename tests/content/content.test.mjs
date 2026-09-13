@@ -92,7 +92,7 @@ for (const body of [
   'Use subagent_type: generalPurpose.', 'Set run_in_background: true.',
   'Spawn a Task subagent.', 'Use the `Task` tool.', 'Set `readonly`: `true`.',
   'Write ~/.cursor/rules/settings.mdc.', 'Use AskQuestion.', 'Run cursor-agent.',
-  'Call pstack_config.', 'Register pi.on("tool_call", handler).',
+  'Call subagent(task).', 'Register pi.on("tool_call", handler).',
   'Install a command-approval gate.', 'Read `../omitted/SKILL.md`.',
 ]) {
   test(`rejects unresolved or unsupported instruction ${body}`, async (t) => {

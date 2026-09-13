@@ -20,6 +20,20 @@ Use this mode for non-trivial work. Keep the lead role: understand the task, cho
    - Independent workstreams: `playbooks/orchestrate.md`
 3. Read each principle skill named by that playbook before relying on it.
 
+## Route specialized work
+
+- Architecture and competing designs: `/skill:architect` and `/skill:arena`.
+- Adversarial review and comment cleanup: `/skill:interrogate` and `/skill:no-comments`.
+- Broad parallel work: `/skill:swarm`. Unknown custom work: `/skill:figure-it-out`.
+- Runtime explanation, rationale, teaching, and history: `/skill:how`, `/skill:why`, `/skill:teach`, and `/skill:recall`.
+- Risk before shipping: `/skill:blast-radius`.
+- Tests and language guidance: `/skill:tdd` and `/skill:typescript-best-practices`.
+- Prose: `/skill:technical-writing` and `/skill:unslop`.
+- Verification harnesses: `/skill:create-verification-skill` and `/skill:maintain-verification-skill`.
+- Durable work records and lessons: `/skill:show-me-your-work` and `/skill:reflect`.
+- Personal workflow capture: `/skill:automate-me`. Model routing: `/skill:setup-pstack`.
+- Bot interface work: `/skill:make-bot-ui`. Fast review requests: `/skill:bro`.
+
 ## Rules
 
 - Reproduce defects through the same surface the user sees before fixing them.

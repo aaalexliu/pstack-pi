@@ -15,21 +15,31 @@ test('production contains exactly the reviewed copied and adapted workflow set',
   const inventory = await checkContent({ root, manifest, lock });
   assert.equal(lock.commit, 'f5bdd6826fd0a0d9cbc4347134c3a74a200b9d9d');
   assert.equal(inventory.bySource.size, 158);
-  assert.equal(inventory.byDestination.size, 31);
-  assert.equal(inventory.byAgentName.size, 2);
+  assert.equal(inventory.byDestination.size, 86);
+  assert.equal(inventory.byAgentName.size, 3);
+  assert.deepEqual(inventory.byAgentName.get('comment-sicko')?.tools, ['read', 'grep', 'find', 'ls']);
   assert.deepEqual(inventory.byAgentName.get('general-purpose')?.tools, ['read', 'grep', 'find', 'ls']);
   assert.deepEqual(inventory.byAgentName.get('poteto-agent')?.tools, ['read', 'grep', 'find', 'ls', 'bash', 'edit', 'write']);
-  assert.equal(inventory.bySkillName.size, 20);
-  assert.equal(manifest.files.filter((file) => file.kind === 'copy').length, 16);
+  assert.equal(inventory.bySkillName.size, 47);
+  const upstreamEntrypoints = manifest.files.filter((file) => /^skills\/[^/]+\/SKILL\.md$/u.test(file.source));
+  assert.equal(upstreamEntrypoints.length, 47);
+  assert.ok(upstreamEntrypoints.every((file) => file.kind !== 'omit' && file.destination === file.source));
+  assert.equal(manifest.files.filter((file) => file.kind === 'copy').length, 50);
   assert.equal(manifest.files.filter((file) => file.kind === 'transform').length, 3);
-  assert.equal(manifest.files.filter((file) => file.kind === 'replace').length, 11);
-  assert.equal(manifest.files.filter((file) => file.kind === 'omit').length, 128);
+  assert.equal(manifest.files.filter((file) => file.kind === 'replace').length, 32);
+  assert.equal(manifest.files.filter((file) => file.kind === 'omit').length, 73);
   assert.ok(manifest.files.every((file) => file.kind !== 'omit' || !file.reason.includes('reviewed Pi adaptation phase')));
+  const adaptationText = await readFile(path.join(root, 'ADAPTATIONS.md'), 'utf8');
+  const documentedReplacements = [...adaptationText.matchAll(/^\| `([^`]+)` \|/gmu)].map((match) => match[1]).sort();
+  assert.deepEqual(documentedReplacements, manifest.files.filter((file) => file.kind === 'replace').map((file) => file.source).sort());
   const transforms = manifest.files.filter((file) => file.kind === 'transform');
   assert.deepEqual(transforms.map(({ source, expectedBlob, transforms }) => ({ source, expectedBlob, transforms })), [
-    { source: 'skills/principle-prove-it-works/SKILL.md', expectedBlob: '4563023d4d9f22e10e33cbf0ae94da156be30618', transforms: [{ find: '(the **show-me-your-work** skill)', replace: '(a durable decision log)', count: 1 }] },
     { source: 'skills/technical-writing/SKILL.md', expectedBlob: '70a477e42fc5f37c35bf602d86ff89c0f5258ecf', transforms: [{ find: '/technical-writing', replace: '/skill:technical-writing', count: 1 }] },
     { source: 'skills/typescript-best-practices/SKILL.md', expectedBlob: '2c0279d9a5f800192605e47b55cae4e75a17ec27', transforms: [{ find: 'paths: ["**/*.ts", "**/*.tsx"]\n', replace: '', count: 1 }] },
+    { source: 'skills/why/references/synthesizer-prompt.md', expectedBlob: '9707dfcc2fc57ea126484a433c5cd9ee4d400ef3', transforms: [
+      { find: '[PR #123](url)', replace: 'PR #123 at {URL}', count: 1 },
+      { find: '`references/epistemics.md`', replace: '`epistemics.md`', count: 1 },
+    ] },
   ]);
   for (const [destination, { disposition, locked }] of inventory.byDestination) {
     if (disposition.kind === 'addition') {
@@ -53,7 +63,6 @@ test('production contains exactly the reviewed copied and adapted workflow set',
       assert.deepEqual(actual, Buffer.from(expected), `Transform bytes: ${destination}`);
     }
     if (destination.endsWith('/SKILL.md')) {
-      assert.match(original.toString('utf8'), /^disable-model-invocation: true$/mu);
       assert.match(actual.toString('utf8'), /^disable-model-invocation: true$/mu);
     }
   }

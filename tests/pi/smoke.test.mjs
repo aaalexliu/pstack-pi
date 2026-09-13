@@ -13,14 +13,20 @@ import { sha256 } from '../../scripts/sync-upstream.mjs';
 
 const repository = fileURLToPath(new URL('../../', import.meta.url));
 const productionSkills = [
-  'bro', 'how', 'poteto-mode', 'principle-boundary-discipline', 'principle-build-the-lever',
-  'principle-encode-lessons-in-structure', 'principle-experience-first', 'principle-fix-root-causes',
-  'principle-guard-the-context-window', 'principle-laziness-protocol', 'principle-model-the-domain',
-  'principle-never-block-on-the-human', 'principle-prove-it-works',
-  'principle-separate-before-serializing-shared-state', 'principle-sequence-verifiable-units',
-  'principle-type-system-discipline', 'tdd', 'technical-writing', 'typescript-best-practices', 'unslop',
+  'architect', 'arena', 'automate-me', 'blast-radius',
+  'bro', 'create-verification-skill', 'figure-it-out', 'how',
+  'interrogate', 'maintain-verification-skill', 'make-bot-ui', 'no-comments',
+  'poteto-mode', 'principle-attack-the-premise', 'principle-boundary-discipline', 'principle-build-the-lever',
+  'principle-encode-lessons-in-structure', 'principle-exhaust-the-design-space', 'principle-experience-first', 'principle-fix-root-causes',
+  'principle-foundational-thinking', 'principle-guard-the-context-window', 'principle-laziness-protocol', 'principle-make-operations-idempotent',
+  'principle-migrate-callers-then-delete-legacy-apis', 'principle-minimize-reader-load', 'principle-model-the-domain', 'principle-never-block-on-the-human',
+  'principle-outcome-oriented-execution', 'principle-prove-it-works', 'principle-redesign-from-first-principles', 'principle-separate-before-serializing-shared-state',
+  'principle-sequence-verifiable-units', 'principle-subtract-before-you-add', 'principle-test-behavior-not-implementation', 'principle-type-system-discipline',
+  'recall', 'reflect', 'setup-pstack', 'show-me-your-work',
+  'swarm', 'tdd', 'teach', 'technical-writing',
+  'typescript-best-practices', 'unslop', 'why',
 ];
-const exactExpansionSkills = ['bro', 'how', 'poteto-mode', 'principle-boundary-discipline', 'principle-encode-lessons-in-structure', 'principle-type-system-discipline', 'tdd', 'technical-writing', 'typescript-best-practices', 'unslop'];
+const exactExpansionSkills = [...productionSkills.filter((name) => !name.startsWith('principle-')), 'principle-model-the-domain'];
 
 async function productionInventory() {
   return checkContent({ root: repository,
@@ -36,7 +42,7 @@ function assertOnlyDeclaredTools(run) {
   assert.deepEqual(run.resources?.extensions, runtime ? [join(run.paths.package, 'extensions/pstack/index.ts'), join(run.paths.package, 'extensions/subagent/index.ts')] : []);
   const tools = run.provider?.decodedRequests[0]?.tools;
   assert.ok(Array.isArray(tools));
-  assert.deepEqual(tools.map((tool) => tool.function.name).sort(), ['bash', 'edit', ...(runtime ? ['pstack_todo'] : []), 'read', ...(runtime ? ['subagent'] : []), 'write']);
+  assert.deepEqual(tools.map((tool) => tool.function.name).sort(), ['bash', 'edit', ...(runtime ? ['pstack_config', 'pstack_sessions', 'pstack_todo'] : []), 'read', ...(runtime ? ['subagent'] : []), 'write']);
   assert.ok(!run.events.some((event) => event.type.startsWith('tool_execution')));
 }
 import { jsonlParser, PiTestError, repositoryRevision, runPiSmoke } from "./runner.mjs";
@@ -104,7 +110,7 @@ test("real Pi loads the packed package and settles with fixture text and usage",
   assertClean(run);
   assert.deepEqual(run.cleanup.signals, []);
   assert.deepEqual(run.pack.files, expectedPackFiles(await productionInventory()));
-  assert.equal(run.pack.files.length, 50);
+  assert.equal(run.pack.files.length, 105);
   assertOnlyDeclaredTools(run);
   context.diagnostic(JSON.stringify({
     pi: run.process.version, revision: run.process.revision, pid: run.process.pid,
@@ -197,17 +203,9 @@ for (const name of exactExpansionSkills) {
       assert.ok(system.includes('Pstack Poteto Mode is active'));
       assert.ok(system.includes(join(run.paths.package, 'skills/poteto-mode/SKILL.md')));
     }
-    t.diagnostic(JSON.stringify({ name, pi: run.process.version, bodySha256: sha256(skill.body), userBytes: Buffer.byteLength(user), location, tools: ['bash', 'edit', 'read', 'write'], diagnostics: run.diagnostics, cleanup: run.cleanup }));
-  });
-}
-
-for (const name of ['setup-pstack']) {
-  test(`real packed Pi leaves unsupported /skill:${name} unexpanded`, async () => {
-    const prompt = `/skill:${name} unsupported argument`;
-    const run = await runPiSmoke({ prompt });
-    assertClean(run);
-    assertOnlyDeclaredTools(run);
-    assert.equal(requestUserText(run), prompt);
+    const request = run.provider?.decodedRequests[0];
+    const tools = request && Array.isArray(request.tools) ? request.tools.map((/** @type {any} */ tool) => tool.function.name).sort() : [];
+    t.diagnostic(JSON.stringify({ name, pi: run.process.version, bodySha256: sha256(skill.body), userBytes: Buffer.byteLength(user), location, tools, diagnostics: run.diagnostics, cleanup: run.cleanup }));
   });
 }
 

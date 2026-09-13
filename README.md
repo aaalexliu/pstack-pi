@@ -1,7 +1,7 @@
 # pstack for Pi
 
-`@aaalexliu/pstack-pi` provides 20 reviewed skills from Lauren Tan's pstack.
-It includes Pi-native `poteto-mode` and `how` workflows, branch-aware task tracking, and bounded delegation with exact model routing, parallel leaf agents, process cleanup, and delegated usage accounting.
+`@aaalexliu/pstack-pi` provides all 47 main skills from Lauren Tan's pstack.
+It copies compatible upstream content and ships reviewed Pi replacements for Cursor-only workflows. It also includes branch-aware task tracking, scoped session discovery, strict model-config readback, and bounded delegation with exact model routing, parallel leaf agents, process cleanup, and delegated usage accounting. The three Benny Cursor Cloud Automation skills are outside this package's main-skill scope.
 
 ## Install
 
@@ -46,37 +46,18 @@ The package supports Pi `0.85.1` and Node.js `>=22.19.0` in this release.
 
 ## Supported scope
 
-Pi `0.85.1` exposes these manual commands:
+Pi `0.85.1` exposes 47 manual commands:
 
-- `/skill:bro`
-- `/skill:how`
-- `/skill:poteto-mode`
-- `/skill:tdd`
-- `/skill:technical-writing`
-- `/skill:typescript-best-practices`
-- `/skill:unslop`
-- `/skill:principle-boundary-discipline`
-- `/skill:principle-build-the-lever`
-- `/skill:principle-encode-lessons-in-structure`
-- `/skill:principle-experience-first`
-- `/skill:principle-fix-root-causes`
-- `/skill:principle-guard-the-context-window`
-- `/skill:principle-laziness-protocol`
-- `/skill:principle-model-the-domain`
-- `/skill:principle-never-block-on-the-human`
-- `/skill:principle-prove-it-works`
-- `/skill:principle-separate-before-serializing-shared-state`
-- `/skill:principle-sequence-verifiable-units`
-- `/skill:principle-type-system-discipline`
+- Workflows: `/skill:architect`, `/skill:arena`, `/skill:automate-me`, `/skill:blast-radius`, `/skill:bro`, `/skill:create-verification-skill`, `/skill:figure-it-out`, `/skill:how`, `/skill:interrogate`, `/skill:maintain-verification-skill`, `/skill:make-bot-ui`, `/skill:no-comments`, `/skill:poteto-mode`, `/skill:recall`, `/skill:reflect`, `/skill:setup-pstack`, `/skill:show-me-your-work`, `/skill:swarm`, `/skill:tdd`, `/skill:teach`, `/skill:technical-writing`, `/skill:typescript-best-practices`, `/skill:unslop`, and `/skill:why`.
+- Principles: `/skill:principle-attack-the-premise`, `/skill:principle-boundary-discipline`, `/skill:principle-build-the-lever`, `/skill:principle-encode-lessons-in-structure`, `/skill:principle-exhaust-the-design-space`, `/skill:principle-experience-first`, `/skill:principle-fix-root-causes`, `/skill:principle-foundational-thinking`, `/skill:principle-guard-the-context-window`, `/skill:principle-laziness-protocol`, `/skill:principle-make-operations-idempotent`, `/skill:principle-migrate-callers-then-delete-legacy-apis`, `/skill:principle-minimize-reader-load`, `/skill:principle-model-the-domain`, `/skill:principle-never-block-on-the-human`, `/skill:principle-outcome-oriented-execution`, `/skill:principle-prove-it-works`, `/skill:principle-redesign-from-first-principles`, `/skill:principle-separate-before-serializing-shared-state`, `/skill:principle-sequence-verifiable-units`, `/skill:principle-subtract-before-you-add`, `/skill:principle-test-behavior-not-implementation`, and `/skill:principle-type-system-discipline`.
 
-Each skill keeps `disable-model-invocation: true` so Pi expands it only through an explicit skill command. The TypeScript skill includes `references/patterns.md`.
+Each skill keeps `disable-model-invocation: true` so Pi expands it only through an explicit skill command.
 
-The package ships 29 generated skill files, two generated agents, 13 extension modules, and the root package files.
-It registers `pstack_todo` and, at root depth, `subagent`.
+The package ships 83 generated skill and support files, three generated agents, 13 extension modules, and the root package files.
+It registers `pstack_config`, `pstack_sessions`, `pstack_todo`, and, at root depth, `subagent`.
 The delegation runtime owns one `session_shutdown` cleanup hook and a `tool_result` hook limited to its own failed delegations.
 Todo and Poteto Mode state follow the active session branch through versioned custom entries. The package registers no prompts, themes, commands, or blanket approval hooks.
-Chained requests, a usage command, model setup, and broader workflows remain deferred.
-`/skill:setup-pstack` does not expand.
+Chained delegation requests and a usage command remain deferred.
 
 `ADAPTATIONS.md` lists every full-file Pi replacement, the exact Cursor behavior it replaces, and why a byte copy or short ordered transform would leave a false runtime contract.
 
@@ -106,6 +87,12 @@ The tool supports four strict actions:
 ```
 
 `complete` marks every exact matching open item with `[done] `. `set` and `add` accept at most 128 nonblank items of at most 4,096 characters each. Reads do not add session entries. The loader ignores malformed entries and entries from newer state versions.
+
+## Workflow support tools
+
+`pstack_config` has strict `get` and `list-models` actions. `get` reads `<Pi agent dir>/pstack-pi/models.json` through the same version-1 parser used by delegation. `list-models` returns the exact `provider/model-id` values available from Pi's model registry. The tool does not write config. `/skill:setup-pstack` validates model choices first, then writes the file with Pi's normal file tools.
+
+`pstack_sessions` has one strict `list` action. It returns at most 100 saved Pi session paths for the current working directory and reports whether it truncated the list. It does not accept a path from the model and does not scan sessions for other projects.
 
 ## Delegation
 
