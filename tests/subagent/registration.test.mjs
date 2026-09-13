@@ -166,7 +166,8 @@ test('depth is parsed once; request reductions truncate UTF-8 and report clamps 
   process.env.PSTACK_SUBAGENT_DEPTH = 'invalid-after-creation';
   const result = await tool.execute('one', { agent: 'general-purpose', task: 'task', limits: { outputBytes: 4, timeoutMs: 999999 } }, undefined, undefined, f.ctx);
   assert.ok(JSON.stringify(result.content).includes('Output truncated at 4 bytes'));
-  assert.ok(JSON.stringify(result.content).includes('timeoutMs clamped to 120000'));
+  assert.equal(result.details.limits.timeoutMs, 999999);
+  assert.ok(!JSON.stringify(result).includes('timeoutMs clamped'));
   assert.ok(!JSON.stringify(result).includes('�'));
   assert.ok(Buffer.byteLength(JSON.stringify(result)) < 2048);
 });

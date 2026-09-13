@@ -3,7 +3,7 @@ import { usageReport } from '../../extensions/subagent/usage.ts';
 import { setTimeout as delay } from 'node:timers/promises';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { executionLimits, parseDepth, parseRequest, inputLimits } from '../../extensions/subagent/domain.ts';
+import { executionLimits, maximumTimerDelayMs, parseDepth, parseRequest, inputLimits } from '../../extensions/subagent/domain.ts';
 import { boundedOutput, resolveCwd } from '../../extensions/subagent/runner.ts';
 import { PiInvocation } from '../../extensions/subagent/process.ts';
 import { DelegationScheduler, immutable, outputQuota } from '../../extensions/subagent/scheduler.ts';
@@ -19,6 +19,24 @@ function task(index) {
     model: { provider: 'fixture', id: 'model', thinkingLevel: 'off' }, depth: root, limits: executionLimits, invocation,
     requested: { model: null, role: null }, selection: { source: 'parent', choice: { kind: 'inheritParent' } } };
 }
+function manualTimer() {
+  let now = 0;
+  /** @type {{callback: () => void, delayMs: number, cancelled: boolean}[]} */
+  const scheduled = [];
+  return {
+    controls: {
+      now: () => now,
+      schedule: (/** @type {() => void} */ callback, /** @type {number} */ delayMs) => {
+        const entry = { callback, delayMs, cancelled: false };
+        scheduled.push(entry);
+        return { cancel: () => { entry.cancelled = true; } };
+      },
+    },
+    scheduled,
+    advance: (/** @type {number} */ durationMs) => { now += durationMs; },
+  };
+}
+
 function controlledRun() {
   /** @type {Map<string, () => void>} */
   const finish = new Map();
@@ -183,7 +201,18 @@ test('request reservation excludes overlap before preparation and releases rejec
   scheduler.reserve(root).finish();
 });
 
-test('one deadline includes preparation and can only get shorter', async () => {
+test('an omitted deadline creates no timer and stays active past the former boundary', () => {
+  const timer = manualTimer();
+  const request = new DelegationScheduler(timer.controls).reserve(root);
+  assert.equal(timer.scheduled.length, 0);
+  timer.advance(120001);
+  request.check();
+  assert.equal(request.cancellation, undefined);
+  assert.equal(timer.scheduled.length, 0);
+  request.finish();
+});
+
+test('an explicit deadline includes preparation and can only get shorter', async () => {
   const scheduler = new DelegationScheduler();
   const request = scheduler.reserve(root);
   request.lowerDeadline(10);
@@ -193,6 +222,18 @@ test('one deadline includes preparation and can only get shorter', async () => {
   let commits = 0;
   assert.throws(() => request.admit([task(0)], () => { commits++; }));
   assert.equal(commits, 0);
+  request.finish();
+});
+
+test('a deadline beyond one Node timer interval is scheduled without shortening it', () => {
+  const timer = manualTimer();
+  const request = new DelegationScheduler(timer.controls).reserve(root);
+  request.lowerDeadline(Number.MAX_SAFE_INTEGER);
+  assert.deepEqual(timer.scheduled.map(({ delayMs }) => delayMs), [maximumTimerDelayMs]);
+  timer.advance(maximumTimerDelayMs);
+  timer.scheduled[0].callback();
+  assert.equal(request.cancellation, undefined);
+  assert.deepEqual(timer.scheduled.filter(({ cancelled }) => !cancelled).map(({ delayMs }) => delayMs), [maximumTimerDelayMs]);
   request.finish();
 });
 

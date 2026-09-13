@@ -80,8 +80,9 @@ Call `subagent` with one agent and one task:
 
 The public fields are `agent`, `task`, optional `cwd`, `limits`, `model`, and `role`.
 Unknown fields, unknown roles, and non-exact model values reject before spawn.
-`limits.timeoutMs` and `limits.outputBytes` accept positive integers that lower the host's 120,000 ms deadline and 32,768-byte output cap.
-Larger values clamp to the host limits and produce diagnostics.
+Requests have no default execution deadline.
+`limits.timeoutMs` accepts a positive integer when a caller wants a deadline. Preparation and queue time count toward it.
+`limits.outputBytes` accepts a positive integer that can lower the 32,768-byte output cap. Larger output limits clamp and produce a diagnostic.
 There is no trust or approval argument.
 An omitted `cwd` uses the current Pi working directory.
 A supplied path must name that same real directory.
@@ -154,7 +155,8 @@ A rejected or cancelled preparation starts no children and consumes no pool slot
 
 Each extension instance reserves one request at a time, including preparation and cleanup.
 An overlapping call fails rather than waiting in a second request queue.
-The 120-second request deadline starts at reservation. Preparation and queue time count.
+By default, a request runs until it finishes, the user cancels it, Pi shuts down, or cleanup becomes unsafe.
+When `limits.timeoutMs` is present, its deadline starts at reservation and includes preparation and queue time.
 The scheduler dispatches tasks in input order and holds each slot through prompt removal and verified process cleanup.
 Results keep input order. Ordinary task failure does not stop siblings.
 The retained-output budget splits by input index, with one extra byte for each leading index covered by the remainder.
@@ -175,7 +177,7 @@ An observed group remains owned only while a current member matches a recorded i
 A stale group ID alone cannot establish ownership.
 The runner then allows two seconds to verify cleanup.
 If cleanup cannot prove that the child exited within those timers, it returns an unverified report and quarantines the extension instance.
-A deadline starts cancellation rather than guaranteeing termination by that instant. Process-table commands can each take up to 250 ms, and OS scheduling or filesystem stalls can delay timer callbacks.
+An explicit deadline starts cancellation rather than guaranteeing termination by that instant. Process-table commands can each take up to 250 ms, and OS scheduling or filesystem stalls can delay timer callbacks.
 
 Observation failures, unsafe identities, and unverified cleanup immediately stop dispatch and broadcast cancellation to active siblings.
 This signal is sticky even if a later process-table read succeeds. Finished siblings cannot release new queued work after trust is lost.
@@ -376,7 +378,7 @@ A request-wide deadline cancels four active children and skips four queued tasks
 Parent `SIGTERM` and `SIGHUP` clean all four children without harming an unrelated sibling. Ordinary failure leaves siblings running.
 Each production observer verifies process and prompt cleanup before test rescue. Existing observers still default to one child.
 Focused tests cover user abort with four real child processes, early cleanup uncertainty, and bounded cleanup when prompt writes or removal stall.
-The concurrent fixture allows twelve seconds for a check that spans several serial child replacements; this does not raise any production deadline.
+The concurrent fixture allows twelve seconds for its outer test watchdog. Production requests have no default execution deadline.
 The unchanged Phase 6 recursion fixture is an unsafe positive control, not the production delegation path.
 The accounting tests verify installed Pi's returned-error, thrown-error, and patched-error behavior through provider requests, JSONL events, persisted session totals, and reload.
 Packed child reads, charged length failures, cumulative updates, truncation, and cancellation use exact known provider tokens and costs.

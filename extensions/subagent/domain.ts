@@ -75,10 +75,10 @@ export type TaskResult = TaskIdentity & {
   | { kind: 'skipped'; reason: string }
 );
 export type ExecutionLimits = Readonly<{
-  maxTasks: 8; maxConcurrent: 4; maxDepth: 1; timeoutMs: number; outputBytes: number;
+  maxTasks: 8; maxConcurrent: 4; maxDepth: 1; timeoutMs: number | null; outputBytes: number;
 }>;
 export const executionLimits: ExecutionLimits = Object.freeze({
-  maxTasks: 8, maxConcurrent: 4, maxDepth: 1, timeoutMs: 120_000, outputBytes: 32_768,
+  maxTasks: 8, maxConcurrent: 4, maxDepth: 1, timeoutMs: null, outputBytes: 32_768,
 });
 
 export const protocolLimits = Object.freeze({
@@ -93,12 +93,13 @@ export type ProtocolLimits = typeof protocolLimits;
 export function reduceLimits(value: unknown = {}): { limits: ExecutionLimits; diagnostics: string[] } {
   if (!Check(reductionSchema, value)) throw new Error('Invalid execution limit reduction');
   const diagnostics: string[] = [];
-  const reduce = (key: 'timeoutMs' | 'outputBytes') => {
-    const requested = value[key] ?? executionLimits[key];
-    if (requested > executionLimits[key]) diagnostics.push(`${key} clamped to ${executionLimits[key]}`);
-    return Math.min(requested, executionLimits[key]);
-  };
-  return { limits: Object.freeze({ ...executionLimits, timeoutMs: reduce('timeoutMs'), outputBytes: reduce('outputBytes') }), diagnostics };
+  const requestedOutputBytes = value.outputBytes ?? executionLimits.outputBytes;
+  if (requestedOutputBytes > executionLimits.outputBytes) diagnostics.push(`outputBytes clamped to ${executionLimits.outputBytes}`);
+  return { limits: Object.freeze({
+    ...executionLimits,
+    timeoutMs: value.timeoutMs ?? null,
+    outputBytes: Math.min(requestedOutputBytes, executionLimits.outputBytes),
+  }), diagnostics };
 }
 
 export type DelegationDepth = number & { readonly __brand: 'DelegationDepth' };
@@ -113,6 +114,56 @@ export function requireRoot(depth: DelegationDepth): void {
   if (depth >= executionLimits.maxDepth) throw new Error('Delegation depth limit reached');
 }
 
+export type MonotonicTimer = Readonly<{
+  now: () => number;
+  schedule: (callback: () => void, delayMs: number) => { cancel: () => void };
+}>;
+export const maximumTimerDelayMs = 2_147_483_647;
+export const monotonicTimer: MonotonicTimer = Object.freeze({
+  now: () => performance.now(),
+  schedule: (callback, delayMs) => {
+    const timer = setTimeout(callback, delayMs);
+    return { cancel: () => clearTimeout(timer) };
+  },
+});
+
+export class ExecutionDeadline {
+  readonly #started: number;
+  readonly #cancel: () => void;
+  readonly #timer: MonotonicTimer;
+  #timeoutMs: number | null = null;
+  #scheduled: { cancel: () => void } | undefined;
+  constructor(cancel: () => void, timer: MonotonicTimer, timeoutMs: number | null) {
+    this.#started = timer.now();
+    this.#cancel = cancel;
+    this.#timer = timer;
+    this.shorten(timeoutMs);
+  }
+  shorten(timeoutMs: number | null): void {
+    if (timeoutMs === null || this.#timeoutMs !== null && timeoutMs >= this.#timeoutMs) return;
+    this.#timeoutMs = timeoutMs;
+    this.#arm();
+  }
+  check(): void {
+    const remaining = this.#remaining();
+    if (remaining !== null && remaining <= 0) this.#cancel();
+  }
+  clear(): void {
+    this.#scheduled?.cancel();
+    this.#scheduled = undefined;
+  }
+  #remaining(): number | null {
+    return this.#timeoutMs === null ? null : this.#timeoutMs - (this.#timer.now() - this.#started);
+  }
+  #arm = (): void => {
+    this.clear();
+    const remaining = this.#remaining();
+    if (remaining === null) return;
+    if (remaining <= 0) this.#cancel();
+    else this.#scheduled = this.#timer.schedule(this.#arm, Math.min(remaining, maximumTimerDelayMs));
+  };
+}
+
 export type CancellationReason = 'user' | 'deadline' | 'parentShutdown' | 'unsafeCleanup';
 export type StopCause = { kind: 'cancelled'; reason: CancellationReason } | { kind: 'failed'; reason: string };
 export type RunState =
@@ -124,7 +175,7 @@ export class RunLease {
   #state: RunState = { kind: 'admitted' };
   #controller = new AbortController();
   #cleanupUncertainty = new AbortController();
-  #timer: ReturnType<typeof setTimeout> | undefined;
+  readonly #deadline: ExecutionDeadline;
   #resolve!: () => void;
   readonly done = new Promise<void>((resolve) => { this.#resolve = resolve; });
   get state(): RunState { return this.#state; }
@@ -134,8 +185,8 @@ export class RunLease {
   get cancellation(): CancellationReason | undefined {
     return this.#controller.signal.aborted ? this.#controller.signal.reason : undefined;
   }
-  constructor(timeoutMs?: number) {
-    if (timeoutMs !== undefined) this.#timer = setTimeout(() => this.cancel('deadline'), timeoutMs);
+  constructor(timeoutMs: number | null = null, timer: MonotonicTimer = monotonicTimer) {
+    this.#deadline = new ExecutionDeadline(() => this.cancel('deadline'), timer, timeoutMs);
   }
   cancel(reason: CancellationReason): void {
     if (this.#state.kind === 'finished' || this.#state.kind === 'quarantined') return;
@@ -164,7 +215,7 @@ export class RunLease {
     if (this.#state.kind !== 'verifying') throw new Error('Run cleanup has not been verified');
     if (!verified) this.distrustCleanup();
     this.#state = { kind: verified && !this.cleanupUncertainty.aborted ? 'finished' : 'quarantined', cause: this.#state.cause };
-    clearTimeout(this.#timer);
+    this.#deadline.clear();
     this.#resolve();
   }
 }
@@ -172,12 +223,14 @@ export class RunLease {
 export class RunRegistry {
   #active: RunLease | undefined;
   #closed = false;
-  admit(depth: DelegationDepth, timeoutMs: number): RunLease {
+  readonly #timer: MonotonicTimer;
+  constructor(timer: MonotonicTimer = monotonicTimer) { this.#timer = timer; }
+  admit(depth: DelegationDepth, timeoutMs: number | null = null): RunLease {
     requireRoot(depth);
     if (this.#closed) throw new Error('Delegation session is shutting down');
     if (this.#active?.state.kind === 'quarantined') throw new Error('Delegation cleanup unverified; session quarantined');
     if (this.#active && this.#active.state.kind !== 'finished') throw new Error('A delegation is already running or stopping');
-    this.#active = new RunLease(Math.min(timeoutMs, executionLimits.timeoutMs));
+    this.#active = new RunLease(timeoutMs, this.#timer);
     return this.#active;
   }
   async shutdown(): Promise<void> {

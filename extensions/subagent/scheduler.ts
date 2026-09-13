@@ -1,4 +1,4 @@
-import { executionLimits, requireRoot, RunLease, type CancellationReason, type DelegationDepth, type ExecutionLimits, type TaskResult } from './domain.ts';
+import { ExecutionDeadline, executionLimits, monotonicTimer, requireRoot, RunLease, type CancellationReason, type DelegationDepth, type ExecutionLimits, type MonotonicTimer, type TaskResult } from './domain.ts';
 import { boundedOutput, type runChild } from './runner.ts';
 import type { ModelSelection } from './model-config.ts';
 import type { PiInvocation } from './process.ts';
@@ -28,9 +28,7 @@ export function immutable<T>(value: T): T {
 export class RequestLease {
   #state: RequestState = 'reserved';
   #controller = new AbortController();
-  #started = performance.now();
-  #deadline = this.#started + executionLimits.timeoutMs;
-  #timer: ReturnType<typeof setTimeout>;
+  readonly #deadline: ExecutionDeadline;
   #active = new Set<RunLease>();
   #batch: readonly ResolvedTask[] | undefined;
   #resolve!: () => void;
@@ -38,16 +36,12 @@ export class RequestLease {
   get state(): RequestState { return this.#state; }
   get signal(): AbortSignal { return this.#controller.signal; }
   get cancellation(): CancellationReason | undefined { return this.signal.aborted ? this.signal.reason : undefined; }
-  constructor() { this.#timer = setTimeout(() => this.cancel('deadline'), executionLimits.timeoutMs); }
-  lowerDeadline(timeoutMs: number): void {
-    this.#deadline = Math.min(this.#deadline, this.#started + timeoutMs);
-    clearTimeout(this.#timer);
-    const remaining = this.#deadline - performance.now();
-    if (remaining <= 0) this.cancel('deadline');
-    else this.#timer = setTimeout(() => this.cancel('deadline'), remaining);
+  constructor(timer: MonotonicTimer = monotonicTimer) {
+    this.#deadline = new ExecutionDeadline(() => this.cancel('deadline'), timer, null);
   }
+  lowerDeadline(timeoutMs: number | null): void { this.#deadline.shorten(timeoutMs); }
   check(): void {
-    if (performance.now() >= this.#deadline) this.cancel('deadline');
+    this.#deadline.check();
     this.signal.throwIfAborted();
   }
   async wait<T>(operation: () => Promise<T>): Promise<T> {
@@ -88,7 +82,7 @@ export class RequestLease {
     let next = 0;
     const worker = async () => {
       while (next < batch.length) {
-        if (performance.now() >= this.#deadline) this.cancel('deadline');
+        this.#deadline.check();
         if (this.signal.aborted) return;
         const index = next++;
         const task = batch[index];
@@ -121,7 +115,7 @@ export class RequestLease {
     if (this.#active.size) throw new Error('Request still owns child cleanup');
     if (this.#state !== 'quarantined') this.#state = 'finished';
     this.#batch = undefined;
-    clearTimeout(this.#timer);
+    this.#deadline.clear();
     this.#resolve();
   }
 }
@@ -129,12 +123,14 @@ export class RequestLease {
 export class DelegationScheduler {
   #active: RequestLease | undefined;
   #closed = false;
+  readonly #timer: MonotonicTimer;
+  constructor(timer: MonotonicTimer = monotonicTimer) { this.#timer = timer; }
   reserve(depth: DelegationDepth): RequestLease {
     requireRoot(depth);
     if (this.#closed) throw new Error('Delegation session is shutting down');
     if (this.#active?.state === 'quarantined') throw new Error('Delegation cleanup unverified; session quarantined');
     if (this.#active && this.#active.state !== 'finished') throw new Error('A delegation is already running or stopping');
-    this.#active = new RequestLease();
+    this.#active = new RequestLease(this.#timer);
     return this.#active;
   }
   shutdown(): Promise<void> {

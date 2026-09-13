@@ -8,7 +8,7 @@ import { PiInvocation, childEnvironment } from '../../extensions/subagent/proces
 const root = parseDepth(undefined);
 
 test('host policy is immutable and separate from protocol caps', () => {
-  assert.deepEqual(executionLimits, { maxTasks: 8, maxConcurrent: 4, maxDepth: 1, timeoutMs: 120000, outputBytes: 32768 });
+  assert.deepEqual(executionLimits, { maxTasks: 8, maxConcurrent: 4, maxDepth: 1, timeoutMs: null, outputBytes: 32768 });
   assert.ok(Object.isFrozen(executionLimits));
   assert.ok(Object.isFrozen(protocolLimits));
   assert.ok(!('outputBytes' in protocolLimits));
@@ -22,12 +22,12 @@ test('canonical bounded depth never raises host policy', () => {
   for (const depth of ['1', '2', '999999']) assert.throws(() => requireRoot(parseDepth(depth)));
 });
 
-test('requests only reduce timeout and output; larger values clamp visibly', () => {
+test('requests preserve optional deadlines and only clamp output', () => {
   assert.deepEqual(reduceLimits().limits, executionLimits);
   assert.equal(reduceLimits({ timeoutMs: 1, outputBytes: 3 }).limits.timeoutMs, 1);
-  const larger = reduceLimits({ timeoutMs: 120001, outputBytes: 32769 });
-  assert.deepEqual(larger.limits, executionLimits);
-  assert.deepEqual(larger.diagnostics, ['timeoutMs clamped to 120000', 'outputBytes clamped to 32768']);
+  const larger = reduceLimits({ timeoutMs: Number.MAX_SAFE_INTEGER, outputBytes: 32769 });
+  assert.deepEqual(larger.limits, { ...executionLimits, timeoutMs: Number.MAX_SAFE_INTEGER });
+  assert.deepEqual(larger.diagnostics, ['outputBytes clamped to 32768']);
   for (const value of [null, [], 1, { maxDepth: 2 }, { outputBytes: '3' }, { timeoutMs: 0 }, { timeoutMs: NaN }, { timeoutMs: Infinity }, { timeoutMs: 1.1 }, { timeoutMs: -1 }, { timeoutMs: Number.MAX_SAFE_INTEGER + 1 }]) {
     assert.throws(() => reduceLimits(value));
     assert.throws(() => parseRequest({ agent: 'general-purpose', task: 't', limits: value }));
