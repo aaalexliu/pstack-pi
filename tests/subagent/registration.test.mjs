@@ -29,7 +29,7 @@ function registration(run) {
       return (/** @type {import('@earendil-works/pi-coding-agent').ToolDefinition<typeof subagentParameters>} */ tool) => tools.push(tool);
     },
   });
-  extension(api, { run });
+  extension(api, { run, pin: () => PiInvocation.resolve({ entrypoint: fileURLToPath(new URL('../../node_modules/@earendil-works/pi-coding-agent/dist/cli.js', import.meta.url)) }) });
   assert.deepEqual(calls, ['on', 'registerTool']);
   assert.ok(shutdown);
   assert.equal(tools.length, 1);

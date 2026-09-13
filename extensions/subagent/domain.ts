@@ -105,7 +105,7 @@ export type RunState =
 export class RunLease {
   #state: RunState = { kind: 'admitted' };
   #controller = new AbortController();
-  #timer: ReturnType<typeof setTimeout>;
+  #timer: ReturnType<typeof setTimeout> | undefined;
   #resolve!: () => void;
   readonly done = new Promise<void>((resolve) => { this.#resolve = resolve; });
   get state(): RunState { return this.#state; }
@@ -113,8 +113,8 @@ export class RunLease {
   get cancellation(): CancellationReason | undefined {
     return this.#controller.signal.aborted ? this.#controller.signal.reason : undefined;
   }
-  constructor(timeoutMs: number) {
-    this.#timer = setTimeout(() => this.cancel('deadline'), timeoutMs);
+  constructor(timeoutMs?: number) {
+    if (timeoutMs !== undefined) this.#timer = setTimeout(() => this.cancel('deadline'), timeoutMs);
   }
   cancel(reason: CancellationReason): void {
     if (this.#state.kind === 'finished' || this.#state.kind === 'quarantined') return;

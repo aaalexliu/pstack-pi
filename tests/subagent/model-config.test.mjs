@@ -101,6 +101,21 @@ test('precedence, rejected preparation, explicit overrides, and per-role admissi
   assert.deepEqual(prepare({ model: 'inherit-parent' }).selection, { source: 'explicit', choice: { kind: 'inheritParent' } });
 });
 
+test('batch planning uses copied cursors and commits all ordered assignments together', () => {
+  const router = new ModelRouter();
+  const cfg = config({ feature: ['fixture/a', 'inherit-parent', 'fixture/a', 'fixture/b'], review: ['fixture/c', 'fixture/d'] });
+  const inputs = [{ role: 'feature' }, { role: 'feature', model: 'fixture/override' }, { role: 'review' }, { role: 'feature' }, { role: 'feature' }];
+  const first = router.prepareBatch(cfg, inputs);
+  assert.deepEqual(first.selections.map((s) => s.choice), [pinned('a'), pinned('override'), pinned('c'), { kind: 'inheritParent' }, pinned('a')]);
+  assert.deepEqual(router.prepareBatch(cfg, inputs).selections, first.selections);
+  assert.throws(() => router.prepareBatch(cfg, [...inputs, { role: 'unknown' }]));
+  first.commit();
+  assert.throws(() => first.commit());
+  assert.deepEqual(router.prepareBatch(cfg, [{ role: 'feature' }, { role: 'review' }]).selections.map((s) => s.choice), [pinned('b'), pinned('d')]);
+  router.prepareBatch(config({}), [{ role: 'feature' }]);
+  assert.deepEqual(router.prepareBatch(cfg, [{ role: 'feature' }]).selections[0].choice, pinned('b'), 'discarded config changes do not reset live counters');
+});
+
 test('only changed normalized assignments reset counters', () => {
   const router = new ModelRouter();
   /** @param {import('../../extensions/subagent/model-config.ts').RoleConfig} cfg */

@@ -130,10 +130,28 @@ export async function loadModelConfig(agentDir: string): Promise<RoleConfig> {
 
 export type ModelSelection = { source: 'explicit' | 'role' | 'agent' | 'parent'; choice: ModelChoice };
 export type RoutingTicket = { selection: ModelSelection; commit: () => void };
+export type RoutingInput = { role?: string; model?: string; agentModel?: string };
+export type BatchRoutingTicket = { selections: readonly ModelSelection[]; commit: () => void };
 
 export class ModelRouter {
   #roles = new Map<Role, { assignment: string; next: number }>();
-  prepare({ config, role, model, agentModel }: { config: RoleConfig; role?: string; model?: string; agentModel?: string }): RoutingTicket {
+  prepareBatch(config: RoleConfig, inputs: readonly RoutingInput[]): BatchRoutingTicket {
+    const original = this.#roles;
+    const draft = new ModelRouter();
+    draft.#roles = new Map([...original].map(([role, state]) => [role, { ...state }]));
+    const selections = inputs.map((input) => {
+      const ticket = draft.prepare({ config, ...input });
+      ticket.commit();
+      return ticket.selection;
+    });
+    let committed = false;
+    return { selections: Object.freeze(selections), commit: () => {
+      if (committed || this.#roles !== original) throw new Error('Stale batch routing ticket');
+      this.#roles = draft.#roles;
+      committed = true;
+    } };
+  }
+  prepare({ config, role, model, agentModel }: RoutingInput & { config: RoleConfig }): RoutingTicket {
     const requestedRole = role === undefined ? undefined : parseRole(role);
     const explicit = model === undefined ? undefined : parseModelChoice(model);
     const fallback = agentModel === undefined ? undefined : parseModelChoice(agentModel);

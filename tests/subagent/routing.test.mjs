@@ -33,7 +33,7 @@ test('single execute captures parent before await and routes admission without c
       return (/** @type {import('@earendil-works/pi-coding-agent').ToolDefinition<typeof subagentParameters>} */ value) => { tool = value; };
     },
   });
-  extension(api, { run: (args) => runChild({ ...args, invocation, backend: { ...processBackend, spawn: (_invocation, argv, options) => spawn(process.execPath, [fileURLToPath(new URL('./child-fixture.mjs', import.meta.url)), 'success', ...argv], options) } }) });
+  extension(api, { pin: async () => invocation, run: (args) => runChild({ ...args, invocation, backend: { ...processBackend, spawn: (_invocation, argv, options) => spawn(process.execPath, [fileURLToPath(new URL('./child-fixture.mjs', import.meta.url)), 'success', ...argv], options) } }) });
   assert.ok(tool);
   const execute = tool.execute;
   const request = { agent: 'general-purpose', task: 'task', role: /** @type {const} */ ('feature') };
