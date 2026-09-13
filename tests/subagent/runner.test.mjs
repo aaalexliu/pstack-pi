@@ -9,7 +9,9 @@ import test from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import { parseAgent } from '../../extensions/subagent/agents.ts';
-import { boundedOutput, childArguments, childOutputParser, resolveCwd, runChild } from '../../extensions/subagent/runner.ts';
+import { boundedOutput, childArguments, resolveCwd, runChild } from '../../extensions/subagent/runner.ts';
+import { childOutputParser } from '../../extensions/subagent/protocol.ts';
+import { zeroUsage } from '../../extensions/subagent/usage.ts';
 
 const fixturePath = fileURLToPath(new URL('./child-fixture.mjs', import.meta.url));
 const invocation = await PiInvocation.resolve({ entrypoint: fileURLToPath(new URL('../../node_modules/@earendil-works/pi-coding-agent/dist/cli.js', import.meta.url)) });
@@ -60,7 +62,8 @@ test('separate child gets the exact task through stdin and a private prompt that
   const task = '@not-a-file\n--tools bash\nUnicode ✓\u2028inside';
   const result = await runChild({ ...f, agent, model, task, signal: controller.signal, ...child('success') });
   assert.equal(result.kind, 'succeeded');
-  assert.equal(result.usage, null);
+  assert.equal(result.usage.direct.kind, 'complete');
+  assert.equal(result.usage.direct.usage.totalTokens, 18);
   assert.deepEqual(result.observedModel, { provider: 'fixture', id: 'model' });
   assert.deepEqual(result.diagnostics, []);
   const capture = JSON.parse(result.output.text);
@@ -72,12 +75,12 @@ test('separate child gets the exact task through stdin and a private prompt that
   assert.equal(getEventListeners(controller.signal, 'abort').length, 0);
 });
 
-for (const mode of ['malformed', 'no-lf', 'line', 'stderr', 'count', 'stdout', 'invalid-utf8', 'error', 'aborted', 'length', 'toolUse', 'no-final', 'no-settled', 'wrong-model', 'exit']) {
+for (const mode of ['malformed', 'no-lf', 'line', 'stderr', 'count', 'stdout', 'invalid-utf8', 'error', 'aborted', 'length', 'toolUse', 'deferred', 'no-final', 'no-settled', 'wrong-model', 'exit']) {
   test(`child failure ${mode} cannot become success`, async (t) => {
     const f = await fixture(t);
     const result = await runChild({ ...f, agent, model, task: 'task', signal: undefined, ...child(mode) });
     assert.equal(result.kind, 'failed');
-    assert.equal(result.usage, null);
+    assert.equal(result.usage.scope, 'pi-reported');
     assert.ok(Buffer.byteLength(result.output.text) <= 32768);
     assert.ok(result.diagnostics.every((text) => Buffer.byteLength(text) <= 4096));
   });
@@ -132,10 +135,11 @@ test('pre-abort and spawn errors leave no temporary prompts', async (t) => {
 test('JSONL accepts split UTF-8 and LF framing but rejects malformed authoritative messages', () => {
   const expected = { provider: 'p', id: 'm' };
   const wrong = childOutputParser(expected);
-  assert.throws(() => wrong.write(Buffer.from(JSON.stringify({ type: 'message_end', message: { role: 'assistant', stopReason: 'toolUse', provider: 'p', model: 'other', content: [] } }) + '\n')), /differs from resolved/);
+  assert.throws(() => wrong.write(Buffer.from(JSON.stringify({ type: 'message_end', message: { role: 'assistant', timestamp: 1, usage: zeroUsage(), stopReason: 'toolUse', provider: 'p', model: 'other', content: [] } }) + '\n')), /differs from resolved/);
   const parser = childOutputParser(expected);
   const text = '✓\u2028and\u2029';
-  const bytes = Buffer.from(JSON.stringify({ type: 'message_end', message: { role: 'assistant', stopReason: 'stop', provider: 'p', model: 'm', content: [{ type: 'text', text }] } }) + '\n{"type":"agent_settled"}\n');
+  const message = { role: 'assistant', timestamp: 1, usage: zeroUsage(), stopReason: 'stop', provider: 'p', model: 'm', content: [{ type: 'text', text }] };
+  const bytes = Buffer.from(JSON.stringify({ type: 'message_start', message }) + '\n' + JSON.stringify({ type: 'message_end', message }) + '\n{"type":"agent_settled"}\n');
   for (const byte of bytes) parser.write(Buffer.from([byte]));
   assert.equal(parser.end().output.text, text);
   for (const event of [[], {}, { type: 'made-up' }, { type: 'message_end' }, { type: 'message_end', message: { role: 'assistant', stopReason: 'stop' } }]) {

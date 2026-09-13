@@ -1,12 +1,13 @@
 import { lstat, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { Type, type Static } from 'typebox';
-import { Check } from 'typebox/value';
-import { executionLimits, protocolLimits, parseDepth, requireRoot, RunRegistry, type RunLease, type DelegationDepth, type ExecutionLimits, type Agent, type BoundedOutput, type CanonicalCwd, type TaskIdentity, type TaskResult } from './domain.ts';
+import { executionLimits, protocolLimits, parseDepth, requireRoot, RunRegistry, type RunLease, type DelegationDepth, type ExecutionLimits, type Agent, type CanonicalCwd, type TaskIdentity, type TaskResult } from './domain.ts';
 import { childEnvironment, cleanupLimits, OwnedProcessTree, PiInvocation, ProcessOwnershipError, type CleanupReport, type ProcessBackend } from './process.ts';
 import { parseModelChoice } from './model-config.ts';
 import type { ChildModel, ModelIdentity } from './model-runtime.ts';
+import { boundedOutput, childOutputParser } from './protocol.ts';
+import { usageReport } from './usage.ts';
+export { boundedOutput } from './protocol.ts';
 
 export async function resolveCwd({ current, supplied }: { current: string; supplied?: string }): Promise<CanonicalCwd> {
   const canonical = await realpath(current);
@@ -24,76 +25,6 @@ export async function resolveCwd({ current, supplied }: { current: string; suppl
     if (await realpath(cursor) !== canonical) throw new Error('Supplied cwd differs from current cwd');
   }
   return canonical as CanonicalCwd;
-}
-
-const assistantSchema = Type.Object({
-  role: Type.Literal('assistant'),
-  stopReason: Type.Enum(['stop', 'length', 'toolUse', 'error', 'aborted']),
-  content: Type.Array(Type.Union([
-    Type.Object({ type: Type.Literal('text'), text: Type.String() }),
-    Type.Object({ type: Type.Literal('thinking'), thinking: Type.String() }),
-    Type.Object({ type: Type.Literal('toolCall'), id: Type.String(), name: Type.String(), arguments: Type.Unknown() }),
-  ])),
-  errorMessage: Type.Optional(Type.String()),
-  provider: Type.String(),
-  model: Type.String(),
-});
-const eventSchema = Type.Object({ type: Type.String() });
-const messageEventSchema = Type.Object({ type: Type.Literal('message_end'), message: Type.Object({ role: Type.Enum(['user', 'assistant', 'toolResult']) }) });
-const eventTypes = new Set(['session', 'agent_start', 'agent_end', 'agent_settled', 'turn_start', 'turn_end', 'message_start', 'message_update', 'message_end', 'tool_execution_start', 'tool_execution_update', 'tool_execution_end', 'auto_compaction_start', 'auto_compaction_end', 'auto_retry_start', 'auto_retry_end', 'compaction_start', 'compaction_end', 'queue_update']);
-
-export function boundedOutput(text: string, limit = executionLimits.outputBytes): BoundedOutput {
-  const bytes = Buffer.byteLength(text);
-  if (bytes <= limit) return { text, bytes, truncated: false };
-  const buffer = Buffer.from(text);
-  let end = limit;
-  while (end > 0 && (buffer[end] & 0xc0) === 0x80) end--;
-  return { text: buffer.subarray(0, end).toString('utf8'), bytes, truncated: true };
-}
-
-export function childOutputParser(expected?: ModelIdentity, outputBytes = executionLimits.outputBytes) {
-  const decoder = new TextDecoder('utf-8', { fatal: true });
-  let pending = '';
-  let bytes = 0;
-  let count = 0;
-  let final: Pick<Static<typeof assistantSchema>, 'stopReason' | 'provider' | 'model'> & { output: BoundedOutput } | undefined;
-  let settled = false;
-  return {
-    write(chunk: Buffer) {
-      bytes += chunk.length;
-      if (bytes > protocolLimits.stdoutBytes) throw new Error('Child stdout limit exceeded');
-      pending += decoder.decode(chunk, { stream: true });
-      let newline;
-      while ((newline = pending.indexOf('\n')) !== -1) {
-        const line = pending.slice(0, newline);
-        pending = pending.slice(newline + 1);
-        if (Buffer.byteLength(line) > protocolLimits.lineBytes) throw new Error('Child JSONL line limit exceeded');
-        if (++count > protocolLimits.events) throw new Error('Child event limit exceeded');
-        const event: unknown = JSON.parse(line);
-        if (!Check(eventSchema, event) || !eventTypes.has(event.type)) throw new Error('Invalid child event');
-        if (settled) throw new Error('Child event after settled');
-        if (event.type === 'agent_settled') settled = true;
-        if (event.type === 'message_end') {
-          if (!Check(messageEventSchema, event)) throw new Error('Invalid child message event');
-          if (event.message.role === 'assistant') {
-            if (!Check(assistantSchema, event.message)) throw new Error('Invalid child assistant message');
-            if (expected && (event.message.provider !== expected.provider || event.message.model !== expected.id)) throw new Error('Child model differs from resolved model');
-            final = {
-              stopReason: event.message.stopReason, provider: event.message.provider, model: event.message.model,
-              output: boundedOutput(event.message.content.filter((block) => block.type === 'text').map((block) => block.text).join(''), outputBytes),
-            };
-          }
-        }
-      }
-      if (Buffer.byteLength(pending) > protocolLimits.lineBytes) throw new Error('Child JSONL line limit exceeded');
-    },
-    end() {
-      pending += decoder.decode();
-      if (pending !== '') throw new Error('Child JSONL ended without LF');
-      if (!settled || !final) throw new Error('Child has no settled final assistant message');
-      return final;
-    },
-  };
 }
 
 export function childArguments({ agent, model, promptFile }: { agent: Agent; model: ChildModel; promptFile: string }): string[] {
@@ -159,6 +90,8 @@ export async function runChild({ identity, agent, task, model, signal, depth = p
   let failure: string | undefined;
   let output = boundedOutput('');
   let observedModel: ModelIdentity | null = null;
+  const parser = childOutputParser(model, limits.outputBytes);
+  let possibleWork = false;
   const abort = () => lease.cancel('user');
   const stop = () => { if (lease.cancellation) owner?.requestStop({ kind: 'cancelled', reason: lease.cancellation }); };
   signal?.addEventListener('abort', abort, { once: true });
@@ -175,10 +108,11 @@ export async function runChild({ identity, agent, task, model, signal, depth = p
     const args = childArguments({ agent, model, promptFile });
     lease.signal.throwIfAborted();
     lease.run();
+    possibleWork = true;
     owner = new OwnedProcessTree({ invocation: pinned, args, cwd: identity.cwd, env: childEnvironment(depth), lease, backend });
+    possibleWork = owner.child.pid !== undefined;
     if (owner.child.pid !== undefined && !owner.failure && !lease.signal.aborted) onStart?.();
     const child = owner.child;
-    const parser = childOutputParser(model, limits.outputBytes);
     const fail = (reason: string) => { failure ??= reason; owner?.requestStop({ kind: 'failed', reason }); };
     const stdout = (chunk: Buffer) => {
       if (failure) return;
@@ -228,7 +162,8 @@ export async function runChild({ identity, agent, task, model, signal, depth = p
     lease.verify();
     lease.finish(cleanup.verified);
   }
-  const base = { ...identity, output, diagnostics: [], usage: null, observedModel,
+  const usage = possibleWork ? parser.report(!cleanup.verified ? 'cleanup-unverified' : lease.cancellation ? 'cancelled' : failure ? 'process-failure' : undefined) : usageReport();
+  const base = { ...identity, output, diagnostics: [], usage, observedModel,
     cleanup: { verified: cleanup.verified, durationMs: cleanup.durationMs, forced: cleanup.forced, observedProcesses: cleanup.identities.length },
   } satisfies Omit<TaskResult, 'kind'>;
   if (!cleanup.verified) return { ...base, output: boundedOutput(''), kind: 'failed', reason: 'Delegation cleanup unverified; session quarantined' };

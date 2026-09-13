@@ -21,7 +21,7 @@ Each skill keeps upstream's `disable-model-invocation: true` flag.
 Pi hides these skills from model discovery but expands explicit commands with their arguments.
 The TypeScript skill includes `references/patterns.md`.
 
-The package ships nine generated skill files, one generated agent, eight extension modules, and `LICENSE`, `README.md`, and `package.json`.
+The package ships nine generated skill files, one generated agent, ten extension modules, and `LICENSE`, `README.md`, and `package.json`.
 At root depth it registers one `subagent` tool and one `session_shutdown` cleanup hook, with no prompts, themes, or commands.
 Chained requests, usage totals, todos, and broader workflows remain deferred.
 `/skill:how`, `/skill:poteto-mode`, and `/skill:setup-pstack` do not expand.

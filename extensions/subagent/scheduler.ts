@@ -2,6 +2,7 @@ import { executionLimits, requireRoot, RunLease, type CancellationReason, type D
 import { boundedOutput, type runChild } from './runner.ts';
 import type { ModelSelection } from './model-config.ts';
 import type { PiInvocation } from './process.ts';
+import { usageReport } from './usage.ts';
 
 export type ResolvedTask = Readonly<Pick<Parameters<typeof runChild>[0], 'identity' | 'agent' | 'task' | 'model'> & {
   depth: DelegationDepth; limits: ExecutionLimits; invocation: PiInvocation;
@@ -11,7 +12,7 @@ export function outputQuota(bytes: number, count: number, index: number): number
   return Math.floor(bytes / count) + (index < bytes % count ? 1 : 0);
 }
 function skipped(task: ResolvedTask, reason: string): TaskResult {
-  return { ...task.identity, kind: 'skipped', reason, output: boundedOutput(''), diagnostics: [], usage: null, observedModel: null,
+  return { ...task.identity, kind: 'skipped', reason, output: boundedOutput(''), diagnostics: [], usage: usageReport(), observedModel: null,
     cleanup: { verified: true, durationMs: 0, forced: false, observedProcesses: 0 } };
 }
 type RequestState = 'reserved' | 'admitted' | 'running' | 'stopping' | 'finished' | 'quarantined';
@@ -97,7 +98,7 @@ export class RequestLease {
         try {
           results[index] = await run({ ...task, lease, signal: undefined });
         } catch {
-          results[index] = { ...skipped(task, 'Child runner failed'), kind: 'failed', reason: 'Child runner failed' };
+          results[index] = { ...skipped(task, 'Child runner failed'), kind: 'failed', reason: 'Child runner failed', usage: usageReport({ reasons: ['runner-failure'] }) };
         } finally {
           if (lease.state.kind !== 'finished' || lease.cleanupUncertainty.aborted || !results[index].cleanup.verified) {
             this.#quarantine();

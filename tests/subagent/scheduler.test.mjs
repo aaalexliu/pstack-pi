@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { usageReport } from '../../extensions/subagent/usage.ts';
 import { setTimeout as delay } from 'node:timers/promises';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -36,7 +37,7 @@ function controlledRun() {
     lease.signal.addEventListener('abort', () => aborted.push(identity.id), { once: true });
     await new Promise((resolve) => { finish.set(identity.id, () => resolve(undefined)); });
     lease.verify(); lease.finish(true);
-    const base = { ...identity, output: boundedOutput(identity.id), diagnostics: [], usage: null, observedModel: null,
+    const base = { ...identity, output: boundedOutput(identity.id), diagnostics: [], usage: usageReport(), observedModel: null,
       cleanup: { verified: true, durationMs: 0, forced: false, observedProcesses: 1 } };
     return lease.cancellation ? { ...base, kind: 'cancelled', reason: lease.cancellation } : { ...base, kind: 'succeeded' };
   };

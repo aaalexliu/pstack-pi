@@ -2,6 +2,7 @@ import { Type, type Static } from 'typebox';
 import { Check } from 'typebox/value';
 import { modelChoiceSchema, roleSchema } from './model-config.ts';
 import type { ModelIdentity } from './model-runtime.ts';
+import type { UsageReport } from './usage.ts';
 
 export const agentNameSchema = Type.String({ pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$', maxLength: 64 });
 export const builtinTools = ['read', 'grep', 'find', 'ls', 'bash', 'edit', 'write'] as const;
@@ -64,7 +65,7 @@ export type CanonicalCwd = string & { readonly __brand: 'CanonicalCwd' };
 export type TaskIdentity = { id: string; agent: { name: string; provenance: AgentProvenance }; cwd: CanonicalCwd };
 export type BoundedOutput = { text: string; bytes: number; truncated: boolean };
 export type TaskResult = TaskIdentity & {
-  output: BoundedOutput; diagnostics: readonly string[]; usage: null;
+  output: BoundedOutput; diagnostics: readonly string[]; usage: UsageReport;
   observedModel: ModelIdentity | null;
   cleanup: { verified: boolean; durationMs: number; forced: boolean; observedProcesses: number };
 } & (

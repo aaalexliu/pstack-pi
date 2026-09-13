@@ -31,7 +31,8 @@ if (mode === 'unobserved') {
   if (mode === 'malformed-wait') process.stdout.write('PRIVATE_TRANSCRIPT_NOT_JSON\n');
   if (['orphan', 'detached', 'pipes'].includes(mode)) {
     setTimeout(() => {
-      process.stdout.write(JSON.stringify({ type: 'message_end', message: { role: 'assistant', stopReason: 'stop', provider: 'fixture', model: 'model', content: [{ type: 'text', text: 'must not succeed' }] } }) + '\n{"type":"agent_settled"}\n');
+      const message = { role: 'assistant', timestamp: 1, usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } }, stopReason: 'stop', provider: 'fixture', model: 'model', content: [{ type: 'text', text: 'must not succeed' }] };
+      process.stdout.write(JSON.stringify({ type: 'message_start', message }) + '\n' + JSON.stringify({ type: 'message_end', message }) + '\n{"type":"agent_settled"}\n');
       process.exit(0);
     }, 250);
   } else setInterval(() => {}, 1000);
