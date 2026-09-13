@@ -31,11 +31,13 @@ function jsonText(parts: Iterable<string>, bytes: number, jsonBytes: number): st
   }
   return text;
 }
-function envelope(parts: string[], details: unknown, usage: Usage): Envelope {
-  const result: Envelope = { content: [{ type: 'text', text: '' }], details, usage };
+function envelope(parts: string[], details: object, usage: Usage): Envelope {
+  const metadata = { ...details, resultOutput: { bytes: parts.reduce((sum, part) => sum + Buffer.byteLength(part), 0), truncated: false } };
+  const result: Envelope = { content: [{ type: 'text', text: '' }], details: metadata, usage };
   const available = failureLimits.envelopeBytes - Buffer.byteLength(JSON.stringify({ ...result, isError: true }));
   if (available < 0) throw new Error('Delegation result metadata exceeds byte limit');
   result.content[0].text = jsonText(parts, executionLimits.outputBytes, available);
+  metadata.resultOutput.truncated = Buffer.byteLength(result.content[0].text) < metadata.resultOutput.bytes;
   return result;
 }
 function taskMetadata(task: ResolvedTask, result: TaskResult) {
@@ -157,8 +159,9 @@ export default function subagentExtension(pi: ExtensionAPI, { run = runChild, pi
         const results = await lease.run(run);
         const aggregate = aggregateUsage(results.map((result) => result.usage));
         if (aggregate.overflow) diagnostics.push('Usage overflow; aggregate contains only representable known charges');
+        if (lease.cancellation) diagnostics.push(`Delegation cancelled (${lease.cancellation})`);
         const metadata = results.map((result, index) => taskMetadata(batch[index], result));
-        const failed = aggregate.overflow || results.some((result) => result.kind !== 'succeeded');
+        const failed = aggregate.overflow || lease.cancellation !== undefined || results.some((result) => result.kind !== 'succeeded');
         const details = request.kind === 'single' ? { ...metadata[0], diagnostics }
           : { kind: 'parallel', limits, diagnostics, tasks: metadata };
         if (failed) {

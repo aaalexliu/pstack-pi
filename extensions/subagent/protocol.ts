@@ -94,7 +94,7 @@ export function childOutputParser(expected?: ModelIdentity, outputBytes = execut
         const message = value.message;
         if (message.role === 'assistant' && expected && (message.provider !== expected.provider || message.model !== expected.id)) throw new Error('Child model differs from resolved model');
         if (value.type === 'message_start') {
-          if (open) throw new Error('Overlapping child message');
+          if (open || compaction !== undefined) throw new Error('Overlapping child message');
           switch (message.role) {
             case 'assistant': {
               const usage = parseUsage(message.usage);

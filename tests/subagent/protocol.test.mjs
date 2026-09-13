@@ -151,4 +151,7 @@ test('unfinished LF, event bounds, missing compaction usage, and unfinished comp
   start(unfinished); end(unfinished);
   send(unfinished, { type: 'compaction_start', reason: 'manual' });
   assert.throws(() => settle(unfinished));
+  const overlap = childOutputParser();
+  send(overlap, { type: 'compaction_start', reason: 'manual' });
+  assert.throws(() => start(overlap), /Overlapping/);
 });

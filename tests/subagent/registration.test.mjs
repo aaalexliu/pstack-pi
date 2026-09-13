@@ -426,6 +426,25 @@ test('successful results and preflight rejections erase reservations, and serial
   assert.equal(patch.usage?.input, 808);
   assert.ok(Buffer.byteLength(text) <= 32768);
   assert.ok(Buffer.byteLength(JSON.stringify(patch)) <= 65536);
+  assert.ok(patch.details && typeof patch.details === 'object' && 'resultOutput' in patch.details);
+  assert.equal(/** @type {{truncated: boolean}} */ (patch.details.resultOutput).truncated, true);
+});
+
+test('request cancellation after the last child cleanup cannot become a successful tool result', async (t) => {
+  const f = await runtime(t);
+  const controller = new AbortController();
+  const { tool, resultHook, shutdown } = registration(async (args) => {
+    const result = await chargedFailure(args);
+    controller.abort();
+    return { ...result, kind: 'succeeded' };
+  });
+  t.after(shutdown);
+  const input = { agent: 'general-purpose', task: 'task' };
+  let text = '';
+  await assert.rejects(tool.execute('owned', input, controller.signal, undefined, f.ctx), (error) => {
+    assert.ok(error instanceof Error); text = error.message; return /cancelled/.test(text);
+  });
+  assert.equal(resultHook(nativeFailure(input, text))?.usage?.input, 101);
 });
 
 test('unknown runner failures remain partial and errors keep only bounded result envelopes', async (t) => {
