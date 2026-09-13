@@ -2,8 +2,12 @@
   "name": "@aaalexliu/pstack-pi",
   "version": "0.1.0",
   "type": "module",
-  "description": "Eight reviewed pstack skills and one read-only delegate for Pi.",
+  "description": "Reviewed pstack skills and a bounded delegation runtime for Pi.",
   "license": "MIT",
+  "homepage": "https://github.com/aaalexliu/pstack-pi#readme",
+  "bugs": {
+    "url": "https://github.com/aaalexliu/pstack-pi/issues"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/aaalexliu/pstack-pi.git"

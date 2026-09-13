@@ -1,8 +1,47 @@
 # pstack for Pi
 
 `@aaalexliu/pstack-pi` provides eight reviewed skills from Lauren Tan's pstack.
-It also provides one read-only bundled agent and a bounded delegation tool.
-It is not a full pstack port.
+It also provides a bounded delegation runtime with exact model routing, parallel leaf agents, process cleanup, and delegated usage accounting.
+This first release focuses on safe local delegation rather than the full pstack workflow set.
+
+## Install
+
+Pi packages run with full system access. Review this repository before installation.
+
+Install the current GitHub release candidate:
+
+```sh
+pi install git:github.com/aaalexliu/pstack-pi
+```
+
+Check that Pi found it:
+
+```sh
+pi list
+```
+
+Then start Pi in your project. For example:
+
+```text
+Use the subagent tool with general-purpose to inspect this repository and summarize its entry points.
+```
+
+For bounded parallel work:
+
+```text
+Use the subagent tool to run separate read-only checks for the API, tests, and package metadata in parallel.
+```
+
+You can also run a reviewed skill directly, such as `/skill:tdd add a regression test for this bug`.
+
+Update or remove the Git package with:
+
+```sh
+pi update --extensions
+pi remove git:github.com/aaalexliu/pstack-pi
+```
+
+The package supports Pi `0.85.1` and Node.js `>=22.19.0` in this release.
 
 ## Supported scope
 
@@ -252,14 +291,12 @@ Pi 0.85.1 imposes narrower rules:
 Standard files and environment must remain stable during preparation and child startup. Pi reopens them in the child; its public APIs cannot bind both processes to one immutable config snapshot without copying credentials.
 The file checks do not provide isolation against a hostile process running as the same user.
 
-## Local installation
+## Develop locally
 
 Run `npm ci` in the checkout, then register it with `pi install /absolute/path/to/pstack-pi`.
 Pi records it in the user profile by default.
 Add `-l` to register it in the current project's settings instead.
-These instructions do not assume an npm release exists.
 
-The declared host is Pi `0.85.1`, with Node.js `>=22.19.0`.
 `engines.pi` records the tested version but npm does not enforce it.
 The package starts at version `0.1.0` and follows independent SemVer, not Cursor plugin versions.
 
