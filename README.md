@@ -7,10 +7,10 @@ It includes Pi-native `poteto-mode` and `how` workflows, branch-aware task track
 
 Pi packages run with full system access. Review this repository before installation.
 
-Install the current GitHub release candidate:
+Install a tested commit by its full 40-character SHA:
 
 ```sh
-pi install git:github.com/aaalexliu/pstack-pi
+pi install git:github.com/aaalexliu/pstack-pi@<full-commit-sha>
 ```
 
 Check that Pi found it:
@@ -33,12 +33,14 @@ Use the subagent tool to run separate read-only checks for the API, tests, and p
 
 You can also run a reviewed skill directly, such as `/skill:tdd add a regression test for this bug`.
 
-Update or remove the Git package with:
+A pinned Git package does not advance during `pi update --extensions`. Upgrade or remove it with:
 
 ```sh
-pi update --extensions
+pi install git:github.com/aaalexliu/pstack-pi@<new-full-commit-sha>
 pi remove git:github.com/aaalexliu/pstack-pi
 ```
+
+See `RELEASING.md` for the release gate and `SYNCING.md` for upstream and adaptation updates.
 
 The package supports Pi `0.85.1` and Node.js `>=22.19.0` in this release.
 

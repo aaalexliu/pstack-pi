@@ -54,6 +54,8 @@
     "ADAPTATIONS.md",
     "LICENSE",
     "README.md",
+    "RELEASING.md",
+    "SYNCING.md",
     "agents/general-purpose.md",
     "agents/poteto-agent.md",
     "extensions/pstack/index.ts",

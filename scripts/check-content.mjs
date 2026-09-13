@@ -125,8 +125,8 @@ export function extensionFiles(inventory) {
 
 /** @param {ContentInventory} inventory */
 export function expectedPackFiles(inventory) {
-  const adaptationGuide = inventory.byDestination.has('skills/poteto-mode/SKILL.md') ? ['ADAPTATIONS.md'] : [];
-  return [...adaptationGuide, 'LICENSE', 'README.md', 'package.json', ...inventory.byDestination.keys(), ...extensionFiles(inventory)].sort();
+  const guides = inventory.byDestination.has('skills/poteto-mode/SKILL.md') ? ['ADAPTATIONS.md', 'RELEASING.md', 'SYNCING.md'] : [];
+  return [...guides, 'LICENSE', 'README.md', 'package.json', ...inventory.byDestination.keys(), ...extensionFiles(inventory)].sort();
 }
 
 /** @param {string[]} actual @param {ContentInventory} inventory */
