@@ -76,15 +76,19 @@ test('registered tool follows session branches and persists only mutations', asy
     },
   };
   pstack(/** @type {any} */ (pi));
-  assert.deepEqual([...handlers.keys()], ['session_start', 'session_tree']);
+  assert.deepEqual([...handlers.keys()], ['session_start', 'session_tree', 'input', 'before_agent_start']);
   assert.equal(tool.name, 'pstack_todo');
   const ctx = { sessionManager: { getBranch: () => branch } };
   await handlers.get('session_start')({}, ctx);
+  assert.equal(await handlers.get('before_agent_start')({ systemPrompt: 'base' }, ctx), undefined);
+  assert.deepEqual(await handlers.get('input')({ text: '/skill:other' }, ctx), { action: 'continue' });
+  assert.deepEqual(await handlers.get('input')({ text: '/skill:poteto-mode task' }, ctx), { action: 'continue' });
+  assert.match((await handlers.get('before_agent_start')({ systemPrompt: 'base' }, ctx)).systemPrompt, /skills\/poteto-mode\/SKILL\.md/);
 
   await tool.execute('set', { action: 'set', items: ['root'] });
-  assert.equal(appended.length, 1);
+  assert.equal(appended.length, 2);
   assert.equal((await tool.execute('get', { action: 'get' })).content[0].text, '1. root');
-  assert.equal(appended.length, 1);
+  assert.equal(appended.length, 2);
 
   const rootBranch = [...branch];
   await tool.execute('add', { action: 'add', item: 'child' });
@@ -96,5 +100,6 @@ test('registered tool follows session branches and persists only mutations', asy
 
   branch = [];
   await handlers.get('session_tree')({}, ctx);
+  assert.equal(await handlers.get('before_agent_start')({ systemPrompt: 'base' }, ctx), undefined);
   assert.equal((await tool.execute('get', { action: 'get' })).content[0].text, 'No pstack todo items.');
 });

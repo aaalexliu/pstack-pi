@@ -61,8 +61,8 @@ export function contentInventory(rawManifest, rawLock) {
       assert.equal(entry.adaptationSha256, null, 'Omission has adaptation');
       continue;
     }
-    assert.ok(disposition.kind === 'copy' || disposition.kind === 'transform', 'Pre-runtime content supports only copy, transform, and omit');
-    assert.ok(/^skills\/[^/]+\/(?:SKILL\.md|references\/[^/]+\.md)$/u.test(disposition.destination), `Unsupported content destination (zero agents): ${disposition.destination}`);
+    assert.ok(disposition.kind === 'copy' || disposition.kind === 'transform' || disposition.kind === 'replace', 'Content supports only copy, transform, replace, and omit');
+    assert.ok(/^skills\/[^/]+\/(?:SKILL\.md|references\/[^/]+\.md|playbooks\/[^/]+\.md)$/u.test(disposition.destination) || disposition.destination === 'agents/poteto-agent.md', `Unsupported content destination: ${disposition.destination}`);
     assert.ok(entry.output, `Missing locked output: ${disposition.source}`);
     assert.equal(entry.output.destination, disposition.destination, 'Locked destination differs');
     assert.equal(entry.output.mode, '100644', 'Content must not be executable');
@@ -70,6 +70,9 @@ export function contentInventory(rawManifest, rawLock) {
     if (disposition.kind === 'transform') {
       assert.equal(disposition.expectedBlob, entry.blob, 'Transform preimage differs');
       assert.equal(entry.adaptationSha256, transformDigest(disposition.transforms), 'Transform digest differs');
+    } else if (disposition.kind === 'replace') {
+      assert.equal(disposition.expectedBlob, entry.blob, 'Replacement preimage differs');
+      assert.equal(entry.adaptationSha256, entry.output.sha256, 'Replacement digest differs');
     } else assert.equal(entry.adaptationSha256, null, 'Copy has adaptation');
     inventory.byDestination.set(disposition.destination, record);
   }
@@ -117,12 +120,13 @@ async function fileInventory(root, roots) {
 /** @param {ContentInventory} inventory */
 export function extensionFiles(inventory) {
   return inventory.byDestination.has('agents/general-purpose.md')
-    ? ['extensions/pstack/index.ts', 'extensions/pstack/todo.ts', 'extensions/subagent/agents.ts', 'extensions/subagent/domain.ts', 'extensions/subagent/index.ts', 'extensions/subagent/model-config.ts', 'extensions/subagent/model-runtime.ts', 'extensions/subagent/process.ts', 'extensions/subagent/protocol.ts', 'extensions/subagent/runner.ts', 'extensions/subagent/scheduler.ts', 'extensions/subagent/usage.ts'] : [];
+    ? ['extensions/pstack/index.ts', 'extensions/pstack/mode.ts', 'extensions/pstack/todo.ts', 'extensions/subagent/agents.ts', 'extensions/subagent/domain.ts', 'extensions/subagent/index.ts', 'extensions/subagent/model-config.ts', 'extensions/subagent/model-runtime.ts', 'extensions/subagent/process.ts', 'extensions/subagent/protocol.ts', 'extensions/subagent/runner.ts', 'extensions/subagent/scheduler.ts', 'extensions/subagent/usage.ts'] : [];
 }
 
 /** @param {ContentInventory} inventory */
 export function expectedPackFiles(inventory) {
-  return ['LICENSE', 'README.md', 'package.json', ...inventory.byDestination.keys(), ...extensionFiles(inventory)].sort();
+  const adaptationGuide = inventory.byDestination.has('skills/poteto-mode/SKILL.md') ? ['ADAPTATIONS.md'] : [];
+  return [...adaptationGuide, 'LICENSE', 'README.md', 'package.json', ...inventory.byDestination.keys(), ...extensionFiles(inventory)].sort();
 }
 
 /** @param {string[]} actual @param {ContentInventory} inventory */
@@ -155,7 +159,7 @@ export function assertPackageExposure(rawPackage, inventory) {
 /** @param {string} text @param {string} filename @param {ContentInventory} inventory */
 function dependencies(text, filename, inventory) {
   assert.ok(!/(?:\bsubagent_type\b|\brun_in_background\b|\bAskQuestion\b|\.cursor\/|\bcursor-agent\b|\bTask\s+(?:tool|subagent|call)\b|`Task`\s+(?:tool|call)|\breadonly`?\s*:\s*`?true\b)/u.test(text), `Unsupported Cursor mechanics: ${filename}`);
-  assert.ok(!/(?:\bpstack_(?:todo|config|sessions)\b|\bsubagent\s*\(|\bpi\.(?:on|registerTool)\s*\(|\bcommand-approval\s+gate\b)/u.test(text), `Runtime or command-gate dependency: ${filename}`);
+  assert.ok(!/(?:\bpstack_(?:config|sessions)\b|\bsubagent\s*\(|\bpi\.(?:on|registerTool)\s*\(|\bcommand-approval\s+gate\b)/u.test(text), `Unavailable runtime or command-gate dependency: ${filename}`);
   const sourceSkills = new Set([...inventory.bySource.keys()].flatMap((source) => /^skills\/([^/]+)\/SKILL\.md$/u.exec(source)?.slice(1) ?? []));
   for (const match of text.matchAll(/(?:^|[\s`(])\/(skill:)?([a-z0-9]+(?:-[a-z0-9]+)*)\b/gu)) {
     if (match[1]) assert.ok(inventory.bySkillName.has(match[2]), `Missing skill dependency: ${match[2]}`);

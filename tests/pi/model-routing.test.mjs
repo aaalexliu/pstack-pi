@@ -102,7 +102,7 @@ test('packed relocated real Pi assigns explicit models, mixed role pools, duplic
         assert.equal(routing.selection.source, source);
       }
       assert.ok(!run.pack.files.some((file) => file.startsWith('tests/')));
-      assert.equal(run.pack.files.length, 25);
+      assert.equal(run.pack.files.length, 48);
       assert.deepEqual(run.diagnostics, []);
     },
   });

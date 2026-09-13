@@ -21,11 +21,26 @@
     "pi": "0.85.1"
   },
   "pi": {
-    "extensions": ["extensions/pstack/index.ts", "extensions/subagent/index.ts"],
+    "extensions": [
+      "extensions/pstack/index.ts",
+      "extensions/subagent/index.ts"
+    ],
     "skills": [
       "skills/bro/SKILL.md",
+      "skills/how/SKILL.md",
+      "skills/poteto-mode/SKILL.md",
       "skills/principle-boundary-discipline/SKILL.md",
+      "skills/principle-build-the-lever/SKILL.md",
       "skills/principle-encode-lessons-in-structure/SKILL.md",
+      "skills/principle-experience-first/SKILL.md",
+      "skills/principle-fix-root-causes/SKILL.md",
+      "skills/principle-guard-the-context-window/SKILL.md",
+      "skills/principle-laziness-protocol/SKILL.md",
+      "skills/principle-model-the-domain/SKILL.md",
+      "skills/principle-never-block-on-the-human/SKILL.md",
+      "skills/principle-prove-it-works/SKILL.md",
+      "skills/principle-separate-before-serializing-shared-state/SKILL.md",
+      "skills/principle-sequence-verifiable-units/SKILL.md",
       "skills/principle-type-system-discipline/SKILL.md",
       "skills/tdd/SKILL.md",
       "skills/technical-writing/SKILL.md",
@@ -36,11 +51,13 @@
     "themes": []
   },
   "files": [
+    "ADAPTATIONS.md",
     "LICENSE",
     "README.md",
-    "package.json",
     "agents/general-purpose.md",
+    "agents/poteto-agent.md",
     "extensions/pstack/index.ts",
+    "extensions/pstack/mode.ts",
     "extensions/pstack/todo.ts",
     "extensions/subagent/agents.ts",
     "extensions/subagent/domain.ts",
@@ -52,9 +69,30 @@
     "extensions/subagent/runner.ts",
     "extensions/subagent/scheduler.ts",
     "extensions/subagent/usage.ts",
+    "package.json",
     "skills/bro/SKILL.md",
+    "skills/how/SKILL.md",
+    "skills/how/references/explainer-prompt.md",
+    "skills/how/references/explorer-prompt.md",
+    "skills/poteto-mode/SKILL.md",
+    "skills/poteto-mode/playbooks/bug-fix.md",
+    "skills/poteto-mode/playbooks/feature.md",
+    "skills/poteto-mode/playbooks/investigation.md",
+    "skills/poteto-mode/playbooks/multi-phase-plan.md",
+    "skills/poteto-mode/playbooks/orchestrate.md",
+    "skills/poteto-mode/playbooks/prototype.md",
     "skills/principle-boundary-discipline/SKILL.md",
+    "skills/principle-build-the-lever/SKILL.md",
     "skills/principle-encode-lessons-in-structure/SKILL.md",
+    "skills/principle-experience-first/SKILL.md",
+    "skills/principle-fix-root-causes/SKILL.md",
+    "skills/principle-guard-the-context-window/SKILL.md",
+    "skills/principle-laziness-protocol/SKILL.md",
+    "skills/principle-model-the-domain/SKILL.md",
+    "skills/principle-never-block-on-the-human/SKILL.md",
+    "skills/principle-prove-it-works/SKILL.md",
+    "skills/principle-separate-before-serializing-shared-state/SKILL.md",
+    "skills/principle-sequence-verifiable-units/SKILL.md",
     "skills/principle-type-system-discipline/SKILL.md",
     "skills/tdd/SKILL.md",
     "skills/technical-writing/SKILL.md",
@@ -86,8 +124,12 @@
     "typebox": "*"
   },
   "peerDependenciesMeta": {
-    "@earendil-works/pi-coding-agent": { "optional": true },
-    "typebox": { "optional": true }
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    },
+    "typebox": {
+      "optional": true
+    }
   },
   "dependencies": {
     "yaml": "2.9.0"

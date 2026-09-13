@@ -9,21 +9,25 @@ import { parseLock, parseManifest } from '../../scripts/sync-upstream.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 
-test('production contains exactly the reviewed pre-runtime slice and locked transformations', async () => {
+test('production contains exactly the reviewed copied and adapted workflow set', async () => {
   const manifest = parseManifest(JSON.parse(await readFile(path.join(root, 'sync/manifest.json'), 'utf8')));
   const lock = parseLock(JSON.parse(await readFile(path.join(root, 'sync/upstream.lock.json'), 'utf8')));
   const inventory = await checkContent({ root, manifest, lock });
   assert.equal(lock.commit, 'f5bdd6826fd0a0d9cbc4347134c3a74a200b9d9d');
   assert.equal(inventory.bySource.size, 158);
-  assert.equal(inventory.byDestination.size, 10);
-  assert.equal(inventory.byAgentName.size, 1);
+  assert.equal(inventory.byDestination.size, 31);
+  assert.equal(inventory.byAgentName.size, 2);
   assert.deepEqual(inventory.byAgentName.get('general-purpose')?.tools, ['read', 'grep', 'find', 'ls']);
-  assert.equal(inventory.bySkillName.size, 8);
-  assert.equal(manifest.files.filter((file) => file.kind === 'copy').length, 7);
-  assert.equal(manifest.files.filter((file) => file.kind === 'omit').length, 149);
+  assert.deepEqual(inventory.byAgentName.get('poteto-agent')?.tools, ['read', 'grep', 'find', 'ls', 'bash', 'edit', 'write']);
+  assert.equal(inventory.bySkillName.size, 20);
+  assert.equal(manifest.files.filter((file) => file.kind === 'copy').length, 16);
+  assert.equal(manifest.files.filter((file) => file.kind === 'transform').length, 3);
+  assert.equal(manifest.files.filter((file) => file.kind === 'replace').length, 11);
+  assert.equal(manifest.files.filter((file) => file.kind === 'omit').length, 128);
   assert.ok(manifest.files.every((file) => file.kind !== 'omit' || !file.reason.includes('reviewed Pi adaptation phase')));
   const transforms = manifest.files.filter((file) => file.kind === 'transform');
   assert.deepEqual(transforms.map(({ source, expectedBlob, transforms }) => ({ source, expectedBlob, transforms })), [
+    { source: 'skills/principle-prove-it-works/SKILL.md', expectedBlob: '4563023d4d9f22e10e33cbf0ae94da156be30618', transforms: [{ find: '(the **show-me-your-work** skill)', replace: '(a durable decision log)', count: 1 }] },
     { source: 'skills/technical-writing/SKILL.md', expectedBlob: '70a477e42fc5f37c35bf602d86ff89c0f5258ecf', transforms: [{ find: '/technical-writing', replace: '/skill:technical-writing', count: 1 }] },
     { source: 'skills/typescript-best-practices/SKILL.md', expectedBlob: '2c0279d9a5f800192605e47b55cae4e75a17ec27', transforms: [{ find: 'paths: ["**/*.ts", "**/*.tsx"]\n', replace: '', count: 1 }] },
   ]);
@@ -37,9 +41,10 @@ test('production contains exactly the reviewed pre-runtime slice and locked tran
     const actual = await readFile(path.join(root, destination));
     assert.equal(createHash('sha1').update(`blob ${original.length}\0`).update(original).digest('hex'), locked.blob, `Source blob: ${destination}`);
     if (disposition.kind === 'copy') assert.deepEqual(actual, original, `Copy bytes: ${destination}`);
-    else {
+    else if (disposition.kind === 'replace') {
+      assert.deepEqual(actual, await readFile(path.join(root, disposition.replacement)), `Replacement bytes: ${destination}`);
+    } else {
       assert.equal(disposition.kind, 'transform');
-      assert.ok(disposition.kind === 'transform');
       let expected = original.toString('utf8');
       for (const step of disposition.transforms) {
         assert.equal(expected.split(step.find).length - 1, step.count);

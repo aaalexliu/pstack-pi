@@ -12,7 +12,15 @@ import { fileURLToPath } from 'node:url';
 import { sha256 } from '../../scripts/sync-upstream.mjs';
 
 const repository = fileURLToPath(new URL('../../', import.meta.url));
-const productionSkills = ['bro', 'principle-boundary-discipline', 'principle-encode-lessons-in-structure', 'principle-type-system-discipline', 'tdd', 'technical-writing', 'typescript-best-practices', 'unslop'];
+const productionSkills = [
+  'bro', 'how', 'poteto-mode', 'principle-boundary-discipline', 'principle-build-the-lever',
+  'principle-encode-lessons-in-structure', 'principle-experience-first', 'principle-fix-root-causes',
+  'principle-guard-the-context-window', 'principle-laziness-protocol', 'principle-model-the-domain',
+  'principle-never-block-on-the-human', 'principle-prove-it-works',
+  'principle-separate-before-serializing-shared-state', 'principle-sequence-verifiable-units',
+  'principle-type-system-discipline', 'tdd', 'technical-writing', 'typescript-best-practices', 'unslop',
+];
+const exactExpansionSkills = ['bro', 'how', 'poteto-mode', 'principle-boundary-discipline', 'principle-encode-lessons-in-structure', 'principle-type-system-discipline', 'tdd', 'technical-writing', 'typescript-best-practices', 'unslop'];
 
 async function productionInventory() {
   return checkContent({ root: repository,
@@ -96,7 +104,7 @@ test("real Pi loads the packed package and settles with fixture text and usage",
   assertClean(run);
   assert.deepEqual(run.cleanup.signals, []);
   assert.deepEqual(run.pack.files, expectedPackFiles(await productionInventory()));
-  assert.equal(run.pack.files.length, 25);
+  assert.equal(run.pack.files.length, 48);
   assertOnlyDeclaredTools(run);
   context.diagnostic(JSON.stringify({
     pi: run.process.version, revision: run.process.revision, pid: run.process.pid,
@@ -164,7 +172,7 @@ function requestUserText(run) {
   }).join('');
 }
 
-for (const name of productionSkills) {
+for (const name of exactExpansionSkills) {
   test(`real packed Pi expands /skill:${name} with exact body, arguments, and relocated paths`, async (t) => {
     const inventory = await productionInventory();
     assert.deepEqual([...inventory.bySkillName.keys()].sort(), productionSkills);
@@ -185,11 +193,15 @@ for (const name of productionSkills) {
     assert.ok(Array.isArray(messages));
     const system = JSON.stringify(messages.filter((message) => message.role === 'system'));
     for (const selected of inventory.bySkillName.values()) assert.ok(!system.includes(selected.description), 'Manual skill leaked into model discovery');
+    if (name === 'poteto-mode') {
+      assert.ok(system.includes('Pstack Poteto Mode is active'));
+      assert.ok(system.includes(join(run.paths.package, 'skills/poteto-mode/SKILL.md')));
+    }
     t.diagnostic(JSON.stringify({ name, pi: run.process.version, bodySha256: sha256(skill.body), userBytes: Buffer.byteLength(user), location, tools: ['bash', 'edit', 'read', 'write'], diagnostics: run.diagnostics, cleanup: run.cleanup }));
   });
 }
 
-for (const name of ['how', 'poteto-mode', 'setup-pstack']) {
+for (const name of ['setup-pstack']) {
   test(`real packed Pi leaves unsupported /skill:${name} unexpanded`, async () => {
     const prompt = `/skill:${name} unsupported argument`;
     const run = await runPiSmoke({ prompt });

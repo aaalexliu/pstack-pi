@@ -92,7 +92,7 @@ for (const body of [
   'Use subagent_type: generalPurpose.', 'Set run_in_background: true.',
   'Spawn a Task subagent.', 'Use the `Task` tool.', 'Set `readonly`: `true`.',
   'Write ~/.cursor/rules/settings.mdc.', 'Use AskQuestion.', 'Run cursor-agent.',
-  'Call pstack_todo.', 'Register pi.on("tool_call", handler).',
+  'Call pstack_config.', 'Register pi.on("tool_call", handler).',
   'Install a command-approval gate.', 'Read `../omitted/SKILL.md`.',
 ]) {
   test(`rejects unresolved or unsupported instruction ${body}`, async (t) => {
@@ -150,7 +150,7 @@ test('package has no implicit resources, agents, runtime dependencies, or approv
   const first = agentManifest.files[0];
   assert.ok(first.kind === 'copy');
   first.destination = 'agents/agent.md';
-  assert.throws(() => contentInventory(agentManifest, f.lock), /zero agents/);
+  assert.throws(() => contentInventory(agentManifest, f.lock), /Unsupported content destination/);
   await f.put('agents/agent.md', 'agent');
   await assert.rejects(checkContent(f), /membership/);
 });

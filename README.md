@@ -1,7 +1,7 @@
 # pstack for Pi
 
-`@aaalexliu/pstack-pi` provides eight reviewed skills from Lauren Tan's pstack.
-It also provides branch-aware task tracking and a bounded delegation runtime with exact model routing, parallel leaf agents, process cleanup, and delegated usage accounting.
+`@aaalexliu/pstack-pi` provides 20 reviewed skills from Lauren Tan's pstack.
+It includes Pi-native `poteto-mode` and `how` workflows, branch-aware task tracking, and bounded delegation with exact model routing, parallel leaf agents, process cleanup, and delegated usage accounting.
 
 ## Install
 
@@ -47,28 +47,48 @@ The package supports Pi `0.85.1` and Node.js `>=22.19.0` in this release.
 Pi `0.85.1` exposes these manual commands:
 
 - `/skill:bro`
+- `/skill:how`
+- `/skill:poteto-mode`
 - `/skill:tdd`
 - `/skill:technical-writing`
 - `/skill:typescript-best-practices`
 - `/skill:unslop`
 - `/skill:principle-boundary-discipline`
+- `/skill:principle-build-the-lever`
 - `/skill:principle-encode-lessons-in-structure`
+- `/skill:principle-experience-first`
+- `/skill:principle-fix-root-causes`
+- `/skill:principle-guard-the-context-window`
+- `/skill:principle-laziness-protocol`
+- `/skill:principle-model-the-domain`
+- `/skill:principle-never-block-on-the-human`
+- `/skill:principle-prove-it-works`
+- `/skill:principle-separate-before-serializing-shared-state`
+- `/skill:principle-sequence-verifiable-units`
 - `/skill:principle-type-system-discipline`
 
-Each skill keeps upstream's `disable-model-invocation: true` flag.
-Pi hides these skills from model discovery but expands explicit commands with their arguments.
-The TypeScript skill includes `references/patterns.md`.
+Each skill keeps `disable-model-invocation: true` so Pi expands it only through an explicit skill command. The TypeScript skill includes `references/patterns.md`.
 
-The package ships nine generated skill files, one generated agent, twelve extension modules, and `LICENSE`, `README.md`, and `package.json`.
+The package ships 29 generated skill files, two generated agents, 13 extension modules, and the root package files.
 It registers `pstack_todo` and, at root depth, `subagent`.
 The delegation runtime owns one `session_shutdown` cleanup hook and a `tool_result` hook limited to its own failed delegations.
-Todo state uses `session_start` and `session_tree` hooks. The package registers no prompts, themes, or commands.
-Chained requests, a usage command, and broader workflows remain deferred.
-`/skill:how`, `/skill:poteto-mode`, and `/skill:setup-pstack` do not expand.
+Todo and Poteto Mode state follow the active session branch through versioned custom entries. The package registers no prompts, themes, commands, or blanket approval hooks.
+Chained requests, a usage command, model setup, and broader workflows remain deferred.
+`/skill:setup-pstack` does not expand.
+
+`ADAPTATIONS.md` lists every full-file Pi replacement, the exact Cursor behavior it replaces, and why a byte copy or short ordered transform would leave a false runtime contract.
 
 The package never installs a blanket command-approval gate, inspects unrelated shell strings, or requests package-wide confirmation for routine Git pushes or pull-request edits.
 Those actions remain under host policy.
 Its validation applies only to `subagent` requests.
+
+## Core workflows
+
+Run `/skill:poteto-mode <task>` to load the mode and keep its short operating reminder active on the current session branch. The mode selects one of six bundled playbooks: feature, bug fix, investigation, prototype, multi-phase plan, or orchestration. Branching before the command restores the mode state from that earlier point.
+
+Poteto Mode uses `poteto-agent` for bounded implementation work and `general-purpose` for read-only exploration. `poteto-agent` has `read`, `grep`, `find`, `ls`, `bash`, `edit`, and `write`; it is a leaf process with no `subagent` tool. The parent still owns the design, diff review, and final checks.
+
+Run `/skill:how <question>` for an architecture walkthrough. Narrow questions use one read-only explainer. Broad questions can use two to four read-only explorers followed by one explainer. The configured `how-explorer` and `how-explainer` roles select their models, with parent-model inheritance as the default.
 
 ## Todos
 

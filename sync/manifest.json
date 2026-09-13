@@ -41,9 +41,12 @@
       "reason": "Agent activation waits for Pi discovery, delegation, and execution-limit contracts."
     },
     {
-      "kind": "omit",
+      "kind": "replace",
       "source": "agents/poteto-agent.md",
-      "reason": "Agent activation waits for Pi discovery, delegation, and execution-limit contracts."
+      "destination": "agents/poteto-agent.md",
+      "expectedBlob": "91d53b85918f842c703758e66352b956ee80feb7",
+      "replacement": "sync/replacements/agents/poteto-agent.md",
+      "reason": "Replace unsupported Cursor is_background and resume semantics with an explicit Pi tool allowlist and a leaf-only implementation contract."
     },
     {
       "kind": "omit",
@@ -261,19 +264,28 @@
       "reason": "Workflow activation waits for Pi runtime contracts and end-to-end evaluations."
     },
     {
-      "kind": "omit",
+      "kind": "replace",
       "source": "skills/how/SKILL.md",
-      "reason": "Workflow activation waits for Pi runtime contracts and end-to-end evaluations."
+      "destination": "skills/how/SKILL.md",
+      "expectedBlob": "7d4627c3bec8a6a994a3cf9bb5686ab33c39ac8f",
+      "replacement": "sync/replacements/skills/how/SKILL.md",
+      "reason": "Replace Cursor Task, subagent_type, readonly, and model-slug instructions with Pi subagent requests and configured model roles."
     },
     {
-      "kind": "omit",
+      "kind": "replace",
       "source": "skills/how/references/explainer-prompt.md",
-      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
+      "destination": "skills/how/references/explainer-prompt.md",
+      "expectedBlob": "3a36fb6736c5b74ac2774350841e332a019dec94",
+      "replacement": "sync/replacements/skills/how/references/explainer-prompt.md",
+      "reason": "Support both direct and synthesized Pi explanation paths without assuming Cursor Glob or nested delegation."
     },
     {
-      "kind": "omit",
+      "kind": "replace",
       "source": "skills/how/references/explorer-prompt.md",
-      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
+      "destination": "skills/how/references/explorer-prompt.md",
+      "expectedBlob": "8b898d9e729e5d5fa41e95720e44f23a4204de43",
+      "replacement": "sync/replacements/skills/how/references/explorer-prompt.md",
+      "reason": "Replace the unavailable Cursor Glob tool with the bundled Pi read-only tools and state the leaf no-delegation boundary."
     },
     {
       "kind": "omit",
@@ -316,9 +328,12 @@
       "reason": "Workflow activation waits for Pi runtime contracts and end-to-end evaluations."
     },
     {
-      "kind": "omit",
+      "kind": "replace",
       "source": "skills/poteto-mode/SKILL.md",
-      "reason": "Workflow activation waits for Pi runtime contracts and end-to-end evaluations."
+      "destination": "skills/poteto-mode/SKILL.md",
+      "expectedBlob": "7559dea02e890c3e72db4dfcd226facae0779576",
+      "replacement": "sync/replacements/skills/poteto-mode/SKILL.md",
+      "reason": "Remove unsupported mode frontmatter and narrow Cursor cloud, loop, plugin, nested-agent, and inactive-skill promises to the shipped Pi runtime."
     },
     {
       "kind": "omit",
@@ -346,9 +361,12 @@
       "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
-      "kind": "omit",
+      "kind": "replace",
       "source": "skills/poteto-mode/playbooks/bug-fix.md",
-      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
+      "destination": "skills/poteto-mode/playbooks/bug-fix.md",
+      "expectedBlob": "88307807e72f7c1087c3a8215b32418c87fd6dc3",
+      "replacement": "sync/replacements/skills/poteto-mode/playbooks/bug-fix.md",
+      "reason": "Keep reproduction, root-cause evidence, regression coverage, and verification while removing required Cursor control plugins, loop, nested agents, and inactive workflows."
     },
     {
       "kind": "omit",
@@ -356,9 +374,12 @@
       "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
-      "kind": "omit",
+      "kind": "replace",
       "source": "skills/poteto-mode/playbooks/feature.md",
-      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
+      "destination": "skills/poteto-mode/playbooks/feature.md",
+      "expectedBlob": "6cab21817e0f97e1c707d7c47ef82aa4f3ea99cd",
+      "replacement": "sync/replacements/skills/poteto-mode/playbooks/feature.md",
+      "reason": "Keep ownership, throughput planning, bounded implementation delegation, review, and verification without inactive Cursor architect, arena, interrogate, background-agent, and PR workflows."
     },
     {
       "kind": "omit",
@@ -366,14 +387,20 @@
       "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
-      "kind": "omit",
+      "kind": "replace",
       "source": "skills/poteto-mode/playbooks/investigation.md",
-      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
+      "destination": "skills/poteto-mode/playbooks/investigation.md",
+      "expectedBlob": "cd119f04f23e0b7acb3f8cc5ba13ce4ab7aa6c7d",
+      "replacement": "sync/replacements/skills/poteto-mode/playbooks/investigation.md",
+      "reason": "Keep read-only evidence gathering and cited explanations while removing routing through inactive Cursor why and architect workflows."
     },
     {
-      "kind": "omit",
+      "kind": "replace",
       "source": "skills/poteto-mode/playbooks/multi-phase-plan.md",
-      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
+      "destination": "skills/poteto-mode/playbooks/multi-phase-plan.md",
+      "expectedBlob": "1fd40dd3f6cd539cd7cc420e2e364282a05a73cf",
+      "replacement": "sync/replacements/skills/poteto-mode/playbooks/multi-phase-plan.md",
+      "reason": "Keep verifiable phase planning while removing Cursor cloud lanes, goal and loop commands, gt, agent-store paths, and inactive workflows."
     },
     {
       "kind": "omit",
@@ -381,9 +408,12 @@
       "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
-      "kind": "omit",
+      "kind": "replace",
       "source": "skills/poteto-mode/playbooks/orchestrate.md",
-      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
+      "destination": "skills/poteto-mode/playbooks/orchestrate.md",
+      "expectedBlob": "d5b6d008026ff0177f52e22a6fb4b2edae5c87e2",
+      "replacement": "sync/replacements/skills/poteto-mode/playbooks/orchestrate.md",
+      "reason": "Replace the Cursor cloud coordinator, orch runtime, dashboards, gt, and depth-three nesting with Pi bounded batches, single-writer ownership, and leaf agents."
     },
     {
       "kind": "omit",
@@ -396,9 +426,12 @@
       "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
     },
     {
-      "kind": "omit",
+      "kind": "replace",
       "source": "skills/poteto-mode/playbooks/prototype.md",
-      "reason": "Support content belongs to a deferred workflow and is not used by the reviewed skill slice."
+      "destination": "skills/poteto-mode/playbooks/prototype.md",
+      "expectedBlob": "18bedc7e9249d180f9198d5b4b13e3817d41d281",
+      "replacement": "sync/replacements/skills/poteto-mode/playbooks/prototype.md",
+      "reason": "Keep decision-first runnable probes while removing mandatory Cursor UI-control plugins and inactive workflow dependencies."
     },
     {
       "kind": "omit",
@@ -551,9 +584,9 @@
       "destination": "skills/principle-boundary-discipline/SKILL.md"
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/principle-build-the-lever/SKILL.md",
-      "reason": "This principle is outside the reviewed pre-runtime dependency closure; its callers remain deferred."
+      "destination": "skills/principle-build-the-lever/SKILL.md"
     },
     {
       "kind": "copy",
@@ -566,14 +599,14 @@
       "reason": "This principle is outside the reviewed pre-runtime dependency closure; its callers remain deferred."
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/principle-experience-first/SKILL.md",
-      "reason": "This principle is outside the reviewed pre-runtime dependency closure; its callers remain deferred."
+      "destination": "skills/principle-experience-first/SKILL.md"
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/principle-fix-root-causes/SKILL.md",
-      "reason": "This principle is outside the reviewed pre-runtime dependency closure; its callers remain deferred."
+      "destination": "skills/principle-fix-root-causes/SKILL.md"
     },
     {
       "kind": "omit",
@@ -581,14 +614,14 @@
       "reason": "This principle is outside the reviewed pre-runtime dependency closure; its callers remain deferred."
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/principle-guard-the-context-window/SKILL.md",
-      "reason": "This principle is outside the reviewed pre-runtime dependency closure; its callers remain deferred."
+      "destination": "skills/principle-guard-the-context-window/SKILL.md"
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/principle-laziness-protocol/SKILL.md",
-      "reason": "This principle is outside the reviewed pre-runtime dependency closure; its callers remain deferred."
+      "destination": "skills/principle-laziness-protocol/SKILL.md"
     },
     {
       "kind": "omit",
@@ -606,14 +639,14 @@
       "reason": "This principle is outside the reviewed pre-runtime dependency closure; its callers remain deferred."
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/principle-model-the-domain/SKILL.md",
-      "reason": "This principle is outside the reviewed pre-runtime dependency closure; its callers remain deferred."
+      "destination": "skills/principle-model-the-domain/SKILL.md"
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/principle-never-block-on-the-human/SKILL.md",
-      "reason": "This principle is outside the reviewed pre-runtime dependency closure; its callers remain deferred."
+      "destination": "skills/principle-never-block-on-the-human/SKILL.md"
     },
     {
       "kind": "omit",
@@ -621,9 +654,18 @@
       "reason": "This principle is outside the reviewed pre-runtime dependency closure; its callers remain deferred."
     },
     {
-      "kind": "omit",
+      "kind": "transform",
       "source": "skills/principle-prove-it-works/SKILL.md",
-      "reason": "This principle is outside the reviewed pre-runtime dependency closure; its callers remain deferred."
+      "destination": "skills/principle-prove-it-works/SKILL.md",
+      "expectedBlob": "4563023d4d9f22e10e33cbf0ae94da156be30618",
+      "transforms": [
+        {
+          "find": "(the **show-me-your-work** skill)",
+          "replace": "(a durable decision log)",
+          "count": 1
+        }
+      ],
+      "reason": "Replace one dependency on the deferred show-me-your-work workflow with its plain durable-log requirement."
     },
     {
       "kind": "omit",
@@ -631,14 +673,14 @@
       "reason": "This principle is outside the reviewed pre-runtime dependency closure; its callers remain deferred."
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/principle-separate-before-serializing-shared-state/SKILL.md",
-      "reason": "This principle is outside the reviewed pre-runtime dependency closure; its callers remain deferred."
+      "destination": "skills/principle-separate-before-serializing-shared-state/SKILL.md"
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/principle-sequence-verifiable-units/SKILL.md",
-      "reason": "This principle is outside the reviewed pre-runtime dependency closure; its callers remain deferred."
+      "destination": "skills/principle-sequence-verifiable-units/SKILL.md"
     },
     {
       "kind": "omit",
