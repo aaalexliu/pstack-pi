@@ -55,6 +55,15 @@ for (const text of [
   test(`agent parser rejects ${JSON.stringify(text.slice(0, 100))}`, () => assert.throws(() => parseAgent(text)));
 }
 
+test('agent defaults accept single exact choices and reject pools', () => {
+  for (const model of ['inherit-parent', 'fixture/org/model:tag']) {
+    assert.equal(parseAgent(agentText('reader').replace('tools:', `model: ${model}\ntools:`)).model, model);
+  }
+  for (const model of ['[fixture/a]', 'auto', 'fixture/*', '"fixture/model\\n"']) {
+    assert.throws(() => parseAgent(agentText('reader').replace('tools:', `model: ${model}\ntools:`)));
+  }
+});
+
 test('agent parser accepts CRLF and explicit empty tools', () => {
   assert.deepEqual(parseAgent(agentText('none', '[]').replaceAll('\n', '\r\n')).tools, []);
 });

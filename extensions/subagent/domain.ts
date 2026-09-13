@@ -1,5 +1,6 @@
 import { Type, type Static } from 'typebox';
 import { Check } from 'typebox/value';
+import { modelChoiceSchema } from './model-config.ts';
 
 export const agentNameSchema = Type.String({ pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$', maxLength: 64 });
 export const builtinTools = ['read', 'grep', 'find', 'ls', 'bash', 'edit', 'write'] as const;
@@ -8,6 +9,7 @@ export const agentDefinitionSchema = Type.Object({
   name: agentNameSchema,
   description: Type.String({ minLength: 1, maxLength: 1024, pattern: '\\S' }),
   tools: Type.Array(Type.Enum(builtinTools), { uniqueItems: true }),
+  model: Type.Optional(modelChoiceSchema),
 }, { additionalProperties: false });
 
 export type AgentDefinition = Static<typeof agentDefinitionSchema> & { systemPrompt: string };
