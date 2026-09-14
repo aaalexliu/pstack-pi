@@ -28,10 +28,10 @@ function toolResult(request, id) {
   return JSON.stringify(result.content);
 }
 
-/** A child sees exactly the agent's tools: both package extensions stand down at depth 1. It still reads project context. */
+/** A child gets the agent's tools and its own checklist, but no delegation. */
 /** @param {Record<string, unknown>} request @param {string[]} builtins */
 function assertChild(request, builtins) {
-  assert.deepEqual(toolNames(request), [...builtins].sort());
+  assert.deepEqual(toolNames(request), [...builtins, 'pstack_todo'].sort());
   const text = JSON.stringify(request);
   assert.ok(text.includes('PROJECT_CONTEXT_MARKER'), 'Child reads the project AGENTS.md');
 }

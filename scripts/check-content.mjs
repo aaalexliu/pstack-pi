@@ -120,7 +120,7 @@ async function fileInventory(root, roots) {
 /** @param {ContentInventory} inventory */
 export function extensionFiles(inventory) {
   return inventory.byDestination.has('agents/general-purpose.md')
-    ? ['extensions/pstack/index.ts', 'extensions/pstack/mode.ts', 'extensions/pstack/todo.ts', 'extensions/subagent/agents.ts', 'extensions/subagent/index.ts', 'extensions/subagent/model-config.ts'] : [];
+    ? ['extensions/pstack/index.ts', 'extensions/pstack/mode.ts', 'extensions/pstack/todo.ts', 'extensions/subagent/agents.ts', 'extensions/subagent/index.ts', 'extensions/subagent/model-config.ts', 'extensions/subagent/progress.ts', 'extensions/subagent/view.ts'] : [];
 }
 
 /** @param {ContentInventory} inventory */

@@ -117,7 +117,7 @@ What this package adds to the example:
 
 - Bundled agents. `general-purpose`, `poteto-agent`, and `comment-sicko` ship in `agents/`. A file with the same name in `~/.pi/agent/agents` overrides a bundled one. Project agents under `.pi/agents` appear only with `agentScope: "both"` or `"project"`, and an untrusted project asks for confirmation in interactive mode.
 - Model routing. `model` is `inherit-parent` or an exact `provider/model-id`; `role` picks from `~/.pi/agent/pstack-pi/models.json`. See Model routing.
-- A depth guard. The child receives `PSTACK_SUBAGENT_DEPTH=1`; at depth one or more this extension and the pstack extension register nothing, so children cannot delegate. A child sees exactly the tools its agent lists.
+- A depth guard. The child receives `PSTACK_SUBAGENT_DEPTH=1`; at depth one or more the subagent extension registers nothing, so children cannot delegate. Explicit agent tool lists also include `pstack_todo`, so a child can report its own checklist.
 - Process groups. Each child is a detached session leader. Abort, `timeoutMs`, and parent shutdown send `SIGTERM` to the whole group, then `SIGKILL` after three seconds. Parent shutdown waits up to one second for children to exit and discards any result that arrives during shutdown.
 - Private inputs. The system prompt goes through a `0600` temp file with `--append-system-prompt` and the task through stdin, so neither appears in `ps`. The temp file is removed after the child exits.
 - Error results. Pi 0.85.1 ignores `isError` returned from `execute`, so a `tool_result` hook marks the result as an error when a single task fails, a chain stops, or every parallel task fails. A parallel call with some failures stays a normal result that names each failure.
@@ -145,7 +145,25 @@ A file that fails to parse is skipped; the other agents in that directory still 
 The tool returns the child's final assistant text. Parallel results are joined as `### [agent] completed` or `### [agent] failed (reason)` sections, each capped at 50 KiB with the full text kept in `details`.
 `details` holds `mode`, `agentScope`, `projectAgentsDir`, and one entry per task with the agent, its source (`bundled`, `user`, `project`), the task, `exitCode`, every `message_end` message from the child, capped stderr, summed usage (`input`, `output`, `cacheRead`, `cacheWrite`, `cost`, `contextTokens`, `turns`), the resolved `model`, and `modelSource` (`explicit`, `role`, `agent`, `parent`).
 A task fails when the child exits nonzero, is killed by a signal, or ends with `stopReason` `error` or `aborted`.
-Streaming updates show the child's tool calls while it runs; the collapsed and expanded renderers come from the Pi example.
+`details.progress` stores the public status snapshot with the result. Live cards show role, selected/observed model, state, elapsed time, last event, reported usage, todo counts, and current activity. Completed cards keep that metadata and preview the original result text. Ctrl+O expands the full result.
+
+### Inspect subagents
+
+Use `/subagents` for the latest request's tasks, public message previews, checklists, usage, and recent event summaries. Use `/subagents raw` for the same public snapshot as JSON, not the raw protocol or private thinking. Both views update live. `j`/`k`, arrows, PageUp/PageDown, and Home/End scroll; `q` or Esc closes the view without stopping work. Esc in the parent stops the batch.
+
+The collapsed card shows at most eight tasks and favors unfinished work. Ctrl+O also reveals every task's metadata in a longer chain, even after reload. The inspector shows every step of the most recently started request; older overlapping calls cannot replace that view. Each call keeps its own inline card. There is no duplicate widget or separate panel. In cmux, the sidebar shows up to eight tasks using keys owned by this Pi instance. A cmux error triggers best-effort removal of those keys instead of keeping stale running status.
+
+Checklists are self-reported. A quiet warning after 60 seconds and a long-run warning after 10 minutes suggest checking the task; neither proves a loop or lack of progress. Usage can lag. Public previews and event history are bounded. This is not a process-tree monitor and does not find arbitrary shell-launched agents.
+
+Saved tool cards survive reload. The inspector keeps only the latest request in memory. Graceful shutdown clears owned sidebar keys; a hard kill may leave stale keys.
+
+To try the real Pi UI with scripted fixture responses and no live credentials:
+
+```sh
+node scripts/demo-subagents.mjs
+```
+
+`--quick` shortens the wait; `--overlap` runs two separate simultaneous calls; `/quit` exits. Fixture responses are not actual review findings.
 
 Limits worth knowing: a child's own detached, `SIGTERM`-ignoring processes are outside its process group and are not tracked, the same as Pi's bash tool. Delegation needs macOS or Linux for process groups.
 
@@ -243,10 +261,11 @@ The real Pi tests pack and move the package into an isolated profile.
 They inspect provider requests for all eight commands, exact skill bodies, arguments, relocated paths, and the single declared extension tool.
 A scripted real parent delegates a fixture read to a real bundled child, receives the result, and runs harmless bash containing literal `git push` and `gh pr edit` text.
 Other runs hide project agents by default, run a user override in a subdirectory `cwd`, and let `poteto-agent` edit through its tool set.
-Child requests carry exactly the agent's tools and never `subagent`; the child leads its own process group, and prompt temp files are gone after return.
+Child requests carry the agent's tools plus `pstack_todo`, never `subagent`; the child leads its own process group, and prompt temp files are gone after return.
 The packed execution tests cover `timeoutMs`, two simultaneous single calls, eight parallel tasks with a four-child ceiling and one failing sibling, depth rejection, fake `pi` in `PATH`, and parent `SIGTERM` and `SIGHUP` cleanup.
 The parallel tests use a concurrent provider keyed by the exact final user marker, never global request order.
 Unit tests under `tests/subagent/` drive the tool with a fake `pi` that speaks the JSON protocol: routing precedence and pool rotation, stdin task and `0600` prompt delivery, parallel order and concurrency, chain substitution, abort and timeout killing a `SIGTERM`-ignoring grandchild, and shutdown behavior.
+Progress tests check live tools, child-owned todos, model and usage before completion, saved snapshots, and timeout cards through packed real Pi. Renderer tests cover narrow terminals, long chains, output expansion, and both inspector views. E2E files run serially to avoid startup contention against short watchdogs; individual tests still exercise concurrent children.
 The main delegation tests retain their tarballs and `run.json` under the artifact paths printed in test output.
 Other test profiles are removed.
 The packed package has no runtime dependencies. Pi supplies `@earendil-works/pi-coding-agent`, `@earendil-works/pi-ai`, `@earendil-works/pi-tui`, and `typebox` to extensions.

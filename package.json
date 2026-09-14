@@ -92,6 +92,8 @@
     "extensions/subagent/agents.ts",
     "extensions/subagent/index.ts",
     "extensions/subagent/model-config.ts",
+    "extensions/subagent/progress.ts",
+    "extensions/subagent/view.ts",
     "package.json",
     "skills/architect/SKILL.md",
     "skills/architect/references/design-red-flags.md",
@@ -185,7 +187,7 @@
     "test:subagent": "node --experimental-strip-types --disable-warning=ExperimentalWarning --test tests/subagent/*.test.mjs",
     "test:content": "node --test tests/content/*.test.mjs",
     "test:sync": "node --test tests/sync/*.test.mjs",
-    "test:pi": "node --test tests/pi/*.test.mjs",
+    "test:pi": "node --test --test-concurrency=1 tests/pi/*.test.mjs",
     "sync": "node scripts/sync-upstream.mjs sync snapshot vendor/cursor-pstack . sync/manifest.json sync/upstream.lock.json",
     "sync:check": "node scripts/sync-upstream.mjs check snapshot vendor/cursor-pstack . sync/manifest.json sync/upstream.lock.json",
     "sync:relock": "node scripts/sync-upstream.mjs relock . sync/manifest.json"
