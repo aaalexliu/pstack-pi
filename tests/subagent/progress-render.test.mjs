@@ -54,6 +54,30 @@ test('inline metadata shows role, model, timing, usage and todos with live previ
   assert.match(render({ progress: fixture() }, true).render(100).join('\n'), /FULL ORIGINAL OUTPUT/);
 });
 
+test('parallel cards show each usage and the full batch total while running and after reload', () => {
+  for (const live of [false, true]) {
+    const snapshot = fixture(3, live);
+    for (const [index, row] of snapshot.tasks.entries()) {
+      row.usage = { input: 100, output: 20, cacheRead: 300, cacheWrite: 40, cost: (index + 1) / 10, contextTokens: 440, turns: 2 };
+    }
+    for (const expanded of [false, true]) {
+      const text = render(JSON.parse(JSON.stringify({ progress: snapshot })), expanded, live).render(100).join('\n');
+      for (const cost of ['0.1000', '0.2000', '0.3000']) assert.ok(text.includes(`460 tok $${cost}`));
+      assert.match(text, /Total: 1380 tok \$0\.6000/);
+    }
+  }
+});
+
+test('batch totals include hidden tasks and match the inspector without summing context', () => {
+  const snapshot = fixture(24, true);
+  for (const row of snapshot.tasks) row.usage = { input: 1, output: 2, cacheRead: 3, cacheWrite: 4, cost: 0.1, contextTokens: 99, turns: 1 };
+  const card = progressCard(snapshot).lines.join('\n');
+  assert.match(card, /Total: 240 tok \$2\.4000/);
+  assert.match(card, /16 tasks omitted/);
+  assert.match(progressLines(snapshot).join('\n'), /Total: 240 tok \$2\.4000/);
+  assert.doesNotMatch(progressCard(fixture()).lines.join('\n'), /Total:/);
+});
+
 test('completion wins over partial flag and serialized metadata stays per-result after reload', () => {
   const saved = JSON.parse(JSON.stringify({ progress: fixture() }));
   const other = fixture();
@@ -83,7 +107,7 @@ test('long chains keep all structured rows but bound inline rows and prefer unfi
   snapshot.tasks[18].state = 'running';
   snapshot.tasks[18].startedAt = snapshot.updatedAt;
   const card = progressCard(snapshot);
-  assert.equal(card.lines.length, 34);
+  assert.equal(card.lines.length, 35);
   assert.match(card.lines.join('\n'), /#19 review \| running/);
   assert.match(card.lines.join('\n'), /#24 review \| queued/);
   assert.doesNotMatch(card.lines.join('\n'), /#1 review/);
@@ -95,7 +119,7 @@ test('long chains keep all structured rows but bound inline rows and prefer unfi
   assert.match(render({ progress: snapshot }, false, true).render(100).join('\n'), /#19 review/);
   for (const row of snapshot.tasks) { row.state = 'succeeded'; row.endedAt = snapshot.updatedAt; }
   snapshot.endedAt = snapshot.updatedAt;
-  assert.equal(progressCard(snapshot).lines.length, 26);
+  assert.equal(progressCard(snapshot).lines.length, 27);
   assert.match(progressCard(snapshot).lines.join('\n'), /#24 review/);
 });
 

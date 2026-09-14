@@ -755,10 +755,21 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
         return total;
       };
 
+      const collapsedTask = (r: SingleResult, header: string) => {
+        const displayItems = getDisplayItems(r.messages);
+        let text = header;
+        if (isFailedResult(r) && r.errorMessage) text += `\n${theme.fg('error', `Error: ${r.errorMessage}`)}`;
+        if (displayItems.length === 0) text += `\n${theme.fg('muted', r.exitCode === -1 ? '(running...)' : '(no output)')}`;
+        else text += `\n${renderDisplayItems(displayItems, COLLAPSED_ITEM_COUNT)}`;
+        const usage = formatUsageStats(r.usage, r.model);
+        if (usage) text += `\n${theme.fg('dim', usage)}`;
+        return text;
+      };
+
       if (details.mode === 'single' && details.results.length === 1) {
         const r = details.results[0];
         const isError = isFailedResult(r);
-        const icon = isError ? theme.fg('error', '✗') : theme.fg('success', '✓');
+        const icon = r.exitCode === -1 ? theme.fg('warning', '⏳') : isError ? theme.fg('error', '✗') : theme.fg('success', '✓');
         let header = `${icon} ${theme.fg('toolTitle', theme.bold(r.agent))}${theme.fg('muted', ` (${r.agentSource})`)}`;
         if (isError && r.stopReason) header += ` ${theme.fg('error', `[${r.stopReason}]`)}`;
         if (expanded) {
@@ -766,16 +777,8 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
           expandedTask(container, r, header);
           return container;
         }
-        const displayItems = getDisplayItems(r.messages);
-        let text = header;
-        if (isError && r.errorMessage) text += `\n${theme.fg('error', `Error: ${r.errorMessage}`)}`;
-        else if (displayItems.length === 0) text += `\n${theme.fg('muted', '(no output)')}`;
-        else {
-          text += `\n${renderDisplayItems(displayItems, COLLAPSED_ITEM_COUNT)}`;
-          if (displayItems.length > COLLAPSED_ITEM_COUNT) text += `\n${theme.fg('muted', '(Ctrl+O to expand)')}`;
-        }
-        const usage = formatUsageStats(r.usage, r.model);
-        if (usage) text += `\n${theme.fg('dim', usage)}`;
+        let text = collapsedTask(r, header);
+        if (getDisplayItems(r.messages).length > COLLAPSED_ITEM_COUNT) text += `\n${theme.fg('muted', '(Ctrl+O to expand)')}`;
         return new Text(text, 0, 0);
       }
 
@@ -787,7 +790,8 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
       const status = running > 0 ? `${done.length}/${details.results.length} done, ${running} running` : `${successCount}/${details.results.length} ${details.mode === 'chain' ? 'steps' : 'tasks'}`;
       const stepHeader = (r: SingleResult) => {
         const rIcon = r.exitCode === -1 ? theme.fg('warning', '⏳') : isFailedResult(r) ? theme.fg('error', '✗') : theme.fg('success', '✓');
-        return `${theme.fg('muted', details.mode === 'chain' ? `─── Step ${r.step}: ` : '─── ')}${theme.fg('accent', r.agent)} ${rIcon}`;
+        const reason = isFailedResult(r) && r.stopReason ? theme.fg('error', ` [${r.stopReason}]`) : '';
+        return `${theme.fg('muted', details.mode === 'chain' ? `─── Step ${r.step}: ` : '─── ')}${theme.fg('accent', r.agent)} ${rIcon}${theme.fg('muted', ` (${r.agentSource})`)}${reason}`;
       };
 
       if (expanded && running === 0) {
@@ -800,16 +804,9 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
       }
 
       let text = `${icon} ${theme.fg('toolTitle', theme.bold(label))}${theme.fg('accent', status)}`;
-      for (const r of details.results) {
-        const displayItems = getDisplayItems(r.messages);
-        text += `\n\n${stepHeader(r)}`;
-        if (displayItems.length === 0) text += `\n${theme.fg('muted', r.exitCode === -1 ? '(running...)' : '(no output)')}`;
-        else text += `\n${renderDisplayItems(displayItems, 5)}`;
-      }
-      if (running === 0) {
-        const usage = formatUsageStats(aggregateUsage(details.results));
-        if (usage) text += `\n\n${theme.fg('dim', `Total: ${usage}`)}`;
-      }
+      for (const r of details.results) text += `\n\n${collapsedTask(r, stepHeader(r))}`;
+      const usage = formatUsageStats(aggregateUsage(details.results));
+      if (usage) text += `\n\n${theme.fg('dim', `Total: ${usage}`)}`;
       if (!expanded) text += `\n${theme.fg('muted', '(Ctrl+O to expand)')}`;
       return new Text(text, 0, 0);
     },

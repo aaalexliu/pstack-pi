@@ -48,11 +48,24 @@ function heading(snapshot: ProgressSnapshot): string {
 function modelLine(row: TaskProgress): string {
   return `  ${plain(row.agent)} | ${plain(row.observedModel ?? row.model, 201)}${row.observedModel ? '' : ' (selected)'}`;
 }
-function usageLine(row: TaskProgress): string {
-  const usage = row.usage;
+function usageSummary(usage: ProgressUsage): string {
   const tokens = usage.input + usage.output + usage.cacheRead + usage.cacheWrite;
+  return `${tokens} tok $${usage.cost.toFixed(4)}`;
+}
+function totalUsageLine(snapshot: ProgressSnapshot): string {
+  const total = copyUsage();
+  for (const { usage } of snapshot.tasks) {
+    total.input += usage.input;
+    total.output += usage.output;
+    total.cacheRead += usage.cacheRead;
+    total.cacheWrite += usage.cacheWrite;
+    total.cost += usage.cost;
+  }
+  return `Total: ${usageSummary(total)}`;
+}
+function usageLine(row: TaskProgress): string {
   const todos = row.todos === null ? 'todos not reported' : `todos ${row.todos.filter((item) => item.startsWith('[done] ')).length}/${row.todos.length} (self-reported)`;
-  return `  ${tokens} tok $${usage.cost.toFixed(4)} | ${todos}`;
+  return `  ${usageSummary(row.usage)} | ${todos}`;
 }
 function previewLine(row: TaskProgress): string {
   return `  ${plain(row.tools.length ? row.tools.map((tool) => tool.name).join(', ') : row.activity)} | ${plain(row.message || row.task, 240)}`;
@@ -67,6 +80,7 @@ export function progressLines(snapshot: ProgressSnapshot, detailed = false): str
       lines.push(...row.events.map((event) => `  ${duration(event.at - (row.startedAt ?? event.at))} ${plain(event.type, 60)}: ${plain(event.summary)}`));
     }
   }
+  if (snapshot.tasks.length > 1) lines.push(totalUsageLine(snapshot));
   lines.push('Event age is not proof of work. Usage can lag.');
   return lines;
 }
@@ -85,6 +99,7 @@ export function progressCard(snapshot: ProgressSnapshot, includePreview = snapsh
     lines.push(taskLine(row, snapshot.endedAt ?? snapshot.updatedAt), modelLine(row), usageLine(row));
     if (includePreview) lines.push(previewLine(row));
   }
+  if (snapshot.tasks.length > 1) lines.push(totalUsageLine(snapshot));
   if (rows.length < snapshot.tasks.length) lines.push(`... ${snapshot.tasks.length - rows.length} tasks omitted | expand this tool card for all tasks`);
   return { version: 1, lines };
 }
