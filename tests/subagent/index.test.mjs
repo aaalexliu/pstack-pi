@@ -32,12 +32,12 @@ function registration(options = {}) {
     registerCommand: (/** @type {string} */ name) => assert.equal(name, 'subagents'),
     on: (/** @type {string} */ event, /** @type {(...args: any[]) => any} */ handler) => { assert.ok(!handlers.has(event), `duplicate ${event} handler`); handlers.set(event, handler); },
   };
-  subagentExtension(/** @type {any} */ (api), { spawnChild: spawnFake, ...options });
+  subagentExtension(/** @type {any} */ (api), { spawnChild: spawnFake, env: {}, ...options });
   return { tools, handlers };
 }
 
-/** @param {import('node:test').TestContext} t */
-async function fixture(t) {
+/** @param {import('node:test').TestContext} t @param {Parameters<typeof subagentExtension>[1]} [options] */
+async function fixture(t, options) {
   const root = await mkdtemp(path.join(await realpath(tmpdir()), 'subagent-'));
   const agentDir = path.join(root, 'agent');
   const cwd = path.join(root, 'work');
@@ -53,7 +53,7 @@ async function fixture(t) {
     }
     await rm(root, { recursive: true, force: true });
   });
-  const { tools, handlers } = registration();
+  const { tools, handlers } = registration(options);
   assert.equal(tools.length, 1);
   const ctx = /** @type {any} */ ({ cwd, model: { provider: 'fixture', id: 'model' }, thinkingLevel: 'high', hasUI: false, isProjectTrusted: () => false, ui: { confirm: async () => false } });
   /** @type {(params: Record<string, unknown>, signal?: AbortSignal, onUpdate?: (partial: ToolResult) => void) => Promise<ToolResult>} */
@@ -290,4 +290,116 @@ test('session shutdown takes live children down with the parent', { timeout: 800
   assert.deepEqual(await untilGone([pid, grandchild], 500), []);
   const outcome = await Promise.race([pending.then(() => 'resolved'), delay(200).then(() => 'pending')]);
   assert.equal(outcome, 'pending', 'A result produced during shutdown must not restart the parent agent loop');
+});
+
+/** @param {import('node:test').TestContext} t */
+async function cmuxFixture(t) {
+  /** @type {string[][]} */
+  const calls = [];
+  const env = { CMUX_WORKSPACE_ID: 'workspace:fixture', CMUX_SURFACE_ID: 'surface:parent' };
+  const f = await fixture(t, { env, cmuxExec: async (args, capturedEnv) => {
+    assert.equal(capturedEnv.CMUX_WORKSPACE_ID, 'workspace:fixture');
+    calls.push(args);
+    return JSON.stringify({ surface_id: `surface:${calls.length}` });
+  } });
+  env.CMUX_WORKSPACE_ID = 'changed-after-registration';
+  t.after(async () => { await f.handlers.get('session_shutdown')?.(); });
+  const files = async () => (await readdir(f.root)).filter((name) => name.startsWith('pi-cmux-')).map((name) => path.join(f.root, name, 'transcript.txt'));
+  return { ...f, calls, files };
+}
+
+test('cmux mirrors per-run output and final status without changing batch results or progress', async (t) => {
+  const f = await cmuxFixture(t);
+  const tasks = ['hello', 'FAIL x', 'EXIT2 x'].map((task) => ({ agent: 'general-purpose', task }));
+  const result = await f.execute({ tasks });
+  assert.deepEqual(result.details.results.map((r) => r.exitCode), [0, 0, 2]);
+  assert.deepEqual(result.details.progress?.tasks.map((r) => r.state), ['succeeded', 'failed', 'failed']);
+  assert.equal(f.resultHook(result), undefined);
+  const files = await f.files();
+  assert.equal(files.length, 3);
+  const texts = await Promise.all(files.map((file) => readFile(file, 'utf8')));
+  assert.ok(texts.some((text) => text.includes('hello') && text.includes('[Completed: exit 0]')));
+  assert.ok(texts.some((text) => text.includes('partial answer') && text.includes('[Failed: PRIVATE_BOOM]')));
+  assert.ok(texts.some((text) => text.includes('[Failed: exit 2]')));
+  for (const file of files) await readFile(file + '.done');
+  assert.equal(f.calls.filter((args) => args[1] === 'new-split').length, 3);
+  await f.handlers.get('session_shutdown')?.();
+  assert.deepEqual(await f.files(), []);
+});
+
+test('cmux creates panes only for started chain steps and none for invalid requests', async (t) => {
+  const f = await cmuxFixture(t);
+  await f.execute({ agent: 'missing', task: 'x' });
+  assert.deepEqual(f.calls, []);
+  const result = await f.execute({ chain: [
+    { agent: 'general-purpose', task: 'first' },
+    { agent: 'general-purpose', task: 'FAIL after {previous}' },
+    { agent: 'general-purpose', task: 'never' },
+  ] });
+  assert.equal(result.details.results.length, 2);
+  assert.deepEqual(result.details.progress?.tasks.map((row) => row.state), ['succeeded', 'failed', 'skipped']);
+  assert.equal(f.calls.filter((args) => args[1] === 'new-split').length, 2);
+  assert.equal((await f.files()).length, 2);
+});
+
+test('cmux shutdown removes a live transcript without returning a child result', { timeout: 5000 }, async (t) => {
+  const f = await cmuxFixture(t);
+  const marker = path.join(f.root, 'shutdown.json');
+  const pending = f.execute({ agent: 'general-purpose', task: `HANG ${marker}` });
+  const { pid, grandchild } = await waitFor(marker);
+  assert.equal((await f.files()).length, 1);
+  await f.handlers.get('session_shutdown')?.();
+  assert.deepEqual(await f.files(), []);
+  assert.deepEqual(await untilGone([pid, grandchild], 1000), []);
+  assert.equal(await Promise.race([pending.then(() => 'resolved'), delay(100).then(() => 'pending')]), 'pending');
+});
+
+test('cmux timeout and abort finish transcripts while the runner keeps control of children', { timeout: 6000 }, async (t) => {
+  const f = await cmuxFixture(t);
+  const timed = await f.execute({ agent: 'general-purpose', task: `HANG ${path.join(f.root, 'timed.json')}`, timeoutMs: 500 });
+  assert.equal(timed.details.results[0].stopReason, 'aborted');
+  const controller = new AbortController();
+  const marker = path.join(f.root, 'aborted.json');
+  const pending = f.execute({ agent: 'general-purpose', task: `HANG ${marker}` }, controller.signal);
+  const children = await waitFor(marker);
+  controller.abort();
+  await assert.rejects(pending, /aborted/);
+  assert.deepEqual(await untilGone([children.pid, children.grandchild], 1000), []);
+  const texts = await Promise.all((await f.files()).map((file) => readFile(file, 'utf8')));
+  assert.ok(texts.some((text) => text.includes('[Failed: Timed out after 500 ms]')));
+  assert.ok(texts.some((text) => text.includes('[Aborted: Subagent was aborted]')));
+});
+
+test('closing the cmux follower does not terminate the child or its grandchild', { timeout: 6000 }, async (t) => {
+  const f = await cmuxFixture(t);
+  const controller = new AbortController();
+  const marker = path.join(f.root, 'pane-close.json');
+  const pending = f.execute({ agent: 'general-purpose', task: `HANG ${marker}` }, controller.signal);
+  const children = await waitFor(marker);
+  const [file] = await f.files();
+  const follower = spawn(process.execPath, [path.join(path.dirname(file), 'follow.cjs'), file, String(process.pid)], { stdio: ['ignore', 'pipe', 'ignore'] });
+  t.after(() => { if (follower.exitCode === null) follower.kill(); });
+  await new Promise((resolve) => follower.stdout.once('data', resolve));
+  const closed = new Promise((resolve) => follower.once('close', resolve));
+  follower.kill('SIGTERM');
+  await closed;
+  assert.ok(alive(children.pid) && alive(children.grandchild));
+  assert.equal(await Promise.race([pending.then(() => 'finished'), delay(100).then(() => 'running')]), 'running');
+  controller.abort();
+  await assert.rejects(pending, /aborted/);
+  assert.deepEqual(await untilGone([children.pid, children.grandchild], 1000), []);
+});
+
+test('missing or hung cmux does not delay child results', { timeout: 5000 }, async (t) => {
+  const f = await fixture(t);
+  for (const cmuxExec of [async () => { throw new Error('cmux unavailable'); }, async () => new Promise(() => {})]) {
+    const { tools, handlers } = registration({ env: { CMUX_WORKSPACE_ID: 'workspace:fixture' }, cmuxExec });
+    t.after(async () => { await handlers.get('session_shutdown')?.(); });
+    const result = await Promise.race([
+      tools[0].execute('call', { agent: 'general-purpose', task: 'hello' }, undefined, undefined, f.ctx),
+      delay(700).then(() => { throw new Error('cmux blocked the runner'); }),
+    ]);
+    assert.equal(result.details.results[0].exitCode, 0);
+    assert.equal(JSON.parse(result.content[0].text).task, 'hello');
+  }
 });

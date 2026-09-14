@@ -31,6 +31,7 @@ import {
 import { Container, Markdown, Spacer, Text } from '@earendil-works/pi-tui';
 import { Type } from 'typebox';
 import { RunProgress, type ProgressSnapshot } from './progress.ts';
+import { CmuxTranscripts, type CmuxExec } from './cmux.ts';
 import { createProgressView, renderProgressResult } from './view.ts';
 import { type AgentConfig, type AgentScope, type AgentSource, bundledAgents, discoverAgents } from './agents.ts';
 import { formatModelChoice, loadModelConfig, ModelRouter, modelChoiceSchema, modelConfigPath, roleSchema, roles } from './model-config.ts';
@@ -490,12 +491,14 @@ export function toolDescription(bundled: string[]): string {
   ].join(' ');
 }
 
-export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawnDetachedChild, env = process.env }: { spawnChild?: SpawnChild; env?: NodeJS.ProcessEnv } = {}) {
+export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawnDetachedChild, env = process.env, cmuxExec }: { spawnChild?: SpawnChild; env?: NodeJS.ProcessEnv; cmuxExec?: CmuxExec } = {}) {
   const depth = parentDepth(env);
   if (depth >= 1) return;
 
   const router = new ModelRouter();
   const registry = new ChildRegistry();
+  const transcripts = new CmuxTranscripts();
+  const cmuxEnv = { ...env };
   const view = createProgressView(pi);
   const pendingDetails = new Map<string, SubagentDetails>();
   const activeProgress = new Set<RunProgress>();
@@ -503,6 +506,7 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
   pi.on('session_shutdown', async () => {
     for (const progress of activeProgress) progress.finish('Session closed');
     activeProgress.clear();
+    transcripts.shutdown();
     await Promise.all([registry.shutdown(), view.close()]);
     pendingDetails.clear();
   });
@@ -598,14 +602,24 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
         activeProgress.add(progress);
         const run = (resolved: ResolvedTask, update: OnUpdateCallback | undefined, index: number) => {
           if (signal?.aborted) throw new Error('Subagent was aborted');
+          const pane = transcripts.create({ env: cmuxEnv, exec: cmuxExec, label: resolved.agent.name });
           return runSingleAgent({ resolved, defaults, depth, signal, timeoutMs: params.timeoutMs, onUpdate: update, makeDetails: makeDetails(mode), spawnChild, registry,
             onEvent: (event, result) => {
+              pane?.event(event);
               const type = (event as { type?: string } | null)?.type;
               if (type === 'child_started') progress!.started(index);
               else if (type === 'child_stopping') progress!.stopping(index);
               else if (type === 'child_finished') progress!.result(index, result);
               else progress!.event(index, event, result.usage);
             },
+          }).then((result) => {
+            pane?.finish(isFailedResult(result)
+              ? `Failed: ${result.errorMessage || result.stopReason || `exit ${result.exitCode}`}`
+              : `Completed: exit ${result.exitCode}`);
+            return result;
+          }).catch((error) => {
+            pane?.finish(`${signal?.aborted ? 'Aborted' : 'Failed'}: ${error instanceof Error ? error.message : String(error)}`);
+            throw error;
           });
         };
 

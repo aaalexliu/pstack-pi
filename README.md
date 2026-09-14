@@ -53,7 +53,7 @@ Pi `0.85.1` exposes 47 manual commands:
 
 Each skill keeps `disable-model-invocation: true` so Pi expands it only through an explicit skill command.
 
-The package ships 83 generated skill and support files, three generated agents, six extension modules, and the root package files.
+The package ships 83 generated skill and support files, three generated agents, nine extension modules, and the root package files.
 It registers `pstack_config`, `pstack_sessions`, `pstack_todo`, and, at root depth, `subagent`.
 The delegation extension owns one `session_shutdown` hook that stops live children and a `tool_result` hook that marks its own failed calls.
 Todo and Poteto Mode state follow the active session branch through versioned custom entries. The package registers no prompts, themes, commands, or blanket approval hooks.
@@ -151,7 +151,7 @@ A task fails when the child exits nonzero, is killed by a signal, or ends with `
 
 Use `/subagents` for the latest request's tasks, public message previews, checklists, usage, and recent event summaries. Use `/subagents raw` for the same public snapshot as JSON, not the raw protocol or private thinking. Both views update live. `j`/`k`, arrows, PageUp/PageDown, and Home/End scroll; `q` or Esc closes the view without stopping work. Esc in the parent stops the batch.
 
-The collapsed card shows at most eight tasks and favors unfinished work. Ctrl+O also reveals every task's metadata in a longer chain, even after reload. The inspector shows every step of the most recently started request; older overlapping calls cannot replace that view. Each call keeps its own inline card. There is no duplicate widget or separate panel. In cmux, the sidebar shows up to eight tasks using keys owned by this Pi instance. A cmux error triggers best-effort removal of those keys instead of keeping stale running status.
+The collapsed card shows at most eight tasks and favors unfinished work. Ctrl+O also reveals every task's metadata in a longer chain, even after reload. The inspector shows every step of the most recently started request; older overlapping calls cannot replace that view. Each call keeps its own inline card. There is no duplicate widget. In cmux, the sidebar shows up to eight tasks using keys owned by this Pi instance. A cmux error triggers best-effort removal of those keys instead of keeping stale running status.
 
 Checklists are self-reported. A quiet warning after 60 seconds and a long-run warning after 10 minutes suggest checking the task; neither proves a loop or lack of progress. Usage can lag. Public previews and event history are bounded. This is not a process-tree monitor and does not find arbitrary shell-launched agents.
 
@@ -164,6 +164,8 @@ node scripts/demo-subagents.mjs
 ```
 
 `--quick` shortens the wait; `--overlap` runs two separate simultaneous calls; `/quit` exits. Fixture responses are not actual review findings.
+
+When the parent runs inside cmux (`CMUX_WORKSPACE_ID` is set), each child opens a right-hand pane without taking focus. The pane shows completed assistant messages, tool calls, tool results, and the child's final status. It is a read-only transcript, not another interactive Pi session. Closing it does not stop the child. The follower stops when the child finishes; the text stays in terminal scrollback. Private transcript files are removed when the parent session shuts down or reloads. If cmux is missing or fails, delegation continues without a pane.
 
 Limits worth knowing: a child's own detached, `SIGTERM`-ignoring processes are outside its process group and are not tracked, the same as Pi's bash tool. Delegation needs macOS or Linux for process groups.
 
