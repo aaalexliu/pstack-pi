@@ -29,6 +29,7 @@ function registration(options = {}) {
   const handlers = new Map();
   const api = {
     registerTool: (/** @type {any} */ tool) => tools.push(tool),
+    registerCommand: (/** @type {string} */ name) => assert.equal(name, 'subagents'),
     on: (/** @type {string} */ event, /** @type {(...args: any[]) => any} */ handler) => { assert.ok(!handlers.has(event), `duplicate ${event} handler`); handlers.set(event, handler); },
   };
   subagentExtension(/** @type {any} */ (api), { spawnChild: spawnFake, ...options });
@@ -114,7 +115,7 @@ test('single mode runs the bundled agent in a detached child with prompt file, s
   assert.deepEqual(capture.args.slice(0, 4), ['--mode', 'json', '-p', '--no-session']);
   assert.ok(capture.args.includes('--model') && capture.args[capture.args.indexOf('--model') + 1] === 'fixture/model');
   assert.equal(capture.args[capture.args.indexOf('--thinking') + 1], 'high');
-  assert.equal(capture.args[capture.args.indexOf('--tools') + 1], 'read,grep,find,ls');
+  assert.equal(capture.args[capture.args.indexOf('--tools') + 1], 'read,grep,find,ls,pstack_todo');
   assert.ok(!capture.args.includes(task), 'The task travels over stdin, not argv');
   assert.ok(updates.length >= 1 && updates[updates.length - 1].details.results[0].messages.length === 1);
   assert.deepEqual(await f.promptDirs(), [], 'Prompt temp directory is removed');
@@ -243,6 +244,39 @@ test('timeoutMs stops a stuck child and reports a failed result instead of throw
   assert.notEqual(result.details.results[0].exitCode, 0);
   assert.deepEqual(f.resultHook(result), { isError: true });
   assert.deepEqual(await untilGone([pid, grandchild], 1000), []);
+});
+
+test('progress keeps queued rows distinct, freezes completion, and marks skipped chain steps', async (t) => {
+  const f = await fixture(t);
+  const log = path.join(f.root, 'progress.log');
+  /** @type {import('../../extensions/subagent/progress.ts').ProgressSnapshot[]} */
+  const snapshots = [];
+  const result = await f.execute({ role: 'review', tasks: Array.from({ length: 6 }, (_, index) => ({ agent: 'general-purpose', task: `SLOW ${index === 0 ? 50 : 1200} ${log}` })) }, undefined,
+    (partial) => { if (partial.details.progress) snapshots.push(structuredClone(partial.details.progress)); });
+  assert.ok(snapshots.some((snapshot) => snapshot.tasks.some((row) => row.state === 'running') && snapshot.tasks.some((row) => row.state === 'queued')));
+  assert.ok(snapshots.some((snapshot) => snapshot.tasks[0].state === 'succeeded' && snapshot.tasks[1].state === 'running'));
+  assert.ok(result.details.progress?.endedAt);
+  assert.ok(result.details.progress.tasks.every((row) => row.state === 'succeeded' && row.role === 'review'));
+  assert.equal(result.details.progress.tasks[0].endedAt, snapshots.find((snapshot) => snapshot.tasks[0].state === 'succeeded')?.tasks[0].endedAt);
+  const chain = await f.execute({ chain: [{ agent: 'general-purpose', task: 'FAIL first' }, { agent: 'general-purpose', task: 'never {previous}' }] });
+  assert.deepEqual(chain.details.progress?.tasks.map((row) => row.state), ['failed', 'skipped']);
+});
+
+test('aborted batches wait for all children and preserve terminal metadata through the error hook', { timeout: TERM_GRACE_MS + 6000 }, async (t) => {
+  const f = await fixture(t);
+  const markers = [path.join(f.root, 'first.json'), path.join(f.root, 'second.json')];
+  const controller = new AbortController();
+  const pending = f.execute({ tasks: markers.map((marker, index) => ({ agent: 'general-purpose', task: `${index ? 'HANG-IGNORE' : 'HANG'} ${marker}` })) }, controller.signal);
+  const children = await Promise.all(markers.map(waitFor));
+  controller.abort();
+  await assert.rejects(pending, /aborted/);
+  assert.deepEqual(await untilGone(children.flatMap(({ pid, grandchild }) => [pid, grandchild]), 500), []);
+  const hook = f.handlers.get('tool_result');
+  const event = { toolName: 'subagent', toolCallId: 'call', isError: true };
+  const saved = hook?.(event);
+  assert.ok(saved.details.progress.endedAt);
+  assert.deepEqual(saved.details.progress.tasks.map((/** @type {{state: string}} */ row) => row.state), ['aborted', 'aborted']);
+  assert.equal(hook?.(event), undefined, 'Error metadata is consumed once');
 });
 
 test('session shutdown takes live children down with the parent', { timeout: 8000 }, async (t) => {

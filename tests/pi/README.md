@@ -10,7 +10,10 @@
 - `process-observer.mjs` and `production-observer.mjs` read `ps` snapshots to count live Pi processes and confirm that every child under the root is gone before the test rescues anything.
 - `smoke.test.mjs` proves package loading, skill expansion, and the declared tool surface. `todo.test.mjs` proves persisted todos.
 - `delegate.test.mjs` proves a real parent delegating to real bundled, user, and poteto children, with exact child tool lists and no leftover prompt files.
+- `progress.test.mjs` proves live model, tool, checklist and usage metadata, persisted final snapshots, and timeout cards through packed Pi. Renderer tests under `tests/subagent/` cover scrolling, raw status, long chains, overlap, and reload. The demo script exercises the real terminal views.
 - `execution-safety.test.mjs` proves the depth guard, `timeoutMs`, simultaneous calls, eight parallel tasks with a four-child ceiling, fake `pi` in `PATH`, and parent `SIGTERM` and `SIGHUP` cleanup.
+
+Test files run serially to avoid startup contention; individual tests still run concurrent children. Explicit child tool lists include the agent's tools plus `pstack_todo`, never `subagent`.
 
 ## Bounds
 
