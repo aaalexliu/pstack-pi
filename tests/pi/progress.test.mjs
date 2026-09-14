@@ -34,4 +34,29 @@ test('packed real Pi reports checklist, active tool, model and usage before chil
   assert.equal(final.tasks[0].usage.direct.usage.input, 44);
   assert.equal(final.tasks[0].usage.direct.usage.output, 28);
   assert.ok(updates.every((event) => !('usage' in /** @type {object} */ (event.partialResult))), 'Progress must not charge usage');
+  const result = /** @type {{content: {text: string}[], details: {progressCard: {version: number, lines: string[]}}}} */ (run.events[end].result);
+  assert.equal(result.content[0].text, 'Checked the fixture.');
+  assert.equal(result.details.progressCard.version, 1);
+  assert.match(result.details.progressCard.lines.join('\n'), /pi-fixture\/pi-smoke-model/);
+  assert.match(result.details.progressCard.lines.join('\n'), /last event.*before finish/);
+  const saved = run.events.find((event) => event.type === 'message_end' && /** @type {{toolName?: string}} */ (event.message)?.toolName === 'subagent');
+  assert.ok(saved);
+  assert.deepEqual(/** @type {{details: unknown}} */ (saved.message).details, result.details);
+});
+
+test('a cancelled child retains its inline card in the real failed tool result', async () => {
+  const run = await runPiSmoke({
+    expectedText: 'Cancellation card verified.', expectedRequests: 3,
+    fixture: { script: [
+      { reply: { kind: 'tool', id: 'cancel-demo', name: 'subagent', arguments: { agent: 'poteto-agent', task: 'Run the slow check.', limits: { timeoutMs: 2500 } } } },
+      { reply: { kind: 'tool', id: 'slow', name: 'bash', arguments: { command: 'sleep 10' } } },
+      { reply: { kind: 'text', text: 'Cancellation card verified.' } },
+    ] },
+  });
+  const end = run.events.find((event) => event.type === 'tool_execution_end' && event.toolName === 'subagent');
+  assert.ok(end && end.isError === true);
+  const result = /** @type {{details: {progressCard: {lines: string[]}}, usage: {input: number}}} */ (end.result);
+  assert.match(result.details.progressCard.lines.join('\n'), /cancelled/);
+  assert.match(result.details.progressCard.lines.join('\n'), /pi-fixture\/pi-smoke-model/);
+  assert.equal(result.usage.input, 11);
 });

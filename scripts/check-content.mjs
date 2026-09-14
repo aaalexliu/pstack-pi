@@ -143,7 +143,7 @@ export function assertPackageExposure(rawPackage, inventory) {
   assert.deepEqual(pi.extensions, runtime ? ['extensions/pstack/index.ts', 'extensions/subagent/index.ts'] : [], 'Only package-owned extensions may register');
   for (const key of ['prompts', 'themes']) assert.deepEqual(pi[key], [], `No ${key} may register`);
   assert.deepEqual(pkg.dependencies, runtime ? { yaml: '2.9.0' } : undefined, 'Unexpected runtime dependencies');
-  if (runtime) assert.deepEqual(pkg.peerDependencies, { '@earendil-works/pi-coding-agent': '*', typebox: '*' });
+  if (runtime) assert.deepEqual(pkg.peerDependencies, { '@earendil-works/pi-coding-agent': '*', '@earendil-works/pi-tui': '*', typebox: '*' });
   assert.deepEqual(pi.skills, [...inventory.byDestination.keys()].filter((name) => name.endsWith('/SKILL.md')).sort(), 'Pi skills must list each entrypoint explicitly');
   assert.ok(Array.isArray(pkg.files), 'Package files must be explicit');
   assertPackInventory(pkg.files, inventory);

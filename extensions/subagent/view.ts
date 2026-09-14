@@ -1,6 +1,8 @@
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
+import { keyText, truncateHead, type ExtensionAPI, type ExtensionContext, type ToolDefinition } from '@earendil-works/pi-coding-agent';
+import { Text } from '@earendil-works/pi-tui';
+import { stripVTControlCharacters } from 'node:util';
 import { clip, progressLines, taskLine, type ProgressSnapshot } from './progress.ts';
 
 export function cmuxCommand(args: string[]): Promise<void> {
@@ -52,31 +54,36 @@ export class Sidebar {
     this.#keys.clear();
   }
 }
+export const renderProgressResult: NonNullable<ToolDefinition['renderResult']> = (result, { expanded, isPartial }, theme) => {
+  const details = result.details;
+  const card = details && typeof details === 'object' && 'progressCard' in details ? details.progressCard : undefined;
+  const output = result.content.filter((block) => block.type === 'text').map((block) => block.text).join('\n');
+  if (!card || typeof card !== 'object' || !('version' in card) || card.version !== 1 || !('lines' in card)
+    || !Array.isArray(card.lines) || card.lines.length > 33 || !card.lines.every((line) => typeof line === 'string' && Buffer.byteLength(line) <= 512)) {
+    return new Text(output, 0, 0);
+  }
+  const lines = card.lines.map((line: string, index: number) => theme.fg(
+    index === 0 ? 'accent' : /QUIET|LONG RUN|UNEXPECTED|UNVERIFIED/.test(line) ? 'warning' : 'toolOutput',
+    stripVTControlCharacters(line).replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, ' ')));
+  if (isPartial) lines.push(theme.fg('dim', `${keyText('app.interrupt')}: stop batch | /subagents: full checklists`));
+  else {
+    const preview = expanded ? output : truncateHead(output, { maxLines: 5, maxBytes: 1024 }).content;
+    lines.push('', theme.fg('dim', 'Output'), preview);
+    if (!expanded) lines.push(theme.fg('dim', `${keyText('app.tools.expand')}: full output`));
+  }
+  return new Text(lines.join('\n'), 0, 0);
+};
+
 export function createProgressView(pi: ExtensionAPI) {
   const sidebar = new Sidebar();
   let latest: ProgressSnapshot | undefined;
-  let context: ExtensionContext | undefined;
   let refreshInspector: (() => void) | undefined;
   let closeInspector: (() => void) | undefined;
   let closed = false;
-  const render = () => {
-    if (closed || !context?.hasUI || !latest) return;
-    if (refreshInspector) { refreshInspector(); return; }
-    const snapshot = latest;
-    const rows = [...snapshot.tasks].sort((a, b) => Number(a.endedAt !== null) - Number(b.endedAt !== null)).slice(0, 3);
-    const lines = [progressLines(snapshot)[0], ...rows.flatMap((row) => [taskLine(row, snapshot.updatedAt),
-      `  ${row.model} | ${row.activity} | ${row.usage.direct.usage.input + row.usage.direct.usage.output} in+out tok | ${row.todos === null ? 'no todos yet' : `${row.todos.filter((item) => item.startsWith('[done] ')).length}/${row.todos.length} todos`}`]),
-      `${snapshot.tasks.length > 3 ? `Showing 3/${snapshot.tasks.length}. ` : ''}/subagents: tasks, messages, checklists, full usage | Esc: stop batch`];
-    context.ui.setWidget('pstack-subagents', (_tui, theme) => ({
-      render: (width) => lines.map((line, index) => theme.fg(index === 0 ? 'accent' : /QUIET|LONG RUN|UNEXPECTED|UNVERIFIED/.test(line) ? 'warning' : 'muted', clip(line, width))),
-      invalidate() {},
-    }));
-  };
   pi.registerCommand('subagents', { description: 'Inspect live subagent tasks, checklists, messages, and usage', handler: async (_args, ctx) => {
     if (!latest) { ctx.ui.notify('No subagent request yet.', 'info'); return; }
     if (ctx.mode !== 'tui') { ctx.ui.notify(progressLines(latest, true).join('\n'), 'info'); return; }
     if (closeInspector) return;
-    ctx.ui.setWidget('pstack-subagents', undefined);
     await ctx.ui.custom((_tui, theme, _keys, done) => {
       let offset = 0;
       refreshInspector = () => _tui.requestRender();
@@ -101,10 +108,14 @@ export function createProgressView(pi: ExtensionAPI) {
     });
     refreshInspector = undefined;
     closeInspector = undefined;
-    render();
   } });
   return {
-    publish(snapshot: ProgressSnapshot, ctx: ExtensionContext) { latest = snapshot; context = ctx; render(); if (ctx.hasUI) sidebar.publish(snapshot); },
-    async close() { closed = true; closeInspector?.(); if (context?.hasUI) context.ui.setWidget('pstack-subagents', undefined); await sidebar.close(); },
+    publish(snapshot: ProgressSnapshot, ctx: ExtensionContext) {
+      if (closed) return;
+      latest = snapshot;
+      refreshInspector?.();
+      if (ctx.hasUI) sidebar.publish(snapshot);
+    },
+    async close() { closed = true; closeInspector?.(); await sidebar.close(); },
   };
 }

@@ -90,16 +90,18 @@ The tool supports four strict actions:
 
 ## Live subagent view (Glance trial)
 
-During delegation, Pi shows a compact live widget. `/subagents` opens a live inspector with task summaries, public messages, model and role, active tools, checklists, turns, reported tokens, and cost. Use `j`/`k` to scroll and `q`/Esc to close it. Esc in the parent cancels the batch.
+The `subagent` tool card shows each child's role, model, state, elapsed time, last-event age, reported usage, todo counts, and public update. It refreshes while children run and stays with the result afterward. There is no duplicate widget below the conversation. Expand tool output (Ctrl+O by default) to see the full original result.
+
+`/subagents` still opens a live inspector with task summaries and full checklists. Use `j`/`k` to scroll and `q`/Esc to close it. Esc in the parent cancels the batch.
 
 In cmux, each task also gets a sidebar status. Status keys belong to this extension instance; updates coalesce and time out without stopping child work. Shutdown clears only those keys. There is no server, snapshot file, or separate pane.
 
-- The widget prioritizes unfinished tasks and shows at most three; the inspector shows all eight.
+- Each tool card shows up to eight children in input order. Its bounded summary lives in that tool result, so older calls keep their own model, role, and timing after reload.
 - Event age updates each second. Sixty quiet seconds and ten minutes of runtime trigger advisory labels, not automatic cancellation or claims of a loop.
 - Models say `(selected)` until the child reports its identity. Streaming usage can lag or remain zero; partial usage is not billed twice.
 - Leaf checklists hold up to 32 short items. Completion is self-reported, not task completion. `todos not reported` is distinct from an empty checklist.
 - The depth label describes the supported delegation policy, not a process-tree scan. This view does not discover agents launched through arbitrary shell commands, infer whether reasoning is on track, or show private thinking.
-- Displays retain only the last request in this session runtime. Text is sanitized and clipped. They do not recover history after reload. A hard process kill can leave stale cmux status; graceful shutdown clears it.
+- The inspector and cmux sidebar follow the last request in this session runtime. Tool cards retain saved summaries; full live inspector state does not survive reload. Text is sanitized and bounded. Completed cards show event age relative to completion, not a frozen claim that an old event just happened. A hard process kill can leave stale cmux status; graceful shutdown clears it.
 
 Try the isolated demo from this checkout:
 

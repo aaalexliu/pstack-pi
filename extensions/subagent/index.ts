@@ -8,8 +8,8 @@ import { captureParent, qualifyModel } from './model-runtime.ts';
 import { PiInvocation } from './process.ts';
 import { DelegationScheduler, immutable, outputQuota, type ResolvedTask } from './scheduler.ts';
 import { aggregateUsage, type Usage } from './usage.ts';
-import { RunProgress, progressLines } from './progress.ts';
-import { createProgressView } from './view.ts';
+import { RunProgress, progressCard, type ProgressCard } from './progress.ts';
+import { createProgressView, renderProgressResult } from './view.ts';
 
 const failureLimits = Object.freeze({ records: 32, envelopeBytes: 64 * 1024, retentionMs: 30_000, toolCallIdBytes: 1024 });
 type Envelope = { content: [{ type: 'text'; text: string }]; details: unknown; usage: Usage };
@@ -115,9 +115,11 @@ export default function subagentExtension(pi: ExtensionAPI, { run = runChild, pi
     label: 'Subagent',
     description: 'Run one leaf agent or an atomic tasks batch of 1-8 bundled or user agents. At most four children run at once, in FIFO order. Only one request may prepare, run, or stop at a time. Children cannot delegate. Requests have no default execution deadline. limits.timeoutMs may set a request deadline, including preparation and queue time. The 32768-byte retained-output budget is split by input index. limits.outputBytes may lower that budget; larger values clamp. Each task is at most 32768 UTF-8 bytes, all task text at most 131072 bytes, and the JSON request at most 163840 bytes. Project agents, other working directories, and chains are disabled. model accepts inherit-parent or an exact provider/model-id; role selects a known configured role. Explicit model overrides role, then agent default, then parent. Results retain input order. Any non-success is an error with ordered details and known Pi-reported usage.',
     parameters: subagentParameters,
+    renderResult: renderProgressResult,
     async execute(id, params, signal, onUpdate, ctx) {
       const lease = scheduler.reserve(rootDepth);
       let progress: RunProgress | undefined;
+      let card: ProgressCard | undefined;
       let failureReason: string | undefined;
       const abort = () => lease.cancel('user');
       const stopping = () => progress?.stopping();
@@ -138,7 +140,8 @@ export default function subagentExtension(pi: ExtensionAPI, { run = runChild, pi
         const parent = captureParent(ctx);
         const input = request.kind === 'single' ? { tasks: [request.task], cwd: request.task.cwd, limits: request.task.limits } : request.request;
         progress = new RunProgress(input.tasks, (snapshot) => {
-          try { onUpdate?.({ content: [{ type: 'text', text: progressLines(snapshot)[0] }], details: { progress: snapshot } }); } catch {}
+          card = progressCard(snapshot);
+          try { onUpdate?.({ content: [{ type: 'text', text: card.lines.join('\n') }], details: { progress: snapshot, progressCard: card } }); } catch {}
           view.publish(snapshot, ctx);
         });
         const reduced = reduceLimits(input.limits);
@@ -183,8 +186,9 @@ export default function subagentExtension(pi: ExtensionAPI, { run = runChild, pi
         if (lease.cancellation) diagnostics.push(`Delegation cancelled (${lease.cancellation})`);
         const metadata = results.map((result, index) => taskMetadata(batch[index], result));
         const failed = aggregate.overflow || lease.cancellation !== undefined || results.some((result) => result.kind !== 'succeeded');
-        const details = request.kind === 'single' ? { ...metadata[0], diagnostics }
-          : { kind: 'parallel', limits, diagnostics, tasks: metadata };
+        progress.finish();
+        const details = request.kind === 'single' ? { ...metadata[0], diagnostics, progressCard: card }
+          : { kind: 'parallel', limits, diagnostics, tasks: metadata, progressCard: card };
         if (failed) {
           failedEnvelope = envelope([...results.map(resultText), ...diagnostics].flatMap((text, index) => index ? ['\n\n', text] : [text]), details, aggregate.usage);
           throw new BatchExecutionError(failedEnvelope.content[0].text);

@@ -3,6 +3,7 @@ import type { DelegationTask, TaskResult } from './domain.ts';
 import type { ResolvedTask } from './scheduler.ts';
 import { usageReport, type UsageReport } from './usage.ts';
 import { decodeTodoState } from '../pstack/todo.ts';
+import { boundedOutput } from './protocol.ts';
 
 export type TaskProgress = {
   index: number; agent: string; role: string; task: string; model: string; observedModel: string | null;
@@ -37,7 +38,7 @@ export function duration(ms: number): string {
 export function taskLine(row: TaskProgress, now: number): string {
   const end = row.endedAt ?? now;
   const elapsed = row.startedAt === null ? row.state : duration(end - row.startedAt);
-  const quiet = row.lastEventAt === null ? 'no events yet' : `last event ${duration(end - row.lastEventAt)} ago`;
+  const quiet = row.lastEventAt === null ? 'no events yet' : `last event ${duration(end - row.lastEventAt)} ${row.endedAt === null ? 'ago' : 'before finish'}`;
   const warning = row.warning ?? (row.endedAt === null && row.startedAt !== null && now - row.startedAt >= 600_000 ? 'LONG RUN: check scope'
     : row.state === 'running' && now - (row.lastEventAt ?? row.startedAt ?? now) >= 60_000 ? 'QUIET: check activity' : null);
   return `#${row.index + 1} ${row.role} | ${row.state} ${elapsed} | ${quiet}${warning ? ` | ${warning}` : ''}`;
@@ -60,6 +61,24 @@ export function progressLines(snapshot: ProgressSnapshot, detailed = false): str
   }
   lines.push('Event age is not proof of work. Usage can lag. Esc in parent stops the batch.');
   return lines;
+}
+
+export type ProgressCard = { version: 1; lines: string[] };
+export function progressCard(snapshot: ProgressSnapshot, includePreview = snapshot.endedAt === null): ProgressCard {
+  const lines = [progressLines(snapshot)[0]];
+  for (const row of snapshot.tasks) {
+    const usage = row.usage.direct;
+    const tokens = usage.usage.input + usage.usage.output + usage.usage.cacheRead + usage.usage.cacheWrite;
+    const todos = row.todos === null ? 'todos not reported' : `todos ${row.todos.filter((item) => item.startsWith('[done] ')).length}/${row.todos.length} (self-reported)`;
+    lines.push(taskLine(row, snapshot.updatedAt),
+      `  ${row.agent} | ${row.observedModel ?? row.model}${row.observedModel ? '' : ' (selected)'}`,
+      `  ${tokens} tok $${usage.usage.cost.total.toFixed(4)}${usage.kind === 'partial' ? ' partial' : ''} | ${todos}`);
+    if (includePreview) lines.push(`  ${row.tools.length ? row.tools.map((tool) => tool.name).join(', ') : row.activity} | ${row.message || row.task}`);
+  }
+  return { version: 1, lines: lines.map((line) => {
+    const value = boundedOutput(line, 512);
+    return value.truncated ? boundedOutput(line, 509).text + '...' : value.text;
+  }) };
 }
 
 export class RunProgress {
