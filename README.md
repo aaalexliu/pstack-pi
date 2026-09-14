@@ -1,7 +1,7 @@
 # pstack for Pi
 
 `@aaalexliu/pstack-pi` provides all 47 main skills from Lauren Tan's pstack.
-It copies compatible upstream content and ships reviewed Pi replacements for Cursor-only workflows. It also includes branch-aware task tracking, scoped session discovery, strict model-config readback, and bounded delegation with exact model routing, parallel leaf agents, process cleanup, and delegated usage accounting. The three Benny Cursor Cloud Automation skills are outside this package's main-skill scope.
+It copies compatible upstream content and ships reviewed Pi replacements for Cursor-only workflows. It also includes branch-aware task tracking, scoped session discovery, model-config readback, and a `subagent` tool built on Pi's bundled example with bundled agents, role-based model routing, a depth guard, and process-group cleanup. The three Benny Cursor Cloud Automation skills are outside this package's main-skill scope.
 
 ## Install
 
@@ -53,11 +53,11 @@ Pi `0.85.1` exposes 47 manual commands:
 
 Each skill keeps `disable-model-invocation: true` so Pi expands it only through an explicit skill command.
 
-The package ships 83 generated skill and support files, three generated agents, 13 extension modules, and the root package files.
+The package ships 83 generated skill and support files, three generated agents, six extension modules, and the root package files.
 It registers `pstack_config`, `pstack_sessions`, `pstack_todo`, and, at root depth, `subagent`.
-The delegation runtime owns one `session_shutdown` cleanup hook and a `tool_result` hook limited to its own failed delegations.
+The delegation extension owns one `session_shutdown` hook that stops live children and a `tool_result` hook that marks its own failed calls.
 Todo and Poteto Mode state follow the active session branch through versioned custom entries. The package registers no prompts, themes, commands, or blanket approval hooks.
-Chained delegation requests and a usage command remain deferred.
+A usage command remains deferred.
 
 `ADAPTATIONS.md` lists every full-file Pi replacement, the exact Cursor behavior it replaces, and why a byte copy or short ordered transform would leave a false runtime contract.
 
@@ -88,29 +88,6 @@ The tool supports four strict actions:
 
 `complete` marks every exact matching open item with `[done] `. `set` and `add` accept at most 128 nonblank items of at most 4,096 characters each. Reads do not add session entries. The loader ignores malformed entries and entries from newer state versions.
 
-## Live subagent view (Glance trial)
-
-The `subagent` tool card shows each child's role, model, state, elapsed time, last-event age, reported usage, todo counts, and public update. It refreshes while children run and stays with the result afterward. There is no duplicate widget below the conversation. Expand tool output (Ctrl+O by default) to see the full original result.
-
-`/subagents` still opens a live inspector with task summaries and full checklists. Use `j`/`k` to scroll and `q`/Esc to close it. Esc in the parent cancels the batch.
-
-In cmux, each task also gets a sidebar status. Status keys belong to this extension instance; updates coalesce and time out without stopping child work. Shutdown clears only those keys. There is no server, snapshot file, or separate pane.
-
-- Each tool card shows up to eight children in input order. Its bounded summary lives in that tool result, so older calls keep their own model, role, and timing after reload.
-- Event age updates each second. Sixty quiet seconds and ten minutes of runtime trigger advisory labels, not automatic cancellation or claims of a loop.
-- Models say `(selected)` until the child reports its identity. Streaming usage can lag or remain zero; partial usage is not billed twice.
-- Leaf checklists hold up to 32 short items. Completion is self-reported, not task completion. `todos not reported` is distinct from an empty checklist.
-- The depth label describes the supported delegation policy, not a process-tree scan. This view does not discover agents launched through arbitrary shell commands, infer whether reasoning is on track, or show private thinking.
-- The inspector and cmux sidebar follow the last request in this session runtime. Tool cards retain saved summaries; full live inspector state does not survive reload. Text is sanitized and bounded. Completed cards show event age relative to completion, not a frozen claim that an old event just happened. A hard process kill can leave stale cmux status; graceful shutdown clears it.
-
-Try the isolated demo from this checkout:
-
-```sh
-node scripts/demo-subagents.mjs
-```
-
-This uses scripted model responses and usage, but real Pi parent/child processes, tools, checklists, and cmux updates. One child finishes in about eight seconds; the other runs a 65-second shell wait so the quiet warning appears. `/subagents` opens the inspector. `/quit` exits. `--quick` shortens the slow wait. The demo uses a temporary profile, no live credentials, and does not change your Pi install.
-
 ## Workflow support tools
 
 `pstack_config` has strict `get` and `list-models` actions. `get` reads `<Pi agent dir>/pstack-pi/models.json` through the same version-1 parser used by delegation. `list-models` returns the exact `provider/model-id` values available from Pi's model registry. The tool does not write config. `/skill:setup-pstack` validates model choices first, then writes the file with Pi's normal file tools.
@@ -119,188 +96,90 @@ This uses scripted model responses and usage, but real Pi parent/child processes
 
 ## Delegation
 
-Call `subagent` with one agent and one task:
+The `subagent` tool is Pi's bundled subagent example (`examples/extensions/subagent`) plus a few additions.
+Each call spawns a separate `pi --mode json -p --no-session` process per task, so every child has its own context window.
 
 ```json
 {"agent":"general-purpose","task":"Read src/index.ts and explain its exports."}
 ```
 
-The public fields are `agent`, `task`, optional `cwd`, `limits`, `model`, and `role`.
-Unknown fields, unknown roles, and non-exact model values reject before spawn.
-Requests have no default execution deadline.
-`limits.timeoutMs` accepts a positive integer when a caller wants a deadline. Preparation and queue time count toward it.
-`limits.outputBytes` accepts a positive integer that can lower the 32,768-byte output cap. Larger output limits clamp and produce a diagnostic.
-There is no trust or approval argument.
-An omitted `cwd` uses the current Pi working directory.
-A supplied path must name that same real directory.
-Different directories, missing paths, symlinks in the supplied path, and non-directories fail before spawn.
+Three modes, exactly one per call:
 
-`general-purpose` has exactly `read`, `grep`, `find`, and `ls`.
-Its prompt forbids delegation and file changes.
-The catalog reads bundled agents first, then Markdown files directly under `getAgentDir()/agents`.
-This normally means `~/.pi/agent/agents`.
-A user definition overrides a bundled definition with the same name.
-The catalog records both definitions and their path and SHA-256 provenance.
-It never discovers project agents, including in trusted projects.
-Headless requests cannot approve them.
+- Single: `agent` and `task`.
+- Parallel: `tasks`, an array of 1-8 `{agent, task}` entries. At most four children run at once; results keep input order.
+- Chain: `chain`, an array of `{agent, task}` steps run in order. `{previous}` in a task is replaced by the prior step's output. A failed step stops the chain.
 
-User agents require a name, description, explicit YAML tools array, and nonempty prompt:
+Every task entry, and the call itself, accepts optional `cwd`, `model`, and `role`. The call also accepts `timeoutMs`, `agentScope`, and `confirmProjectAgents`.
+`cwd` is any directory; a relative path resolves against the parent's working directory.
+`timeoutMs` kills any child still running after that many milliseconds and reports the task as failed with `Timed out after N ms`.
+
+What this package adds to the example:
+
+- Bundled agents. `general-purpose`, `poteto-agent`, and `comment-sicko` ship in `agents/`. A file with the same name in `~/.pi/agent/agents` overrides a bundled one. Project agents under `.pi/agents` appear only with `agentScope: "both"` or `"project"`, and an untrusted project asks for confirmation in interactive mode.
+- Model routing. `model` is `inherit-parent` or an exact `provider/model-id`; `role` picks from `~/.pi/agent/pstack-pi/models.json`. See Model routing.
+- A depth guard. The child receives `PSTACK_SUBAGENT_DEPTH=1`; at depth one or more the subagent extension registers nothing, so children cannot delegate. Explicit agent tool lists also include `pstack_todo`, so a child can report its own checklist.
+- Process groups. Each child is a detached session leader. Abort, `timeoutMs`, and parent shutdown send `SIGTERM` to the whole group, then `SIGKILL` after three seconds. Parent shutdown waits up to one second for children to exit and discards any result that arrives during shutdown.
+- Private inputs. The system prompt goes through a `0600` temp file with `--append-system-prompt` and the task through stdin, so neither appears in `ps`. The temp file is removed after the child exits.
+- Error results. Pi 0.85.1 ignores `isError` returned from `execute`, so a `tool_result` hook marks the result as an error when a single task fails, a chain stops, or every parallel task fails. A parallel call with some failures stays a normal result that names each failure.
+- The child is launched through the same Node binary and Pi entrypoint as the parent, never through `pi` on `PATH`.
+
+A child is otherwise a normal Pi. It loads extensions, skills, and project context files by Pi's own rules, uses the parent's provider auth from `auth.json`, and runs with the builtin tools its agent lists.
+A child inheriting the parent model also inherits the parent thinking level; a pinned model uses Pi's default thinking level.
+
+Agent files need a name and a description. `tools` accepts a YAML list or a comma-separated string. `model` is optional:
 
 ```markdown
 ---
 name: reader
 description: Read files and answer a focused question.
 tools: [read, grep, find, ls]
+model: openai/gpt-4o
 ---
 Answer from file evidence. Do not delegate.
 ```
 
-An optional `model` field accepts `inherit-parent` or one exact `provider/model-id`, never a pool.
+A file that fails to parse is skipped; the other agents in that directory still load.
 
-Names use lowercase letters, numbers, and single hyphens, with at most 64 characters.
-Accepted tools are `read`, `grep`, `find`, `ls`, `bash`, `edit`, and `write`.
-`tools: []` means no child tools, not Pi's default tools.
-Missing tools, comma-delimited strings, unknown fields, duplicate YAML keys, duplicate names within one directory, and symlinks fail validation.
-Any catalog diagnostic stops delegation rather than silently choosing a fallback.
-Each directory allows at most 128 entries; each agent file allows at most 64 KiB.
+### Results
 
-Each child uses the current Node executable and Pi entrypoint, resolved to absolute real paths.
-The runner validates the entrypoint against the installed Pi `0.85.1` package and its declared CLI before spawn.
-It does not search `PATH` for `pi` or use a shell to launch it.
-An invalid or unsupported host invocation disables delegation.
-The child uses separate exact `--provider` and `--model` arguments.
-Inherited choices preserve the captured parent thinking level. Pinned choices use `--thinking off`.
-The child gets an explicit tools allowlist or `--no-tools`.
-It disables extension discovery, skills, prompt templates, context files, and saved sessions.
-It explicitly loads one package-owned leaf checklist extension. Nonempty tool allowlists also get `pstack_todo`; `tools: []` still means no tools.
-It receives a private `0600` system-prompt file and an empty append prompt, which prevents `APPEND_SYSTEM.md` discovery.
-The task travels through stdin, so leading `@` and CLI-looking text stay task text.
-Children expose no `subagent` tool.
-The host permits delegation only at depth zero and sets the child to depth one, the leaf boundary.
-It removes inherited `PSTACK_*` variables before setting the child depth.
-Malformed depth values or depth one and above disable this extension's tool and both hooks.
-Tool allowlists are not an OS sandbox. A user agent with `bash` can run arbitrary commands, including launching processes outside this delegation API.
+The tool returns the child's final assistant text. Parallel results are joined as `### [agent] completed` or `### [agent] failed (reason)` sections, each capped at 50 KiB with the full text kept in `details`.
+`details` holds `mode`, `agentScope`, `projectAgentsDir`, and one entry per task with the agent, its source (`bundled`, `user`, `project`), the task, `exitCode`, every `message_end` message from the child, capped stderr, summed usage (`input`, `output`, `cacheRead`, `cacheWrite`, `cost`, `contextTokens`, `turns`), the resolved `model`, and `modelSource` (`explicit`, `role`, `agent`, `parent`).
+A task fails when the child exits nonzero, is killed by a signal, or ends with `stopReason` `error` or `aborted`.
+`details.progress` stores the public status snapshot with the result. Live cards show role, selected/observed model, state, elapsed time, last event, reported usage, todo counts, and current activity. Completed cards keep that metadata and preview the original result text. Ctrl+O expands the full result.
 
-The runner accepts LF-delimited JSON with strict UTF-8 decoding.
-Its limits are 256 KiB per record, 4,096 events, 8 MiB stdout, and 64 KiB stderr.
-It caps returned text at 32 KiB and does not return raw stderr.
-A successful result requires a settled final assistant message with `stopReason: "stop"`, the requested model, exit code zero, and verified cleanup.
-Every authoritative child assistant message must match the resolved model identity.
-Truncation is explicit. Tool details include identity, bounded agent provenance and cwd, outcome, limits, cleanup, diagnostics, requested/resolved/observed model identity, and a usage report.
-Child failures throw from `execute`, so a missed result hook still leaves a real error.
+### Inspect subagents
 
-A parallel request has this shape:
+Use `/subagents` for the latest request's tasks, public message previews, checklists, usage, and recent event summaries. Use `/subagents raw` for the same public snapshot as JSON, not the raw protocol or private thinking. Both views update live. `j`/`k`, arrows, PageUp/PageDown, and Home/End scroll; `q` or Esc closes the view without stopping work. Esc in the parent stops the batch.
 
-```json
-{"tasks":[{"agent":"general-purpose","task":"Read the API.","role":"feature"},{"agent":"general-purpose","task":"Read the tests.","model":"inherit-parent"}],"limits":{"outputBytes":8193}}
+The collapsed card shows at most eight tasks and favors unfinished work. Ctrl+O also reveals every task's metadata in a longer chain, even after reload. The inspector shows every step of the most recently started request; older overlapping calls cannot replace that view. Each call keeps its own inline card. There is no duplicate widget or separate panel. In cmux, the sidebar shows up to eight tasks using keys owned by this Pi instance. A cmux error triggers best-effort removal of those keys instead of keeping stale running status.
+
+Checklists are self-reported. A quiet warning after 60 seconds and a long-run warning after 10 minutes suggest checking the task; neither proves a loop or lack of progress. Usage can lag. Public previews and event history are bounded. This is not a process-tree monitor and does not find arbitrary shell-launched agents.
+
+Saved tool cards survive reload. The inspector keeps only the latest request in memory. Graceful shutdown clears owned sidebar keys; a hard kill may leave stale keys.
+
+To try the real Pi UI with scripted fixture responses and no live credentials:
+
+```sh
+node scripts/demo-subagents.mjs
 ```
 
-The host accepts 1-8 tasks and runs at most four children. These are separate limits.
-Task entries accept only `agent`, `task`, `model`, and `role`. Optional `cwd` and `limits` belong to the request.
-Each task allows 32 KiB of UTF-8 text. All task text together allows 128 KiB, and serialized request JSON allows 160 KiB.
-The host validates every task, qualifies every model, and pins the Pi invocation before admitting the immutable batch.
-A rejected or cancelled preparation starts no children and consumes no pool slots.
+`--quick` shortens the wait; `--overlap` runs two separate simultaneous calls; `/quit` exits. Fixture responses are not actual review findings.
 
-Each extension instance reserves one request at a time, including preparation and cleanup.
-An overlapping call fails rather than waiting in a second request queue.
-By default, a request runs until it finishes, the user cancels it, Pi shuts down, or cleanup becomes unsafe.
-When `limits.timeoutMs` is present, its deadline starts at reservation and includes preparation and queue time.
-The scheduler dispatches tasks in input order and holds each slot through prompt removal and verified process cleanup.
-Results keep input order. Ordinary task failure does not stop siblings.
-The retained-output budget splits by input index, with one extra byte for each leading index covered by the remainder.
-Quotas never move between tasks. Small budgets can give later tasks zero bytes.
-Successful calls return bounded ordered output, task metadata, and one aggregate top-level Pi `usage` value.
-Any failed, cancelled, or skipped task makes the tool throw one bounded ordered summary.
-Request cancellation also fails the call if every child has already finished.
-The 32,768-byte result-text cap includes summary labels and notices. A 64 KiB serialized envelope cap can shorten text further.
-`details.resultOutput` reports the pre-truncation byte count and whether the envelope shortened the text.
-Pi 0.85.1 discards details and usage attached to thrown errors. The owned-result hook restores those fields after cleanup.
-User cancellation, the deadline, and `session_shutdown` stop dispatch and cancel every active lease before awaiting them together.
-Queued tasks become skipped. Shutdown rejects new work and waits for request cleanup.
-
-The runner creates a detached process group and polls `/bin/ps` on macOS and Linux for descendants and process identities.
-It sends `SIGTERM` through the live direct child handle even if process observation fails.
-After a one-second grace period, it sends `SIGKILL` to the still-live child handle, its safe initial group, and observed owned processes and groups.
-An observed group remains owned only while a current member matches a recorded identity in that group, or the live direct child proves the initial group.
-A stale group ID alone cannot establish ownership.
-The runner then allows two seconds to verify cleanup.
-If cleanup cannot prove that the child exited within those timers, it returns an unverified report and quarantines the extension instance.
-An explicit deadline starts cancellation rather than guaranteeing termination by that instant. Process-table commands can each take up to 250 ms, and OS scheduling or filesystem stalls can delay timer callbacks.
-
-Observation failures, unsafe identities, and unverified cleanup immediately stop dispatch and broadcast cancellation to active siblings.
-This signal is sticky even if a later process-table read succeeds. Finished siblings cannot release new queued work after trust is lost.
-The request waits for all active cleanup, marks queued tasks skipped, and quarantines further delegation in that extension instance.
-Prompt removal gets at most another two seconds, including any pending prompt write.
-If filesystem work outlives that wait, the request returns an unverified cleanup failure and quarantines the session.
-Late filesystem completion still attempts prompt removal but cannot start a child or restore trust.
-The runner removes listeners after cleanup.
-macOS and Linux polling cannot guarantee containment of an unseen fast double-fork or cleanup after host `SIGKILL`.
-Process-table snapshots and signals are not atomic, and `ps` start times have only second-level precision.
-These checks do not provide adversarial process isolation.
-Delegation rejects unsupported operating systems, including Windows.
-
-## Usage and failed results
-
-`protocol.ts` owns bounded UTF-8/LF JSONL parsing and message lifecycle state. `usage.ts` owns validation, arithmetic, and reports.
-The parser uses Pi 0.85.1's JSON-mode projection. Assistant `message_start` opens a provisional snapshot, `message_update.usage` replaces it, and `message_end` commits it once.
-It counts charged failed assistant attempts before retries and completed `compaction_end.result.usage` once.
-Retry events control execution but add no usage. Repeated `turn_end`, `agent_end`, entry copies, and tool-execution events add nothing.
-The parser rejects malformed consumed fields, unknown event names, duplicate or unmatched ends, events after settlement, unsafe numbers, overflow, and protocol bounds.
-Only a final `stop` can succeed. Recognized terminal `length`, `toolUse`, `error`, `aborted`, and `deferred` outcomes remain failures.
-
-Every task has `details.usage.scope: "pi-reported"` with `direct` and `descendant` reports.
-Each report has `kind: "complete"` or `kind: "partial"` and a known `usage` value.
-Partial reports add bounded reason codes and a `provisional` snapshot, or `null` when no assistant remains open.
-The direct known amount includes that provisional snapshot once. Never add `provisional` to it again.
-Later stream failure, cancellation, and cleanup uncertainty preserve earlier valid usage.
-A never-started queued task has complete zero usage. An unexpected runner failure has partial usage, not a claim of zero work.
-
-The primary token fields are `input`, `output`, `cacheRead`, `cacheWrite`, and `totalTokens`.
-All tokens must be nonnegative safe integers; all five cost fields must be finite and nonnegative.
-Optional `reasoning` and `cacheWrite1h` remain reported subsets. They do not increase the primary fields.
-The extension neither prices tokens nor forces `totalTokens` to equal the other fields.
-Pi stores `totalTokens`, but Pi 0.85.1 computes its displayed session token total from input, output, cache reads, and cache writes.
-Batch aggregation follows input order. If an aggregate cannot represent another charge safely, the request fails and retains the representable known amounts with an overflow diagnostic.
-
-Supported children are leaves, so their descendant report is complete known-zero.
-Unexpected top-level usage on a child's final tool-result message counts once as descendant evidence, makes that report partial, and fails the leaf contract.
-The production tool has no flag that enables nested delegates.
-These reports describe Pi-emitted usage, not provider invoice proof. Missing provider charges, failed summarization attempts with no completion usage, and arbitrary processes launched by a user agent remain outside that evidence.
-
-The synchronous `tool_result` hook first rejects every tool name except `subagent` without inspecting other fields.
-A private WeakMap associates the original validated request object with a fresh Symbol and a bounded record. Matching also requires the exact tool-call ID.
-The hook patches only a retained failed record whose input identity, native error text and shape, empty details, absent usage, and `isError: true` remain unchanged.
-It discards changed owned results instead of overwriting another handler. Copied JSON, duplicate IDs alone, matching text, foreign same-name tools, and preflight-rejected calls cannot match.
-The hook erases the record before returning ordered details, bounded content, and one aggregate usage value with `isError: true`.
-Pi counts and persists that final tool result once. Reload reads the persisted result; the extension does not replay charges.
-
-There are at most 32 correlation records and 64 KiB of serialized result data per retained envelope.
-Tool-call IDs above 1,024 UTF-8 bytes reject before correlation reservation, rather than retaining an unbounded host-supplied ID.
-Running records never expire or get evicted. Failed records expire 30 seconds after cleanup through one lazy timer.
-Success, preflight failure, hook consumption, expiry, and shutdown erase records. Shutdown closes the state before awaiting scheduler cleanup, so late completion cannot restore it.
-A full record table rejects new work. An expired, changed, or missed hook leaves Pi's native error intact but cannot restore its discarded accounting.
-Hostile in-process extensions are outside this boundary. They share process privileges and can replace tools or alter results after this hook.
-There are no `tool_call`, `user_bash`, or command interception hooks.
+Limits worth knowing: a child's own detached, `SIGTERM`-ignoring processes are outside its process group and are not tracked, the same as Pi's bash tool. Delegation needs macOS or Linux for process groups.
 
 ## Model routing
 
-The only routing config is `getAgentDir()/pstack-pi/models.json`.
-A missing file means no configured roles. The extension never writes config or reads project or donor routing config.
-The format has exactly `version` and `roles`:
+The only routing config is `~/.pi/agent/pstack-pi/models.json` (under `getAgentDir()`).
+A missing file means no configured roles. A malformed file fails the call with a message naming the file.
 
 ```json
-{"version":1,"roles":{"feature":["inherit-parent","openai/gpt-4o","openai/gpt-4o"],"review":"inherit-parent"}}
+{"version":1,"roles":{"feature":["inherit-parent","openai/gpt-4o"],"review":"inherit-parent"}}
 ```
 
-A choice is exactly `inherit-parent` or `provider/model-id`.
-Providers use 1-64 lowercase ASCII letters, digits, dots, or hyphens, starting with a letter or digit.
-Model IDs use 1-256 ASCII letters, digits, `_`, `.`, `:`, `@`, `/`, `+`, or `-`, starting with a letter, digit, or `@`.
-Only the first slash separates provider and model. Spaces, wildcards, bare names, aliases, and thinking suffix syntax are not routing options.
-A colon can belong to an exact catalog ID.
-Pools contain 1-64 choices. They retain duplicates and `inherit-parent` entries.
-Pool length controls neither task count nor concurrency.
+A choice is `inherit-parent` or `provider/model-id`; only the first slash separates provider and model.
+A role maps to one choice or to a pool of choices. Pools rotate round-robin per role for the life of the Pi session.
 
-The closed role IDs are:
+The role IDs are:
 
 - `feature`, `refactoring`, `bug-fix`, `perf-issue`, `hillclimb`, `judgment`, `prose`, `hardest`
 - `how-explorer`, `how-explainer`, `how-critics`, `why-investigator`, `why-synthesizer`
@@ -308,38 +187,9 @@ The closed role IDs are:
 - `arena-runner`, `arena-cross-judge`, `swarm-worker`, `architect-runner`, `interrogate-reviewer`
 - `no-comments`, `review`, `test`, `verify`
 
-These IDs reserve routing for planned workflows. They do not enable those workflows.
-Resolution uses the explicit task `model`, the requested configured `role`, the agent's `model`, then the parent.
-An unknown role always rejects, even with an explicit model. A known but unconfigured role falls through.
-Each role has an in-memory round-robin counter. Explicit models consume no pool slot.
-The scheduler plans all choices in input order against copied counters, then commits the batch and counters together.
-Rejected or cancelled preparation consumes no slot. Every admitted task consumes its assigned slot, even if queued or later cancelled.
-Counters reset only when that role's parsed assignment changes, or when Pi creates a new extension instance.
-Config formatting and role-key order do not reset them. Nothing persists counters to disk.
-
-The routing file has a 64 KiB cap and a 32-level JSON nesting cap.
-The loader rejects malformed UTF-8, BOMs, invalid JSON, duplicate keys, trailing data, unknown properties, and unknown roles.
-No-follow descriptor reads reject symlinks and non-regular files. The file and package-specific directory must belong to the current user.
-Group/other write bits and special mode bits reject. The loader checks file size and metadata before and after bounded reads, and checks directory identity.
-
-Qualification uses a new Pi `ModelRuntime`, not the parent's extension registry or runtime credentials.
-It loads only standard stored, config, and environment auth, with model network refresh disabled.
-No credential enters argv, tool details, or a copied config file.
-The parent model and thinking level are captured before the first await.
-Inheritance rejects parent providers registered by extensions and any difference in standalone model metadata.
-Pinned choices may select another standalone provider without inheriting parent overrides.
-
-Pi 0.85.1 imposes narrower rules:
-
-- `ModelRuntime.create()` creates a missing `auth.json`. Delegation instead requires the existing file that Pi creates at startup, so qualification does not create config files.
-- Its public registry has no command-disabled auth mode. Delegation preflights the standard `auth.json`, `models.json`, and `models-store.json` with safe bounded reads. Each has a 1 MiB cap. Any leading-`!` string anywhere in those files rejects, even on unused providers. References to child-filtered `PSTACK_*` variables also reject.
-- `getAvailable()` proves configured auth, not token validity or server access. The adapter never calls `getAuth()` or runs credential commands. The child resolves its own standard credentials and may refresh standard OAuth tokens.
-- Bedrock and Vertex external credential chains are unsupported. Supported APIs are `openai-completions`, `openai-responses`, `openai-codex-responses`, `azure-openai-responses`, `anthropic-messages`, `google-generative-ai`, `mistral-conversations`, and `pi-messages`.
-- The CLI matches IDs case-insensitively and strips a repeated provider prefix. After exact lookup, a CLI round-trip check rejects choices that would select another identity or parse thinking syntax. It never accepts a fuzzy substitute.
-- Models that cannot use `off` reject pinned choices. Inheritance requires a supported captured thinking level.
-
-Standard files and environment must remain stable during preparation and child startup. Pi reopens them in the child; its public APIs cannot bind both processes to one immutable config snapshot without copying credentials.
-The file checks do not provide isolation against a hostile process running as the same user.
+Resolution order: the task's explicit `model`, then the configured `role`, then the agent file's `model`, then the parent's model.
+An unconfigured role falls through. `pstack_config` reads the same file and lists the models Pi can see.
+The child receives the choice as `--model provider/model-id` and resolves credentials itself from the standard Pi config, exactly as a user typing that flag would.
 
 ## Develop locally
 
@@ -409,31 +259,16 @@ They preserve genuine protocol identifiers such as review author `cursor` and `C
 
 The real Pi tests pack and move the package into an isolated profile.
 They inspect provider requests for all eight commands, exact skill bodies, arguments, relocated paths, and the single declared extension tool.
-A scripted real parent delegates a fixture read to a real child, receives the result, and runs harmless bash containing literal `git push` and `gh pr edit` text.
-Other runs deny project agents and cwd changes before any child request, and prove that an empty-tools user override has no tools.
-Production child requests lack `subagent`; process checks reject surviving observed descendants and leftover prompt files.
-The packed execution tests cover reduced deadlines, one-at-a-time admission, depth rejection, fake `pi` in `PATH`, and parent `SIGTERM` and `SIGHUP` cleanup.
-They retain the controlled detached-work test, which keeps ancestry visible long enough for polling.
-Focused process tests cover continuous observation failure with a real stalled child and deterministic group-ID reuse.
-The packed routing tests use a separate exact-model fixture without changing the Phase 6 provider.
-Seven real children prove cross-provider explicit choices, mixed pools, duplicate entries, agent defaults, and inherited thinking.
-Provider request bodies and authoritative child observations must match the expected sequence.
-Other real runs reject unknown roles, fuzzy names, unavailable pool entries, duplicate config keys, and unused credential commands before a child request.
-The parallel tests use a separate concurrent provider keyed by the exact final user marker, never global request order.
-Four real leaf children complete in reverse while their assignments and results retain input order. Eight tasks prove FIFO replacement after cleanup.
-The tests cover independent role counters across requests, duplicate and inherited pool entries, explicit overrides, fixed UTF-8 output quotas, and overlapping request rejection.
-A request-wide deadline cancels four active children and skips four queued tasks without refunding their model assignments.
-Parent `SIGTERM` and `SIGHUP` clean all four children without harming an unrelated sibling. Ordinary failure leaves siblings running.
-Each production observer verifies process and prompt cleanup before test rescue. Existing observers still default to one child.
-Focused tests cover user abort with four real child processes, early cleanup uncertainty, and bounded cleanup when prompt writes or removal stall.
-The concurrent fixture allows twelve seconds for its outer test watchdog. Production requests have no default execution deadline.
-The unchanged Phase 6 recursion fixture is an unsafe positive control, not the production delegation path.
-The accounting tests verify installed Pi's returned-error, thrown-error, and patched-error behavior through provider requests, JSONL events, persisted session totals, and reload.
-Packed child reads, charged length failures, cumulative updates, truncation, and cancellation use exact known provider tokens and costs.
-An injected child JSONL control tests unsupported descendant evidence without enabling production nesting.
-The main delegation, model-routing, and accounting tests retain their tarballs and `run.json` under the artifact paths printed in test output.
+A scripted real parent delegates a fixture read to a real bundled child, receives the result, and runs harmless bash containing literal `git push` and `gh pr edit` text.
+Other runs hide project agents by default, run a user override in a subdirectory `cwd`, and let `poteto-agent` edit through its tool set.
+Child requests carry the agent's tools plus `pstack_todo`, never `subagent`; the child leads its own process group, and prompt temp files are gone after return.
+The packed execution tests cover `timeoutMs`, two simultaneous single calls, eight parallel tasks with a four-child ceiling and one failing sibling, depth rejection, fake `pi` in `PATH`, and parent `SIGTERM` and `SIGHUP` cleanup.
+The parallel tests use a concurrent provider keyed by the exact final user marker, never global request order.
+Unit tests under `tests/subagent/` drive the tool with a fake `pi` that speaks the JSON protocol: routing precedence and pool rotation, stdin task and `0600` prompt delivery, parallel order and concurrency, chain substitution, abort and timeout killing a `SIGTERM`-ignoring grandchild, and shutdown behavior.
+Progress tests check live tools, child-owned todos, model and usage before completion, saved snapshots, and timeout cards through packed real Pi. Renderer tests cover narrow terminals, long chains, output expansion, and both inspector views. E2E files run serially to avoid startup contention against short watchdogs; individual tests still exercise concurrent children.
+The main delegation tests retain their tarballs and `run.json` under the artifact paths printed in test output.
 Other test profiles are removed.
-Runtime tests copy only the pinned `yaml` dependency into the relocated package. Pi supplies its own host modules.
+The packed package has no runtime dependencies. Pi supplies `@earendil-works/pi-coding-agent`, `@earendil-works/pi-ai`, `@earendil-works/pi-tui`, and `typebox` to extensions.
 `skipLibCheck` skips defective third-party declarations in Pi's dependency tree; project TypeScript still uses strict checking.
 They check duplicate-name diagnostics through Pi's resource-loader SDK because print-mode JSONL does not emit those warnings.
 The deterministic provider runs on loopback and needs no provider credentials.

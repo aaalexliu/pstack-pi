@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
+import { setTimeout as delay } from "node:timers/promises";
 
 export const FIXTURE_TEXT = "Pi package smoke ✓\u2028LF framing\u2029verified.";
 export const FIXTURE_MODEL = "pi-smoke-model";
@@ -24,6 +25,8 @@ export async function startProvider({ text = FIXTURE_TEXT, mode = "text", script
     response.once('close', () => { activeRequests--; });
     void (async () => {
       try {
+        // A killed client's socket closes a few ticks after its process exits; give it a moment before calling overlap a bug.
+        for (let waited = 0; activeRequests > 1 && waited < 500; waited += 10) await delay(10);
         assert.equal(activeRequests, 1, 'Overlapping fixture requests');
         assert.equal(request.method, "POST");
         assert.equal(request.url, "/v1/chat/completions");

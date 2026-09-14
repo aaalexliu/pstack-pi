@@ -28,23 +28,27 @@ function toolResult(request, id) {
   return JSON.stringify(result.content);
 }
 
-/** @param {Record<string, unknown>} request @param {string[]} tools */
-function assertChild(request, tools) {
-  assert.deepEqual(toolNames(request), [...tools, ...(tools.length ? ['pstack_todo'] : [])].sort());
-  assert.ok(!JSON.stringify(request).includes('UNTRUSTED_CONTEXT_MARKER'));
-  assert.ok(!JSON.stringify(request).includes('APPENDED_CONTEXT_MARKER'));
-  assert.ok(!JSON.stringify(request).includes('available_skills'));
+/** A child gets the agent's tools and its own checklist, but no delegation. */
+/** @param {Record<string, unknown>} request @param {string[]} builtins */
+function assertChild(request, builtins) {
+  assert.deepEqual(toolNames(request), [...builtins, 'pstack_todo'].sort());
+  const text = JSON.stringify(request);
+  assert.ok(text.includes('PROJECT_CONTEXT_MARKER'), 'Child reads the project AGENTS.md');
 }
 
 /** @param {import('./runner.mjs').PiTestRun['paths']} paths */
 async function setupProject(paths) {
   await mkdir(path.join(paths.cwd, '.pi/agents'), { recursive: true });
-  await writeFile(path.join(paths.cwd, '.pi/agents/project.md'), '---\nname: project\ndescription: Untrusted.\ntools: [bash]\n---\nUNTRUSTED_CONTEXT_MARKER');
-  await writeFile(path.join(paths.cwd, 'AGENTS.md'), 'UNTRUSTED_CONTEXT_MARKER');
-  await writeFile(path.join(paths.profile, 'APPEND_SYSTEM.md'), 'APPENDED_CONTEXT_MARKER');
+  await writeFile(path.join(paths.cwd, '.pi/agents/project.md'), '---\nname: project\ndescription: Untrusted.\ntools: [bash]\n---\nPROJECT_AGENT_MARKER');
+  await writeFile(path.join(paths.cwd, 'AGENTS.md'), 'PROJECT_CONTEXT_MARKER');
 }
 
-test('packed real parent delegates a file read, then runs harmless bash containing Git action text', async (t) => {
+/** @param {import('./runner.mjs').PiTestRun} run */
+function subagentEnds(run) {
+  return run.events.filter((event) => event.type === 'tool_execution_end' && event.toolName === 'subagent');
+}
+
+test('packed real parent delegates a file read to a bundled agent, then keeps running', async (t) => {
   const marker = 'DELEGATE_FILE_7f6b2a';
   const final = `The child read ${marker}. The parent shell ran.`;
   /** @type {string[]} */
@@ -62,9 +66,10 @@ test('packed real parent delegates a file read, then runs harmless bash containi
       { reply: { kind: 'tool', id: 'delegate', name: 'subagent', arguments: { agent: 'general-purpose', task: 'Read fixture.txt and report its exact contents.' } }, check: (request) => assert.ok(toolNames(request).includes('subagent')) },
       { reply: { kind: 'tool', id: 'read-fixture', name: 'read', arguments: { path: 'fixture.txt' } }, check: (request) => {
         assertChild(request, ['read', 'grep', 'find', 'ls']);
-        childProcesses = execFileSync('ps', ['-axo', 'pid=,ppid=,command='], { encoding: 'utf8' }).split('\n').filter((line) => Number(line.trim().split(/\s+/)[1]) === parentPid && /(?:\bpi$|pi-coding-agent\/dist\/)/.test(line.trimEnd()));
-        assert.equal(childProcesses.length, 1, `Expected one real child Pi: ${execFileSync('/bin/ps', ['-ww', '-axo', 'pid=,ppid=,command='], { encoding: 'utf8' }).split('\n').filter((line) => Number(line.trim().split(/\s+/)[1]) === parentPid).join('\n')}`);
-        assert.match(childProcesses[0], /pi/);
+        childProcesses = execFileSync('ps', ['-axo', 'pid=,ppid=,pgid=,command='], { encoding: 'utf8' }).split('\n').filter((line) => Number(line.trim().split(/\s+/)[1]) === parentPid && /(?:\bpi$|pi-coding-agent\/dist\/)/.test(line.trimEnd()));
+        assert.equal(childProcesses.length, 1, `Expected one real child Pi under ${parentPid}`);
+        const [pid, , pgid] = childProcesses[0].trim().split(/\s+/).map(Number);
+        assert.equal(pid, pgid, 'The child leads its own process group');
       } },
       { reply: { kind: 'text', text: marker }, check: (request) => {
         assertChild(request, ['read', 'grep', 'find', 'ls']);
@@ -76,93 +81,91 @@ test('packed real parent delegates a file read, then runs harmless bash containi
     verify: async (run) => {
       assert.equal(await readFile(path.join(run.paths.cwd, 'parent-bash.txt'), 'utf8'), 'literal git push and gh pr edit\n');
       assert.deepEqual(run.diagnostics, []);
-      const result = run.events.find((event) => event.type === 'tool_execution_end' && event.toolName === 'subagent');
-      assert.ok(result && result.isError === false);
-      assert.ok(result.result && typeof result.result === 'object' && 'details' in result.result);
-      const details = result.result.details;
-      assert.ok(details && typeof details === 'object' && 'kind' in details && 'usage' in details && 'agent' in details && 'cwd' in details);
-      assert.equal(details.kind, 'succeeded');
-      assert.notEqual(details.usage, null);
-      assert.equal(details.cwd, run.paths.cwd);
-      assert.ok(JSON.stringify(details.agent).includes(path.join(run.paths.package, 'agents/general-purpose.md')));
-      assert.ok(!(await readdir(run.paths.root)).some((name) => name.startsWith('pstack-subagent-')));
+      const [end] = subagentEnds(run);
+      assert.ok(end && end.isError === false);
+      const details = /** @type {import('../../extensions/subagent/index.ts').SubagentDetails} */ (/** @type {any} */ (end.result).details);
+      assert.equal(details.mode, 'single');
+      assert.equal(details.results.length, 1);
+      const [result] = details.results;
+      assert.equal(result.exitCode, 0);
+      assert.equal(result.stopReason, 'stop');
+      assert.equal(result.agentSource, 'bundled');
+      assert.equal(result.modelSource, 'parent');
+      assert.equal(result.model, 'pi-fixture/pi-smoke-model');
+      assert.equal(result.usage.turns, 2);
+      assert.ok(result.usage.input > 0 && result.usage.output > 0);
+      assert.ok(!(await readdir(run.paths.root)).some((name) => name.startsWith('pi-subagent-')), 'Prompt temp directories are removed');
       const pid = Number(childProcesses[0].trim().split(/\s+/)[0]);
       assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
     },
   });
   assert.equal(run.cleanup.groupAlive, false);
   assert.deepEqual(run.cleanup.signals, []);
-  t.diagnostic(JSON.stringify({ artifact: run.paths.root, pi: run.process.version, parentPid: run.process.pid, childProcesses, requests: run.provider?.requests, result: final, diagnostics: run.diagnostics, cleanup: run.cleanup, pack: run.pack.files }));
+  t.diagnostic(JSON.stringify({ artifact: run.paths.root, pi: run.process.version, parentPid: run.process.pid, childProcesses, requests: run.provider?.requests, cleanup: run.cleanup }));
 });
 
-for (const scenario of ['project agent', 'different cwd']) {
-  test(`real parent rejects ${scenario} before any child request`, async (t) => {
-    const final = `Rejected ${scenario}.`;
-    const run = await runPiSmoke({
-      expectedText: final, expectedRequests: 2, setup: setupProject,
-      fixture: { script: [
-        { reply: { kind: 'tool', id: 'deny', name: 'subagent', arguments: scenario === 'project agent'
-          ? { agent: 'project', task: 'Do not run this project agent.' }
-          : { agent: 'general-purpose', task: 'Do not change cwd.', cwd: '..' } } },
-        { reply: { kind: 'text', text: final }, check: (request) => {
-          assert.ok(toolNames(request).includes('subagent'), 'Unexpected child request');
-          assert.match(toolResult(request, 'deny'), scenario === 'project agent' ? /Unknown agent/ : /cwd differs/);
-        } },
-      ] },
-      verify: async (run) => {
-        const result = run.events.find((event) => event.type === 'tool_execution_end' && event.toolName === 'subagent');
-        assert.equal(result?.isError, true);
-      },
-    });
-    t.diagnostic(JSON.stringify({ scenario, requests: run.provider?.requests, cleanup: run.cleanup, diagnostics: run.diagnostics }));
+test('project agents stay hidden until agentScope opts in', async (t) => {
+  const final = 'Project agent rejected.';
+  const run = await runPiSmoke({
+    expectedText: final, expectedRequests: 2, setup: setupProject,
+    fixture: { script: [
+      { reply: { kind: 'tool', id: 'deny', name: 'subagent', arguments: { agent: 'project', task: 'Do not run this project agent.' } } },
+      { reply: { kind: 'text', text: final }, check: (request) => {
+        assert.ok(toolNames(request).includes('subagent'), 'Unexpected child request');
+        assert.match(toolResult(request, 'deny'), /Unknown agent \\"project\\"/);
+        assert.match(toolResult(request, 'deny'), /general-purpose \(bundled\)/);
+      } },
+    ] },
+    verify: async (run) => {
+      const [end] = subagentEnds(run);
+      assert.equal(end?.isError, false, 'Guidance about a bad request is not an error result');
+    },
   });
-}
+  t.diagnostic(JSON.stringify({ requests: run.provider?.requests, cleanup: run.cleanup, diagnostics: run.diagnostics }));
+});
 
-test('empty-tools user override reaches a real child with no tools or delegation', async (t) => {
-  const marker = 'EMPTY_USER_AGENT';
-  const final = 'The user agent had no tools.';
+test('a user agent overrides the bundled one by name and runs in a subdirectory cwd', async (t) => {
+  const marker = 'USER_AGENT_PROMPT_MARKER';
+  const final = 'The user agent answered.';
   const run = await runPiSmoke({
     expectedText: final, expectedRequests: 3,
     setup: async (paths) => {
       await setupProject(paths);
+      await mkdir(path.join(paths.cwd, 'sub'));
       await mkdir(path.join(paths.profile, 'agents'), { recursive: true });
-      await writeFile(path.join(paths.profile, 'agents/general-purpose.md'), `---\nname: general-purpose\ndescription: Test an empty allowlist.\ntools: []\n---\n${marker}. Do not delegate.`);
+      await writeFile(path.join(paths.profile, 'agents/general-purpose.md'), `---\nname: general-purpose\ndescription: Bash-only override.\ntools: [bash]\n---\n${marker}`);
     },
     fixture: { script: [
-      { reply: { kind: 'tool', id: 'empty', name: 'subagent', arguments: { agent: 'general-purpose', task: 'Report that no tools are available.', cwd: '.' } } },
-      { reply: { kind: 'text', text: 'No tools available.' }, check: (request) => {
-        assertChild(request, []);
+      { reply: { kind: 'tool', id: 'override', name: 'subagent', arguments: { agent: 'general-purpose', task: 'Print the working directory.', cwd: 'sub' } } },
+      { reply: { kind: 'text', text: 'Ran in sub.' }, check: (request) => {
+        assertChild(request, ['bash']);
         assert.ok(JSON.stringify(request).includes(marker));
       } },
-      { reply: { kind: 'text', text: final }, check: (request) => assert.ok(toolResult(request, 'empty').includes('No tools available.')) },
+      { reply: { kind: 'text', text: final }, check: (request) => assert.ok(toolResult(request, 'override').includes('Ran in sub.')) },
     ] },
     verify: async (run) => {
-      const event = run.events.find((event) => event.type === 'tool_execution_end' && event.toolName === 'subagent');
-      assert.equal(event?.isError, false);
-      assert.ok(JSON.stringify(event).includes(path.join(run.paths.profile, 'agents/general-purpose.md')));
-      assert.ok(JSON.stringify(event).includes('"kind":"user"'));
+      const [end] = subagentEnds(run);
+      assert.equal(end?.isError, false);
+      const details = /** @type {import('../../extensions/subagent/index.ts').SubagentDetails} */ (/** @type {any} */ (end?.result).details);
+      assert.equal(details.results[0].agentSource, 'user');
     },
   });
   t.diagnostic(JSON.stringify({ requests: run.provider?.requests, diagnostics: run.diagnostics, cleanup: run.cleanup }));
 });
 
-test('packed poteto-agent can edit through its explicit leaf tool set', async () => {
+test('packed poteto-agent can edit through its explicit tool set', async () => {
   const final = 'Poteto delegate finished.';
   const run = await runPiSmoke({
-    expectedText: final,
-    expectedRequests: 4,
+    expectedText: final, expectedRequests: 4,
     prompt: 'Delegate the bounded fixture edit.',
+    setup: setupProject,
     fixture: { script: [
       { reply: { kind: 'tool', id: 'delegate-poteto', name: 'subagent', arguments: { agent: 'poteto-agent', task: 'Create poteto-created.txt with the exact text POTETO_LEAF.' } } },
       { reply: { kind: 'tool', id: 'write-poteto', name: 'bash', arguments: { command: 'printf %s POTETO_LEAF > poteto-created.txt' } }, check: (request) => {
         assertChild(request, ['read', 'grep', 'find', 'ls', 'bash', 'edit', 'write']);
       } },
-      { reply: { kind: 'text', text: 'Created poteto-created.txt.' }, check: (request) => {
-        toolResult(request, 'write-poteto');
-      } },
-      { reply: { kind: 'text', text: final }, check: (request) => {
-        assert.match(toolResult(request, 'delegate-poteto'), /Created poteto-created\.txt/);
-      } },
+      { reply: { kind: 'text', text: 'Created poteto-created.txt.' }, check: (request) => { toolResult(request, 'write-poteto'); } },
+      { reply: { kind: 'text', text: final }, check: (request) => assert.match(toolResult(request, 'delegate-poteto'), /Created poteto-created\.txt/) },
     ] },
     verify: async (result) => {
       assert.equal(await readFile(path.join(result.paths.cwd, 'poteto-created.txt'), 'utf8'), 'POTETO_LEAF');

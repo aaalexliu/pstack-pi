@@ -12,13 +12,15 @@ const profile = path.join(root, 'profile');
 const work = path.join(root, 'work');
 const parent = 'Demo: review cancellation and verify the runner. Fixture model responses, real Pi children and tools.';
 const tasks = [
-  { agent: 'poteto-agent', role: 'review', task: 'Review cancellation cleanup in runner.ts.' },
+  { agent: 'poteto-agent', role: 'review', task: 'Review cancellation cleanup in index.ts.' },
   { agent: 'poteto-agent', role: 'test', task: 'Check the leaf delegation boundary and run a slow verification.' },
 ];
 const slow = process.argv.includes('--quick') ? 5 : 65;
 /** @type {import('../tests/pi/concurrent-provider.mjs').ConcurrentRoute[]} */
 const routes = [{ marker: parent, steps: [
-  { model: FIXTURE_MODEL, reply: { kind: 'tool', id: 'demo-batch', name: 'subagent', arguments: { tasks } } },
+  { model: FIXTURE_MODEL, reply: process.argv.includes('--overlap')
+    ? { kind: 'tools', calls: tasks.map((task, index) => ({ id: `demo-${index}`, name: 'subagent', arguments: task })) }
+    : { kind: 'tool', id: 'demo-batch', name: 'subagent', arguments: { tasks } } },
   { model: FIXTURE_MODEL, reply: { kind: 'text', text: 'Demo finished. These were scripted fixture responses, not code-review findings. /subagents inspects the final tasks. /quit exits.' } },
 ] }, ...tasks.map((task, index) => ({ marker: task.task, steps: [
   { model: index ? 'pi-test-model' : FIXTURE_MODEL, reply: { kind: /** @type {const} */ ('tool'), id: 'plan', name: 'pstack_todo', arguments: { action: 'set', items: ['Read the runner', 'Verify behavior', 'Report findings'] } } },
@@ -32,8 +34,8 @@ const provider = await startConcurrentProvider(routes);
 try {
   await mkdir(path.join(profile, 'pstack-pi'), { recursive: true });
   await mkdir(work);
-  await writeFile(path.join(work, 'runner-note.txt'), 'DEMO FIXTURE: supported children are leaf-only; parent verifies cleanup.\n');
-  await writeFile(path.join(profile, 'settings.json'), JSON.stringify({ packages: [], compaction: { enabled: false }, retry: { enabled: false }, enableInstallTelemetry: false }));
+  await writeFile(path.join(work, 'runner-note.txt'), 'DEMO FIXTURE: children cannot delegate; the parent stops their process groups.\n');
+  await writeFile(path.join(profile, 'settings.json'), JSON.stringify({ packages: [repository], compaction: { enabled: false }, retry: { enabled: false }, enableInstallTelemetry: false }));
   await writeFile(path.join(profile, 'models.json'), JSON.stringify({ providers: { 'pi-fixture': { baseUrl: provider.baseUrl, api: 'openai-completions', apiKey: FIXTURE_KEY,
     models: [FIXTURE_MODEL, 'pi-test-model'].map((id) => ({ id, name: id, reasoning: false, contextWindow: 128000, maxTokens: 4096, cost: { input: 1, output: 2, cacheRead: 0, cacheWrite: 0 } })) } } }));
   await writeFile(path.join(profile, 'pstack-pi/models.json'), JSON.stringify({ version: 1, roles: { review: [`pi-fixture/${FIXTURE_MODEL}`], test: ['pi-fixture/pi-test-model'] } }));

@@ -4,7 +4,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { FIXTURE_KEY, FIXTURE_USAGE } from './provider.mjs';
 
 /** @typedef {{prompt_tokens: number, completion_tokens: number, total_tokens: number, prompt_tokens_details?: {cached_tokens: number}, completion_tokens_details?: {reasoning_tokens: number}}} WireUsage */
-/** @typedef {Omit<import('./routing-provider.mjs').RoutingStep, 'reply'> & {usage?: WireUsage, finishReason?: 'length', reply: import('./provider.mjs').ScriptStep['reply'] | {kind: 'failure'} | {kind: 'partial', updates: {text: string, usage: WireUsage}[]}}} ConcurrentStep */
+/** @typedef {Omit<import('./provider.mjs').ScriptStep & {model: string}, 'reply'> & {usage?: WireUsage, finishReason?: 'length', reply: import('./provider.mjs').ScriptStep['reply'] | {kind: 'failure'} | {kind: 'partial', updates: {text: string, usage: WireUsage}[]}}} ConcurrentStep */
 /** @typedef {{marker: string, steps: ConcurrentStep[]}} ConcurrentRoute */
 /** @param {ConcurrentRoute[]} routes */
 export async function startConcurrentProvider(routes) {

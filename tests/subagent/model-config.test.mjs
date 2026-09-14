@@ -1,131 +1,57 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
-import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { loadModelConfig, ModelRouter, parseModelChoice, parseModelConfig, parseRole, roles } from '../../extensions/subagent/model-config.ts';
+import { formatModelChoice, loadModelConfig, modelConfigPath, ModelRouter, parseModelChoice, parseModelConfig, roles } from '../../extensions/subagent/model-config.ts';
 
-const config = (roles = {}) => parseModelConfig(Buffer.from(JSON.stringify({ version: 1, roles })));
-/** @param {string} id */
-const pinned = (id) => ({ kind: 'pinned', provider: 'fixture', id });
+/** @param {unknown} value */
+const choice = (value) => parseModelChoice(value);
 
-test('role registry is closed, stable, and covers planned workflow choices', () => {
-  assert.deepEqual(roles, [
-    'feature', 'refactoring', 'bug-fix', 'perf-issue', 'hillclimb', 'judgment', 'prose', 'hardest',
-    'how-explorer', 'how-explainer', 'how-critics', 'why-investigator', 'why-synthesizer',
-    'reflect-tooling', 'reflect-judgment', 'reflect-divergent', 'reflect-synthesizer',
-    'arena-runner', 'arena-cross-judge', 'swarm-worker', 'architect-runner', 'interrogate-reviewer',
-    'no-comments', 'review', 'test', 'verify',
-  ]);
-  for (const role of roles) assert.equal(parseRole(role), role);
-  for (const role of ['Feature', 'auto', '__proto__', 'feature\n', '', null]) assert.throws(() => parseRole(role));
-});
-
-test('exact bounded ASCII model grammar splits only the first slash', () => {
+test('model choices are inherit-parent or provider/model-id', () => {
   assert.deepEqual(parseModelChoice('inherit-parent'), { kind: 'inheritParent' });
-  assert.deepEqual(parseModelChoice('fixture/org/Model:tag+1'), pinned('org/Model:tag+1'));
-  assert.deepEqual(parseModelChoice('fixture/@cf/model'), pinned('@cf/model'));
-  assert.ok(parseModelChoice(`${'a'.repeat(64)}/${'b'.repeat(256)}`));
-  for (const value of ['auto', 'parent', 'model', 'Fixture/model', 'fixture/', '/model', ' fixture/model', 'fixture/model\n', 'fixture/*', 'fixture/model?x', 'fixture/mödel', 'fixture/--flag', 'fixture/a b', 'fixture/a\\b', 'fixture/a\0', `${'a'.repeat(65)}/b`, `a/${'b'.repeat(257)}`, [], {}, null]) {
-    assert.throws(() => parseModelChoice(value), JSON.stringify(value));
+  assert.deepEqual(parseModelChoice('openai-codex/gpt-5.6-sol'), { kind: 'pinned', provider: 'openai-codex', id: 'gpt-5.6-sol' });
+  assert.deepEqual(parseModelChoice('fixture/org/model:tag'), { kind: 'pinned', provider: 'fixture', id: 'org/model:tag' });
+  for (const bad of ['', 'gpt-4o', '/model', 'provider/', 'a b/c', 42]) assert.throws(() => choice(bad), /Invalid model choice/);
+  assert.equal(formatModelChoice(parseModelChoice('a/b')), 'a/b');
+  assert.equal(formatModelChoice({ kind: 'inheritParent' }), 'inherit-parent');
+});
+
+test('role config parses singles and pools and rejects unknown roles or shapes', () => {
+  const config = parseModelConfig(JSON.stringify({ version: 1, roles: { feature: 'inherit-parent', review: ['a/one', 'b/two'] } }));
+  assert.deepEqual(config.get('feature'), { kind: 'single', choice: { kind: 'inheritParent' } });
+  assert.equal(config.get('review')?.kind, 'pool');
+  assert.equal(parseModelConfig('{"version":1,"roles":{}}').size, 0);
+  for (const bad of ['{"version":2,"roles":{}}', '{"version":1,"roles":{"unknown-role":"a/b"}}', '{"version":1,"roles":{"feature":[]}}', '{"version":1,"roles":{"feature":"not-a-model"}}', '{"version":1}']) {
+    assert.throws(() => parseModelConfig(bad), /Invalid pstack-pi\/models.json|Invalid model choice/);
   }
+  assert.throws(() => parseModelConfig('not json'), SyntaxError);
+  assert.ok(roles.includes('feature') && roles.includes('swarm-worker'));
 });
 
-test('strict JSON rejects duplicates, malformed encoding, trailing data, schema drift, and excessive input', () => {
-  assert.equal(config().size, 0);
-  assert.equal(config({ feature: ['fixture/a', 'inherit-parent', 'fixture/a'] }).get('feature')?.kind, 'pool');
-  for (const text of [
-    '', '{}', '{"version":2,"roles":{}}', '{"version":1,"roles":{},"path":"/tmp"}',
-    '{"version":1,"version":1,"roles":{}}', '{"version":1,"roles":{"feature":"fixture/a","featur\\u0065":"fixture/b"}}',
-    '{"version":1,"roles":{}} true', '{"version":1,"roles":{},}', '\ufeff{"version":1,"roles":{}}',
-    '{"version":1,"roles":{"unknown":"inherit-parent"}}', '{"version":1,"roles":{"__proto__":"inherit-parent"}}',
-    '{"version":1,"roles":{"feature":[]}}', '{"version":1,"roles":{"feature":{"model":"fixture/a"}}}',
-    '{"version":1,"roles":{"feature":"auto"}}', '{"version":1,"roles":null}',
-    JSON.stringify({ version: 1, roles: { feature: Array(65).fill('inherit-parent') } }),
-    '['.repeat(33) + '0' + ']'.repeat(33), ' '.repeat(65537),
-  ]) assert.throws(() => parseModelConfig(Buffer.from(text)), text.slice(0, 100));
-  assert.throws(() => parseModelConfig(Buffer.from([0xff])));
+test('loadModelConfig treats a missing file as no roles and surfaces malformed files', async (t) => {
+  const agentDir = await mkdtemp(path.join(tmpdir(), 'model-config-'));
+  assert.equal((await loadModelConfig(agentDir)).size, 0);
+  await mkdir(path.dirname(modelConfigPath(agentDir)), { recursive: true });
+  await writeFile(modelConfigPath(agentDir), JSON.stringify({ version: 1, roles: { 'bug-fix': 'fixture/fixer' } }));
+  assert.deepEqual((await loadModelConfig(agentDir)).get('bug-fix'), { kind: 'single', choice: { kind: 'pinned', provider: 'fixture', id: 'fixer' } });
+  await writeFile(modelConfigPath(agentDir), '{"version":1,"roles":{"feature":"nope"}}');
+  await assert.rejects(loadModelConfig(agentDir), /Invalid pstack-pi\/models.json/);
+  t.diagnostic(modelConfigPath(agentDir));
 });
 
-test('bounded no-follow loading rejects unsafe directories, modes, links, special files, and oversized files', async (t) => {
-  const root = await mkdtemp(path.join(tmpdir(), 'routing-config-'));
-  t.after(() => rm(root, { recursive: true, force: true }));
-  assert.equal((await loadModelConfig(root)).size, 0);
-  const directory = path.join(root, 'pstack-pi');
-  const file = path.join(directory, 'models.json');
-  await mkdir(directory, { mode: 0o700 });
-  assert.equal((await loadModelConfig(root)).size, 0);
-  const good = '{"version":1,"roles":{"feature":"inherit-parent"}}';
-  await writeFile(file, good, { mode: 0o600 });
-  assert.equal((await loadModelConfig(root)).size, 1);
-  await writeFile(file, good.padEnd(65536, ' '));
-  assert.equal((await loadModelConfig(root)).size, 1, 'exactly 64 KiB is accepted');
-  const getuid = process.getuid;
-  assert.ok(getuid);
-  process.getuid = () => getuid() + 1;
-  try { await assert.rejects(loadModelConfig(root), /ownership/); }
-  finally { process.getuid = getuid; }
-  for (const mode of [0o666, 0o620, 0o4600]) {
-    await chmod(file, mode); await assert.rejects(loadModelConfig(root), /Unsafe/);
-  }
-  await chmod(file, 0o600);
-  await chmod(directory, 0o777); await assert.rejects(loadModelConfig(root), /Unsafe/);
-  await chmod(directory, 0o700);
-  await writeFile(file, ' '.repeat(65537)); await assert.rejects(loadModelConfig(root), /byte limit/);
-  await rm(file); await symlink('../elsewhere', file); await assert.rejects(loadModelConfig(root));
-  await rm(file); await mkdir(file); await assert.rejects(loadModelConfig(root));
-  await rm(file, { recursive: true }); execFileSync('mkfifo', [file]); await assert.rejects(loadModelConfig(root));
-  await rm(directory, { recursive: true }); await symlink(root, directory); await assert.rejects(loadModelConfig(root), /Unsafe/);
-});
-
-test('precedence, rejected preparation, explicit overrides, and per-role admission counters', () => {
+test('router precedence is explicit, role, agent, then parent; pools rotate per role', () => {
+  const config = parseModelConfig(JSON.stringify({ version: 1, roles: { feature: ['a/one', 'b/two'], review: 'c/three' } }));
   const router = new ModelRouter();
-  const cfg = config({ feature: ['fixture/a', 'inherit-parent', 'fixture/a', 'fixture/b'], review: ['fixture/c', 'fixture/d'] });
-  const prepare = (extra = {}) => router.prepare({ config: cfg, role: 'feature', agentModel: 'fixture/default', ...extra });
-  assert.throws(() => prepare({ role: 'typo', model: 'fixture/explicit' }), /Unknown/);
-  assert.throws(() => prepare({ model: 'auto' }));
-  assert.deepEqual(prepare().selection.choice, pinned('a'));
-  assert.deepEqual(prepare().selection.choice, pinned('a'), 'uncommitted preparation consumes nothing');
-  const explicit = prepare({ model: 'fixture/explicit' }); explicit.commit();
-  assert.deepEqual(explicit.selection, { source: 'explicit', choice: pinned('explicit') });
-  const first = prepare(); first.commit(); assert.throws(() => first.commit());
-  assert.deepEqual(prepare().selection.choice, { kind: 'inheritParent' });
-  const other = prepare({ role: 'review' }); other.commit(); assert.deepEqual(other.selection.choice, pinned('c'));
-  const second = prepare(); second.commit();
-  const third = prepare(); third.commit(); assert.deepEqual(third.selection.choice, pinned('a'), 'duplicates stay in pools');
-  assert.deepEqual(prepare().selection.choice, pinned('b'));
-  assert.deepEqual(prepare({ role: 'test' }).selection, { source: 'agent', choice: pinned('default') });
-  assert.deepEqual(prepare({ role: 'test', agentModel: undefined }).selection, { source: 'parent', choice: { kind: 'inheritParent' } });
-  assert.deepEqual(prepare({ role: 'test', agentModel: 'inherit-parent' }).selection, { source: 'agent', choice: { kind: 'inheritParent' } });
-  assert.deepEqual(prepare({ model: 'inherit-parent' }).selection, { source: 'explicit', choice: { kind: 'inheritParent' } });
-});
-
-test('batch planning uses copied cursors and commits all ordered assignments together', () => {
-  const router = new ModelRouter();
-  const cfg = config({ feature: ['fixture/a', 'inherit-parent', 'fixture/a', 'fixture/b'], review: ['fixture/c', 'fixture/d'] });
-  const inputs = [{ role: 'feature' }, { role: 'feature', model: 'fixture/override' }, { role: 'review' }, { role: 'feature' }, { role: 'feature' }];
-  const first = router.prepareBatch(cfg, inputs);
-  assert.deepEqual(first.selections.map((s) => s.choice), [pinned('a'), pinned('override'), pinned('c'), { kind: 'inheritParent' }, pinned('a')]);
-  assert.deepEqual(router.prepareBatch(cfg, inputs).selections, first.selections);
-  assert.throws(() => router.prepareBatch(cfg, [...inputs, { role: 'unknown' }]));
-  first.commit();
-  assert.throws(() => first.commit());
-  assert.deepEqual(router.prepareBatch(cfg, [{ role: 'feature' }, { role: 'review' }]).selections.map((s) => s.choice), [pinned('b'), pinned('d')]);
-  router.prepareBatch(config({}), [{ role: 'feature' }]);
-  assert.deepEqual(router.prepareBatch(cfg, [{ role: 'feature' }]).selections[0].choice, pinned('b'), 'discarded config changes do not reset live counters');
-});
-
-test('only changed normalized assignments reset counters', () => {
-  const router = new ModelRouter();
-  /** @param {import('../../extensions/subagent/model-config.ts').RoleConfig} cfg */
-  const prepare = (cfg, role = 'feature') => router.prepare({ config: cfg, role });
-  const a = { feature: ['fixture/a', 'fixture/b'], review: ['fixture/c', 'fixture/d'] };
-  prepare(config(a)).commit(); prepare(config(a), 'review').commit();
-  assert.deepEqual(prepare(config({ review: a.review, feature: a.feature })).selection.choice, pinned('b'));
-  const changed = { ...a, review: ['fixture/x', 'fixture/y'] };
-  assert.deepEqual(prepare(config(changed)).selection.choice, pinned('b'));
-  assert.deepEqual(prepare(config(changed), 'review').selection.choice, pinned('x'));
-  prepare(config({ review: a.review }));
-  assert.deepEqual(prepare(config(a)).selection.choice, pinned('a'));
+  /** @param {{role?: import('../../extensions/subagent/model-config.ts').Role, model?: string, agentModel?: string}} input */
+  const pick = (input) => { const s = router.select({ config, ...input }); return `${s.source}:${formatModelChoice(s.choice)}`; };
+  assert.equal(pick({ model: 'x/explicit', role: 'review', agentModel: 'y/agent' }), 'explicit:x/explicit');
+  assert.equal(pick({ role: 'review', agentModel: 'y/agent' }), 'role:c/three');
+  assert.equal(pick({ agentModel: 'y/agent' }), 'agent:y/agent');
+  assert.equal(pick({}), 'parent:inherit-parent');
+  assert.equal(pick({ role: 'test' }), 'parent:inherit-parent', 'An unconfigured role falls through');
+  assert.deepEqual([pick({ role: 'feature' }), pick({ role: 'feature' }), pick({ role: 'feature' })], ['role:a/one', 'role:b/two', 'role:a/one']);
+  assert.equal(pick({ role: 'review' }), 'role:c/three', 'Another role does not disturb the pool cursor');
+  assert.equal(pick({ role: 'feature' }), 'role:b/two');
+  assert.throws(() => router.select({ config, model: 'bad' }), /Invalid model choice/);
 });

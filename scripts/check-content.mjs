@@ -10,7 +10,7 @@ import { parseLock, parseManifest, readAdditions, sha256, transformDigest } from
 /** @typedef {{disposition: import('./sync-upstream.mjs').Disposition, locked: import('./sync-upstream.mjs').LockedFile}} ContentRecord */
 /** @typedef {{disposition: import('./sync-upstream.mjs').Addition & {kind: 'addition'}, locked: import('./sync-upstream.mjs').LockedAddition}} AdditionRecord */
 /** @typedef {{name: string, description: string, disabled: boolean, body: string, text: string, destination: string}} Skill */
-/** @typedef {{bySource: Map<string, ContentRecord>, byDestination: Map<string, ContentRecord | AdditionRecord>, bySkillName: Map<string, Skill>, byAgentName: Map<string, import('../extensions/subagent/domain.ts').AgentDefinition>}} ContentInventory */
+/** @typedef {{bySource: Map<string, ContentRecord>, byDestination: Map<string, ContentRecord | AdditionRecord>, bySkillName: Map<string, Skill>, byAgentName: Map<string, import('../extensions/subagent/agents.ts').AgentDefinition>}} ContentInventory */
 
 /** @param {unknown} value @returns {Record<string, unknown>} */
 function object(value) {
@@ -120,7 +120,7 @@ async function fileInventory(root, roots) {
 /** @param {ContentInventory} inventory */
 export function extensionFiles(inventory) {
   return inventory.byDestination.has('agents/general-purpose.md')
-    ? ['extensions/pstack/index.ts', 'extensions/pstack/mode.ts', 'extensions/pstack/todo.ts', 'extensions/subagent/agents.ts', 'extensions/subagent/domain.ts', 'extensions/subagent/index.ts', 'extensions/subagent/leaf-todo.ts', 'extensions/subagent/progress.ts', 'extensions/subagent/view.ts', 'extensions/subagent/model-config.ts', 'extensions/subagent/model-runtime.ts', 'extensions/subagent/process.ts', 'extensions/subagent/protocol.ts', 'extensions/subagent/runner.ts', 'extensions/subagent/scheduler.ts', 'extensions/subagent/usage.ts'] : [];
+    ? ['extensions/pstack/index.ts', 'extensions/pstack/mode.ts', 'extensions/pstack/todo.ts', 'extensions/subagent/agents.ts', 'extensions/subagent/index.ts', 'extensions/subagent/model-config.ts', 'extensions/subagent/progress.ts', 'extensions/subagent/view.ts'] : [];
 }
 
 /** @param {ContentInventory} inventory */
@@ -142,8 +142,8 @@ export function assertPackageExposure(rawPackage, inventory) {
   const runtime = extensionFiles(inventory).length > 0;
   assert.deepEqual(pi.extensions, runtime ? ['extensions/pstack/index.ts', 'extensions/subagent/index.ts'] : [], 'Only package-owned extensions may register');
   for (const key of ['prompts', 'themes']) assert.deepEqual(pi[key], [], `No ${key} may register`);
-  assert.deepEqual(pkg.dependencies, runtime ? { yaml: '2.9.0' } : undefined, 'Unexpected runtime dependencies');
-  if (runtime) assert.deepEqual(pkg.peerDependencies, { '@earendil-works/pi-coding-agent': '*', '@earendil-works/pi-tui': '*', typebox: '*' });
+  assert.equal(pkg.dependencies, undefined, 'No runtime dependencies: Pi supplies pi-coding-agent, pi-ai, pi-tui, and typebox');
+  if (runtime) assert.deepEqual(pkg.peerDependencies, { '@earendil-works/pi-ai': '*', '@earendil-works/pi-coding-agent': '*', '@earendil-works/pi-tui': '*', typebox: '*' });
   assert.deepEqual(pi.skills, [...inventory.byDestination.keys()].filter((name) => name.endsWith('/SKILL.md')).sort(), 'Pi skills must list each entrypoint explicitly');
   assert.ok(Array.isArray(pkg.files), 'Package files must be explicit');
   assertPackInventory(pkg.files, inventory);

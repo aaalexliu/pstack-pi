@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { chmod, copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 import { runPiSmoke } from './runner.mjs';
+import { startConcurrentProvider } from './concurrent-provider.mjs';
+import { FIXTURE_MODEL } from './provider.mjs';
 import { ProductionObserver } from './production-observer.mjs';
 
 /** @param {Record<string, unknown>} request */
@@ -19,9 +21,9 @@ function result(request, id) {
   assert.ok(message, `Missing tool result ${id}`);
   return JSON.stringify(message.content);
 }
-/** @param {import('node:test').TestContext} t */
-function observation(t) {
-  const observer = new ProductionObserver();
+/** @param {import('node:test').TestContext} t @param {number} [maxLivePi] */
+function observation(t, maxLivePi = 2) {
+  const observer = new ProductionObserver({ maxLivePi });
   t.after(() => observer.rescue());
   return observer;
 }
@@ -64,11 +66,11 @@ test('packed deadline returns after child cleanup before the outer watchdog', { 
   await runPiSmoke({ keepArtifacts: true, timeoutMs: 7000, expectedRequests: 3, expectedText: 'Deadline verified.',
     onSpawn: (pid) => observer.start(pid),
     fixture: { script: [
-      { reply: { kind: 'tool', ...delegate, arguments: { ...delegate.arguments, limits: { timeoutMs: 1500 } } } },
+      { reply: { kind: 'tool', ...delegate, arguments: { ...delegate.arguments, timeoutMs: 1500 } } },
       { reply: { kind: 'stall' }, check: (request) => { assert.ok(!tools(request).includes('subagent')); observer.sample(); childRequestedAt = Date.now(); } },
       { reply: { kind: 'text', text: 'Deadline verified.' }, check: (request) => {
         returnedAt = Date.now();
-        assert.match(result(request, 'delegate'), /cancelled.*deadline/);
+        assert.match(result(request, 'delegate'), /Timed out after 1500 ms/);
         assert.equal(observer.sample().filter((row) => row.pid !== observer.root).length, 0, 'Work survived tool return');
       } },
     ] },
@@ -81,24 +83,84 @@ test('packed deadline returns after child cleanup before the outer watchdog', { 
   });
 });
 
-test('packed simultaneous delegates admit one child and leave unrelated parent bash untouched', { timeout: 12000 }, async (t) => {
-  const observer = observation(t);
-  await runPiSmoke({ keepArtifacts: true, expectedRequests: 3, expectedText: 'Concurrency verified.',
-    onSpawn: (pid) => observer.start(pid),
-    fixture: { script: [
-      { reply: { kind: 'tools', calls: [delegate, { ...delegate, id: 'second' }, { id: 'shell', name: 'bash', arguments: { command: 'printf "%s\\n" "literal git push and PR edit" > shell-survived.txt' } }] } },
-      { reply: { kind: 'text', text: 'One leaf.' }, check: async (request) => { assert.ok(!tools(request).includes('subagent')); observer.sample(); await delay(250); } },
-      { reply: { kind: 'text', text: 'Concurrency verified.' }, check: (request) => {
-        assert.match(result(request, 'delegate'), /One leaf/);
-        assert.match(result(request, 'second'), /already running or stopping/);
+test('packed simultaneous delegates both run as separate children and leave unrelated parent bash untouched', { timeout: 15000 }, async (t) => {
+  const observer = observation(t, 3);
+  const prompt = 'simultaneous-parent';
+  const arrived = new Set();
+  /** @type {import('./concurrent-provider.mjs').ConcurrentRoute[]} */
+  const routes = [
+    { marker: prompt, steps: [
+      { model: FIXTURE_MODEL, reply: { kind: 'tools', calls: [{ ...delegate, arguments: { agent: 'general-purpose', task: 'leaf-one' } }, { ...delegate, id: 'second', arguments: { agent: 'general-purpose', task: 'leaf-two' } }, { id: 'shell', name: 'bash', arguments: { command: 'printf "%s\\n" "literal git push and PR edit" > shell-survived.txt' } }] } },
+      { model: FIXTURE_MODEL, reply: { kind: 'text', text: 'Concurrency verified.' }, check: (request) => {
+        assert.equal(arrived.size, 2);
+        assert.match(result(request, 'delegate'), /Leaf one/);
+        assert.match(result(request, 'second'), /Leaf two/);
         result(request, 'shell');
       } },
     ] },
+    ...['leaf-one', 'leaf-two'].map((marker, index) => ({ marker, steps: [{ model: FIXTURE_MODEL, reply: /** @type {const} */ ({ kind: 'text', text: index === 0 ? 'Leaf one.' : 'Leaf two.' }), check: async (/** @type {Record<string, unknown>} */ request) => {
+      assert.ok(!tools(request).includes('subagent'));
+      arrived.add(marker);
+      const deadline = Date.now() + 4000;
+      while (arrived.size < 2 && Date.now() < deadline) await delay(20);
+      assert.equal(arrived.size, 2, 'Both children must be live at once');
+      observer.sample();
+    } }] })),
+  ];
+  await runPiSmoke({ keepArtifacts: true, prompt, startFixture: () => startConcurrentProvider(routes), expectedRequests: 4, expectedText: 'Concurrency verified.',
+    onSpawn: (pid) => observer.start(pid),
     verify: async (run) => {
-      assert.equal(observer.peakLivePi, 2);
+      assert.equal(observer.peakLivePi, 3);
       assert.equal(await readFile(path.join(run.paths.cwd, 'shell-survived.txt'), 'utf8'), 'literal git push and PR edit\n');
       const ends = run.events.filter((event) => event.type === 'tool_execution_end' && event.toolName === 'subagent');
-      assert.deepEqual(ends.map((event) => event.isError).sort(), [false, true]);
+      assert.deepEqual(ends.map((event) => event.isError), [false, false]);
+      await verified(t, observer, run);
+    },
+  });
+});
+
+test('packed parallel tasks run four at a time, keep input order, and one failure does not cancel siblings', { timeout: 25000 }, async (t) => {
+  const observer = observation(t, 5);
+  const prompt = 'mixed-parallel-parent';
+  const tasks = Array.from({ length: 8 }, (_, index) => ({ agent: 'general-purpose', task: `mixed-child-${index}` }));
+  const arrived = new Set();
+  /** @type {import('./concurrent-provider.mjs').ConcurrentRoute[]} */
+  const routes = [{ marker: prompt, steps: [
+    { model: FIXTURE_MODEL, reply: { kind: 'tool', id: 'mixed', name: 'subagent', arguments: { tasks } } },
+    { model: FIXTURE_MODEL, reply: { kind: 'text', text: 'Sibling isolation verified.' }, check: (payload) => {
+      assert.equal(arrived.size, 8);
+      assert.match(result(payload, 'mixed'), /Parallel: 7\/8 succeeded/);
+      assert.equal(observer.sample().length, 1, 'Child survived tool return');
+    } },
+  ] }, ...tasks.map((task, index) => {
+    /** @type {import('./concurrent-provider.mjs').ConcurrentStep[]} */
+    const steps = [{ model: FIXTURE_MODEL,
+      reply: index === 0 ? { kind: 'failure' } : index === 2 ? { kind: 'tool', id: 'nested', name: 'subagent', arguments: { agent: 'general-purpose', task: 'Do not run.' } } : { kind: 'text', text: `result-${index}` },
+      check: async (payload) => {
+        assert.ok(!tools(payload).includes('subagent'));
+        arrived.add(index);
+        if (index < 4) {
+          const deadline = Date.now() + 4000;
+          while (arrived.size < 4 && Date.now() < deadline) await delay(20);
+          assert.ok(arrived.size >= 4, 'The first four children run together');
+          observer.sample();
+        }
+      },
+    }];
+    if (index === 2) steps.push({ model: FIXTURE_MODEL, reply: { kind: 'text', text: 'The leaf cannot delegate.' }, check: (payload) => { assert.match(result(payload, 'nested'), /not found|Unknown|not available/i); } });
+    return { marker: task.task, steps };
+  })];
+  await runPiSmoke({ startFixture: () => startConcurrentProvider(routes), prompt, expectedRequests: 11, expectedText: 'Sibling isolation verified.', keepArtifacts: true,
+    onSpawn: (pid) => observer.start(pid),
+    verify: async (run) => {
+      const event = run.events.find((event) => event.type === 'tool_execution_end' && event.toolCallId === 'mixed');
+      assert.ok(event && event.isError === false, 'A partial failure stays a usable result');
+      const details = /** @type {import('../../extensions/subagent/index.ts').SubagentDetails} */ (/** @type {any} */ (event.result).details);
+      assert.equal(details.mode, 'parallel');
+      assert.deepEqual(details.results.map((r) => r.task), tasks.map((task) => task.task));
+      assert.deepEqual(details.results.map((r) => r.stopReason), ['error', 'stop', 'stop', 'stop', 'stop', 'stop', 'stop', 'stop']);
+      assert.deepEqual([...(/** @type {any} */ (event.result).content[0].text).matchAll(/### \[general-purpose\] (\w+)/g)].map((match) => match[1]), ['failed', 'completed', 'completed', 'completed', 'completed', 'completed', 'completed', 'completed']);
+      assert.equal(observer.peakLivePi, 5);
       await verified(t, observer, run);
     },
   });
@@ -120,46 +182,6 @@ for (const signal of /** @type {const} */ (['SIGTERM', 'SIGHUP'])) {
         assert.ok(sibling.pid); process.kill(sibling.pid, 0);
         assert.ok(Date.now() - stoppedAt < 4000);
         t.diagnostic(JSON.stringify({ signal, signalToExitMs: Date.now() - stoppedAt, sibling: sibling.pid }));
-        await verified(t, observer, run);
-      },
-    });
-  });
-}
-
-for (const outcome of ['normal', 'shutdown']) {
-  test(`packed child detached work is removed on ${outcome} before tool return or parent exit`, { timeout: 14000 }, async (t) => {
-    const observer = observation(t);
-    let descendant = 0;
-    let workDoneAt = 0;
-    let cwd = '';
-    const script = [
-      { reply: /** @type {const} */ ({ kind: 'tool', ...delegate }) },
-      { reply: /** @type {const} */ ({ kind: 'tool', id: 'detach', name: 'bash', arguments: { command: `${JSON.stringify(process.execPath)} detached-work.mjs` } }) },
-      { reply: outcome === 'normal' ? { kind: /** @type {const} */ ('text'), text: 'Detached work remains.' } : { kind: /** @type {const} */ ('stall') }, check: async () => {
-        descendant = JSON.parse(await readFile(path.join(cwd, 'detached-pid.json'), 'utf8')).pid;
-        assert.ok(observer.sample().some((row) => row.pid === descendant));
-        workDoneAt = Date.now();
-        if (outcome === 'shutdown') process.kill(observer.root, 'SIGTERM');
-      } },
-      ...(outcome === 'normal' ? [{ reply: { kind: /** @type {const} */ ('text'), text: 'Detached cleanup verified.' }, check: (/** @type {Record<string, unknown>} */ request) => {
-        assert.match(result(request, 'delegate'), /surviving work/);
-        assert.throws(() => process.kill(descendant, 0), { code: 'ESRCH' });
-      } }] : []),
-    ];
-    await runPiSmoke({ keepArtifacts: true, timeoutMs: 9000, expectedRequests: script.length, expectedText: 'Detached cleanup verified.', expectedExit: { code: outcome === 'normal' ? 0 : 143, signal: null },
-      onSpawn: (pid) => observer.start(pid),
-      setup: async (paths) => {
-        cwd = paths.cwd;
-        await mkdir(path.join(paths.profile, 'agents'));
-        await writeFile(path.join(paths.profile, 'agents/general-purpose.md'), '---\nname: general-purpose\ndescription: Detached fixture.\ntools: [bash]\n---\nRun the fixture command.');
-        await copyFile(new URL('./fixtures/detached-work.mjs', import.meta.url), path.join(paths.cwd, 'detached-work.mjs'));
-      },
-      fixture: { script },
-      verify: async (run) => {
-        assert.ok(descendant > 0);
-        assert.throws(() => process.kill(descendant, 0), { code: 'ESRCH' });
-        assert.ok(Date.now() - workDoneAt < 4500);
-        t.diagnostic(JSON.stringify({ outcome, descendant, cleanupMs: Date.now() - workDoneAt }));
         await verified(t, observer, run);
       },
     });
