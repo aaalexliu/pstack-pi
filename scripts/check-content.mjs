@@ -120,7 +120,7 @@ async function fileInventory(root, roots) {
 /** @param {ContentInventory} inventory */
 export function extensionFiles(inventory) {
   return inventory.byDestination.has('agents/general-purpose.md')
-    ? ['extensions/pstack/index.ts', 'extensions/pstack/mode.ts', 'extensions/pstack/todo.ts', 'extensions/subagent/agents.ts', 'extensions/subagent/domain.ts', 'extensions/subagent/index.ts', 'extensions/subagent/model-config.ts', 'extensions/subagent/model-runtime.ts', 'extensions/subagent/process.ts', 'extensions/subagent/protocol.ts', 'extensions/subagent/runner.ts', 'extensions/subagent/scheduler.ts', 'extensions/subagent/usage.ts'] : [];
+    ? ['extensions/pstack/index.ts', 'extensions/pstack/mode.ts', 'extensions/pstack/todo.ts', 'extensions/subagent/agents.ts', 'extensions/subagent/domain.ts', 'extensions/subagent/index.ts', 'extensions/subagent/leaf-todo.ts', 'extensions/subagent/progress.ts', 'extensions/subagent/view.ts', 'extensions/subagent/watch.mjs', 'extensions/subagent/model-config.ts', 'extensions/subagent/model-runtime.ts', 'extensions/subagent/process.ts', 'extensions/subagent/protocol.ts', 'extensions/subagent/runner.ts', 'extensions/subagent/scheduler.ts', 'extensions/subagent/usage.ts'] : [];
 }
 
 /** @param {ContentInventory} inventory */
