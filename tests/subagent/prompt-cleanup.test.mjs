@@ -46,14 +46,16 @@ for (const stalled of ['write', 'remove']) {
     controller.abort();
     const result = await pending;
     assert.ok(Date.now() - stopped < 3000);
-    assert.equal(result.kind, 'failed');
-    assert.equal(result.cleanup.verified, false);
-    assert.equal(lease.state.kind, 'quarantined');
+    assert.equal(result.kind, 'cancelled');
+    assert.equal(result.cleanup.verified, true);
+    assert.deepEqual(result.diagnostics, ['Prompt file removal did not finish in time']);
+    assert.equal(lease.state.kind, 'finished');
     assert.equal(spawns, stalled === 'write' ? 0 : 1);
+    const next = new RunLease();
+    next.prepare(); next.run(); next.verify(); next.finish();
     release();
     const deadline = Date.now() + 1000;
     while (Date.now() < deadline) { try { await access(directory); await delay(10); } catch { break; } }
     await assert.rejects(access(directory), { code: 'ENOENT' });
-    assert.equal(lease.state.kind, 'quarantined', 'Late file cleanup cannot repair lost trust');
   });
 }

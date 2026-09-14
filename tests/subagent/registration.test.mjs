@@ -230,7 +230,7 @@ test('parallel output retains only deterministic quotas with remainder bytes and
   assert.ok(!JSON.stringify(result.details).includes('✓'));
 });
 
-test('process observation uncertainty cancels all active leases before cleanup finishes and never starts queued work', { timeout: 10000 }, async (t) => {
+test('one child losing process observation is a diagnostic; siblings keep running and later calls still spawn', { timeout: 20000 }, async (t) => {
   const f = await runtime(t);
   /** @type {import('../../extensions/subagent/domain.ts').RunLease[]} */
   const leases = [];
@@ -240,47 +240,65 @@ test('process observation uncertainty cancels all active leases before cleanup f
     const index = leases.push(args.lease) - 1;
     return runChild({ ...args, invocation: f.invocation, backend: {
       ...processBackend,
-      table: () => { if (distrust && index === 1) throw new Error('Injected observation failure'); return processBackend.table(); },
+      table: () => { if (distrust && index === 1) throw new Error('PRIVATE_PS_FAILURE'); return processBackend.table(); },
       spawn: (_invocation, argv, options) => spawn(process.execPath, [fileURLToPath(new URL('./process-fixture.mjs', import.meta.url)), 'ignore', ...argv], options),
     } });
   });
-  const tasks = Array.from({ length: 8 }, (_, index) => ({ agent: 'general-purpose', task: path.join(f.root, `${index}.json`) }));
-  const pending = tool.execute('batch', { tasks }, undefined, undefined, f.ctx).then(() => 'unexpected success', String);
+  const tasks = Array.from({ length: 4 }, (_, index) => ({ agent: 'general-purpose', task: path.join(f.root, `${index}.json`) }));
+  const pending = tool.execute('batch', { tasks, limits: { timeoutMs: 4000 } }, undefined, undefined, f.ctx).then(() => 'unexpected success', String);
   try {
-    const deadline = Date.now() + 2000;
+    const deadline = Date.now() + 3000;
     while (Date.now() < deadline) {
-      try { await Promise.all(tasks.slice(0, 4).map((task) => readFile(task.task))); break; } catch { await delay(10); }
+      try { await Promise.all(tasks.map((task) => readFile(task.task))); break; } catch { await delay(10); }
     }
     assert.equal(leases.length, 4);
-    await Promise.all(tasks.slice(0, 4).map((task) => readFile(task.task)));
     distrust = true;
-    await delay(200);
-    assert.ok(leases.every((lease) => lease.signal.aborted), 'Uncertainty must broadcast before the three-second cleanup wait');
-    assert.match(await pending, /quarantined/);
-    assert.equal(leases.length, 4);
-    await assert.rejects(tool.execute('later', tasks[0], undefined, undefined, f.ctx), /quarantined/);
-    for (const task of tasks.slice(0, 4)) {
+    await delay(500);
+    assert.ok(leases.every((lease) => !lease.signal.aborted), 'A failed process snapshot must not cancel any child');
+    const text = await pending;
+    assert.match(text, /\[2\] general-purpose cancelled\n[^\n]*\n\[Child process cleanup could not be verified\]/);
+    assert.equal((text.match(/general-purpose cancelled/g) ?? []).length, 4);
+    assert.doesNotMatch(text, /quarantined|PRIVATE_/);
+    for (const task of tasks) {
       const capture = JSON.parse(await readFile(task.task, 'utf8'));
       assert.throws(() => process.kill(capture.pid, 0), { code: 'ESRCH' });
       await assert.rejects(readFile(capture.promptFile), { code: 'ENOENT' });
     }
+    const later = path.join(f.root, 'later.json');
+    const laterText = await tool.execute('later', { agent: 'general-purpose', task: later, limits: { timeoutMs: 500 } }, undefined, undefined, f.ctx).then(() => 'unexpected success', String);
+    assert.match(laterText, /cancelled \(deadline\)/);
+    assert.doesNotMatch(laterText, /quarantined/);
+    const capture = JSON.parse(await readFile(later, 'utf8'));
+    assert.equal(leases.length, 5, 'The next call must still spawn a child');
+    assert.throws(() => process.kill(capture.pid, 0), { code: 'ESRCH' });
   } finally { await shutdown(); await pending; }
 });
 
-test('cleanup uncertainty makes every later call fail closed', async (t) => {
+test('a failed host observation fails only its own call', async (t) => {
   const f = await runtime(t);
+  let tables = 0;
   const { tool, shutdown } = registration((args) => runChild({ ...args, invocation: f.invocation, backend: {
-    ...processBackend, table: () => { throw new Error('PRIVATE_PROCESS_DATA'); },
+    ...processBackend,
+    table: () => { if (tables++ === 0) throw new Error('PRIVATE_PROCESS_DATA'); return processBackend.table(); },
+    spawn: (_invocation, argv, options) => spawn(process.execPath, [fileURLToPath(new URL('./child-fixture.mjs', import.meta.url)), 'success', ...argv], options),
   } }));
-  await assert.rejects(tool.execute('one', { agent: 'general-purpose', task: 'PRIVATE_TASK' }, undefined, undefined, f.ctx), /quarantined/);
-  await assert.rejects(tool.execute('two', { agent: 'general-purpose', task: 'task' }, undefined, undefined, f.ctx), /quarantined/);
+  await assert.rejects(tool.execute('one', { agent: 'general-purpose', task: 'PRIVATE_TASK' }, undefined, undefined, f.ctx), (error) => {
+    assert.ok(error instanceof Error);
+    assert.match(error.message, /preparation or execution failed/);
+    assert.doesNotMatch(error.message, /quarantined|PRIVATE_/);
+    return true;
+  });
+  const result = await tool.execute('two', { agent: 'general-purpose', task: 'task' }, undefined, undefined, f.ctx);
+  const details = /** @type {{kind: string, cleanup: {verified: boolean}}} */ (result.details);
+  assert.equal(details.kind, 'succeeded');
+  assert.equal(details.cleanup.verified, true);
   await shutdown();
 });
 
 /** @type {typeof runChild} */
 async function chargedFailure({ identity, lease }) {
   assert.ok(lease);
-  lease.verify(); lease.finish(true);
+  lease.verify(); lease.finish();
   return { ...identity, kind: 'failed', reason: 'charged failure', diagnostics: [], observedModel: null,
     usage: usageReport({ committed: { ...zeroUsage(), input: 101, totalTokens: 101 }, reasons: ['process-failure'] }),
     output: { text: '', bytes: 0, truncated: false }, cleanup: { verified: true, durationMs: 0, forced: false, observedProcesses: 0 } };
@@ -462,7 +480,8 @@ test('unknown runner failures remain partial and errors keep only bounded result
   assert.ok(patch && patch.details);
   const details = /** @type {{usage: import('../../extensions/subagent/usage.ts').UsageReport}} */ (patch.details);
   assert.equal(details.usage.direct.kind, 'partial');
-  assert.match(text, /quarantined/);
+  assert.match(text, /Child runner failed/);
+  assert.doesNotMatch(text, /quarantined/);
   assert.ok(!JSON.stringify(patch).includes('PRIVATE_RUNNER_DATA'));
   assert.ok(Buffer.byteLength(JSON.stringify(patch)) <= 65536);
 });

@@ -52,7 +52,7 @@ export function childEnvironment(depth: DelegationDepth, inherited: NodeJS.Proce
 }
 
 export type ProcessIdentity = Readonly<{ pid: number; ppid: number; pgid: number; start: string }>;
-export const cleanupLimits = Object.freeze({ pollMs: 40, psTimeoutMs: 250, graceMs: 1000, verifyMs: 2000, maxIdentities: 128 });
+export const cleanupLimits = Object.freeze({ pollMs: 100, psTimeoutMs: 1000, graceMs: 1000, verifyMs: 2000, maxIdentities: 4096 });
 
 export function parseProcessTable(text: string): ProcessIdentity[] {
   if (!text.endsWith('\n') || Buffer.byteLength(text) > 4 * 1024 * 1024) throw new Error('Incomplete process table');
@@ -134,11 +134,7 @@ export class OwnedProcessTree {
     this.#observe();
   }
 
-  #distrust(): void {
-    if (this.#unverified) return;
-    this.#unverified = true;
-    this.#lease.distrustCleanup();
-  }
+  #distrust(): void { this.#unverified = true; }
   #exit = () => { this.#exited = true; this.#wake(); };
   #close = () => { this.#closed = true; this.#wake(); };
   #error = (error: Error) => {
@@ -160,10 +156,9 @@ export class OwnedProcessTree {
     }
     for (const row of table) {
       const previous = this.#known.get(row.pid);
-      if (previous && previous.start !== row.start) {
-        this.#mismatched.add(row.pid);
-        throw new Error('Process identity changed');
-      } else if (previous) owned.add(row.pid);
+      if (!previous) continue;
+      if (previous.start === row.start) owned.add(row.pid);
+      else { this.#mismatched.add(row.pid); this.#known.delete(row.pid); }
     }
     for (let changed = true; changed;) {
       changed = false;
@@ -173,23 +168,22 @@ export class OwnedProcessTree {
         }
       }
     }
-    const rows = table.filter((row) => owned.has(row.pid));
-    for (const row of rows) {
-      if (row.pid === process.pid || row.pgid === this.#hostGroup || row.pgid <= 1) throw new Error('Unsafe process ownership');
-      if (!this.#known.has(row.pid) && this.#known.size >= cleanupLimits.maxIdentities) throw new Error('Owned process limit exceeded');
+    const rows: ProcessIdentity[] = [];
+    for (const row of table) {
+      if (!owned.has(row.pid)) continue;
+      if (row.pid === process.pid || row.pgid === this.#hostGroup || row.pgid <= 1) { this.#distrust(); continue; }
+      rows.push(row);
+      if (!this.#known.has(row.pid) && this.#known.size >= cleanupLimits.maxIdentities) { this.#distrust(); continue; }
       this.#known.set(row.pid, row);
       if (row.pid === row.pgid && !this.#mismatched.has(row.pid)) this.#groups.add(row.pgid);
     }
     return rows;
   }
 
+  // A failed snapshot skips this tick. Cleanup decides verification from the final snapshot.
   #observe(): ProcessIdentity[] | undefined {
     try { return this.#snapshot(); }
-    catch {
-      this.#distrust();
-      this.requestStop({ kind: 'failed', reason: 'Process observation failed' }, false);
-      return undefined;
-    }
+    catch { return undefined; }
   }
 
   #signal(pid: number, signal: NodeJS.Signals | 0): boolean {
@@ -219,13 +213,13 @@ export class OwnedProcessTree {
     this.#signalChild('SIGKILL');
   }
 
-  requestStop(cause: StopCause, observe = true): void {
+  requestStop(cause: StopCause): void {
     if (this.#stopAt !== undefined) return;
     this.#stopAt = performance.now();
     if (cause.kind === 'failed') this.#failure = cause.reason;
     this.#lease.stop(cause);
     this.#signalChild('SIGTERM');
-    if (observe) this.#observe();
+    this.#observe();
     this.#wake();
   }
 

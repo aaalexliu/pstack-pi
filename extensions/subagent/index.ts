@@ -46,13 +46,17 @@ function taskMetadata(task: ResolvedTask, result: TaskResult) {
     agent: { name: task.agent.name, provenance: { ...task.agent.provenance, path: jsonText([task.agent.provenance.path], 512, 512) } },
     cwd: jsonText([task.identity.cwd], 512, 512), usage: result.usage, limits: task.limits,
     model: { requested: task.requested, selection: task.selection, resolved: task.model, observed: result.observedModel },
-    output: { bytes: result.output.bytes, truncated: result.output.truncated }, cleanup: result.cleanup,
+    output: { bytes: result.output.bytes, truncated: result.output.truncated }, cleanup: result.cleanup, diagnostics: result.diagnostics,
     ...(result.kind !== 'succeeded' ? { reason: boundedOutput(result.reason, 256).text } : {}),
   };
 }
-function resultText(result: TaskResult, index: number): string {
+function resultNotices(result: TaskResult, outputBytes: number): string[] {
+  return [...result.diagnostics, ...(result.output.truncated ? [`Output truncated at ${outputBytes} bytes.`] : [])];
+}
+function resultText(result: TaskResult, index: number, outputBytes: number): string {
   const text = result.kind === 'succeeded' ? result.output.text : boundedOutput(result.reason, 256).text;
-  return `[${index + 1}] ${result.agent.name} ${result.kind}\n${text}${result.output.truncated ? '\n[Output truncated.]' : ''}`;
+  const notices = resultNotices(result, outputBytes);
+  return `[${index + 1}] ${result.agent.name} ${result.kind}\n${text}${notices.length ? `\n[${notices.join('; ')}]` : ''}`;
 }
 
 export default function subagentExtension(pi: ExtensionAPI, { run = runChild, pin = () => PiInvocation.resolve() }: {
@@ -165,21 +169,21 @@ export default function subagentExtension(pi: ExtensionAPI, { run = runChild, pi
         const failed = aggregate.overflow || lease.cancellation !== undefined || results.some((result) => result.kind !== 'succeeded');
         const details = request.kind === 'single' ? { ...metadata[0], diagnostics }
           : { kind: 'parallel', limits, diagnostics, tasks: metadata };
+        const texts = results.map((result, index) => resultText(result, index, batch[index].limits.outputBytes));
         if (failed) {
-          failedEnvelope = envelope([...results.map(resultText), ...diagnostics].flatMap((text, index) => index ? ['\n\n', text] : [text]), details, aggregate.usage);
+          failedEnvelope = envelope([...texts, ...diagnostics].flatMap((text, index) => index ? ['\n\n', text] : [text]), details, aggregate.usage);
           throw new BatchExecutionError(failedEnvelope.content[0].text);
         }
         if (request.kind === 'single') {
           const [result] = results;
-          const notices = [...diagnostics, ...(result.output.truncated ? [`Output truncated at ${limits.outputBytes} bytes.`] : [])];
+          const notices = [...diagnostics, ...resultNotices(result, limits.outputBytes)];
           return envelope([result.output.text, ...(notices.length ? [`\n[${notices.join('; ')}]`] : [])], details, aggregate.usage);
         }
-        return envelope([...results.map(resultText), ...diagnostics].flatMap((text, index) => index ? ['\n\n', text] : [text]), details, aggregate.usage);
+        return envelope([...texts, ...diagnostics].flatMap((text, index) => index ? ['\n\n', text] : [text]), details, aggregate.usage);
       } catch (error) {
         if (error instanceof BatchExecutionError) throw error;
         failedEnvelope = undefined;
-        const reason = lease.state === 'quarantined' ? 'Delegation cleanup unverified; session quarantined'
-          : lease.cancellation ? `Delegation cancelled (${lease.cancellation})`
+        const reason = lease.cancellation ? `Delegation cancelled (${lease.cancellation})`
           : error instanceof Error ? error.message : 'Delegation failed';
         throw new Error([boundedOutput(reason, 256).text, ...diagnostics].join('; '));
       } finally {

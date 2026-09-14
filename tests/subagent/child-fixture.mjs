@@ -14,11 +14,12 @@ if (mode === 'wait') {
 } else if (mode === 'malformed') process.stdout.write('not JSON\n');
 else if (mode === 'no-lf') process.stdout.write('{"type":"agent_start"}');
 else if (mode === 'line') process.stdout.write('x'.repeat(256 * 1024 + 1));
-else if (mode === 'stderr') process.stderr.write('x'.repeat(64 * 1024 + 1));
-else if (mode === 'count') process.stdout.write('{"type":"agent_start"}\n'.repeat(4097));
-else if (mode === 'stdout') process.stdout.write((' {"type":"agent_start"}' + ' '.repeat(16000) + '\n').repeat(600));
 else if (mode === 'invalid-utf8') process.stdout.write(Buffer.from([255]));
 else {
+  if (mode === 'noisy') {
+    process.stderr.write('x'.repeat(64 * 1024 + 1));
+    process.stdout.write((' {"type":"agent_start"}' + ' '.repeat(600) + '\n').repeat(20_000));
+  }
   const stopReason = ['error', 'aborted', 'length', 'toolUse', 'deferred'].includes(mode) ? mode : 'stop';
   const text = mode === 'large-output' ? '✓'.repeat(20000) : JSON.stringify({ args, prompt, task, cwd: process.cwd(), pid: process.pid, promptFile });
   const message = { role: 'assistant', timestamp: 1, usage: { input: 11, output: 7, cacheRead: 0, cacheWrite: 0, totalTokens: 18, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } }, stopReason, content: [{ type: 'text', text }], provider: args[args.indexOf('--provider') + 1], model: mode === 'wrong-model' ? 'wrong' : args[args.indexOf('--model') + 1] };

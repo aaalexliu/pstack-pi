@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { protocolLimits } from '../../extensions/subagent/domain.ts';
 import { childOutputParser } from '../../extensions/subagent/protocol.ts';
 import { addUsage, zeroUsage } from '../../extensions/subagent/usage.ts';
 
@@ -150,7 +151,11 @@ test('unfinished LF, event bounds, missing compaction usage, and unfinished comp
   const parser = childOutputParser();
   parser.write(Buffer.from('{"type":"agent_start"}'));
   assert.throws(() => parser.end());
-  assert.throws(() => childOutputParser().write(Buffer.from('{"type":"agent_start"}\n'.repeat(4097))));
+  const streamed = childOutputParser();
+  for (let written = 0; written < 20_000; written += 1000) streamed.write(Buffer.from('{"type":"agent_start"}\n'.repeat(1000)));
+  start(streamed); end(streamed); settle(streamed);
+  assert.equal(streamed.end().stopReason, 'stop');
+  assert.throws(() => childOutputParser().write(Buffer.from('{"type":"agent_start"}\n'.repeat(protocolLimits.events + 1))), /event limit/);
   const compacted = childOutputParser();
   start(compacted); end(compacted);
   send(compacted, { type: 'compaction_start', reason: 'manual' });

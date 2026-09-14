@@ -88,6 +88,7 @@ export async function runChild({ identity, agent, task, model, signal, depth = p
   let owner: OwnedProcessTree | undefined;
   let cleanup: CleanupReport = { verified: true, durationMs: 0, identities: [], forced: false };
   let failure: string | undefined;
+  const diagnostics: string[] = [];
   let output = boundedOutput('');
   let observedModel: ModelIdentity | null = null;
   const parser = childOutputParser(model, limits.outputBytes);
@@ -120,8 +121,9 @@ export async function runChild({ identity, agent, task, model, signal, depth = p
     };
     let stderrBytes = 0;
     const stderr = (chunk: Buffer) => {
+      const noted = stderrBytes > protocolLimits.stderrBytes;
       stderrBytes += chunk.length;
-      if (stderrBytes > protocolLimits.stderrBytes) fail('Child stderr limit exceeded');
+      if (!noted && stderrBytes > protocolLimits.stderrBytes) diagnostics.push('Child stderr exceeded the diagnostic limit');
     };
     child.stdout.on('data', stdout);
     child.stderr.on('data', stderr);
@@ -145,7 +147,7 @@ export async function runChild({ identity, agent, task, model, signal, depth = p
       if (owner.exitCode !== 0 || owner.exitSignal !== null) failure ??= 'Child exited unsuccessfully';
     }
   } catch (error) {
-    if (error instanceof ProcessOwnershipError) { lease.distrustCleanup(); cleanup = { ...cleanup, verified: false }; }
+    if (error instanceof ProcessOwnershipError) cleanup = { ...cleanup, verified: false };
     failure ??= 'Delegation preparation or execution failed';
     if (owner) {
       owner.requestStop({ kind: 'failed', reason: failure });
@@ -154,19 +156,18 @@ export async function runChild({ identity, agent, task, model, signal, depth = p
   } finally {
     if (prompt) {
       try { await prompt.remove(); }
-      catch { lease.distrustCleanup(); cleanup = { ...cleanup, verified: false }; }
+      catch { diagnostics.push('Prompt file removal did not finish in time'); }
     }
     signal?.removeEventListener('abort', abort);
     lease.signal.removeEventListener('abort', stop);
-    if (lease.cleanupUncertainty.aborted) cleanup = { ...cleanup, verified: false };
     lease.verify();
-    lease.finish(cleanup.verified);
+    lease.finish();
   }
-  const usage = possibleWork ? parser.report(!cleanup.verified ? 'cleanup-unverified' : lease.cancellation ? 'cancelled' : failure ? 'process-failure' : undefined) : usageReport();
-  const base = { ...identity, output, diagnostics: [], usage, observedModel,
+  if (!cleanup.verified) diagnostics.push('Child process cleanup could not be verified');
+  const usage = possibleWork ? parser.report(lease.cancellation ? 'cancelled' : failure ? 'process-failure' : undefined) : usageReport();
+  const base = { ...identity, output, diagnostics, usage, observedModel,
     cleanup: { verified: cleanup.verified, durationMs: cleanup.durationMs, forced: cleanup.forced, observedProcesses: cleanup.identities.length },
   } satisfies Omit<TaskResult, 'kind'>;
-  if (!cleanup.verified) return { ...base, output: boundedOutput(''), kind: 'failed', reason: 'Delegation cleanup unverified; session quarantined' };
   if (lease.cancellation) return { ...base, output: boundedOutput(''), kind: 'cancelled', reason: `Delegation cancelled (${lease.cancellation})` };
   if (failure) return { ...base, output: boundedOutput(''), kind: 'failed', reason: failure };
   return { ...base, kind: 'succeeded' };

@@ -34,7 +34,7 @@ test('requests preserve optional deadlines and only clamp output', () => {
   }
 });
 
-test('admission remains held through stop and verification, then releases or quarantines', async () => {
+test('admission remains held through stop and verification, then releases', async () => {
   const registry = new RunRegistry();
   const first = registry.admit(root, 120000);
   try {
@@ -47,11 +47,13 @@ test('admission remains held through stop and verification, then releases or qua
     assert.throws(() => registry.admit(root, 120000));
     first.verify();
     assert.throws(() => registry.admit(root, 120000));
-  } finally { first.verify(); first.finish(true); }
+  } finally { first.verify(); first.finish(); }
   await first.done;
   const second = registry.admit(root, 120000);
-  second.verify(); second.finish(false);
-  assert.throws(() => registry.admit(root, 120000), /quarantined/);
+  second.verify(); second.finish();
+  const third = registry.admit(root, 120000);
+  assert.equal(third.state.kind, 'admitted');
+  third.verify(); third.finish();
 });
 
 test('shutdown freezes the first cause and awaits cleanup even during preparation', async () => {
@@ -61,7 +63,7 @@ test('shutdown freezes the first cause and awaits cleanup even during preparatio
   lease.cancel('user');
   assert.equal(lease.cancellation, 'parentShutdown');
   assert.throws(() => registry.admit(root, 120000), /shutting down/);
-  lease.verify(); lease.finish(true);
+  lease.verify(); lease.finish();
   await shutdown; await registry.shutdown();
 });
 
@@ -69,7 +71,7 @@ test('deadline cancels an admitted run', async () => {
   const lease = new RunRegistry().admit(root, 5);
   await new Promise((resolve) => lease.signal.addEventListener('abort', resolve, { once: true }));
   assert.equal(lease.cancellation, 'deadline');
-  lease.verify(); lease.finish(true);
+  lease.verify(); lease.finish();
 });
 
 test('child transport drops stale pstack state and writes its own depth', () => {

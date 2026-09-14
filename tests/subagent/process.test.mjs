@@ -76,7 +76,7 @@ for (const mode of ['ignore', 'orphan', 'detached', 'pipes', 'term-spawn', 'malf
     assert.equal(getEventListeners(controller.signal, 'abort').length, 0);
     assert.equal(capture.depth, mode === 'ignore' ? '1' : capture.depth);
     const next = registry.admit(parseDepth(undefined), 1000);
-    next.verify(); next.finish(true);
+    next.verify(); next.finish();
     t.diagnostic(JSON.stringify({ mode, result: result.kind, ...result.cleanup }));
   });
 }
@@ -98,7 +98,7 @@ test('deadline owns an ignored-SIGTERM child while an unrelated sibling stays al
 });
 
 for (const fault of ['ps', 'EPERM', 'identity']) {
-  test(`cleanup ${fault} failure quarantines admission and keeps errors private`, { timeout: 7000 }, async (t) => {
+  test(`a ${fault} fault keeps errors private, reports honestly, and leaves later admission open`, { timeout: 7000 }, async (t) => {
     const args = await setup(t, 'ignore');
     const registry = new RunRegistry();
     const lease = registry.admit(parseDepth(undefined), 500);
@@ -131,10 +131,20 @@ for (const fault of ['ps', 'EPERM', 'identity']) {
     const running = runChild({ ...args, backend, lease });
     pid = (await started(args.task)).pid;
     const result = await running;
-    assert.equal(result.kind, 'failed');
-    assert.equal(result.cleanup.verified, false);
-    assert.match(result.reason, /quarantined/);
-    assert.throws(() => registry.admit(parseDepth(undefined), 500), /quarantined/);
+    t.diagnostic(JSON.stringify({ fault, kind: result.kind, cleanup: result.cleanup, diagnostics: result.diagnostics }));
+    assert.equal(result.kind, 'cancelled', 'One bad snapshot must not stop the child; the deadline does');
+    assert.match(result.reason, /deadline/);
+    if (fault === 'EPERM') {
+      assert.equal(result.cleanup.verified, false);
+      assert.deepEqual(result.diagnostics, ['Child process cleanup could not be verified']);
+    } else {
+      assert.equal(result.cleanup.verified, true);
+      assert.deepEqual(result.diagnostics, []);
+    }
+    await gone(args.task);
+    assert.equal(lease.state.kind, 'finished');
+    const next = registry.admit(parseDepth(undefined), 500);
+    next.verify(); next.finish();
     assert.ok(!JSON.stringify(result).includes('PRIVATE_'));
     assert.ok(Buffer.byteLength(JSON.stringify(result)) < 2048);
   });
@@ -163,7 +173,8 @@ test('continuous observation failure kills the live child before cleanup returns
       },
       signal: (target, signal) => { signals.push([target, signal]); processBackend.signal(target, signal); },
     } });
-    await owner.ready;
+    await delay(cleanupLimits.pollMs * 3);
+    assert.equal(lease.state.kind, 'running', 'Failed snapshots must not stop a running child');
     const report = await owner.cleanup();
     let alive = true;
     try { process.kill(pid, 0); } catch (error) {
@@ -175,8 +186,8 @@ test('continuous observation failure kills the live child before cleanup returns
     assert.deepEqual(signals, [[pid, 'SIGTERM'], [-pid, 'SIGKILL'], [pid, 'SIGKILL']]);
     assert.equal(report.verified, false);
     assert.equal(report.forced, true);
-    lease.finish(report.verified);
-    assert.throws(() => registry.admit(parseDepth(undefined), 500), /quarantined/);
+    lease.finish();
+    registry.admit(parseDepth(undefined), 500);
   } finally {
     if (child.exitCode === null && child.signalCode === null) kill('SIGKILL');
   }
@@ -226,7 +237,7 @@ function fakeUnsettledProcess(fault) {
 
 const cleanupUpperMs = cleanupLimits.graceMs + cleanupLimits.verifyMs + 500;
 for (const fault of ['false', 'EPERM', 'EPERM-event', 'missing-events', 'missing-exit', 'missing-close', 'observation', 'force-error', 'false-after-exit']) {
-  test(`bounded cleanup quarantines ${fault} without rescue`, { timeout: cleanupUpperMs + 1000 }, async (t) => {
+  test(`bounded cleanup reports ${fault} as unverified without rescue`, { timeout: cleanupUpperMs + 1000 }, async (t) => {
     const { child, backend, signals } = fakeUnsettledProcess(fault);
     const registry = new RunRegistry();
     const lease = registry.admit(parseDepth(undefined), 10_000);
@@ -239,13 +250,13 @@ for (const fault of ['false', 'EPERM', 'EPERM-event', 'missing-events', 'missing
     assert.equal(owner.cleanup(), cleaning);
     const report = await cleaning;
     const elapsedMs = performance.now() - startedAt;
-    lease.finish(report.verified);
+    lease.finish();
     t.diagnostic(JSON.stringify({ fault, elapsedMs, signals: signals.length, report }));
     assert.ok(elapsedMs < cleanupUpperMs, `cleanup took ${elapsedMs} ms`);
     assert.ok(Math.abs(report.durationMs - elapsedMs) < 100, 'report includes all cleanup waits');
     assert.equal(report.verified, false);
-    assert.equal(lease.state.kind, 'quarantined');
-    assert.throws(() => registry.admit(parseDepth(undefined), 500), /quarantined/);
+    assert.equal(lease.state.kind, 'finished');
+    registry.admit(parseDepth(undefined), 500);
     assert.equal(child.listenerCount('exit'), 0);
     assert.equal(child.listenerCount('close'), 0);
     assert.ok(child.stdin.destroyed && child.stdout.destroyed && child.stderr.destroyed);
@@ -261,7 +272,7 @@ for (const fault of ['false', 'EPERM', 'EPERM-event', 'missing-events', 'missing
 }
 
 for (const fault of ['false', 'EPERM', 'missing-events', 'missing-close']) {
-  test(`session shutdown completes with ${fault} cleanup quarantined without rescue`, { timeout: cleanupUpperMs + 1000 }, async (t) => {
+  test(`session shutdown completes with ${fault} cleanup reported unverified without rescue`, { timeout: cleanupUpperMs + 1000 }, async (t) => {
     const { child, backend } = fakeUnsettledProcess(fault);
     const registry = new RunRegistry();
     const lease = registry.admit(parseDepth(undefined), 10_000);
@@ -276,9 +287,10 @@ for (const fault of ['false', 'EPERM', 'missing-events', 'missing-close']) {
     t.diagnostic(JSON.stringify({ fault, elapsedMs, result }));
     assert.ok(elapsedMs < cleanupUpperMs, `shutdown took ${elapsedMs} ms`);
     assert.equal(result.cleanup.verified, false);
-    assert.equal(result.kind, 'failed');
-    assert.match(result.reason, /quarantined/);
-    assert.equal(lease.state.kind, 'quarantined');
+    assert.equal(result.kind, 'cancelled');
+    assert.match(result.reason, /parentShutdown/);
+    assert.deepEqual(result.diagnostics, ['Child process cleanup could not be verified']);
+    assert.equal(lease.state.kind, 'finished');
     assert.equal(lease.cancellation, 'parentShutdown');
     assert.ok(!JSON.stringify(result).includes('PRIVATE_'));
     const settledAt = performance.now();
@@ -321,7 +333,7 @@ for (const reuse of ['initial', 'detached', 'member-moved', 'unobserved-root', '
     rows = [host, identity(stranger, 1, group, 'Tue Jan 2 00:00:00 2024')];
     if (reuse === 'member-moved') rows.push(identity(800003, 1, 800005));
     const report = await owner.cleanup();
-    lease.finish(report.verified);
+    lease.finish();
     t.diagnostic(JSON.stringify({ reuse, signals, identities: report.identities }));
     assert.ok(!report.identities.some((row) => row.pid === stranger && row.start === 'Tue Jan 2 00:00:00 2024'), 'group ID alone must not adopt a stranger');
     assert.ok(!signals.some(([target]) => target === stranger || target === -group), 'no signal may target the reused group or its stranger');

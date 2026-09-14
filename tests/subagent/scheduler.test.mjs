@@ -54,7 +54,7 @@ function controlledRun() {
     lease.prepare(); lease.run();
     lease.signal.addEventListener('abort', () => aborted.push(identity.id), { once: true });
     await new Promise((resolve) => { finish.set(identity.id, () => resolve(undefined)); });
-    lease.verify(); lease.finish(true);
+    lease.verify(); lease.finish();
     const base = { ...identity, output: boundedOutput(identity.id), diagnostics: [], usage: usageReport(), observedModel: null,
       cleanup: { verified: true, durationMs: 0, forced: false, observedProcesses: 1 } };
     return lease.cancellation ? { ...base, kind: 'cancelled', reason: lease.cancellation } : { ...base, kind: 'succeeded' };
@@ -140,30 +140,54 @@ test('ordinary failure leaves siblings and queued tasks running', async () => {
   request.finish();
 });
 
-test('early uncertainty is sticky and prevents a finished sibling from releasing a queued slot', async () => {
+test('unverified cleanup of one task is a diagnostic that leaves siblings, the queue, and later requests untouched', async () => {
   const scheduler = new DelegationScheduler();
   const request = scheduler.reserve(root);
   const fixture = controlledRun();
   request.admit(Array.from({ length: 8 }, (_, index) => task(index)), () => {});
-  const pending = request.run(fixture.run);
-  const uncertain = fixture.leases.get('2');
-  assert.ok(uncertain);
-  uncertain.distrustCleanup();
-  uncertain.distrustCleanup();
-  assert.deepEqual(fixture.aborted, ['0', '1', '2', '3']);
-  assert.equal(request.state, 'quarantined');
-  fixture.finish.get('0')?.();
-  await delay(0);
-  assert.deepEqual(fixture.started, ['0', '1', '2', '3']);
-  assert.throws(() => scheduler.reserve(root), /quarantined/);
-  for (const finish of fixture.finish.values()) finish();
+  const pending = request.run(async (args) => {
+    const result = await fixture.run(args);
+    return args.identity.id === '2'
+      ? { ...result, diagnostics: ['Child process cleanup could not be verified'], cleanup: { ...result.cleanup, verified: false } }
+      : result;
+  });
+  for (const index of ['2', '0', '1', '3', '4', '5', '6', '7']) { fixture.finish.get(index)?.(); await delay(0); }
   const results = await pending;
-  assert.equal(results[2].kind, 'failed');
+  assert.deepEqual(fixture.aborted, []);
+  assert.deepEqual(fixture.started, ['0', '1', '2', '3', '4', '5', '6', '7']);
+  assert.equal(results[2].kind, 'succeeded');
+  assert.equal(results[2].output.text, '2');
   assert.equal(results[2].cleanup.verified, false);
-  assert.equal(uncertain.state.kind, 'quarantined', 'A later verified finish cannot repair lost trust');
-  assert.ok(results.slice(4).every((result) => result.kind === 'skipped'));
+  assert.deepEqual(results[2].diagnostics, ['Child process cleanup could not be verified']);
+  assert.ok(results.every((result) => result.kind === 'succeeded'));
   request.finish();
-  assert.throws(() => scheduler.reserve(root), /quarantined/);
+  assert.equal(request.state, 'finished');
+  const next = scheduler.reserve(root);
+  assert.equal(next.state, 'reserved');
+  next.finish();
+});
+
+test('a runner that never finishes its lease is closed by the scheduler and reported as a runner failure', async () => {
+  const scheduler = new DelegationScheduler();
+  const request = scheduler.reserve(root);
+  request.admit([task(0), task(1)], () => {});
+  /** @type {import('../../extensions/subagent/domain.ts').RunLease[]} */
+  const leases = [];
+  const results = await request.run(async ({ identity, lease }) => {
+    assert.ok(lease);
+    leases.push(lease);
+    if (identity.id === '0') throw new Error('PRIVATE_RUNNER_DATA');
+    lease.prepare(); lease.run(); lease.verify(); lease.finish();
+    return { ...identity, kind: 'succeeded', output: boundedOutput('ok'), diagnostics: [], usage: usageReport(), observedModel: null,
+      cleanup: { verified: true, durationMs: 0, forced: false, observedProcesses: 0 } };
+  });
+  assert.equal(results[0].kind, 'failed');
+  assert.equal(results[0].kind === 'failed' && results[0].reason, 'Child runner failed');
+  assert.equal(results[1].kind, 'succeeded');
+  assert.ok(leases.every((lease) => lease.state.kind === 'finished'));
+  assert.ok(!JSON.stringify(results).includes('PRIVATE_'));
+  request.finish();
+  scheduler.reserve(root).finish();
 });
 
 test('non-cooperative spawn-free preparation cannot hold shutdown open or commit after cancellation', async () => {

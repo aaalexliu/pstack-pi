@@ -30,7 +30,7 @@ export function addUsage(left: Usage, right: Usage): Usage {
 }
 
 export type UsageReason = 'unfinished-assistant' | 'unsettled' | 'protocol' | 'cancelled' | 'process-failure' | 'runner-failure'
-  | 'cleanup-unverified' | 'compaction-usage-missing' | 'unexpected-descendant' | 'overflow';
+  | 'compaction-usage-missing' | 'unexpected-descendant' | 'overflow';
 export type UsageScope =
   | { kind: 'complete'; usage: Usage }
   | { kind: 'partial'; usage: Usage; reasons: UsageReason[]; provisional: Usage | null };

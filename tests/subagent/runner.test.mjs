@@ -75,7 +75,16 @@ test('separate child gets the exact task through stdin and a private prompt that
   assert.equal(getEventListeners(controller.signal, 'abort').length, 0);
 });
 
-for (const mode of ['malformed', 'no-lf', 'line', 'stderr', 'count', 'stdout', 'invalid-utf8', 'error', 'aborted', 'length', 'toolUse', 'deferred', 'no-final', 'no-settled', 'wrong-model', 'exit']) {
+test('a noisy child with many streamed events and large stderr still succeeds with a stderr diagnostic', async (t) => {
+  const f = await fixture(t);
+  const result = await runChild({ ...f, agent, model, task: 'task', signal: undefined, ...child('noisy') });
+  assert.equal(result.kind, 'succeeded');
+  assert.equal(result.usage.direct.usage.totalTokens, 18);
+  assert.deepEqual(result.diagnostics, ['Child stderr exceeded the diagnostic limit']);
+  assert.equal(JSON.parse(result.output.text).task, 'task');
+});
+
+for (const mode of ['malformed', 'no-lf', 'line', 'invalid-utf8', 'error', 'aborted', 'length', 'toolUse', 'deferred', 'no-final', 'no-settled', 'wrong-model', 'exit']) {
   test(`child failure ${mode} cannot become success`, async (t) => {
     const f = await fixture(t);
     const result = await runChild({ ...f, agent, model, task: 'task', signal: undefined, ...child(mode) });

@@ -1,5 +1,4 @@
 import path from 'node:path';
-import { isDeepStrictEqual } from 'node:util';
 import { ModelRuntime, resolveCliModel, type ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { parseModelChoice, parseStrictJson, readConfigFile, type ModelSelection } from './model-config.ts';
 
@@ -7,13 +6,14 @@ export type CatalogModel = NonNullable<ReturnType<ModelRuntime['getModel']>>;
 export type ThinkingLevel = NonNullable<ExtensionContext['thinkingLevel']>;
 export type ModelIdentity = { provider: string; id: string };
 export type ChildModel = ModelIdentity & { thinkingLevel: ThinkingLevel };
-export type ParentSnapshot = { model: CatalogModel | undefined; thinkingLevel: ThinkingLevel | undefined; extensionProvider: boolean };
+export type ParentSnapshot = { model: ModelIdentity | undefined; thinkingLevel: ThinkingLevel | undefined };
 
+// The child runs without extensions, so only the parent's provider/id identity carries over.
+// The standalone registry decides whether that identity is usable.
 export function captureParent(ctx: ExtensionContext): ParentSnapshot {
   const active: CatalogModel | undefined = ctx.model;
-  const model = active === undefined ? undefined : structuredClone(active);
-  const thinkingLevel = ctx.thinkingLevel;
-  return { model, thinkingLevel, extensionProvider: model !== undefined && ctx.modelRegistry.getRegisteredProviderIds().includes(model.provider) };
+  const model = active === undefined ? undefined : { provider: active.provider, id: active.id };
+  return { model, thinkingLevel: ctx.thinkingLevel };
 }
 
 function rejectCommands(value: unknown): void {
@@ -33,7 +33,6 @@ export async function qualifyModel({ selection, parent, agentDir, signal }: {
   if (!identity) throw new Error('Delegation requires an active parent model');
   const parsed = parseModelChoice(`${identity.provider}/${identity.id}`);
   if (parsed.kind !== 'pinned' || parsed.provider !== identity.provider || parsed.id !== identity.id) throw new Error('Invalid exact model identity');
-  if (inherited && parent.extensionProvider) throw new Error('Parent provider depends on an extension');
   for (const name of ['auth.json', 'models.json', 'models-store.json']) {
     const bytes = await readConfigFile(path.join(agentDir, name), 1024 * 1024);
     if (name === 'auth.json' && bytes === undefined) throw new Error('Standalone Pi auth file is missing; start Pi first');
@@ -59,7 +58,6 @@ export async function qualifyModel({ selection, parent, agentDir, signal }: {
   if (!['openai-completions', 'openai-responses', 'openai-codex-responses', 'azure-openai-responses', 'anthropic-messages', 'google-generative-ai', 'mistral-conversations', 'pi-messages'].includes(model.api)) {
     throw new Error('Leaf model API or external credential chain is not supported');
   }
-  if (inherited && !isDeepStrictEqual(parent.model, model)) throw new Error('Parent model metadata differs from standalone child');
   const available = await runtime.getAvailable(model.provider, { signal }).catch(() => { throw new Error('Cannot check standalone model authentication'); });
   if (!available.some((candidate) => candidate.provider === model.provider && candidate.id === model.id)) {
     throw new Error('Model lacks standalone stored, config, or environment authentication');

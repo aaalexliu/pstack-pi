@@ -83,8 +83,8 @@ export const executionLimits: ExecutionLimits = Object.freeze({
 
 export const protocolLimits = Object.freeze({
   lineBytes: 256 * 1024,
-  events: 4096,
-  stdoutBytes: 8 * 1024 * 1024,
+  events: 1_048_576,
+  stdoutBytes: 1024 * 1024 * 1024,
   stderrBytes: 64 * 1024,
   diagnosticBytes: 4096,
 });
@@ -164,24 +164,21 @@ export class ExecutionDeadline {
   };
 }
 
-export type CancellationReason = 'user' | 'deadline' | 'parentShutdown' | 'unsafeCleanup';
+export type CancellationReason = 'user' | 'deadline' | 'parentShutdown';
 export type StopCause = { kind: 'cancelled'; reason: CancellationReason } | { kind: 'failed'; reason: string };
 export type RunState =
   | { kind: 'admitted' | 'preparing' | 'running' }
   | { kind: 'cooperativeStop' | 'forcedStop'; cause: StopCause }
-  | { kind: 'verifying' | 'finished' | 'quarantined'; cause: StopCause | null };
+  | { kind: 'verifying' | 'finished'; cause: StopCause | null };
 
 export class RunLease {
   #state: RunState = { kind: 'admitted' };
   #controller = new AbortController();
-  #cleanupUncertainty = new AbortController();
   readonly #deadline: ExecutionDeadline;
   #resolve!: () => void;
   readonly done = new Promise<void>((resolve) => { this.#resolve = resolve; });
   get state(): RunState { return this.#state; }
   get signal(): AbortSignal { return this.#controller.signal; }
-  get cleanupUncertainty(): AbortSignal { return this.#cleanupUncertainty.signal; }
-  distrustCleanup(): void { this.#cleanupUncertainty.abort(); }
   get cancellation(): CancellationReason | undefined {
     return this.#controller.signal.aborted ? this.#controller.signal.reason : undefined;
   }
@@ -189,7 +186,7 @@ export class RunLease {
     this.#deadline = new ExecutionDeadline(() => this.cancel('deadline'), timer, timeoutMs);
   }
   cancel(reason: CancellationReason): void {
-    if (this.#state.kind === 'finished' || this.#state.kind === 'quarantined') return;
+    if (this.#state.kind === 'finished') return;
     if (!this.signal.aborted) this.#controller.abort(reason);
   }
   prepare(): void {
@@ -207,14 +204,13 @@ export class RunLease {
     if (this.#state.kind === 'cooperativeStop') this.#state = { kind: 'forcedStop', cause: this.#state.cause };
   }
   verify(): void {
-    if (this.#state.kind === 'finished' || this.#state.kind === 'quarantined') return;
+    if (this.#state.kind === 'finished') return;
     const cause = 'cause' in this.#state ? this.#state.cause : null;
     this.#state = { kind: 'verifying', cause };
   }
-  finish(verified: boolean): void {
+  finish(): void {
     if (this.#state.kind !== 'verifying') throw new Error('Run cleanup has not been verified');
-    if (!verified) this.distrustCleanup();
-    this.#state = { kind: verified && !this.cleanupUncertainty.aborted ? 'finished' : 'quarantined', cause: this.#state.cause };
+    this.#state = { kind: 'finished', cause: this.#state.cause };
     this.#deadline.clear();
     this.#resolve();
   }
@@ -228,7 +224,6 @@ export class RunRegistry {
   admit(depth: DelegationDepth, timeoutMs: number | null = null): RunLease {
     requireRoot(depth);
     if (this.#closed) throw new Error('Delegation session is shutting down');
-    if (this.#active?.state.kind === 'quarantined') throw new Error('Delegation cleanup unverified; session quarantined');
     if (this.#active && this.#active.state.kind !== 'finished') throw new Error('A delegation is already running or stopping');
     this.#active = new RunLease(timeoutMs, this.#timer);
     return this.#active;

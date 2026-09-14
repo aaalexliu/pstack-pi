@@ -20,7 +20,7 @@ async function fixture(t) {
   ] } };
   await writeFile(modelsPath, JSON.stringify({ providers }), { mode: 0o600 });
   const runtime = await ModelRuntime.create({ modelsPath, authPath });
-  const parent = { model: runtime.getModel('fixture', 'parent'), thinkingLevel: /** @type {const} */ ('high'), extensionProvider: false };
+  const parent = { model: { provider: 'fixture', id: 'parent' }, thinkingLevel: /** @type {const} */ ('high') };
   /** @param {string} choice @param {Partial<import('../../extensions/subagent/model-runtime.ts').ParentSnapshot>} [override] */
   const qualify = (choice, override = {}) => qualifyModel({
     selection: { source: 'explicit', choice: parseModelChoice(choice) }, parent: { ...parent, ...override }, agentDir, signal: new AbortController().signal,
@@ -49,14 +49,24 @@ test('CLI prefix stripping and case-folded ambiguity fail closed after exact cat
   for (const choice of ['fixture/fixture/pinned', 'fixture/case']) await assert.rejects(f.qualify(choice), /CLI cannot select/);
 });
 
-test('extension providers, runtime keys, and altered parent metadata do not leak into leaf qualification', async (t) => {
+test('extension-registered parent providers qualify through the standalone registry alone', async (t) => {
+  const f = await fixture(t);
+  const registry = new ModelRegistry(f.runtime);
+  registry.registerProvider('fixture', { baseUrl: 'https://wrapped-by-extension.invalid/v1', api: 'openai-completions', apiKey: 'extension-private', models: [{ id: 'parent', name: 'Parent', reasoning: true, input: ['text'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 1, maxTokens: 1 }] });
+  const ctx = /** @type {import('@earendil-works/pi-coding-agent').ExtensionContext} */ ({ model: registry.find('fixture', 'parent'), thinkingLevel: 'high', modelRegistry: registry });
+  const parent = captureParent(ctx);
+  assert.deepEqual(parent, { model: { provider: 'fixture', id: 'parent' }, thinkingLevel: 'high' });
+  const child = await qualifyModel({ selection: { source: 'parent', choice: { kind: 'inheritParent' } }, parent, agentDir: f.agentDir, signal: new AbortController().signal });
+  assert.deepEqual(child, { provider: 'fixture', id: 'parent', thinkingLevel: 'high' });
+  assert.ok(!JSON.stringify(child).includes('extension-private'));
+  registry.registerProvider('only-extension', { baseUrl: 'http://127.0.0.1:1', api: 'openai-completions', apiKey: 'private', models: [{ id: 'ghost', name: 'Ghost', reasoning: false, input: ['text'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 1, maxTokens: 1 }] });
+  await assert.rejects(qualifyModel({ selection: { source: 'parent', choice: { kind: 'inheritParent' } }, parent: { model: { provider: 'only-extension', id: 'ghost' }, thinkingLevel: 'off' }, agentDir: f.agentDir, signal: new AbortController().signal }), /Exact model/);
+});
+
+test('runtime keys and extension-only providers do not leak into leaf qualification', async (t) => {
   const f = await fixture(t);
   assert.ok(f.parent.model);
-  await assert.rejects(f.qualify('inherit-parent', { extensionProvider: true }), /depends on an extension/);
   await assert.rejects(f.qualify('inherit-parent', { model: { ...f.parent.model, provider: 'fixture/nested' } }), /Invalid exact model identity/);
-  for (const patch of [{ baseUrl: 'https://other.invalid' }, { reasoning: false }, { contextWindow: 42 }, { headers: { custom: 'private' } }]) {
-    await assert.rejects(f.qualify('inherit-parent', { model: { ...f.parent.model, ...patch } }), /metadata differs/);
-  }
   await writeFile(f.modelsPath, JSON.stringify({ providers: { fixture: { ...f.providers.fixture, apiKey: undefined } } }));
   await f.runtime.setRuntimeApiKey('fixture', 'parent-runtime-secret');
   await assert.rejects(f.qualify('fixture/pinned'), /standalone stored/);
@@ -121,17 +131,18 @@ test('invalid standard config, unsupported APIs, missing env auth, and pre-abort
   await assert.rejects(qualifyModel({ selection: { source: 'parent', choice: { kind: 'inheritParent' } }, parent: f.parent, agentDir: '/never-read-this', signal: controller.signal }));
 });
 
-test('parent snapshot reads model and thinking once and keeps no mutable model reference', async (t) => {
+test('parent snapshot reads model and thinking once and keeps only the model identity', async (t) => {
   const f = await fixture(t);
+  const active = f.runtime.getModel('fixture', 'parent');
+  assert.ok(active);
   let modelReads = 0; let thinkingReads = 0;
   const ctx = /** @type {import('@earendil-works/pi-coding-agent').ExtensionContext} */ ({
-    get model() { modelReads++; return f.parent.model; },
+    get model() { modelReads++; return active; },
     get thinkingLevel() { thinkingReads++; return 'high'; },
     modelRegistry: new ModelRegistry(f.runtime),
   });
   const snapshot = captureParent(ctx);
-  assert.ok(f.parent.model && snapshot.model);
-  f.parent.model.baseUrl = 'https://mutated.invalid';
-  assert.notEqual(snapshot.model.baseUrl, f.parent.model.baseUrl);
+  assert.deepEqual(snapshot, { model: { provider: 'fixture', id: 'parent' }, thinkingLevel: 'high' });
+  assert.ok(!('baseUrl' in (snapshot.model ?? {})) && !('headers' in (snapshot.model ?? {})));
   assert.equal(modelReads, 1); assert.equal(thinkingReads, 1);
 });

@@ -158,9 +158,10 @@ Malformed depth values or depth one and above disable this extension's tool and 
 Tool allowlists are not an OS sandbox. A user agent with `bash` can run arbitrary commands, including launching processes outside this delegation API.
 
 The runner accepts LF-delimited JSON with strict UTF-8 decoding.
-Its limits are 256 KiB per record, 4,096 events, 8 MiB stdout, and 64 KiB stderr.
-It caps returned text at 32 KiB and does not return raw stderr.
-A successful result requires a settled final assistant message with `stopReason: "stop"`, the requested model, exit code zero, and verified cleanup.
+Its limits are 256 KiB per record, 1,048,576 events, and 1 GiB stdout. Every streamed `message_update` delta counts as one event.
+It caps returned text at 32 KiB and does not return raw stderr. Child stderr past 64 KiB adds a diagnostic and nothing else.
+A successful result requires a settled final assistant message with `stopReason: "stop"`, the requested model, and exit code zero.
+Cleanup verification is reported in `cleanup.verified` and as a diagnostic; it never changes a task's kind.
 Every authoritative child assistant message must match the resolved model identity.
 Truncation is explicit. Tool details include identity, bounded agent provenance and cwd, outcome, limits, cleanup, diagnostics, requested/resolved/observed model identity, and a usage report.
 Child failures throw from `execute`, so a missed result hook still leaves a real error.
@@ -194,21 +195,23 @@ Pi 0.85.1 discards details and usage attached to thrown errors. The owned-result
 User cancellation, the deadline, and `session_shutdown` stop dispatch and cancel every active lease before awaiting them together.
 Queued tasks become skipped. Shutdown rejects new work and waits for request cleanup.
 
-The runner creates a detached process group and polls `/bin/ps` on macOS and Linux for descendants and process identities.
+The runner creates a detached process group and polls `/bin/ps` every 100 ms on macOS and Linux for descendants and process identities.
+A failed or slow snapshot skips that tick. It never stops a running child. Each `ps` call may take up to one second.
+A process whose recorded start time changes is a reused pid; the runner drops it from ownership and never signals it.
+A row that would point at the host, its process group, or a system group is excluded and marks cleanup unverified.
+The runner records at most 4,096 owned identities per child; more than that also marks cleanup unverified.
 It sends `SIGTERM` through the live direct child handle even if process observation fails.
 After a one-second grace period, it sends `SIGKILL` to the still-live child handle, its safe initial group, and observed owned processes and groups.
 An observed group remains owned only while a current member matches a recorded identity in that group, or the live direct child proves the initial group.
 A stale group ID alone cannot establish ownership.
 The runner then allows two seconds to verify cleanup.
-If cleanup cannot prove that the child exited within those timers, it returns an unverified report and quarantines the extension instance.
-An explicit deadline starts cancellation rather than guaranteeing termination by that instant. Process-table commands can each take up to 250 ms, and OS scheduling or filesystem stalls can delay timer callbacks.
+If the final snapshot cannot prove that every owned process is gone, the task carries `cleanup.verified: false` and the diagnostic `Child process cleanup could not be verified`.
+The task's kind still follows the child's outcome: a settled `stop` answer succeeds, a cancelled child is cancelled, and a broken child fails.
+Nothing is quarantined. Siblings, queued tasks, and later calls proceed. Each call spawns a fresh process group, so a stray process from an earlier call cannot alter a later result.
+An explicit deadline starts cancellation rather than guaranteeing termination by that instant. OS scheduling or filesystem stalls can delay timer callbacks.
 
-Observation failures, unsafe identities, and unverified cleanup immediately stop dispatch and broadcast cancellation to active siblings.
-This signal is sticky even if a later process-table read succeeds. Finished siblings cannot release new queued work after trust is lost.
-The request waits for all active cleanup, marks queued tasks skipped, and quarantines further delegation in that extension instance.
 Prompt removal gets at most another two seconds, including any pending prompt write.
-If filesystem work outlives that wait, the request returns an unverified cleanup failure and quarantines the session.
-Late filesystem completion still attempts prompt removal but cannot start a child or restore trust.
+If filesystem work outlives that wait, the task carries the diagnostic `Prompt file removal did not finish in time` and late completion still removes the file.
 The runner removes listeners after cleanup.
 macOS and Linux polling cannot guarantee containment of an unseen fast double-fork or cleanup after host `SIGKILL`.
 Process-table snapshots and signals are not atomic, and `ps` start times have only second-level precision.
@@ -301,8 +304,8 @@ Group/other write bits and special mode bits reject. The loader checks file size
 Qualification uses a new Pi `ModelRuntime`, not the parent's extension registry or runtime credentials.
 It loads only standard stored, config, and environment auth, with model network refresh disabled.
 No credential enters argv, tool details, or a copied config file.
-The parent model and thinking level are captured before the first await.
-Inheritance rejects parent providers registered by extensions and any difference in standalone model metadata.
+The parent model identity (`provider/model-id`) and thinking level are captured before the first await. No other parent model metadata carries over.
+A parent provider registered by an extension, such as `@gotgenes/pi-anthropic-auth` re-registering `anthropic`, inherits normally as long as the standalone registry serves the same identity with stored, config, or environment auth.
 Pinned choices may select another standalone provider without inheriting parent overrides.
 
 Pi 0.85.1 imposes narrower rules:
@@ -401,7 +404,7 @@ The tests cover independent role counters across requests, duplicate and inherit
 A request-wide deadline cancels four active children and skips four queued tasks without refunding their model assignments.
 Parent `SIGTERM` and `SIGHUP` clean all four children without harming an unrelated sibling. Ordinary failure leaves siblings running.
 Each production observer verifies process and prompt cleanup before test rescue. Existing observers still default to one child.
-Focused tests cover user abort with four real child processes, early cleanup uncertainty, and bounded cleanup when prompt writes or removal stall.
+Focused tests cover user abort with four real child processes, one child losing process observation while siblings continue, and bounded cleanup when prompt writes or removal stall.
 The concurrent fixture allows twelve seconds for its outer test watchdog. Production requests have no default execution deadline.
 The unchanged Phase 6 recursion fixture is an unsafe positive control, not the production delegation path.
 The accounting tests verify installed Pi's returned-error, thrown-error, and patched-error behavior through provider requests, JSONL events, persisted session totals, and reload.
