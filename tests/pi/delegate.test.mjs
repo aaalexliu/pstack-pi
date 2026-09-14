@@ -30,7 +30,7 @@ function toolResult(request, id) {
 
 /** @param {Record<string, unknown>} request @param {string[]} tools */
 function assertChild(request, tools) {
-  assert.deepEqual(toolNames(request), [...tools].sort());
+  assert.deepEqual(toolNames(request), [...tools, ...(tools.length ? ['pstack_todo'] : [])].sort());
   assert.ok(!JSON.stringify(request).includes('UNTRUSTED_CONTEXT_MARKER'));
   assert.ok(!JSON.stringify(request).includes('APPENDED_CONTEXT_MARKER'));
   assert.ok(!JSON.stringify(request).includes('available_skills'));

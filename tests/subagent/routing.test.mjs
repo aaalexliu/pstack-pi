@@ -28,7 +28,7 @@ test('single execute captures parent before await and routes admission without c
   let tool;
   const api = new Proxy(/** @type {import('@earendil-works/pi-coding-agent').ExtensionAPI} */ ({}), {
     get(_target, name) {
-      if (name === 'on') return () => {};
+      if (name === 'on' || name === 'registerCommand') return () => {};
       assert.equal(name, 'registerTool');
       return (/** @type {import('@earendil-works/pi-coding-agent').ToolDefinition<typeof subagentParameters>} */ value) => { tool = value; };
     },
