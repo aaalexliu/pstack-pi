@@ -8,6 +8,8 @@ import { captureParent, qualifyModel } from './model-runtime.ts';
 import { PiInvocation } from './process.ts';
 import { DelegationScheduler, immutable, outputQuota, type ResolvedTask } from './scheduler.ts';
 import { aggregateUsage, type Usage } from './usage.ts';
+import { RunProgress, progressLines } from './progress.ts';
+import { createProgressView } from './view.ts';
 
 const failureLimits = Object.freeze({ records: 32, envelopeBytes: 64 * 1024, retentionMs: 30_000, toolCallIdBytes: 1024 });
 type Envelope = { content: [{ type: 'text'; text: string }]; details: unknown; usage: Usage };
@@ -68,6 +70,7 @@ export default function subagentExtension(pi: ExtensionAPI, { run = runChild, pi
   const rootDepth = depth;
   const scheduler = new DelegationScheduler();
   const router = new ModelRouter();
+  const view = createProgressView(pi);
   const inputs = new WeakMap<object, symbol>();
   const owned = new Map<symbol, OwnedFailure>();
   let closed = false;
@@ -95,7 +98,7 @@ export default function subagentExtension(pi: ExtensionAPI, { run = runChild, pi
     clearTimeout(timer);
     timer = undefined;
     for (const key of owned.keys()) erase(key);
-    return scheduler.shutdown();
+    return scheduler.shutdown().finally(() => view.close());
   });
   pi.on('tool_result', (event): (Envelope & { isError: true }) | undefined => {
     if (event.toolName !== 'subagent') return;
@@ -116,9 +119,13 @@ export default function subagentExtension(pi: ExtensionAPI, { run = runChild, pi
     label: 'Subagent',
     description: 'Run one leaf agent or an atomic tasks batch of 1-8 bundled or user agents. At most four children run at once, in FIFO order. Only one request may prepare, run, or stop at a time. Children cannot delegate. Requests have no default execution deadline. limits.timeoutMs may set a request deadline, including preparation and queue time. The 32768-byte retained-output budget is split by input index. limits.outputBytes may lower that budget; larger values clamp. Each task is at most 32768 UTF-8 bytes, all task text at most 131072 bytes, and the JSON request at most 163840 bytes. Project agents, other working directories, and chains are disabled. model accepts inherit-parent or an exact provider/model-id; role selects a known configured role. Explicit model overrides role, then agent default, then parent. Results retain input order. Any non-success is an error with ordered details and known Pi-reported usage.',
     parameters: subagentParameters,
-    async execute(id, params, signal, _onUpdate, ctx) {
+    async execute(id, params, signal, onUpdate, ctx) {
       const lease = scheduler.reserve(rootDepth);
+      let progress: RunProgress | undefined;
+      let failureReason: string | undefined;
       const abort = () => lease.cancel('user');
+      const stopping = () => progress?.stopping();
+      lease.signal.addEventListener('abort', stopping, { once: true });
       signal?.addEventListener('abort', abort, { once: true });
       let diagnostics: string[] = [];
       let key: symbol | undefined;
@@ -134,6 +141,10 @@ export default function subagentExtension(pi: ExtensionAPI, { run = runChild, pi
         owned.set(key, { input: params, toolCallId: id, kind: 'running' });
         const parent = captureParent(ctx);
         const input = request.kind === 'single' ? { tasks: [request.task], cwd: request.task.cwd, limits: request.task.limits } : request.request;
+        progress = new RunProgress(input.tasks, (snapshot) => {
+          try { onUpdate?.({ content: [{ type: 'text', text: progressLines(snapshot)[0] }], details: { progress: snapshot } }); } catch {}
+          view.publish(snapshot, ctx);
+        });
         const reduced = reduceLimits(input.limits);
         const limits = reduced.limits;
         diagnostics = reduced.diagnostics;
@@ -161,7 +172,16 @@ export default function subagentExtension(pi: ExtensionAPI, { run = runChild, pi
           requested: { model: task.model ?? null, role: task.role ?? null }, selection: ticket.selections[index],
         }));
         lease.admit(batch, ticket.commit);
-        const results = await lease.run(run);
+        progress.admitted(batch);
+        const results = await lease.run(async (options) => {
+          const index = batch.findIndex((task) => task.identity.id === options.identity.id);
+          progress!.preparing(index);
+          const result = await run({ ...options, onStart: () => progress!.started(index),
+            onProgress: (event, usage) => progress!.event(index, event, usage) });
+          progress!.result(index, result);
+          return result;
+        });
+        results.forEach((result, index) => progress!.result(index, result));
         const aggregate = aggregateUsage(results.map((result) => result.usage));
         if (aggregate.overflow) diagnostics.push('Usage overflow; aggregate contains only representable known charges');
         if (lease.cancellation) diagnostics.push(`Delegation cancelled (${lease.cancellation})`);
@@ -181,13 +201,16 @@ export default function subagentExtension(pi: ExtensionAPI, { run = runChild, pi
         }
         return envelope([...texts, ...diagnostics].flatMap((text, index) => index ? ['\n\n', text] : [text]), details, aggregate.usage);
       } catch (error) {
-        if (error instanceof BatchExecutionError) throw error;
+        if (error instanceof BatchExecutionError) { failureReason = error.message; throw error; }
         failedEnvelope = undefined;
         const reason = lease.cancellation ? `Delegation cancelled (${lease.cancellation})`
           : error instanceof Error ? error.message : 'Delegation failed';
+        failureReason = reason;
         throw new Error([boundedOutput(reason, 256).text, ...diagnostics].join('; '));
       } finally {
         signal?.removeEventListener('abort', abort);
+        lease.signal.removeEventListener('abort', stopping);
+        progress?.finish(failureReason);
         try { lease.finish(); }
         catch (error) { erase(key); throw error; }
         if (!closed && key !== undefined && owned.has(key) && failedEnvelope) {

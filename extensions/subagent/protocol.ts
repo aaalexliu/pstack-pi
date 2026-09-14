@@ -67,7 +67,7 @@ function assistantOutput(content: Static<typeof assistant>['content'], limit: nu
   return { text, bytes, truncated: bytes > limit };
 }
 
-export function childOutputParser(expected?: ModelIdentity, outputBytes = executionLimits.outputBytes) {
+export function childOutputParser(expected?: ModelIdentity, outputBytes = executionLimits.outputBytes, onEvent?: (event: unknown) => void) {
   const decoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
   const line = Buffer.alloc(protocolLimits.lineBytes);
   let pending = 0;
@@ -169,6 +169,7 @@ export function childOutputParser(expected?: ModelIdentity, outputBytes = execut
           if (text.includes('\r')) throw new Error('Child JSONL requires LF');
           const value: unknown = JSON.parse(text);
           consume(value);
+          try { onEvent?.(value); } catch { /* Observers do not own protocol validity. */ }
           pending = 0;
           offset = newline + 1;
         }

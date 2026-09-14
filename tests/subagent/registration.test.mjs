@@ -32,12 +32,13 @@ function registration(run) {
         if (event === 'session_shutdown') { assert.equal(shutdown, undefined); shutdown = /** @type {() => Promise<void>} */ (handler); }
         else { assert.equal(event, 'tool_result'); assert.equal(resultHook, undefined); resultHook = /** @type {NonNullable<typeof resultHook>} */ (handler); }
       };
+      if (name === 'registerCommand') return (/** @type {string} */ command) => assert.equal(command, 'subagents');
       assert.equal(name, 'registerTool', `Forbidden API access: ${String(name)}`);
       return (/** @type {import('@earendil-works/pi-coding-agent').ToolDefinition<typeof subagentParameters>} */ tool) => tools.push(tool);
     },
   });
   extension(api, { run, pin: () => PiInvocation.resolve({ entrypoint: fileURLToPath(new URL('../../node_modules/@earendil-works/pi-coding-agent/dist/cli.js', import.meta.url)) }) });
-  assert.deepEqual(calls, ['on', 'on', 'registerTool']);
+  assert.deepEqual(calls, ['registerCommand', 'on', 'on', 'registerTool']);
   assert.ok(shutdown && resultHook);
   assert.equal(tools.length, 1);
   const tool = tools[0];
@@ -48,7 +49,7 @@ function registration(run) {
   return { tool, shutdown, resultHook };
 }
 
-test('fake ExtensionAPI sees only subagent, session_shutdown, and scoped tool_result', () => { registration(); });
+test('fake ExtensionAPI sees subagents command, subagent tool, shutdown, and scoped tool_result', () => { registration(); });
 
 test('execute rejects unknown agents, malformed user agents, cwd changes, and injected trust fields before spawn', async (t) => {
   const root = await mkdtemp(path.join(await realpath(tmpdir()), 'registration-'));

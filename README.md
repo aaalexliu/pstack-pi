@@ -88,6 +88,28 @@ The tool supports four strict actions:
 
 `complete` marks every exact matching open item with `[done] `. `set` and `add` accept at most 128 nonblank items of at most 4,096 characters each. Reads do not add session entries. The loader ignores malformed entries and entries from newer state versions.
 
+## Live subagent view (Watch trial)
+
+During delegation, `/subagents` opens a read-only terminal split in cmux. It shows each task's role, selected and observed model, task summary, public message, active tools, checklists, turns, event age, reported tokens, and cost. Use `j`/`k` to scroll and `q` to leave the viewer. Esc in the parent cancels the batch; closing the viewer does not.
+
+Outside cmux, the command prints the Node command to run in another terminal. Pi keeps a compact inline status either way. No browser, server, framework, database, or daemon is needed.
+
+- Each parent owns a private `0700` temporary directory with a coalesced, atomic `0600` snapshot. The file exists only after opening the watch. It contains bounded task and public-message summaries, not raw thinking or tool arguments.
+- Event age updates each second. Sixty quiet seconds and ten minutes of runtime trigger advisory labels, not automatic cancellation or claims of a loop.
+- Models say `(selected)` until the child reports its identity. Streaming usage can lag or remain zero; partial usage is not billed twice.
+- Leaf checklists hold up to 32 short items. Completion is self-reported, not task completion. `todos not reported` is distinct from an empty checklist.
+- The depth label describes the supported delegation policy, not a process-tree scan. This view does not discover agents launched through arbitrary shell commands or infer whether reasoning is on track.
+- The viewer exits when the parent stops or removes its snapshot. A stalled publisher gets a distinct stale-watch label. Graceful shutdown removes the private directory; a hard kill may leave a private OS temporary directory.
+- Only the last request survives in memory. The watch does not recover history after reload. Repeating `/subagents` prints a command to reopen the existing watch file rather than creating duplicate panes.
+
+Try the isolated demo from this checkout:
+
+```sh
+node scripts/demo-subagents.mjs
+```
+
+Then run `/subagents`. This uses scripted model responses and usage, but real Pi parent/child processes, tools, checklists, and the cmux pane. One child finishes in about eight seconds; the other runs a 65-second shell wait so the quiet warning appears. `/quit` exits the parent and stops the viewer. `--quick` shortens the slow wait. The demo uses a temporary profile, no live credentials, and does not change your Pi install.
+
 ## Workflow support tools
 
 `pstack_config` has strict `get` and `list-models` actions. `get` reads `<Pi agent dir>/pstack-pi/models.json` through the same version-1 parser used by delegation. `list-models` returns the exact `provider/model-id` values available from Pi's model registry. The tool does not write config. `/skill:setup-pstack` validates model choices first, then writes the file with Pi's normal file tools.
@@ -148,7 +170,8 @@ An invalid or unsupported host invocation disables delegation.
 The child uses separate exact `--provider` and `--model` arguments.
 Inherited choices preserve the captured parent thinking level. Pinned choices use `--thinking off`.
 The child gets an explicit tools allowlist or `--no-tools`.
-It loads no extensions, skills, prompt templates, context files, or saved session.
+It disables extension discovery, skills, prompt templates, context files, and saved sessions.
+It explicitly loads one package-owned leaf checklist extension. Nonempty tool allowlists also get `pstack_todo`; `tools: []` still means no tools.
 It receives a private `0600` system-prompt file and an empty append prompt, which prevents `APPEND_SYSTEM.md` discovery.
 The task travels through stdin, so leading `@` and CLI-looking text stay task text.
 Children expose no `subagent` tool.

@@ -1,6 +1,7 @@
 # Real Pi test controls
 
 `npm run test:pi` runs Pi 0.85.1 against a bounded loopback provider. The runner packs the real package, checks its tar inventory and bytes, and loads the extracted package in an isolated profile.
+Test files run one at a time so unrelated Pi startups do not consume the short process watchdogs. Parallel tests still exercise four children within each scenario.
 
 ## Accounting contract
 

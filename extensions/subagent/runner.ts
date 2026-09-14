@@ -1,6 +1,8 @@
 import { lstat, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import type { UsageReport } from './usage.ts';
 import { executionLimits, protocolLimits, parseDepth, requireRoot, RunRegistry, type RunLease, type DelegationDepth, type ExecutionLimits, type Agent, type CanonicalCwd, type TaskIdentity, type TaskResult } from './domain.ts';
 import { childEnvironment, cleanupLimits, OwnedProcessTree, PiInvocation, ProcessOwnershipError, type CleanupReport, type ProcessBackend } from './process.ts';
 import { parseModelChoice } from './model-config.ts';
@@ -33,7 +35,8 @@ export function childArguments({ agent, model, promptFile }: { agent: Agent; mod
   const args = ['--mode', 'json', '--print', '--no-session', '--no-extensions', '--no-skills', '--no-prompt-templates', '--no-context-files', '--no-approve', '--offline', '--provider', model.provider, '--model', model.id];
   if (!['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(model.thinkingLevel)) throw new Error('Invalid child thinking level');
   args.push('--thinking', model.thinkingLevel);
-  args.push(...(agent.tools.length ? ['--tools', agent.tools.join(',')] : ['--no-tools']));
+  args.push('-e', fileURLToPath(new URL('./leaf-todo.ts', import.meta.url)));
+  args.push(...(agent.tools.length ? ['--tools', [...agent.tools, 'pstack_todo'].join(',')] : ['--no-tools']));
   args.push('--system-prompt', promptFile, '--append-system-prompt', '');
   return args;
 }
@@ -80,9 +83,9 @@ class PrivatePrompt {
   }
 }
 
-export async function runChild({ identity, agent, task, model, signal, depth = parseDepth(undefined), limits = executionLimits, lease = new RunRegistry().admit(depth, limits.timeoutMs), invocation, backend, onStart, promptFiles = promptBackend }: {
+export async function runChild({ identity, agent, task, model, signal, depth = parseDepth(undefined), limits = executionLimits, lease = new RunRegistry().admit(depth, limits.timeoutMs), invocation, backend, onStart, onProgress, promptFiles = promptBackend }: {
   identity: TaskIdentity; agent: Agent; task: string; model: ChildModel; signal: AbortSignal | undefined;
-  depth?: DelegationDepth; limits?: ExecutionLimits; lease?: RunLease; invocation?: PiInvocation; backend?: ProcessBackend; onStart?: () => void; promptFiles?: PromptBackend;
+  depth?: DelegationDepth; limits?: ExecutionLimits; lease?: RunLease; invocation?: PiInvocation; backend?: ProcessBackend; onStart?: () => void; onProgress?: (event: unknown, usage: UsageReport) => void; promptFiles?: PromptBackend;
 }): Promise<TaskResult> {
   let prompt: PrivatePrompt | undefined;
   let owner: OwnedProcessTree | undefined;
@@ -91,7 +94,7 @@ export async function runChild({ identity, agent, task, model, signal, depth = p
   const diagnostics: string[] = [];
   let output = boundedOutput('');
   let observedModel: ModelIdentity | null = null;
-  const parser = childOutputParser(model, limits.outputBytes);
+  const parser = childOutputParser(model, limits.outputBytes, (event) => onProgress?.(event, parser.report()));
   let possibleWork = false;
   const abort = () => lease.cancel('user');
   const stop = () => { if (lease.cancellation) owner?.requestStop({ kind: 'cancelled', reason: lease.cancellation }); };

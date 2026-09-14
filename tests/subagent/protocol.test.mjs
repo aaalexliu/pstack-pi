@@ -20,6 +20,15 @@ const settle = (parser) => send(parser, { type: 'agent_settled' });
 /** @param {ReturnType<typeof childOutputParser>} parser @param {unknown} usage */
 const update = (parser, usage) => send(parser, { type: 'message_update', usage, assistantMessageEvent: { type: 'text_delta', contentIndex: 0, delta: 'x' } });
 
+test('observer failures do not change validation, output, or usage', () => {
+  const parser = childOutputParser(undefined, 32768, () => { throw new Error('display broke'); });
+  start(parser); end(parser); settle(parser);
+  assert.equal(parser.end().output.text, 'answer');
+  assert.deepEqual(parser.report().direct.usage, usage);
+  const invalid = childOutputParser(undefined, 32768, () => { throw new Error('display broke'); });
+  assert.throws(() => send(invalid, { type: 'unknown' }), /Invalid child event/);
+});
+
 test('updates replace snapshots even when fields decrease; end commits once; copies never count', () => {
   const parser = childOutputParser();
   start(parser, { usage: zeroUsage(), stopReason: 'pending' });
