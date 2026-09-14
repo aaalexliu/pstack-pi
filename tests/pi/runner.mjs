@@ -1,14 +1,13 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { cp, lstat, mkdir, mkdtemp, readFile, realpath, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readFile, realpath, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { jsonlParser } from './jsonl.mjs';
 export { jsonlParser } from './jsonl.mjs';
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
-import { CONTROL_ARGS, CONTROL_PROMPT } from './fixtures/unsafe-recursion.mjs';
 import { FIXTURE_KEY, FIXTURE_MODEL, FIXTURE_TEXT, FIXTURE_USAGE, startProvider } from "./provider.mjs";
 import { contentInventory, expectedPackFiles, checkPackedContent } from '../../scripts/check-content.mjs';
 
@@ -104,7 +103,7 @@ export class PiTestError extends Error {
 }
 
 /**
- * @typedef {{kind: 'packed'} | {kind: 'recursion-control', nonce: string}} TestLaunch
+ * @typedef {{kind: 'packed'}} TestLaunch
  */
 /**
  * @param {{ startFixture?: typeof startProvider, thinkingLevel?: 'off' | 'high', configureModels?: (paths: PiTestRun['paths'], baseUrl: string) => Promise<void>, launch?: TestLaunch, expectedExit?: {code: number | null, signal: NodeJS.Signals | null}, launchEnvironment?: NodeJS.ProcessEnv, observer?: import('./process-observer.mjs').ProcessObserver, verifyStopped?: (run: PiTestRun) => Promise<void>, fixture?: import("./provider.mjs").FixtureOptions, timeoutMs?: number, executable?: string, prompt?: string, packageFixture?: {root: string, files: string[]}, allowDiagnostics?: boolean, expectedText?: string, expectedRequests?: number, setup?: (paths: PiTestRun['paths']) => Promise<void>, verify?: (run: PiTestRun) => Promise<void>, keepArtifacts?: boolean, onSpawn?: (pid: number) => void }} options
@@ -197,12 +196,7 @@ export async function runPiSmoke({ startFixture = startProvider, thinkingLevel =
     }
     const manifest = JSON.parse(await readFile(join(run.paths.package, "package.json"), "utf8"));
     assert.equal(manifest.name, "@aaalexliu/pstack-pi");
-    for (const [name, version] of Object.entries(manifest.dependencies ?? {})) {
-      assert.equal(name, 'yaml', 'Unexpected fixture runtime dependency');
-      const source = join(repository, 'node_modules', name);
-      assert.equal(JSON.parse(await readFile(join(source, 'package.json'), 'utf8')).version, version);
-      await cp(source, join(run.paths.package, 'node_modules', name), { recursive: true });
-    }
+    assert.equal(manifest.dependencies, undefined, 'The packed package must not need an install step');
     await writeFile(join(run.paths.profile, "settings.json"), JSON.stringify({
       packages: [run.paths.package],
       enableInstallTelemetry: false,
@@ -264,17 +258,6 @@ export async function runPiSmoke({ startFixture = startProvider, thinkingLevel =
           '--session-dir', run.paths.sessions, '--', prompt,
         ];
         break;
-      case 'recursion-control': {
-        assert.match(launch.nonce, /^[a-f0-9]{32}$/);
-        const extension = await realpath(fileURLToPath(new URL('./fixtures/unsafe-recursion.mjs', import.meta.url)));
-        assert.ok(!run.pack.files.some((name) => name.startsWith('tests/')), 'Unsafe test files entered npm package');
-        const evidence = join(root, 'child-output');
-        await mkdir(evidence);
-        env.PSTACK_RECURSION_TEST_NONCE = launch.nonce;
-        env.PSTACK_RECURSION_TEST_CONFIG = JSON.stringify({ kind: 'unsafe-recursion-positive-control', nonce: launch.nonce, ...invocation, extension, evidence });
-        run.process.args = [invocation.cli, ...CONTROL_ARGS, '--no-extensions', '-e', extension, '--', CONTROL_PROMPT];
-        break;
-      }
       default: throw new Error('Unknown test launch');
     }
     run.process.executable = invocation.node;

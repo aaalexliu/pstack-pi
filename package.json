@@ -90,15 +90,8 @@
     "extensions/pstack/mode.ts",
     "extensions/pstack/todo.ts",
     "extensions/subagent/agents.ts",
-    "extensions/subagent/domain.ts",
     "extensions/subagent/index.ts",
     "extensions/subagent/model-config.ts",
-    "extensions/subagent/model-runtime.ts",
-    "extensions/subagent/process.ts",
-    "extensions/subagent/protocol.ts",
-    "extensions/subagent/runner.ts",
-    "extensions/subagent/scheduler.ts",
-    "extensions/subagent/usage.ts",
     "package.json",
     "skills/architect/SKILL.md",
     "skills/architect/references/design-red-flags.md",
@@ -198,24 +191,32 @@
     "sync:relock": "node scripts/sync-upstream.mjs relock . sync/manifest.json"
   },
   "devDependencies": {
+    "@earendil-works/pi-ai": "0.85.1",
     "@earendil-works/pi-coding-agent": "0.85.1",
+    "@earendil-works/pi-tui": "0.85.1",
     "@types/node": "22.19.19",
     "typebox": "1.3.7",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "yaml": "2.9.0"
   },
   "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
     "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
     "typebox": "*"
   },
   "peerDependenciesMeta": {
+    "@earendil-works/pi-ai": {
+      "optional": true
+    },
     "@earendil-works/pi-coding-agent": {
+      "optional": true
+    },
+    "@earendil-works/pi-tui": {
       "optional": true
     },
     "typebox": {
       "optional": true
     }
-  },
-  "dependencies": {
-    "yaml": "2.9.0"
   }
 }

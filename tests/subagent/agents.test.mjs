@@ -1,110 +1,56 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
-import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { discoverAgents, parseAgent } from '../../extensions/subagent/agents.ts';
-import { parseRequest } from '../../extensions/subagent/domain.ts';
+import { bundledAgents, bundledAgentsDirectory, discoverAgents, parseAgent } from '../../extensions/subagent/agents.ts';
 
-/** @param {string} name @param {string} [tools] */
-export const agentText = (name, tools = '[read, grep, find, ls]') => `---\nname: ${name}\ndescription: Read fixture files.\ntools: ${tools}\n---\nDo not delegate.\n`;
+/** @param {string} name @param {string} [extra] @param {string} [body] */
+const agentFile = (name, extra = '', body = `Prompt for ${name}.`) => `---\nname: ${name}\ndescription: ${name} agent.\n${extra}---\n${body}\n`;
 
-/** @param {import('node:test').TestContext} t */
-async function fixture(t) {
-  const root = await mkdtemp(path.join(await realpath(tmpdir()), 'catalog-'));
-  t.after(() => rm(root, { recursive: true, force: true }));
-  const bundledDir = path.join(root, 'bundled');
+test('bundled agents parse with their tool lists and prompts', () => {
+  const agents = bundledAgents();
+  assert.deepEqual(agents.map((a) => a.name).sort(), ['comment-sicko', 'general-purpose', 'poteto-agent']);
+  assert.ok(agents.every((a) => a.source === 'bundled' && a.filePath.startsWith(bundledAgentsDirectory) && a.systemPrompt.trim()));
+  assert.deepEqual(agents.find((a) => a.name === 'poteto-agent')?.tools, ['read', 'grep', 'find', 'ls', 'bash', 'edit', 'write']);
+});
+
+test('parseAgent accepts both tool spellings and rejects files without a name or description', () => {
+  assert.deepEqual(parseAgent(agentFile('a', 'tools: read, bash\nmodel: fixture/model\n')).tools, ['read', 'bash']);
+  assert.deepEqual(parseAgent(agentFile('a', 'tools: [read, bash]\n')).tools, ['read', 'bash']);
+  assert.equal(parseAgent(agentFile('a', 'model: fixture/model\n')).model, 'fixture/model');
+  assert.equal(parseAgent(agentFile('a')).tools, undefined);
+  assert.throws(() => parseAgent('---\ndescription: no name\n---\nbody'), /name/);
+  assert.throws(() => parseAgent('---\nname: x\n---\nbody'), /description/);
+});
+
+test('discovery layers bundled, user, and project agents by name and skips broken files', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'agents-'));
   const userDir = path.join(root, 'user');
-  await mkdir(bundledDir);
-  await mkdir(userDir);
-  await writeFile(path.join(bundledDir, 'general-purpose.md'), agentText('general-purpose'));
-  return { root, bundledDir, userDir };
-}
+  const project = path.join(root, 'project', 'nested');
+  await mkdir(userDir, { recursive: true });
+  await mkdir(path.join(root, 'project', '.pi', 'agents'), { recursive: true });
+  await mkdir(project);
+  await writeFile(path.join(userDir, 'general-purpose.md'), agentFile('general-purpose', 'tools: [bash]\n', 'USER OVERRIDE'));
+  await writeFile(path.join(userDir, 'reviewer.md'), agentFile('reviewer'));
+  await writeFile(path.join(userDir, 'broken.md'), '---\nname: [\n---\n');
+  await writeFile(path.join(userDir, 'notes.txt'), agentFile('ignored'));
+  await writeFile(path.join(root, 'project', '.pi', 'agents', 'reviewer.md'), agentFile('reviewer', '', 'PROJECT OVERRIDE'));
+  await writeFile(path.join(root, 'project', '.pi', 'agents', 'local.md'), agentFile('local'));
 
-test('catalog has deterministic selection, user precedence, shadow records, and byte provenance', async (t) => {
-  const f = await fixture(t);
-  await writeFile(path.join(f.bundledDir, 'z-last.md'), agentText('z-last'));
-  await writeFile(path.join(f.userDir, 'general-purpose.md'), agentText('general-purpose', '[]'));
-  await writeFile(path.join(f.userDir, 'a-first.md'), agentText('a-first'));
-  const catalog = await discoverAgents(f);
-  assert.deepEqual(catalog.diagnostics, []);
-  assert.deepEqual([...catalog.selected.keys()], ['a-first', 'general-purpose', 'z-last']);
-  assert.equal(catalog.selected.get('general-purpose')?.provenance.kind, 'user');
-  assert.deepEqual(catalog.selected.get('general-purpose')?.tools, []);
-  assert.equal(catalog.shadowed.length, 1);
-  assert.equal(catalog.shadowed[0].agent.provenance.kind, 'bundled');
-  assert.deepEqual(catalog.shadowed[0].replacedBy, catalog.selected.get('general-purpose')?.provenance);
-  assert.match(catalog.shadowed[0].agent.provenance.sha256, /^[a-f0-9]{64}$/);
-  assert.deepEqual(await discoverAgents(f), catalog);
-});
+  const user = discoverAgents(project, 'user', { userDir });
+  assert.equal(user.projectAgentsDir, path.join(root, 'project', '.pi', 'agents'));
+  assert.deepEqual(user.agents.map((a) => `${a.name}:${a.source}`).sort(), ['comment-sicko:bundled', 'general-purpose:user', 'poteto-agent:bundled', 'reviewer:user']);
+  assert.equal(user.agents.find((a) => a.name === 'general-purpose')?.systemPrompt.trim(), 'USER OVERRIDE');
 
-for (const text of [
-  'No frontmatter', agentText('bad--name'), agentText('Good'), agentText('a'.repeat(65)),
-  agentText('good').replace('description: Read fixture files.', 'description: "  "'),
-  agentText('good').replace('name: good', 'name: good\nname: duplicate'),
-  agentText('good').replace('name: good', 'name: [broken'),
-  agentText('good').replace('name: good', 'name: !custom good'),
-  agentText('good').replace('name: good', 'name: &n good').replace('Read fixture files.', '*n'),
-  agentText('good').replace('tools: [read, grep, find, ls]\n', ''),
-  ...['null', 'false', 'read, grep', '[read, read]', '[read, subagent]', '[unknown]', '["*"]', '[1]'].map((tools) => agentText('good', tools)),
-  ...['model', 'cwd', 'trust', 'agentScope', 'extra'].map((field) => agentText('good').replace('name: good', `name: good\n${field}: x`)),
-  agentText('good').replace('Do not delegate.\n', ''),
-  agentText('good') + 'x'.repeat(65536),
-]) {
-  test(`agent parser rejects ${JSON.stringify(text.slice(0, 100))}`, () => assert.throws(() => parseAgent(text)));
-}
+  const both = discoverAgents(project, 'both', { userDir });
+  assert.deepEqual(both.agents.map((a) => `${a.name}:${a.source}`).sort(), ['comment-sicko:bundled', 'general-purpose:user', 'local:project', 'poteto-agent:bundled', 'reviewer:project']);
+  assert.equal(both.agents.find((a) => a.name === 'reviewer')?.systemPrompt.trim(), 'PROJECT OVERRIDE');
 
-test('agent defaults accept single exact choices and reject pools', () => {
-  for (const model of ['inherit-parent', 'fixture/org/model:tag']) {
-    assert.equal(parseAgent(agentText('reader').replace('tools:', `model: ${model}\ntools:`)).model, model);
-  }
-  for (const model of ['[fixture/a]', 'auto', 'fixture/*', '"fixture/model\\n"']) {
-    assert.throws(() => parseAgent(agentText('reader').replace('tools:', `model: ${model}\ntools:`)));
-  }
-});
+  const projectOnly = discoverAgents(project, 'project', { userDir });
+  assert.deepEqual(projectOnly.agents.map((a) => a.name).sort(), ['local', 'reviewer']);
 
-test('agent parser accepts CRLF and explicit empty tools', () => {
-  assert.deepEqual(parseAgent(agentText('none', '[]').replaceAll('\n', '\r\n')).tools, []);
-});
-
-for (const mutation of ['duplicate', 'malformed', 'symlink file', 'symlink directory', 'fifo', 'nested', 'invalid UTF-8', 'oversized']) {
-  test(`catalog reports ${mutation} without silently accepting it`, async (t) => {
-    const f = await fixture(t);
-    const filename = path.join(f.userDir, 'other.md');
-    if (mutation === 'duplicate') {
-      await writeFile(filename, agentText('same'));
-      await writeFile(path.join(f.userDir, 'second.md'), agentText('same'));
-    }
-    if (mutation === 'malformed') await writeFile(filename, 'bad');
-    if (mutation === 'symlink file') await symlink(path.join(f.bundledDir, 'general-purpose.md'), filename);
-    if (mutation === 'symlink directory') {
-      await rm(f.userDir, { recursive: true });
-      await symlink(f.bundledDir, f.userDir);
-    }
-    if (mutation === 'fifo') execFileSync('mkfifo', [filename]);
-    if (mutation === 'nested') await mkdir(filename);
-    if (mutation === 'invalid UTF-8') await writeFile(filename, Buffer.from([255]));
-    if (mutation === 'oversized') await writeFile(filename, 'x'.repeat(65537));
-    const catalog = await discoverAgents(f);
-    assert.ok(catalog.diagnostics.length > 0);
-  });
-}
-
-test('catalog permits an absent user directory and never scans project agents', async (t) => {
-  const f = await fixture(t);
-  await rm(f.userDir, { recursive: true });
-  await mkdir(path.join(f.root, '.pi/agents'), { recursive: true });
-  await writeFile(path.join(f.root, '.pi/agents/project.md'), agentText('project'));
-  const catalog = await discoverAgents(f);
-  assert.deepEqual(catalog.diagnostics, []);
-  assert.deepEqual([...catalog.selected.keys()], ['general-purpose']);
-});
-
-test('single requests reject unknown fields, modes, blank tasks, and trust arguments', () => {
-  const valid = { agent: 'general-purpose', task: 'Read a file.' };
-  assert.deepEqual(parseRequest(valid), { kind: 'single', task: valid });
-  for (const input of [null, [], {}, { ...valid, kind: 'single' }, { ...valid, tasks: [valid] }, { ...valid, task: ' ' }, { ...valid, task: 'x'.repeat(32769) }, { ...valid, cwd: '' }, { ...valid, cwd: '\0' }, { ...valid, agentScope: 'project' }, { ...valid, confirmProjectAgents: false }]) {
-    assert.throws(() => parseRequest(input));
-  }
+  const none = discoverAgents(root, 'both', { userDir: path.join(root, 'missing') });
+  assert.equal(none.projectAgentsDir, null);
+  assert.deepEqual(none.agents.map((a) => a.source), ['bundled', 'bundled', 'bundled']);
 });
