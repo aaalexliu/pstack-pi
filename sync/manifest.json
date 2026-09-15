@@ -922,6 +922,11 @@
           "count": 1
         },
         {
+          "find": "## Playbooks\n",
+          "replace": "## Playbooks\n\n`pstack_todo` is not Cursor TodoWrite. Items are plain strings, not objects with `id`, `content`, or `status`. Use these calls in order, with your own step text:\n\n```json\n{ \"action\": \"set\", \"items\": [\"step one\", \"step two\"] }\n```\n\n```json\n{ \"action\": \"add\", \"item\": \"another\" }\n```\n\n```json\n{ \"action\": \"complete\", \"item\": \"step one\" }\n```\n\n```json\n{ \"action\": \"get\" }\n```\n\n`set` replaces the whole checklist. `complete` matches the exact item string and prefixes it with `[done] `. There is no `merge` or `replace` action.\n",
+          "count": 1
+        },
+        {
           "find": "Open a todolist whose first items are the matched playbook's steps, copied in verbatim, before any task-specific todos. A step you choose not to do stays in the list with a one-line `skip: <reason>`. Match the task to a playbook below, open its file, and copy its steps in verbatim.",
           "replace": "The parent opens `pstack_todo` whose first items are the matched playbook's steps, copied in verbatim, before any task-specific todos. A step you choose not to do stays in the list with a one-line `skip: <reason>`. Match the task to a playbook below. Open bundled files and copy their steps verbatim. For omitted workflows, use the fallback and local gates rather than an absent file. Children return progress as text; their optional `pstack_todo` owns only their leaf checklist.",
           "count": 1

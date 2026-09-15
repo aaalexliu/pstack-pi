@@ -28,7 +28,7 @@ The manifest contains the exact ordered `find`, `replace`, and `count` values fo
 | `skills/maintain-verification-skill/SKILL.md` | Pi skill paths/commands, bounded source readers, parent driving, and authorized publication. |
 | `skills/make-bot-ui/SKILL.md` | Replace Cursor routine/secret-card UI assumptions with documented service access and private local secret setup. Keep the webhook protocol. |
 | `skills/no-comments/SKILL.md` | Pi reviewer and skill commands; parent applies deletions and owns external checks. |
-| `skills/poteto-mode/SKILL.md` | Remove unsupported frontmatter, Cursor plugins, and task defaults. Add Pi boundaries and explicit fallbacks for unbundled workflows. |
+| `skills/poteto-mode/SKILL.md` | Remove unsupported frontmatter, Cursor plugins, and task defaults. Add Pi boundaries, string-checklist API examples, and explicit fallbacks for unbundled workflows. |
 | `skills/poteto-mode/playbooks/bug-fix.md` | Replace the Cursor loop command and default model with local checkpoints and the bug-fix role. |
 | `skills/poteto-mode/playbooks/feature.md` | Replace default models and nested delegation with parent-dispatched leaf implementation. |
 | `skills/poteto-mode/playbooks/multi-phase-plan.md` | Local task paths, model roles, bounded lanes, manual checker fallback, and parent-owned status/landing instead of cloud controls. |

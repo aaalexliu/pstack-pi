@@ -11,7 +11,7 @@ export const todoParameters = Type.Union([
   Type.Object({ action: Type.Literal('set'), items: Type.Array(itemSchema, { maxItems: 128 }) }, { additionalProperties: false }),
   Type.Object({ action: Type.Literal('add'), item: itemSchema }, { additionalProperties: false }),
   Type.Object({ action: Type.Literal('complete'), item: itemSchema }, { additionalProperties: false }),
-]);
+], { type: 'object' });
 
 const todoStateSchema = Type.Object({
   version: Type.Literal(todoStateVersion),

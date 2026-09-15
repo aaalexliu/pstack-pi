@@ -139,6 +139,26 @@ Comments follow the same rule as the reply. Write them clean as you go. Keep a c
 
 ## Playbooks
 
+`pstack_todo` is not Cursor TodoWrite. Items are plain strings, not objects with `id`, `content`, or `status`. Use these calls in order, with your own step text:
+
+```json
+{ "action": "set", "items": ["step one", "step two"] }
+```
+
+```json
+{ "action": "add", "item": "another" }
+```
+
+```json
+{ "action": "complete", "item": "step one" }
+```
+
+```json
+{ "action": "get" }
+```
+
+`set` replaces the whole checklist. `complete` matches the exact item string and prefixes it with `[done] `. There is no `merge` or `replace` action.
+
 The parent opens `pstack_todo` whose first items are the matched playbook's steps, copied in verbatim, before any task-specific todos. A step you choose not to do stays in the list with a one-line `skip: <reason>`. Match the task to a playbook below. Open bundled files and copy their steps verbatim. For omitted workflows, use the fallback and local gates rather than an absent file. Children return progress as text; their optional `pstack_todo` owns only their leaf checklist.
 
 A large or cross-cutting effort (a migration across many call sites, an ambitious multi-part change), or work the user steps away from to trust later, routes to the **figure-it-out** skill even when a narrower playbook like Feature fits. Use **figure-it-out** whenever no bundled playbook fits. It designs a bespoke, rigorous playbook for the task. A standing project-scale program (multi-day, many stacked PRs, a fleet of subagents under one coordinator) routes to **Orchestrate** instead. figure-it-out designs one bespoke run, orchestrate runs the program.

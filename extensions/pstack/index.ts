@@ -77,7 +77,7 @@ export default function pstack(pi: ExtensionAPI): void {
     parameters: Type.Union([
       Type.Object({ action: Type.Literal('get') }, { additionalProperties: false }),
       Type.Object({ action: Type.Literal('list-models') }, { additionalProperties: false }),
-    ]),
+    ], { type: 'object' }),
     async execute(_toolCallId, request, _signal, _onUpdate, ctx) {
       if (request.action === 'list-models') {
         const models = ctx.modelRegistry.getAvailable().map((model) => `${model.provider}/${model.id}`);

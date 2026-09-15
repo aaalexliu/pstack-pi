@@ -21,6 +21,14 @@ test('packed real Pi persists and updates pstack todos', async () => {
         assert.ok(Array.isArray(request.tools));
         const tools = request.tools.map((/** @type {any} */ tool) => tool.function.name);
         assert.ok(tools.includes('pstack_todo'));
+        for (const name of ['pstack_todo', 'pstack_config']) {
+          /** @type {any} */
+          const tool = request.tools.find((/** @type {any} */ candidate) => candidate.function.name === name);
+          assert.ok(tool, `Missing tool ${name}`);
+          assert.equal(tool.function.parameters.type, 'object');
+          assert.deepEqual(tool.function.parameters.anyOf.map((/** @type {any} */ branch) => branch.properties.action.const),
+            name === 'pstack_todo' ? ['get', 'set', 'add', 'complete'] : ['get', 'list-models']);
+        }
       } },
       { reply: { kind: 'tool', id: 'add', name: 'pstack_todo', arguments: { action: 'add', item: 'second' } }, check: (request) => {
         assert.match(toolResult(request, 'set'), /1\. first/);
