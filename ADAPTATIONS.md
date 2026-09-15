@@ -2,7 +2,17 @@
 
 These files are derived from the matching files in the pinned Cursor pstack snapshot. The sync manifest binds each replacement to the exact upstream Git blob and to the replacement's SHA-256 digest. `npm run sync:check` fails when either side changes without review.
 
-Use `copy` when Cursor content already works in Pi. Use a short ordered `transform` for a small textual adaptation. Use `replace` here when the runtime contract or most operational steps must change. A replacement is the reviewed Pi copy, not an unrelated implementation.
+Use `copy` when Cursor content already works in Pi. Prefer an exact, count-checked `transform` for tool names, paths, frontmatter, or a bounded runtime section. Leave the rest of the source verbatim. Use `replace` only when execution ownership changes throughout the workflow. A replacement must preserve scope, triggers, evidence standards, checkpoints, outputs, and failure handling. Shortening is not a host adaptation.
+
+## Fidelity repair
+
+Commit `0a6f170` activated Interrogate as an 18-line replacement of the 111-line upstream workflow. Its rationale cited Cursor tool and model routing, but the rewrite also removed scope selection, configured panel membership, model attribution, and the verdict structure. The sync checks accepted the reviewed hashes and dependency closure; they did not check whether the skill still did the same job. Hash locking prevents unreviewed drift, not a lossy initial review.
+
+The repair compares all 32 former replacements with the pinned source. It restores their workflow contracts and moves Interrogate to two exact transforms. Important repairs include plan-only Multi-phase Plan, the webhook-backed Make Bot UI with its secret and delivery rules, Why's original confidence tiers and source coverage, Arena's private rubric and complete configured panel, and evidence, approval, and output rules throughout the remaining skills. Pi-specific limits remain explicit rather than silently deleting work.
+
+`tests/content/fidelity.test.mjs` checks critical clauses in every remaining replacement and rejects clause-removal mutations. It also proves that Interrogate's scope, intent, lead judgment, and output sections remain byte-identical to upstream. These are static instruction checks, not proof of model compliance or a substitute for reviewing upstream changes.
+
+## Full-file replacements
 
 | Upstream file | What the Pi replacement changes | Why copy or a short transform is unsafe |
 | --- | --- | --- |
@@ -15,17 +25,16 @@ Use `copy` when Cursor content already works in Pi. Use a short ordered `transfo
 | `skills/poteto-mode/playbooks/feature.md` | Keeps subsystem discovery, `architect`, `arena`, and `interrogate` routing, an explicit data owner, bounded delegation, parent review, and verification. | The source requires Cursor background agents, nested delegation, `/loop`, and automatic pull-request workflows. |
 | `skills/poteto-mode/playbooks/investigation.md` | Keeps read-only scope, `how` and `why` routing, evidence splits, citations, and bounded Pi readers. | The source assumes Cursor routed agents, background tasks, model aliases, and automatic pull-request workflows. |
 | `skills/poteto-mode/playbooks/prototype.md` | Keeps decision-first probes, `architect` and `arena` routing, competing options, observed evidence, cleanup, and handoff to Feature. | The source requires Cursor UI-control plugins, nested agents, and automatic pull-request workflows for each prototype class. |
-| `skills/poteto-mode/playbooks/multi-phase-plan.md` | Keeps target-state planning, verifiable phases, current-phase todos, `show-me-your-work` records, and explicit exit checks. | The source requires Cursor cloud lanes, `/goal`, `/loop`, `gt`, fixed ten-agent verification, and a Cursor agent-store path. |
+| `skills/poteto-mode/playbooks/multi-phase-plan.md` | Keeps plan-only scope, explicit operator go, the plan skeleton, dependencies, live and perf proof, review gates, and manual validation when the checker is absent. | The source requires Cursor cloud lanes, `/goal`, `/loop`, `gt`, fixed ten-agent verification, and a Cursor agent-store path. |
 | `skills/poteto-mode/playbooks/orchestrate.md` | Keeps independent workstream mapping, `swarm` and `blast-radius` routing, one-owner writes, bounded Pi task batches, ordered integration, and local fallback. | The source is a multi-day Cursor cloud coordinator backed by nested agents, an `orch` runtime, cloud VMs, `gt`, dashboards, and depth-three delegation. Pi's package intentionally supports leaf children and one live request. |
 | `agents/comment-sicko.md` | Uses a lowercase Pi agent name, explicit read-only tools, report-only output, and no delegation. | The source has no Pi tool allowlist, uses an invalid spaced agent name, invokes nested skills, and expects the child to edit comments. |
-| `skills/architect/SKILL.md` | Maps candidate design and review to `architect-runner`, Arena, bounded leaf agents, and local fallback. | The source assumes Cursor model defaults and an external model-rule file rather than Pi's exact role router. |
-| `skills/arena/SKILL.md` | Uses one bounded `tasks` request, separate local outputs, and `arena-runner` plus `arena-cross-judge` roles. | The source requires Cursor background tasks, cloud paths, `readonly`, and Cursor model configuration. |
+| `skills/architect/SKILL.md` | Keeps caller-first scaffolds, rationale, opt-in sign-off, and the scrap loop; maps design packages to isolated leaf writers and `architect-runner`. | The source assumes Cursor model defaults and an external model-rule file rather than Pi's exact role router. |
+| `skills/arena/SKILL.md` | Preserves the full model panel across bounded requests, isolated runnable candidates, private rubric, criterion scoring, grafting, and verified synthesis. | The source requires Cursor background tasks, cloud paths, `readonly`, and Cursor model configuration. |
 | `skills/automate-me/SKILL.md` | Uses scoped Pi sessions, `.pi/skills`, read-only mining children, and direct skill authoring. | The source depends on Cursor transcript paths, `AskQuestion`, Cursor's built-in `create-skill`, and `.cursor/skills`. |
 | `skills/create-verification-skill/SKILL.md` | Generates `.pi/skills/verify-*` with repository-native launch, drive, evidence, and cleanup steps. | The source writes `.cursor/skills` and assumes Cursor control surfaces and authoring behavior. |
 | `skills/figure-it-out/SKILL.md` | Uses supported skills, `pstack_todo`, bounded leaf agents, and evidence-driven local continuation. | The source routes through unavailable Cursor orchestration, cloud, and loop behavior. |
-| `skills/interrogate/SKILL.md` | Runs a bounded read-only panel with role `interrogate-reviewer`, then verifies and judges findings in the parent. | The source uses Cursor `Task`, `subagent_type`, `readonly`, and Cursor model defaults. |
 | `skills/maintain-verification-skill/SKILL.md` | Finds `.pi/skills/verify-*`, bounds source readers, and keeps live driving and edits in the parent. | The source assumes `.cursor/skills`, Cursor fan-out, and Cursor-specific skill invocation. |
-| `skills/make-bot-ui/SKILL.md` | Uses available Pi visual or web tools and repository-native SVG, HTML, CSS, or asset briefs as fallback. | The source depends on Cursor image and design services that Pi does not guarantee. |
+| `skills/make-bot-ui/SKILL.md` | Preserves the webhook UI, server-owned secrets, request headers, timeout/no-retry policy, failure log, harmless probe, tailnet setup, and event parsing. | Cursor's routine creation, secret-request cards, and wake handling need an available external service in Pi. Missing service access is a block, not a different design task. |
 | `skills/no-comments/SKILL.md` | Uses the bundled read-only `comment-sicko`; the parent verifies and applies accepted changes. | The source invokes Cursor `Task` with a write-capable Comment Sicko and nested skill calls. |
 | `skills/recall/SKILL.md` | Uses `pstack_sessions`, scoped Pi JSONL files, bounded readers, and live Git or issue checks. | The source assumes Cursor transcript directories and cloud subagents. |
 | `skills/reflect/SKILL.md` | Uses `$PI_SESSION_FILE`, four exact Pi roles, read-only children, and parent-owned skill updates. | The source depends on Cursor transcript discovery, `Task`, MCP access inside children, and Cursor `create-skill`. |
@@ -34,9 +43,20 @@ Use `copy` when Cursor content already works in Pi. Use a short ordered `transfo
 | `skills/reflect/references/divergent-reviewer.md` | Looks for bad premises, false success signals, and simpler missed routes without writing. | The source assumes Cursor `Task`, `Read`, and `Grep` behavior. |
 | `skills/reflect/references/synthesizer.md` | Produces evidence-bound Accepted, Rejected, and Backlog lists without editing. | The source assumes a write-capable Cursor synthesis child and Cursor routing. |
 | `skills/setup-pstack/SKILL.md` | Writes strict version-1 `pstack-pi/models.json` after `pstack_config` model discovery and validation. | The source writes Cursor always-applied rules and uses `AskQuestion` and Cursor model aliases. |
-| `skills/show-me-your-work/SKILL.md` | Uses one compact TSV, `$PI_SESSION_FILE`, resolvable evidence, and optional role-based review. | The source assumes Cursor transcript directories and helper placement. |
-| `skills/swarm/SKILL.md` | Uses one Pi `tasks` request, up to eight local leaf workers, separate writes, and role `swarm-worker`. | The source requires Cursor cloud workers, background tasks, and cloud branch controls. |
+| `skills/show-me-your-work/SKILL.md` | Keeps the exact TSV schema with a manual appender, `$PI_SESSION_FILE`, append-only corrections, pivot coverage, and independent model-family audit with identity. | The source assumes Cursor transcript directories and helper placement. |
+| `skills/swarm/SKILL.md` | Keeps coverage, race, and mixed-mode selection rules across bounded requests, isolated writes, role `swarm-worker`, and explicit dropout accounting. | The source requires Cursor cloud workers, background tasks, and cloud branch controls. |
 | `skills/teach/SKILL.md` | Composes Pi `how`, `why`, and `unslop`, with optional available visual tools. | The source requires image generation for spatial teaching even when Pi has no such tool. |
 | `skills/why/SKILL.md` | Keeps external evidence gathering in the parent and limits leaf agents to local archaeology and synthesis they can support. | The source discovers Cursor MCPs and expects delegated children to receive external MCP tools that this runtime intentionally withholds. |
 
-All 23 principle skills are byte-for-byte upstream copies. `skills/why/references/synthesizer-prompt.md` gets two ordered transforms: one placeholder URL becomes an explicit `{URL}` field, and one Cursor skill-root-relative path becomes a Pi file-relative path. These small edits do not justify a full replacement.
+## Exact transforms
+
+All 23 principle skills remain byte-for-byte upstream copies. Six files use ordered literal transforms, each bound to an upstream blob and exact match counts:
+
+- `skills/interrogate/SKILL.md`: replace only the reviewer-launch section with explicit Pi model selection and bounded read-only tasks; add parent claim verification to synthesis. Keep all other bytes upstream, including verdict categories and output format.
+- `skills/architect/references/runner-prompt.md`: remove the false promise that each candidate uses a different model. The parent reports actual diversity.
+- `skills/create-verification-skill/references/feature-map-example/search.md`: restore the query and results after clearing search, before recording proof. This also fixes a bug in the source example.
+- `skills/technical-writing/SKILL.md`: change one skill command to Pi syntax.
+- `skills/typescript-best-practices/SKILL.md`: remove unsupported `paths` frontmatter.
+- `skills/why/references/synthesizer-prompt.md`: change one placeholder URL to `{URL}` and one skill-root-relative path to a file-relative path.
+
+The pin remains `f5bdd6826fd0a0d9cbc4347134c3a74a200b9d9d`. Later Cursor model-default and reasoning-budget changes are a separate upstream update, not behavior deleted by these replacements.

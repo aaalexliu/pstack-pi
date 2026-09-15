@@ -1,16 +1,23 @@
-# Feature
+### Feature
 
-1. Read the affected code and trace the user-facing path. Use `/skill:how` when the flow spans several files or layers.
-2. Name the feature's core data shape and owner. Read `../../principle-model-the-domain/SKILL.md` and `../../principle-boundary-discipline/SKILL.md`. Use `/skill:architect` when the shape or ownership is unclear, and `/skill:arena` when two real designs remain.
-3. Put these checkpoints in `pstack_todo`:
-   - Blocking facts and failing baseline.
-   - Independent workstreams and shared writes.
-   - Smallest safe implementation.
-   - Real behavior and full verification.
-4. Delegate a well-bounded implementation to `poteto-agent` with role `feature` when a separate implementation context helps. Otherwise implement locally. Never wait when delegation is unavailable.
-5. Review the files and diff yourself. Keep the smallest design that fully solves the task.
-6. Use `/skill:interrogate` before shipping a contested or high-risk diff.
-7. Verify the real surface, then run the full repository check.
-8. Commit in small units when each unit can pass on its own.
+**You own the design. Plan, review, verify.** Delegate implementation. Stay in the lead.
 
-Reply with what changed, the key choice and its reason, checks run, and any open risk.
+1. `how` over the affected subsystem.
+2. `architect` for parallel design exploration. Skipping stays as `architect skipped: <reason>`. Do not fold the design decision silently into implementation.
+3. Write the throughput checkpoint as four todo items. A dimension that genuinely does not apply (single file, no fan-out) keeps its item with `n/a: <reason>` rather than being dropped:
+   - **Blocking first steps.** Gates run before fan-out.
+   - **Independent workstreams.** Disjoint files, services, or layers parallelize. Shared writes serialize.
+   - **Shared mutable state.** Default to splitting the target (the **separate-before-serializing-shared-state** principle skill). Serialize only for real invariants.
+   - **Smallest safe decomposition.** If one worker is best, name why.
+4. Delegate code-writing to a subagent using `poteto-agent` and role `feature` with a specific scope (file paths, named data shape and its organizing structure per **principle-model-the-domain**, a state machine over scattered booleans, a table/registry over branching, a typed model over repeated shape assumptions, chosen before the delegate writes logic, and success criteria). Review its diff yourself. When the implementation admits multiple valid shapes (error handling, abstraction layer, test structure), delegate via the **arena** skill instead so the runners surface the alternatives and the cross-judge guards the pick. Mandatory: no skip-with-reason escape, and Laziness Protocol does not override it (the gain is review separation, not lines saved). Pi children are leaf tasks. The parent dispatches the implementation and reviews it. If delegation is unavailable, implement locally, then make a separate review pass and report the lost independence. Comments per **Comments**. Surgical edits, re-ground against the source for upstream-derived files. Port shared-primitive improvements to all consumers and verify each. Commit liberally.
+5. Verify on the matching surface. "Inconclusive" or wrong-surface is not a pass. Flag it.
+6. Rebase into small, ordered commits. Stack follow-ups.
+   Use the **sequence-verifiable-units** principle skill, building, verifying, and committing each small unit before the next.
+7. If the design is contested, `interrogate` before shipping.
+8. Run **Opening a PR**.
+
+Code-coupled work (one feature, one migration) goes to a single owner with the checkpoint inline. The parent fans out bounded leaf tasks after the blocking phase, keeping the coupled artifact under one owner. Parent-level fan-out is for slices that produce independent artifacts (audits, cross-subsystem investigations, competing experiments). Rewrite the checkpoint at phase boundaries. Spawn a fresh owner rather than chaining interrupts.
+
+**Reply:** what you built, what you chose and why, the throughput checkpoint, open decisions. Tables for design alternatives.
+
+Use `pstack_todo` for the verbatim steps and four checkpoint items. Apply the parent skill's Host boundary to PR actions, tools, and local fallback. Verify each shared-primitive consumer and add behavior tests.

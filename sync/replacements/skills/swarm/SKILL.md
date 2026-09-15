@@ -1,28 +1,50 @@
 ---
 name: swarm
-description: Fan out independent workers for coverage, races, or separate slices, then aggregate one evidence-backed result. Use when parallel work has clear boundaries.
+description: "Fan out N parallel workers, drain them, and return one report. Use for /skill:swarm, 'swarm this', or parallel coverage, races, gauntlets, and exploration."
 disable-model-invocation: true
 ---
 
 # Swarm
 
-Parallelize independent work without creating shared-write races.
+Fan out N local leaf workers. They may cover separate slices, race the same brief, or mix both. The parent waits, aggregates, and returns one report.
 
-## Frame
+## Start
 
-1. Track Frame, Fan out, Drain, and Verify with `pstack_todo`.
-2. State the done predicate and output from each worker.
-3. Choose partition, race, or mixed mode. For races, state how the winner will be judged before spawning.
-4. Give each writer a separate worktree, branch, or scratch path. Keep one owner for every shared file.
+Open `pstack_todo` with one entry per phase before launching anything.
 
-## Fan out
+1. Frame
+2. Fan out
+3. Aggregate
+4. Report
 
-Use one `subagent` request with up to eight `tasks`. Use role `swarm-worker`, unless a model race sets exact models per task. Each brief includes goal, scope, forbidden paths, file pointers, checks, and a `PASS`, `ISSUES`, or `BLOCKED` report shape.
+## Phase A: Frame
 
-The host runs at most four children at once and keeps result order stable. Children are local leaf agents. Do not promise cloud execution, background resume, or nested coordination.
+1. State the done predicate and the artifact or report the swarm must return.
+2. Choose the shape. Partition into slices, race N workers on identical briefs, or mix both. For a race or mixed shape, declare `first pass`, `rank all`, or `best-of` before spawning.
+3. Set N from the user or derive it from the shape. N is total logical workers, not the request size or active-child limit.
+4. Use configured role `swarm-worker`. For a model race, name each arm's available model up front. Do not invent model identifiers.
+5. Give each worker its own writable output when it writes.
 
-## Drain and verify
+## Phase B: Fan out
 
-Read every result. Check evidence rather than trusting summaries. Retry only failed slices and record dropouts. Integrate outputs under one owner, then run one full check against the combined artifact. If delegation is unavailable, process the same slices locally in order.
+Use one live `subagent` request at a time with at most eight `tasks` and at most four active children. For N greater than eight, use successive bounded requests without shrinking the declared coverage. Use `general-purpose` for read-only work and `poteto-agent` for scoped writes. Set role `swarm-worker` unless a model race sets exact models. The parent owns all orchestration and integration. Children never delegate. Use separate worktrees or scratch outputs for writes, not just separate branch names in one checkout. Verify the requested base and head locally before each task. No cloud or background resume is promised.
 
-Return the mode, worker table, evidence, combined result, dropouts, and verification verdict.
+Every brief stands alone. Include the goal, scope, exact slice or race arm, how to verify, and what to report. Reports use `PASS`, `ISSUES`, or `BLOCKED` with evidence.
+
+If a worker drops out, proceed with N-1 and note it. This does not waive required coverage. Retry or absorb a required missing slice locally, or mark the final result incomplete. If delegation is unavailable, run the same briefs locally and disclose the lost parallelism and independence.
+
+## Phase C: Aggregate
+
+Read the terminal results. For coverage, every required slice needs a result. For a race, apply the selection rule declared up front. Use first pass, rank all, or best-of. Do not paste raw worker dumps.
+
+Keep a compact result table, one-line evidenced issues, and explicit gaps or dropouts.
+
+## Phase D: Report
+
+Return one consolidated in-chat report with the table, issue one-liners, gaps or dropouts, and the race rule when used.
+
+## Selection and evidence
+
+Declare the pass predicate and ranking criteria before dispatch. `first pass` selects the first evidenced passing arm, not the first summary that says PASS. `rank all` evaluates every arm under the same criteria and returns their full ordering. `best-of` compares completed arms and selects the strongest evidenced result under those criteria. State any dropout that limits that choice. Account for every launched task even when a winner is known; do not claim unsupported early cancellation. Mixed mode applies its race rule within each required slice and still requires coverage of every slice.
+
+The parent checks terminal artifacts and receipts, not just self-reports, and integrates accepted outputs under one owner. Run the combined artifact's checks when writes were combined. Keep failures, BLOCKED results, unrun probes, and coverage gaps visible in the final table.

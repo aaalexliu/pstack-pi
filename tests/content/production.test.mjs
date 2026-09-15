@@ -24,16 +24,29 @@ test('production contains exactly the reviewed copied and adapted workflow set',
   const upstreamEntrypoints = manifest.files.filter((file) => /^skills\/[^/]+\/SKILL\.md$/u.test(file.source));
   assert.equal(upstreamEntrypoints.length, 47);
   assert.ok(upstreamEntrypoints.every((file) => file.kind !== 'omit' && file.destination === file.source));
-  assert.equal(manifest.files.filter((file) => file.kind === 'copy').length, 50);
-  assert.equal(manifest.files.filter((file) => file.kind === 'transform').length, 3);
-  assert.equal(manifest.files.filter((file) => file.kind === 'replace').length, 32);
+  assert.equal(manifest.files.filter((file) => file.kind === 'copy').length, 48);
+  assert.equal(manifest.files.filter((file) => file.kind === 'transform').length, 6);
+  assert.equal(manifest.files.filter((file) => file.kind === 'replace').length, 31);
   assert.equal(manifest.files.filter((file) => file.kind === 'omit').length, 73);
   assert.ok(manifest.files.every((file) => file.kind !== 'omit' || !file.reason.includes('reviewed Pi adaptation phase')));
   const adaptationText = await readFile(path.join(root, 'ADAPTATIONS.md'), 'utf8');
   const documentedReplacements = [...adaptationText.matchAll(/^\| `([^`]+)` \|/gmu)].map((match) => match[1]).sort();
   assert.deepEqual(documentedReplacements, manifest.files.filter((file) => file.kind === 'replace').map((file) => file.source).sort());
   const transforms = manifest.files.filter((file) => file.kind === 'transform');
-  assert.deepEqual(transforms.map(({ source, expectedBlob, transforms }) => ({ source, expectedBlob, transforms })), [
+  assert.deepEqual(transforms.map(({ source }) => source), [
+    'skills/architect/references/runner-prompt.md',
+    'skills/create-verification-skill/references/feature-map-example/search.md',
+    'skills/interrogate/SKILL.md',
+    'skills/technical-writing/SKILL.md',
+    'skills/typescript-best-practices/SKILL.md',
+    'skills/why/references/synthesizer-prompt.md',
+  ]);
+  const existingTransforms = transforms.filter(({ source }) => ![
+    'skills/architect/references/runner-prompt.md',
+    'skills/create-verification-skill/references/feature-map-example/search.md',
+    'skills/interrogate/SKILL.md',
+  ].includes(source));
+  assert.deepEqual(existingTransforms.map(({ source, expectedBlob, transforms }) => ({ source, expectedBlob, transforms })), [
     { source: 'skills/technical-writing/SKILL.md', expectedBlob: '70a477e42fc5f37c35bf602d86ff89c0f5258ecf', transforms: [{ find: '/technical-writing', replace: '/skill:technical-writing', count: 1 }] },
     { source: 'skills/typescript-best-practices/SKILL.md', expectedBlob: '2c0279d9a5f800192605e47b55cae4e75a17ec27', transforms: [{ find: 'paths: ["**/*.ts", "**/*.tsx"]\n', replace: '', count: 1 }] },
     { source: 'skills/why/references/synthesizer-prompt.md', expectedBlob: '9707dfcc2fc57ea126484a433c5cd9ee4d400ef3', transforms: [

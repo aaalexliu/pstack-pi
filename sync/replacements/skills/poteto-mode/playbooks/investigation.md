@@ -1,10 +1,16 @@
-# Investigation
+### Investigation
 
-1. State the question and what evidence would answer it.
-2. Find the entry points, owners, and recent changes before reading isolated details. Use `/skill:how` for the current flow and `/skill:why` for its history.
-3. Split independent evidence sources into parallel `general-purpose` tasks when that improves coverage. Use role `how-explorer` for code paths.
-4. Cite exact files, lines, commits, issues, or URLs. Separate direct evidence from inference.
-5. Reconcile conflicts and name missing evidence.
-6. Stop when the question is answered, not when every nearby file has been read.
+**You own the answer. Plan, route, write.**
 
-Do not change repository files unless the user asks. Reply with findings first, then evidence and open questions.
+Investigation requests are read-only. They produce a cited explanation or a recommendation, not a code change.
+
+1. Route through the **how** skill. For motivation questions, also route through the **why** skill.
+2. Throughput checkpoint stays one line: `throughput checkpoint: n/a, read-only investigation`.
+3. Produce the `how`-shaped output (Overview / Key Concepts / How It Works / Where Things Live / Gotchas), or a recommendation with a tradeoffs table if the request is a decision between alternatives.
+4. Apply the **unslop** skill to the reply.
+
+No PR, no babysit, no `architect` unless the investigation precedes a code change. If it does, hand back to the user and re-route to Bug fix or Feature.
+
+**Reply:** the investigation output. For "are we sure?" answers, include your real judgment with reasons. Push back if the premise is wrong (see Autonomy).
+
+Use bounded read-only `general-purpose` tasks for independent evidence sources. The parent owns synthesis and any authorized read-only runtime probes. Cite exact files, lines, commits, or URLs, separate observations from inference, reconcile conflicts, and name missing evidence. No code or scratch prototype writes in this playbook.

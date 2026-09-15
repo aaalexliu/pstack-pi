@@ -59,7 +59,7 @@ The delegation extension owns one `session_shutdown` hook that stops live childr
 Todo and Poteto Mode state follow the active session branch through versioned custom entries. The package registers `/subagents` and `/pstack-cmux`, but no prompts, themes, or blanket approval hooks.
 A usage command remains deferred.
 
-`ADAPTATIONS.md` lists every full-file Pi replacement, the exact Cursor behavior it replaces, and why a byte copy or short ordered transform would leave a false runtime contract.
+`ADAPTATIONS.md` records each full-file replacement and exact transform. Host changes must preserve the skill's scope, evidence, checkpoints, and outputs. `SYNCING.md` explains the deterministic, count-checked transform path; routine sync needs no LLM.
 
 The package never installs a blanket command-approval gate, inspects unrelated shell strings, or requests package-wide confirmation for routine Git pushes or pull-request edits.
 Those actions remain under host policy.
@@ -225,10 +225,10 @@ Its `pstack` tree is `6d4e9d1140f70c483e5617c405baa5bb5654e211`.
 `sync/upstream.lock.json` records source blobs, modes, and generated hashes.
 
 `sync/manifest.json` is the only authored classification of the 158 source files.
-It copies seven files, transforms two, and explicitly omits 149.
-The transformations replace `/technical-writing` with `/skill:technical-writing` once and remove the unsupported TypeScript `paths` frontmatter line once.
+It copies 48 files, transforms six, replaces 31, and explicitly omits 73.
+Transforms change only reviewed commands, frontmatter, paths, runtime sections, or proof steps, leaving all other source bytes intact.
 Each transformation requires its locked source blob and exact match count.
-All other generated upstream bytes match their source.
+Full replacements retain the workflow while changing execution ownership for Pi. All 23 principle skills remain byte-for-byte copies.
 
 The manifest and lock use strict version 2 with required `additions` arrays.
 `sync/additions/agents/general-purpose.md` is a Pi-owned source, separate from the 158 upstream paths.
@@ -238,9 +238,9 @@ Additions copy raw bytes from strictly below `sync/additions/` into managed root
 The same evaluator checks all output collisions and stages both upstream and authored content.
 Missing, extra, symlinked, special, and native-colliding addition inputs stop sync.
 
-Cursor distribution metadata, guides, branding assets, Cloud Automations, `make-bot-ui`, and unsupported scripts remain omitted.
-Upstream agents and runtime-dependent workflows remain omitted.
-Other principles remain outside the reviewed dependency closure.
+Cursor distribution metadata, guides, branding assets, Cloud Automations, unbundled playbooks, and unsupported scripts remain omitted.
+All 47 main skill entrypoints are present, including the webhook-backed `make-bot-ui`. Missing external service capabilities remain explicit limits, not silently changed tasks.
+Two upstream agents have reviewed Pi replacements; the third agent is a Pi-owned addition.
 
 [0xrsydn/pstack-pi](https://github.com/0xrsydn/pstack-pi) and [kkgogogo17/pi-pstack](https://github.com/kkgogogo17/pi-pstack) are implementation references, not sources for shared content.
 The [aaalexliu/pstack-pi project](https://github.com/aaalexliu/pstack-pi) owns the Pi adaptations and package code.
@@ -268,11 +268,11 @@ CI runs the same command in the checkout and in a clean Git archive with no `.gi
 
 `check:content` validates exact membership, YAML frontmatter, dependency closure, local links, file modes, explicit package exposure, and the dry-run pack inventory.
 The fixture tests reject duplicate YAML keys, unresolved dependencies, Cursor-only mechanics, undeclared agents, and unexpected runtime registration.
-A fake ExtensionAPI checks the single `registerTool` call and exactly the `session_shutdown` and scoped `tool_result` hooks, with no command gate.
+Fake ExtensionAPI tests check tool and command registration, lifecycle hooks, and the absence of a blanket command gate. Fidelity tests check critical workflow clauses in every replacement and preserve Interrogate's unchanged upstream sections exactly.
 They preserve genuine protocol identifiers such as review author `cursor` and `CURSOR_AUTOMATION_ID`.
 
 The real Pi tests pack and move the package into an isolated profile.
-They inspect provider requests for all eight commands, exact skill bodies, arguments, relocated paths, and the single declared extension tool.
+They check discovery of all 47 commands, exact expansion of each main workflow plus one principle, arguments, relocated paths, and the declared extension tools.
 A scripted real parent delegates a fixture read to a real bundled child, receives the result, and runs harmless bash containing literal `git push` and `gh pr edit` text.
 Other runs hide project agents by default, run a user override in a subdirectory `cwd`, and let `poteto-agent` edit through its tool set.
 Child requests carry the agent's tools plus `pstack_todo`, never `subagent`; the child leads its own process group, and prompt temp files are gone after return.

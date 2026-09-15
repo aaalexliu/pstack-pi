@@ -220,9 +220,18 @@
       "destination": "skills/architect/references/rationale-template.md"
     },
     {
-      "kind": "copy",
+      "kind": "transform",
       "source": "skills/architect/references/runner-prompt.md",
-      "destination": "skills/architect/references/runner-prompt.md"
+      "destination": "skills/architect/references/runner-prompt.md",
+      "expectedBlob": "580ec47a5df4259a6a9ace5c452e33092053bb90",
+      "reason": "Do not promise different models when Pi role choices may repeat or inherit.",
+      "transforms": [
+        {
+          "find": "You are one of several runners, each on a different model.",
+          "replace": "You are one of several independent runners. The parent selects configured models and reports any limits on model diversity.",
+          "count": 1
+        }
+      ]
     },
     {
       "kind": "replace",
@@ -269,9 +278,18 @@
       "destination": "skills/create-verification-skill/references/feature-map-example/create-note.md"
     },
     {
-      "kind": "copy",
+      "kind": "transform",
       "source": "skills/create-verification-skill/references/feature-map-example/search.md",
-      "destination": "skills/create-verification-skill/references/feature-map-example/search.md"
+      "destination": "skills/create-verification-skill/references/feature-map-example/search.md",
+      "expectedBlob": "1f8e57d3aaf19cf27a9464d55fa72e46bcbc8b0f",
+      "reason": "Restore the visible query and results before capturing proof; the earlier clear-query step removes them.",
+      "transforms": [
+        {
+          "find": "- **Proof.** Capture the populated result state.",
+          "replace": "- **Proof.** Restore the populated result state after the clear-query and CLI checks. Run `control-notes browser fill --role searchbox --name \"Search notes\" --value \"quarterly\"` and wait for the `Search results` list to contain `Quarterly plan`. Capture this state.",
+          "count": 1
+        }
+      ]
     },
     {
       "kind": "replace",
@@ -306,12 +324,23 @@
       "reason": "Replace the unavailable Cursor Glob tool with the bundled Pi read-only tools and state the leaf no-delegation boundary."
     },
     {
-      "kind": "replace",
+      "kind": "transform",
       "source": "skills/interrogate/SKILL.md",
-      "reason": "Replace Cursor Task panels, readonly flags, and model defaults with Pi parallel tasks and the interrogate-reviewer role.",
+      "reason": "Replace only Cursor panel mechanics with explicit Pi model selection and bounded leaf tasks; preserve scope, intent, synthesis, judgment, and output verbatim, adding parent verification.",
       "destination": "skills/interrogate/SKILL.md",
       "expectedBlob": "b59dff74c3f665cf82fabd9d197d814df8115531",
-      "replacement": "sync/replacements/skills/interrogate/SKILL.md"
+      "transforms": [
+        {
+          "find": "## Step 3, Spawn Reviewers\n\nLaunch all reviewers in a single message using the Task tool. Use the `interrogate reviewers` list from `~/.cursor/rules/pstack-models.mdc` when present, one reviewer per entry, extending or shrinking the Reviewer A/B/C/D labels below to the configured entry count. Otherwise use the table defaults.\n\n| Subagent | Default model |\n|----------|---------------|\n| Reviewer A | `claude-fable-5-1-thinking-max` |\n| Reviewer B | `gpt-5.6-sol-max` |\n| Reviewer C | `grok-4.6-fast-xhigh` |\n| Reviewer D | `claude-opus-5-thinking-xhigh` |\n\nFor each reviewer:\n- `subagent_type`: `generalPurpose`\n- `model`: the configured `interrogate reviewers` entry, or the table default with no configured line\n- `readonly`: `true`\n\nIf a model slug is rejected as unresolvable when you try to spawn the subagent, check the valid slugs in the Task tool's error message, pick the closest equivalent (prefer the highest-reasoning tier of the same family), spawn with the valid slug, and open a separate PR to update the configured value or default table. Do not block the review on the slug issue. If the configured value is `inherit-parent` or `auto`, omit `model` instead. Never treat those aliases as broken slugs or enter this fallback for them.\n\nRead `references/reviewer-prompt.md` and fill in the template with:\n1. The stated intent\n2. The diff or file contents\n3. The review rubric from `references/rubric.md`\n4. The code-quality lens from `references/code-quality-review.md`\n\nThe same filled template goes to all reviewers, so every model applies the code-quality lens.\n\n",
+          "replace": "## Step 3, Spawn Reviewers\n\nRead `pstack_config` with action `get`. Use the `interrogate-reviewer` role's configured model pool, one reviewer per entry. A single model assignment means one reviewer. Without a configured role, use one `inherit-parent` reviewer and disclose that model diversity is unavailable; offer `setup-pstack` rather than inventing defaults or calling repeated samples different models.\n\nLaunch reviewers with Pi's `subagent` tool using a `tasks` array. Use one request for up to eight reviewers; process larger configured pools in successive batches without dropping entries. Extend or shrink Reviewer A/B/C/D labels to match the pool. For each task set:\n\n- `agent`: `general-purpose`\n- `role`: `interrogate-reviewer`\n- `model`: the exact configured entry, including `inherit-parent`. Explicit selection keeps panel membership independent of the role router's current rotation.\n- `task`: the same filled reviewer template, plus a read-only, no-delegation boundary.\n\nThe bundled reviewer can read, search, and list local files, but cannot run shell commands, write, use external tools, or delegate. The parent gathers the diff and external context before launching. Model diversity supplies the adversarial signal; do not substitute assigned personas or different prompts.\n\nIf a model is unavailable, use `pstack_config` with action `list-models` to inspect valid exact selectors. Report the failed slot and ask before changing the configured panel. Continue with available reviewers without claiming complete coverage; do not silently substitute a model or edit configuration. If delegation is unavailable, do one local review and label it as a local fallback, not an independent panel.\n\nRead `references/reviewer-prompt.md` and fill in the template with:\n1. The stated intent\n2. The diff or file contents and surrounding context\n3. The review rubric from `references/rubric.md`\n4. The code-quality lens from `references/code-quality-review.md`\n\nThe same filled template goes to all reviewers, so every model applies the code-quality lens. Record each reviewer's requested selector and whether it completed, failed, or returned no findings. Report a resolved model identity only when the tool result exposes it; otherwise label inherited or unresolved identities as unknown, not a guessed model name. Repeated or inherited model choices do not count as distinct model families.\n\n",
+          "count": 1
+        },
+        {
+          "find": "1. **Parse all findings** from the reviewers",
+          "replace": "1. **Parse all findings** from the reviewers. Verify each claim against the code and reachable call paths; include exact files and lines. State any test or evidence gaps. Model agreement is a signal, not proof.",
+          "count": 1
+        }
+      ]
     },
     {
       "kind": "copy",

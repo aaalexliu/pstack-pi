@@ -1,31 +1,42 @@
 ---
 name: how
-description: Use for "how does X work", code walkthroughs, and ownership or layering questions. Explains subsystem architecture, runtime flow, and where code belongs.
+description: Use for "how does X work", code walkthroughs before changing something, and placement, ownership, or layering questions. Explains subsystem architecture, runtime flow, and onboarding mental models. Use why for motivation.
 disable-model-invocation: true
 ---
 
 # How
 
-Explore the codebase and give a senior engineer a working model of the named subsystem.
+Explore the codebase to answer how something works. Give a senior engineer new to the subsystem a working mental model, not annotated source code.
 
-## Choose the path
+## Step 1. Assess complexity
 
-- For one function or module, run one `general-purpose` subagent with role `how-explainer`.
-- For a flow that crosses files or services, split it into two to four independent angles and run one parallel `tasks` request with role `how-explorer`. Then run one `general-purpose` subagent with role `how-explainer` to combine the findings.
-- If delegation is unavailable, follow the same steps in the parent session.
+If scope is unclear, state your interpretation and explore. The user can redirect.
 
-Use `references/explorer-prompt.md` for exploration tasks and `references/explainer-prompt.md` for the final explanation. Point tasks at these files instead of pasting them when the child can read the package path.
+- **Simple:** one module, a small utility, or a narrow function question. No explorers. One explainer explores and explains in one pass. Go to Step 2b.
+- **Complex:** a subsystem spanning files or services, a cross-cutting feature, or a full architecture overview. Run parallel explorers first. Go to Step 2a.
 
-## Rules
+When in doubt, take the simple path.
 
-1. State your interpretation when the scope is unclear, then proceed.
-2. Trace from an entry point through calls and data changes. Do not infer behavior from names.
-3. Read type definitions and boundaries, not only the main function.
-4. Cite exact file paths and symbols. Add line numbers when they help the reader find a small region.
-5. Name gaps instead of guessing.
-6. Use a diagram only when it makes a multi-step flow easier to follow.
-7. Present one coherent explanation. Review child findings against the code before using them.
+All children use `general-purpose`, with only `read`, `grep`, `find`, and `ls`. No shell commands, writes, external tools, or nested delegation. The parent owns the workflow. Use exact roles below for Pi model routing. If delegation is unavailable, perform the same work locally without claiming independent agents ran.
+
+## Step 2a. Explore
+
+Split complex questions into two to four distinct angles. Send one `subagent` request with a `tasks` array, each task using agent `general-purpose` and role `how-explorer`. Build each task from `references/explorer-prompt.md`, filling in the question and angle. Give children readable reference paths and the inputs they need.
+
+Each explorer owns its angle and goes deep rather than trying to cover the whole subsystem. Wait for every result, then go to Step 3. Keep every request within Pi's eight-task limit and never overlap live delegation requests.
+
+## Step 2b. Direct explain
+
+Send one `subagent` request with agent `general-purpose` and role `how-explainer`. Build its task from `references/explainer-prompt.md`, omitting the explorer-findings section. It must explore and explain in one pass. Go to Step 4.
+
+## Step 3. Synthesize
+
+After all explorers return, send one `general-purpose` task with role `how-explainer`. Use `references/explainer-prompt.md` with every explorer's findings, including gaps. The explainer merges overlap and checks the code to resolve contradictions and fill gaps.
+
+## Step 4. Present
+
+Present the explainer's output. Light edits for clarity or conversation context are fine. Do not substantially rewrite it.
 
 ## Output
 
-Use only the sections that help: Overview, Key Concepts, How It Works, Where Things Live, Gotchas, and Open Questions.
+Use the sections and detail contracts in `references/explainer-prompt.md`, dropping only those that do not apply: Overview, Key Concepts, How It Works, Where Things Live, Gotchas. Acknowledge unresolved questions within the explanation.

@@ -1,19 +1,57 @@
 ---
 name: figure-it-out
-description: Design and execute a bespoke workflow for an unclear but testable outcome. Use when no existing playbook fits and the user wants the agent to determine the path.
+description: "Design an auditable playbook when no narrower one fits: a large migration, an ambitious multi-part change, or work a human reviews after stepping away. Scales rigor to the task, runs a hypothesis loop, and logs decisions via show-me-your-work. Use for /skill:figure-it-out, 'figure it out', a large migration, or when no narrower playbook applies."
 disable-model-invocation: true
 ---
 
 # Figure it out
 
-Own the route to a concrete result when no existing workflow fits.
+When the task matches no playbook, design one. The deliverable before any code is the workflow itself: a sequence of phases that scales rigor to the task, runs the scientific method, and leaves a decision trail a human can audit after stepping away. Bias toward more rigor. The cost of building the wrong thing dwarfs the cost of being careful.
 
-1. State the done predicate in observable terms. Separate facts you can probe from genuine product choices.
-2. Read relevant files and run `/skill:how`. Use `/skill:why` when history constrains the solution.
-3. Generate two or three plausible routes. Use `../poteto-mode/playbooks/prototype.md` or `/skill:arena` when a small run can distinguish them.
-4. Write the chosen phases in `pstack_todo`. Each phase ends with a check and leaves a useful repository state.
-5. Use `/skill:swarm` only for independent slices. Keep shared writes under one owner.
-6. Execute until the predicate passes, evidence disproves the route, or an external irreversible action needs approval. Replan from evidence rather than waiting for guidance.
-7. Verify the real surface and run project checks. Keep a decision trail with `/skill:show-me-your-work` when the route spans several phases.
+## Start
 
-Report the predicate, route chosen, evidence that changed it, checks, and any unresolved external gate.
+Open `pstack_todo` whose first item is to read the Principles section of the **poteto-mode** skill. Then add the phases below as todos.
+
+## Phase A: Frame
+
+Ground first, then commit. Don't start the run until you can state:
+
+- The definition of done as a falsifiable predicate (the **prove-it-works** principle skill).
+- Scope, quantified: rough units and effort, plus the blockers grounding surfaced.
+- The rigor level, biased high. One-way doors and high blast radius get more. Reversible low-stakes steps get less. Rigor is gates and artifacts, not "try harder".
+
+Present the framing and tradeoffs before committing to a long run. Reversible work proceeds (the **never-block-on-the-human** principle skill), but a multi-hour run earns one checkpoint.
+
+## Phase B: Design the workflow
+
+Decompose into atomic, independently-landable units. Sequence riskiest-unknown-first. Scaffold and verification come before features (the **foundational-thinking** principle skill).
+
+- Build the verification harness before the work, with the baseline captured from the pre-change state, so the check reads as "old value vs new value".
+- For one-way-door design decisions, run the **architect** skill (it runs **arena**). Skip it for mechanical work whose shape is already concrete. A second arena over a settled design is over-engineering (the **laziness-protocol** principle skill).
+- Decide what fans out. Parallelize only across seams, and give each worker its own worktree or branch (the **separate-before-serializing-shared-state** principle skill). Don't over-fan.
+- Write the designed phase list down. That list is what the human reviews.
+
+Then execute the design. Add its steps to `pstack_todo` as concrete items, after the Phase C entry and before Phase D. Run each under the Phase C loop discipline, and weave the Phase D log through them, a row as each step lands, rather than saving the whole trail for the end.
+
+## Phase C: Run the loop
+
+Each unit is an experiment. State the hypothesis, make the smallest change, measure against the predicate on the real artifact, keep it if it advanced, revert it if it didn't.
+Apply the **sequence-verifiable-units** principle skill, verifying each unit before starting the next instead of batching checks at the end.
+
+- Verify by inspecting the artifact, never a self-report. When something passes too easily, suspect the observation method before the system.
+- Pair delegated work with a judge and audit the delegates' artifacts yourself before trusting them. If a worker games the gate, reset and harden the contract. If the gate itself is wrong, fix the gate in its own change rather than routing around it.
+- A verdict is VERIFIED, NOT VERIFIED, or INCONCLUSIVE. Inconclusive is not a pass. Don't hide a negative.
+
+## Phase D: Keep the audit trail
+
+Log the run via the **show-me-your-work** skill, one canonical TSV with a row per decision and per unit, evidence as links. figure-it-out's work is usually ambitious enough to commit the trail so the reviewer can read it in the PR. Commit it when confidence has to be shown. Prefer evidence produced by committed scripts. The trail plus the diff is what lets the human come back and trust the work.
+
+## Phase E: Verify and hand back
+
+Check the whole against the Phase A predicate on the real product, not just the harness. Encode any recurring correction as a gate, a lint rule, a check, or a script (the **encode-lessons-in-structure** principle skill).
+
+**Reply:** the playbook you designed, the rigor level and why, the decision-trail path, what's verified against the predicate, and what's still open.
+
+## Pi execution
+
+The parent owns the workflow, experiment loop, judge, and integration. Use one `subagent` request at a time with at most eight leaf `tasks` and at most four active children. Use read-only `general-purpose` readers or judges and write-capable `poteto-agent` implementers with separate worktrees or outputs. A branch name alone does not isolate writes. Children do not nest. Parent-run probes supply evidence read-only judges cannot gather. When delegation is unavailable, execute locally with a separate artifact review and disclose the lost independence. Continue through explicit checkpoints, not an unsupported background loop. External actions and commits follow host policy and user scope.
