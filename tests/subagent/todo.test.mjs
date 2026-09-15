@@ -74,7 +74,7 @@ test('config and session tools stay read-only, strict, project-scoped, and bound
 
   /** @type {Map<string, any>} */
   const tools = new Map();
-  pstack(/** @type {any} */ ({ on() {}, appendEntry() {}, registerTool(/** @type {any} */ value) { tools.set(value.name, value); } }));
+  pstack(/** @type {any} */ ({ on() {}, appendEntry() {}, registerCommand() {}, registerTool(/** @type {any} */ value) { tools.set(value.name, value); } }));
   const config = tools.get('pstack_config');
   const configured = await config.execute('config', { action: 'get' });
   assert.equal(configured.content[0].text, 'No pstack model roles configured.');
@@ -121,6 +121,7 @@ test('registered tool follows session branches and persists only mutations', asy
   /** @type {Map<string, any>} */
   const tools = new Map();
   const pi = {
+    registerCommand() {},
     on(/** @type {string} */ name, /** @type {any} */ handler) { handlers.set(name, handler); },
     registerTool(/** @type {any} */ value) { tools.set(value.name, value); },
     appendEntry(/** @type {string} */ customType, /** @type {unknown} */ data) {

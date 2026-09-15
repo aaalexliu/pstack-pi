@@ -3,7 +3,7 @@ import { existsSync, lstatSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Type } from 'typebox';
-import { roles, loadModelConfig, type ModelChoice } from '../subagent/model-config.ts';
+import { roles, loadModelConfig, modelConfigPath, formatModelChoice } from '../subagent/model-config.ts';
 import { disabledModeState, enabledModeState, invokesPotetoMode, modeEntryType, restoreMode, type ModeState } from './mode.ts';
 import { formatTodos, reduceTodos, restoreTodos, todoEntryType, todoParameters, emptyTodoState, type TodoState } from './todo.ts';
 
@@ -48,6 +48,25 @@ export default function pstack(pi: ExtensionAPI): void {
     };
   });
 
+  pi.registerCommand('pstack', {
+    description: 'Show pstack model config and the file to edit',
+    async handler(_args, ctx) {
+      const agentDir = getAgentDir();
+      const path = modelConfigPath(agentDir);
+      try {
+        const config = await loadModelConfig(agentDir);
+        const assignments = Object.fromEntries(roles.flatMap((role) => {
+          const assignment = config.get(role);
+          if (!assignment) return [];
+          return [[role, assignment.kind === 'single' ? formatModelChoice(assignment.choice) : assignment.choices.map(formatModelChoice)]];
+        }));
+        ctx.ui.notify(`Edit: ${path}\n\n${JSON.stringify({ version: 1, roles: assignments }, null, 2)}\n\nUnconfigured roles use the agent default, then the parent model.\nChanges apply to new subagent requests.`, 'info');
+      } catch (error) {
+        ctx.ui.notify(`Edit: ${path}\n\nCannot read pstack config: ${error instanceof Error ? error.message : String(error)}`, 'error');
+      }
+    },
+  });
+
   pi.registerTool({
     name: 'pstack_config',
     label: 'Pstack Config',
@@ -63,11 +82,10 @@ export default function pstack(pi: ExtensionAPI): void {
         return { content: [{ type: 'text', text: selectors.join('\n') }], details: { models: selectors } };
       }
       const config = await loadModelConfig(getAgentDir());
-      const choice = (value: ModelChoice): string => value.kind === 'inheritParent' ? 'inherit-parent' : `${value.provider}/${value.id}`;
       const assignments = Object.fromEntries(roles.flatMap((role) => {
         const assignment = config.get(role);
         if (!assignment) return [];
-        return [[role, assignment.kind === 'single' ? choice(assignment.choice) : assignment.choices.map(choice)]];
+        return [[role, assignment.kind === 'single' ? formatModelChoice(assignment.choice) : assignment.choices.map(formatModelChoice)]];
       }));
       const text = Object.keys(assignments).length ? JSON.stringify({ version: 1, roles: assignments }, null, 2) : 'No pstack model roles configured.';
       return { content: [{ type: 'text', text }], details: { version: 1, roles: assignments } };

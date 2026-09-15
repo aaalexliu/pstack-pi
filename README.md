@@ -56,7 +56,7 @@ Each skill keeps `disable-model-invocation: true` so Pi expands it only through 
 The package ships 83 generated skill and support files, three generated agents, ten extension modules, and the root package files.
 It registers `pstack_config`, `pstack_sessions`, `pstack_todo`, and, at root depth, `subagent`.
 The delegation extension owns one `session_shutdown` hook that stops live children and a `tool_result` hook that marks its own failed calls.
-Todo and Poteto Mode state follow the active session branch through versioned custom entries. The package registers `/subagents` and `/pstack-cmux`, but no prompts, themes, or blanket approval hooks.
+Todo and Poteto Mode state follow the active session branch through versioned custom entries. The package registers `/pstack`, `/subagents`, and `/pstack-cmux`, but no prompts, themes, or blanket approval hooks.
 A usage command remains deferred.
 
 `ADAPTATIONS.md` records each full-file replacement and exact transform. Host changes must preserve the skill's scope, evidence, checkpoints, and outputs. `SYNCING.md` explains the deterministic, count-checked transform path; routine sync needs no LLM.
@@ -89,6 +89,8 @@ The tool supports four strict actions:
 `complete` marks every exact matching open item with `[done] `. `set` and `add` accept at most 128 nonblank items of at most 4,096 characters each. Reads do not add session entries. The loader ignores malformed entries and entries from newer state versions.
 
 ## Workflow support tools
+
+Run `/pstack` to show the current model config and the exact file path to edit (normally `~/.pi/agent/pstack-pi/models.json`). It reads the file each time, does not change it, and makes no model request. Config changes apply to new subagent requests without restarting Pi.
 
 `pstack_config` has strict `get` and `list-models` actions. `get` reads `<Pi agent dir>/pstack-pi/models.json` through the same version-1 parser used by delegation. `list-models` returns the exact `provider/model-id` values available from Pi's model registry. The tool does not write config. `/skill:setup-pstack` validates model choices first, then writes the file with Pi's normal file tools.
 
