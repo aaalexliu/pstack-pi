@@ -26,7 +26,7 @@ const productionSkills = [
   'swarm', 'tdd', 'teach', 'technical-writing',
   'typescript-best-practices', 'unslop', 'why',
 ];
-const exactExpansionSkills = [...productionSkills.filter((name) => !name.startsWith('principle-')), 'principle-model-the-domain'];
+const exactExpansionSkills = ['bro', 'poteto-mode', 'principle-model-the-domain'];
 
 async function productionInventory() {
   return checkContent({ root: repository,
