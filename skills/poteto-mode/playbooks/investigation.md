@@ -12,5 +12,3 @@ Investigation requests are read-only. They produce a cited explanation or a reco
 No PR, no babysit, no `architect` unless the investigation precedes a code change. If it does, hand back to the user and re-route to Bug fix or Feature.
 
 **Reply:** the investigation output. For "are we sure?" answers, include your real judgment with reasons. Push back if the premise is wrong (see Autonomy).
-
-Use bounded read-only `general-purpose` tasks for independent evidence sources. The parent owns synthesis and any authorized read-only runtime probes. Cite exact files, lines, commits, or URLs, separate observations from inference, reconcile conflicts, and name missing evidence. No code or scratch prototype writes in this playbook.

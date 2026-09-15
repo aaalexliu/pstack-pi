@@ -19,5 +19,3 @@
 Code-coupled work (one feature, one migration) goes to a single owner with the checkpoint inline. The parent fans out bounded leaf tasks after the blocking phase, keeping the coupled artifact under one owner. Parent-level fan-out is for slices that produce independent artifacts (audits, cross-subsystem investigations, competing experiments). Rewrite the checkpoint at phase boundaries. Spawn a fresh owner rather than chaining interrupts.
 
 **Reply:** what you built, what you chose and why, the throughput checkpoint, open decisions. Tables for design alternatives.
-
-Use `pstack_todo` for the verbatim steps and four checkpoint items. Apply the parent skill's Host boundary to PR actions, tools, and local fallback. Verify each shared-primitive consumer and add behavior tests.

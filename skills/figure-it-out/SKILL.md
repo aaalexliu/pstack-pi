@@ -8,9 +8,11 @@ disable-model-invocation: true
 
 When the task matches no playbook, design one. The deliverable before any code is the workflow itself: a sequence of phases that scales rigor to the task, runs the scientific method, and leaves a decision trail a human can audit after stepping away. Bias toward more rigor. The cost of building the wrong thing dwarfs the cost of being careful.
 
+The parent owns orchestration, runtime probes for read-only judges, forge actions, and integration. Children never delegate or resume. Use one live `subagent` request at a time, at most eight tasks per request and four active children without dropping coverage. Use `general-purpose` for read-only exploration and judgment and `poteto-agent` for scoped implementation. Pass the absolute installed poteto-mode skill path to writers. Read-only children cannot run shell commands, edit, or access external tools. Children may use their own `pstack_todo` and return text progress. Missing delegation requires local work with a separate review and disclosure of lost independence.
+
 ## Start
 
-Open `pstack_todo` whose first item is to read the Principles section of the **poteto-mode** skill. Then add the phases below as todos.
+The parent opens `pstack_todo` whose first item is to read the Principles section of the **poteto-mode** skill. Then add the phases below as todos.
 
 ## Phase A: Frame
 
@@ -28,10 +30,10 @@ Decompose into atomic, independently-landable units. Sequence riskiest-unknown-f
 
 - Build the verification harness before the work, with the baseline captured from the pre-change state, so the check reads as "old value vs new value".
 - For one-way-door design decisions, run the **architect** skill (it runs **arena**). Skip it for mechanical work whose shape is already concrete. A second arena over a settled design is over-engineering (the **laziness-protocol** principle skill).
-- Decide what fans out. Parallelize only across seams, and give each worker its own worktree or branch (the **separate-before-serializing-shared-state** principle skill). Don't over-fan.
+- Decide what fans out. Parallelize only across seams, and give each worker its own worktree or scratch output (the **separate-before-serializing-shared-state** principle skill). Don't over-fan.
 - Write the designed phase list down. That list is what the human reviews.
 
-Then execute the design. Add its steps to `pstack_todo` as concrete items, after the Phase C entry and before Phase D. Run each under the Phase C loop discipline, and weave the Phase D log through them, a row as each step lands, rather than saving the whole trail for the end.
+Then execute the design. Add its steps to the parent's `pstack_todo` as concrete items, after the Phase C entry and before Phase D. Run each under the Phase C loop discipline, and weave the Phase D log through them, a row as each step lands, rather than saving the whole trail for the end.
 
 ## Phase C: Run the loop
 
@@ -51,7 +53,3 @@ Log the run via the **show-me-your-work** skill, one canonical TSV with a row pe
 Check the whole against the Phase A predicate on the real product, not just the harness. Encode any recurring correction as a gate, a lint rule, a check, or a script (the **encode-lessons-in-structure** principle skill).
 
 **Reply:** the playbook you designed, the rigor level and why, the decision-trail path, what's verified against the predicate, and what's still open.
-
-## Pi execution
-
-The parent owns the workflow, experiment loop, judge, and integration. Use one `subagent` request at a time with at most eight leaf `tasks` and at most four active children. Use read-only `general-purpose` readers or judges and write-capable `poteto-agent` implementers with separate worktrees or outputs. A branch name alone does not isolate writes. Children do not nest. Parent-run probes supply evidence read-only judges cannot gather. When delegation is unavailable, execute locally with a separate artifact review and disclose the lost independence. Continue through explicit checkpoints, not an unsupported background loop. External actions and commits follow host policy and user scope.

@@ -1,7 +1,7 @@
 # pstack for Pi
 
 `@aaalexliu/pstack-pi` provides all 47 main skills from Lauren Tan's pstack.
-It copies compatible upstream content and ships reviewed Pi replacements for Cursor-only workflows. It also includes branch-aware task tracking, scoped session discovery, model-config readback, and a `subagent` tool built on Pi's bundled example with bundled agents, role-based model routing, a depth guard, and process-group cleanup. The three Benny Cursor Cloud Automation skills are outside this package's main-skill scope.
+It copies compatible upstream content and applies exact, reviewed edits to Cursor-specific instructions. No full-file replacements remain. It also includes branch-aware task tracking, scoped session discovery, model-config readback, and a `subagent` tool built on Pi's bundled example with bundled agents, role-based model routing, a depth guard, and process-group cleanup. The three Benny Cursor Cloud Automation skills are outside this package's main-skill scope.
 
 ## Install
 
@@ -59,7 +59,7 @@ The delegation extension owns one `session_shutdown` hook that stops live childr
 Todo and Poteto Mode state follow the active session branch through versioned custom entries. The package registers `/pstack`, `/subagents`, `/pstack-cmux`, and `/papercuts`, but no prompts, themes, or blanket approval hooks.
 A usage command remains deferred.
 
-`ADAPTATIONS.md` records each full-file replacement and exact transform. Host changes must preserve the skill's scope, evidence, checkpoints, and outputs. `SYNCING.md` explains the deterministic, count-checked transform path; routine sync needs no LLM.
+`ADAPTATIONS.md` lists every transformed file and its edit scope. Host changes must preserve the skill's scope, evidence, checkpoints, and outputs. `SYNCING.md` explains the deterministic, count-checked transform path; routine sync needs no LLM.
 
 The package never installs a blanket command-approval gate, inspects unrelated shell strings, or requests package-wide confirmation for routine Git pushes or pull-request edits.
 Those actions remain under host policy.
@@ -247,10 +247,10 @@ Its `pstack` tree is `6d4e9d1140f70c483e5617c405baa5bb5654e211`.
 `sync/upstream.lock.json` records source blobs, modes, and generated hashes.
 
 `sync/manifest.json` is the only authored classification of the 158 source files.
-It copies 48 files, transforms six, replaces 31, and explicitly omits 73.
+It copies 49 files, transforms 36, and explicitly omits 73. No file uses `replace`.
 Transforms change only reviewed commands, frontmatter, paths, runtime sections, or proof steps, leaving all other source bytes intact.
 Each transformation requires its locked source blob and exact match count.
-Full replacements retain the workflow while changing execution ownership for Pi. All 23 principle skills remain byte-for-byte copies.
+Even execution-ownership changes use targeted transforms rather than rewritten copies. All 23 principle skills and the Investigation playbook remain byte-for-byte copies.
 
 The manifest and lock use strict version 2 with required `additions` arrays.
 `sync/additions/agents/general-purpose.md` is a Pi-owned source, separate from the 158 upstream paths.
@@ -262,7 +262,7 @@ Missing, extra, symlinked, special, and native-colliding addition inputs stop sy
 
 Cursor distribution metadata, guides, branding assets, Cloud Automations, unbundled playbooks, and unsupported scripts remain omitted.
 All 47 main skill entrypoints are present, including the webhook-backed `make-bot-ui`. Missing external service capabilities remain explicit limits, not silently changed tasks.
-Two upstream agents have reviewed Pi replacements; the third agent is a Pi-owned addition.
+Two upstream agents have targeted Pi transforms; the third agent is a Pi-owned addition.
 
 [0xrsydn/pstack-pi](https://github.com/0xrsydn/pstack-pi) and [kkgogogo17/pi-pstack](https://github.com/kkgogogo17/pi-pstack) are implementation references, not sources for shared content.
 The [aaalexliu/pstack-pi project](https://github.com/aaalexliu/pstack-pi) owns the Pi adaptations and package code.
@@ -290,7 +290,7 @@ CI runs the same command in the checkout and in a clean Git archive with no `.gi
 
 `check:content` validates exact membership, YAML frontmatter, dependency closure, local links, file modes, explicit package exposure, and the dry-run pack inventory.
 The fixture tests reject duplicate YAML keys, unresolved dependencies, Cursor-only mechanics, undeclared agents, and unexpected runtime registration.
-Fake ExtensionAPI tests check tool and command registration, lifecycle hooks, and the absence of a blanket command gate. Fidelity tests check critical workflow clauses in every replacement and preserve Interrogate's unchanged upstream sections exactly.
+Fake ExtensionAPI tests check tool and command registration, lifecycle hooks, and the absence of a blanket command gate. Fidelity tests protect reviewed upstream passages and Pi boundaries, reject full-file replacements, and preserve Interrogate's unchanged sections exactly.
 They preserve genuine protocol identifiers such as review author `cursor` and `CURSOR_AUTOMATION_ID`.
 
 The real Pi tests pack and move the package into an isolated profile.

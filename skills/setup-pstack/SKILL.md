@@ -1,47 +1,73 @@
 ---
 name: setup-pstack
-description: "Configure exact Pi models for pstack delegation roles. Use for setup pstack, configure pstack models, or changing role routing."
+description: Configure which models pstack uses per role. Detects your available models and writes the user-level Pi role map that overrides the skill defaults. Use for /skill:setup-pstack, "configure pstack models", or changing pstack's model choices.
 disable-model-invocation: true
 ---
 
 # Setup pstack
 
-The parent writes `<Pi agent dir>/pstack-pi/models.json`, a user-level version-1 role map read before each subagent request. This is not Pi's provider catalog `models.json` and not a project rule. Do not commit it.
+The parent writes `<Pi agent dir>/pstack-pi/models.json`, a user-level version-1 role map that sets pstack's model per role. Resolve the configured Pi agent directory, normally `~/.pi/agent`; this is not the provider catalog `models.json` or a project rule. Do not commit it. Children do not write user configuration or access external services.
 
-## 1. Discover and load
+## Steps
 
-Call `pstack_config` with `action: "list-models"` for the exact available `provider/model-id` selectors. Never write an unconfirmed selector. `inherit-parent` is always valid; Cursor's `auto` alias is not supported here. If discovery is unavailable, stop and ask for an available selector list rather than guessing model slugs or modifying provider credentials.
+### 1. Detect available models
 
-Call `pstack_config` with `action: "get"` to read current assignments. Preserve existing choices as the starting point. Treat unconfigured roles as `inherit-parent` for the proposed setup, and mark configured selectors absent from discovery as needing a choice. A malformed current file is an error to explain and repair with approval, not a reason to silently erase choices.
+Call `pstack_config` with `action: "list-models"` to enumerate the exact `provider/model-id` selectors available in this session. That is the dependable source. If you cannot detect any, ask the user to paste the slugs they have access to. Never write a real slug you have not confirmed is available. The alias `inherit-parent` is always valid even though it is not a detected slug. Pi does not accept `auto`.
 
-## 2. Show every role and confirm
+### 2. Load current state
 
-Show every role from the current `subagent` schema with its current or proposed default value, not just invalid entries. The bundled role set is:
+The default role-to-model mapping is the JSON shape shown in step 5 below. Call `pstack_config` with `action: "get"`; if a role map already exists, read it and treat its values as the current choices. Otherwise start from those defaults. A malformed file is an error to explain and repair with approval, not a reason to erase choices.
 
-- `feature`, `refactoring`, `bug-fix`, `perf-issue`, `hillclimb`, `judgment`, `prose`, `hardest`.
-- `how-explorer`, `how-explainer`, `how-critics`, `why-investigator`, `why-synthesizer`.
-- `reflect-tooling`, `reflect-judgment`, `reflect-divergent`, `reflect-synthesizer`.
-- `arena-runner`, `arena-cross-judge`, `swarm-worker`, `architect-runner`, `interrogate-reviewer`.
-- `no-comments`, `review`, `test`, `verify`.
+### 3. Map and confirm
 
-Ask whether to accept all choices or change named roles, offering detected selectors plus `inherit-parent`. Use an available structured question tool or compact numbered chat choices. Wait for explicit confirmation before writing, including on repeat runs. If a chosen real selector is unavailable, stop and ask again.
+Show every role from the current `subagent` schema with its current model, marking any real slug not in the detected set as needing a choice. Ask whether to accept as-is or change specific roles, offering the detected models plus `inherit-parent` (this role runs on the parent chat model) as the options. Prefer an available structured choice tool or numbered chat choices over free text. Wait for explicit confirmation before writing, including on repeat runs. Role values may be a selector or a nonempty list. Lists rotate deterministically across requests to the role; preserve duplicate entries because they weight that rotation. A list does not itself spawn a panel. Panel workflows (arena runners, architect runners, interrogate reviewers) must select each configured entry explicitly, alias entries included, within bounded requests. For `arena-cross-judge`, Arena selects a value whose model family differs from the parent's when possible; the pool alone does not guarantee diversity. `swarm-worker` is the default model for every worker unless a race or comparison assigns another model per arm. Explicit task model selection takes precedence over the role map.
 
-Explain Pi's pool semantics: a role value is a string or nonempty array, and arrays rotate deterministically across requests to that role. Preserve duplicate entries because they weight the rotation. Array length does not itself spawn a panel; each workflow sets a bounded task count. An `arena-cross-judge` pool does not guarantee a different model family, so that workflow must check the resolved model and select a confirmed alternative when needed. `swarm-worker` is the worker default unless an explicit model overrides it for a race or comparison. `inherit-parent` uses the current parent model. Explicit task model selection takes precedence over the role map.
+### 4. Validate
 
-## 3. Write and verify
+Every real slug written must be in the detected set. `inherit-parent` always passes. Reject unknown roles, empty lists, invalid selectors, extra fields, and versions other than 1. If a chosen real slug is not available, stop and ask again.
 
-Write only confirmed choices using exactly this schema (a valid minimal example, not a replacement for the user's full map):
+### 5. Write the role map
+
+Write `<Pi agent dir>/pstack-pi/models.json` with exactly `version` and `roles`, using the current role keys. Before writing, require owner-controlled paths. Existing directories must be directories and the config must be a regular file, neither symlinked nor group/world writable; stop on unsafe paths. Create the `pstack-pi` directory and config if absent. Write only the approved choices. Overwrite the whole file so re-runs stay idempotent. Shape:
 
 ```json
-{"version":1,"roles":{"feature":"inherit-parent","review":["inherit-parent"]}}
+{
+  "version": 1,
+  "roles": {
+    "feature": "inherit-parent",
+    "refactoring": "inherit-parent",
+    "bug-fix": "inherit-parent",
+    "perf-issue": "inherit-parent",
+    "hillclimb": "inherit-parent",
+    "judgment": "inherit-parent",
+    "prose": "inherit-parent",
+    "hardest": "inherit-parent",
+    "how-explorer": "inherit-parent",
+    "how-explainer": "inherit-parent",
+    "how-critics": "inherit-parent",
+    "why-investigator": "inherit-parent",
+    "why-synthesizer": "inherit-parent",
+    "reflect-tooling": "inherit-parent",
+    "reflect-judgment": "inherit-parent",
+    "reflect-divergent": "inherit-parent",
+    "reflect-synthesizer": "inherit-parent",
+    "arena-runner": "inherit-parent",
+    "arena-cross-judge": "inherit-parent",
+    "swarm-worker": "inherit-parent",
+    "architect-runner": "inherit-parent",
+    "interrogate-reviewer": "inherit-parent",
+    "no-comments": "inherit-parent",
+    "review": "inherit-parent",
+    "test": "inherit-parent",
+    "verify": "inherit-parent"
+  }
+}
 ```
 
-Use only current role names. Rewrite the complete reviewed file so reruns stay idempotent, preserving accepted choices. Resolve the actual Pi agent directory, normally `~/.pi/agent`, including any configured override; do not confuse it with the project `.pi` directory. Create its `pstack-pi` subdirectory if needed. Before writing, require an owner-controlled directory and regular file, neither symlinked nor group/world writable; stop on unsafe paths. The directory is a directory, not a regular file. The parent uses Pi `write`/`edit` and local checks; no child writes user configuration.
+### 6. Confirm
 
-Call `pstack_config` with `action: "get"` again and compare every assignment with the approved map. Recheck selectors against discovery and fix any parse, availability, or safety error before reporting success. `get` confirms parseable assignments, not that a live model request has succeeded. Report the exact path and choices, and say new subagent requests read it before admission; no new parent session is required. Rerunning this skill updates it.
+Call `pstack_config` with `action: "get"` again and compare every assignment with the approved map. Recheck selectors against discovery. Fix any parse, availability, or safety error before reporting success. Readback proves the map parsed, not that a live model request succeeded. Tell the user the role map was written, give its exact path, and say it applies to new subagent requests; no new parent session is required. Re-running this skill updates it.
 
-## 4. Offer real-app verification once
+### 7. Offer a verification skill (optional)
 
-Check for a project `verify-*` skill or an existing harness that drives the real app. If none exists, offer once: "Want a project-local verification skill so agents can drive the app like a user and prove changes work? I can generate one with /skill:create-verification-skill."
-
-On yes, read and follow the installed `create-verification-skill` from its actual workspace, user, or package path. On no, move on without pushing. Do not create one without acceptance.
+Check whether the project has a way to drive the real app for proof (a `verify-*` skill, or an existing harness). If not, offer once: "want a project-local verification skill, so agents can drive the app the way a user does and prove changes work? I can generate one with /skill:create-verification-skill." On yes, invoke `/skill:create-verification-skill` (resolve its actual installed path: workspace, user, or Pi package). On no, move on without pushing.

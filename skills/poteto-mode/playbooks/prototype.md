@@ -12,5 +12,3 @@ The one playbook where the Laziness Protocol's "smallest change" and the verific
 6. Present alternatives, tradeoffs, and a recommendation. The output is the decision plus the throwaway artifact, not shippable code. Hand the chosen direction to **Feature** (or `architect` for the shape) for the real build.
 
 **Reply:** the variants explored, the evidence (screenshots for a visual decision, the observed output or timing for a behavioral one), tradeoffs, your recommendation, and the scratch path. Say plainly that the prototype is throwaway.
-
-The parent owns the experiment and decision. Use isolated `poteto-agent` leaf tasks only for separate writable variants, or run locally when delegation is unavailable. Preserve the scratch artifact and evidence for handoff; clean up running servers and temporary resources without deleting evidence the report links. Missing control access is a gap, not proof.

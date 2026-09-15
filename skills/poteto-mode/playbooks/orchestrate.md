@@ -22,7 +22,7 @@ Only one live `subagent` request, at most eight `tasks`, at most four active chi
 
 Create `orchestrate/<project-slug>/` under a named durable local task directory. Every file has exactly one writer. Owners publish facts, readers aggregate at read time. The parent owns bookkeeping in plain TSV and JSON. No `orch` runtime is required. Write durable tables at drain points and derive summaries from them.
 
-- `preferences.md` is the standing-orders register: numbered lines, one constraint each (model policy, stack shape and count, verification bar, forbidden paths, escalation policy). Paste it verbatim into every task and fresh replacement task. Directives decay across resumes, and each dropped one costs a human turn. When you catch yourself restating an instruction, append the line before you act (principle-encode-lessons-in-structure).
+- `preferences.md` is the standing-orders register: numbered lines, one constraint each (model policy, stack shape and count, verification bar, forbidden paths, escalation policy). Paste it verbatim into every task and every replacement task. Directives decay across resumes, and each dropped one costs a human turn. When you catch yourself restating an instruction, append the line before you act (principle-encode-lessons-in-structure).
 - `overview.md` is the durable PR and issue DB. Append. Never rewrite wholesale per event.
 - `units.tsv` has one row per unit: id, track, state, branch, PR, head SHA, brief path. Update rows in place.
 - `frontier.json` is the computed merge frontier, per Stack safety.
@@ -41,7 +41,7 @@ SCOPE        paths this unit may write; paths it may not; its exclusive worktree
 CONTEXT      pointers to files and PRs; upstream reports pasted in full when this unit
              depends on them, because workers cannot see siblings
 ACCEPTANCE   checkable criteria, one per line
-VERIFY       exact commands or the control-skill path, plus known gotchas and the exact tested head SHA
+VERIFY       exact commands or the control-skill path, plus known gotchas
 TIMEBOX      rough cap on runtime; on expiry, return partial findings and stop rather than run on
 FORBIDDEN    no nesting, no publish or merge, no rebase, no force-push, no fixes outside scope, plus unit-specific bans
 REPORT       status, branch, head SHA, PRs, verdict, what you actually ran, deviations,
@@ -49,9 +49,11 @@ REPORT       status, branch, head SHA, PRs, verdict, what you actually ran, devi
 STANDING     <preferences.md pasted verbatim>
 ```
 
-Size the brief to the unit. A one-command unit gets the template collapsed to a paragraph that still names goal, scope, the verify command, and the report shape. A 4KB scaffold around a two-line edit costs more to write and obey than the edit. Every task receives the standing orders verbatim. The parent holds each track boundary, unit list, task budget, drain protocol, and rollup format.
+Size the brief to the unit. A one-command unit gets the template collapsed to a paragraph that still names goal, scope, the verify command, and the report shape. A 4KB scaffold around a two-line edit costs more to write and obey than the edit. Every task receives the standing orders verbatim.
 
-A dependency is a context relay, not just ordering. Undeclared upstream context makes the worker guess. Missing fields are a refuse-to-spawn condition. Audit one sampled brief per track per batch. A failing brief stops that track's next dispatch and fixes the parent's template, not just the worker. Never resume-chain a brief. Respawn fresh with consolidated scope.
+The parent holds track boundaries, unit lists, bounded task budgets, drain protocol, and rollup format (per child: name, status, PR, head SHA, verdict, one line, plus track status and frontier delta).
+
+A dependency is a context relay, not just ordering. Undeclared upstream context makes the worker guess. Missing fields are a refuse-to-spawn condition. Audit one sampled worker brief per parent-owned track per bounded request, concurrently with the wave it samples, never as a gate in front of it. A failing brief stops that track and fixes the parent's instructions, not just the worker, because brief quality decays late in a run. Never resume-chain a brief. Respawn fresh with consolidated scope.
 
 #### Steps
 
@@ -67,14 +69,16 @@ A dependency is a context relay, not just ordering. Undeclared upstream context 
 
 - Record terminal task results as completion pointers in `inbox/`. Completions are queue events, not interrupts. Review-heavy results become separate verification units outside the drain.
 - Drain after each bounded request, after a critical section, and before each human report. Critical sections include brief authoring, stack operations, conflict decisions, gates, ledger, and frontier writes. Snapshot the inbox; later arrivals wait for the next drain.
+- Critical sections you finish first: authoring a brief, a stack operation, a conflict decision, writing a gate, updating ledger or frontier.
 - Classify every pointer as landed, needs-verify, failed, zombie, or noise. Update unit rows and ledger, derive status, then dispatch ready work. Never deep-review a diff inside the drain.
-- Account for every spawned child as arrived, respawned, or explicitly absorbed. Local fallback records the absorbed scope rather than hiding missing coverage.
+- Account for every spawned child at its track's rollup: arrived, respawned, or its scope explicitly absorbed. Silently redoing a missing child's work hides both the wasted spend and the coverage gap its result existed to close.
 - End a drain with three lines: counts by state, what changed, gates open. Details live in `status.md`. The full reply contract applies at checkpoints and close.
 
 #### Stack safety
 
 - Compute `frontier.json` from live Git and forge evidence after every merge or stack mutation. Record ordered PRs, branch names, head SHAs, generation, and lowest unmerged PR. Missing evidence blocks frontier advancement rather than inviting a guess.
 - Exactly one parent-owned integration owner per stack. Serialize restacks and shared writes. Workers never rebase or run stack surgery. Status and review tasks are scoped to one immutable frontier generation and report conflicts to the parent.
+- Workers never rebase or perform stack surgery. The parent owns Babysit, one lifecycle per stack scoped to one immutable frontier generation. Conflicts stop triage for parent repair outside Babysit.
 - The parent alone handles authorized PR closes, retargets, and landing. Closing a base can orphan the chain above it. Each surgery has a scoped brief and verification.
 - Check merged PRs for reverts, post-merge CI failures, and orphaned follow-ups at active-session checkpoints. No unattended watcher is promised.
 
@@ -104,6 +108,6 @@ Never reaches the human: frontier nudges, restack mechanics, retries, CI flake t
 
 Mid-run discoveries fix only what blocks the frontier. Everything else parks in follow-ups. At this fan-out a small scope leak multiplies into PRs nobody asked for.
 
-**Reply:** at checkpoints and close: the predicate and the count against it from `units.tsv` and `ledger.tsv`, tracks and what each landed, the frontier (PR list plus SHAs), verdicts summary, what was abandoned and why, gates awaiting the human (the only asks), the store path, and the trail path. Numbers from the tables, not narrative. Include PR links.
+A hold stops new dispatch and parent writes. Send live stop or cancellation only if exposed. Confirm exit and reconcile artifacts before reusing a child's writable scope. Without controls, wait for the bounded task and report uncertainty.
 
-Use `pstack_todo` with the seven Steps copied verbatim before task-specific items. Read principle leaves before applying them. Durable state and explicit active-session checkpoints replace unsupported store CLIs and wake loops. A user hold stops new dispatch and parent writes. Send a live stop message or cancellation only if the host provides that control, and report any in-flight uncertainty. A stop request is not proof of exit. Never reassign a child's writable scope until its exit is confirmed and its final artifacts are reconciled. Without stop controls, wait for the bounded request to return and leave conflicting work blocked.
+**Reply:** at checkpoints and close: the predicate and the count against it from `units.tsv` and `ledger.tsv`, tracks and what each landed, the frontier (PR list plus SHAs), verdicts summary, what was abandoned and why, gates awaiting the human (the only asks), the store path, and the trail path. Numbers from the tables, not narrative. Include PR links.

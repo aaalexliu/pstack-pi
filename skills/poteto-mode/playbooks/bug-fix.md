@@ -15,5 +15,3 @@ Be scientific. Every shipped line traces to runtime evidence. Belt-and-suspender
 Investigation fans out `how` + `why` as parallel subagents.
 
 **Reply:** what was broken, root cause, fix, how you verified. Paste failing-then-passing repro output verbatim.
-
-Pi execution follows the parent skill's Host boundary. The parent runs runtime probes; read-only `general-purpose` children gather evidence. Use bounded leaf implementation tasks and local fallback with a separate review pass. Name the broken data shape and owner before changing logic. Add a behavior regression when feasible. PR actions and commits follow user scope and host policy.

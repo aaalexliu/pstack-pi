@@ -1,50 +1,46 @@
 ---
 name: create-verification-skill
-description: "Generate a project-local Pi verification skill that drives the real app like a user, on any language, framework, or platform. Use for create-verification-skill, make a control skill for this repo, or when UI/CLI/service behavior has no repeatable proof path."
+description: "Generate a project-local verification skill that drives your app the way a user does — any language, framework, or platform. Use for /skill:create-verification-skill, \"make a control skill for this repo\", or when a project has no scripted way to prove UI/CLI/service behavior."
 disable-model-invocation: true
 ---
 
 # Create a verification skill
 
-Write `.pi/skills/verify-<app>/` for the next agent to read cold, mid-task. The core output is a verification skill plus an indexed feature map. The parent owns authoring, launch, live driving, evidence, cleanup, and any permitted external access. Do not assume browser, desktop, or mobile control tools exist in Pi.
+Every serious project needs a scripted way to drive the real app and prove behavior: launch it, exercise a feature the way a user would, and capture evidence. This skill generates that as a project-local skill (`.pi/skills/verify-<app>/`) tailored to the repo. You write the generator's output for the next agent, not for a human: it will be read cold, mid-task, by an agent that has never seen the app.
+
+The parent owns authoring, live driving, evidence, cleanup, and external services under caller authorization and host policy. Pi does not supply browser, desktop, or mobile control by default. Use an available real-surface harness; missing access blocks proof and leaves a draft, not a verified deliverable. Any child reader stays read-only and does not delegate, drive the app, or access external services. Read the installed Pi `docs/skills.md` before authoring.
 
 ## 1. Interview the repo, not the user
 
-Answer from code and docs before asking:
+Answer these from the codebase and only ask the user what you cannot observe:
 
-- **Surface:** web, CLI/TUI, desktop, API, mobile, or library. Pick the primary user surface and note the others.
-- **Run:** prefer documented repository commands. Record ports, environment, seed data, and auth.
-- **Drive:** use existing Playwright/Cypress tests, expect/PTY helpers, HTTP endpoints, or debug ports first. Then choose an available browser/CDP, tmux/PTY, or HTTP harness. A library's public API is its user surface.
-- **Observe:** screenshots, terminal transcripts, response bodies, logs, exit codes, and stored state.
-- **Isolate:** separate ports, data directories, and profiles. If safe parallel instances are impossible, say so and refuse to double-drive shared state.
+- **Surface:** what does a user actually touch? A web UI, a CLI/TUI, a desktop app, an API, a mobile app, a library? A repo can have several; pick the primary one and note the rest.
+- **Run:** how does the app start locally? Prefer the repo's own documented dev command (package scripts, Makefile, README quickstart). Note ports, env vars, seed data, auth.
+- **Drive:** how can an agent interact with it programmatically? Existing harnesses first — Playwright/Cypress specs, expect scripts, PTY helpers, curl-able endpoints, a debug port. Only then pick a generic recipe: browser/CDP for web and Electron, a tmux/PTY harness for CLI/TUI, plain HTTP for services.
+- **Observe:** what evidence can be captured? Screenshots, terminal transcripts, response bodies, logs, exit codes, DB state.
+- **Isolate:** can two instances run side by side (ports, data dirs, profiles)? If not, say so in the generated skill: refusing to double-drive a shared instance beats corrupting the user's session.
 
-If the checkout does not build or start, fix it within authorized scope or report the exact blocker before generating. Do not teach steps against a broken base. An irrelevant missing asset may be created as clearly labeled verification scaffolding, with removal in cleanup.
+If the checkout doesn't build or start as-is, fix that first (or report it precisely) before generating; a skill written against a broken base teaches wrong steps. When an irrelevant missing asset blocks startup (a static dir the API never serves, a sample config), the generated skill may create it, clearly marked as verification scaffolding, and remove it in cleanup.
 
 ## 2. Generate the skill
 
-Write `SKILL.md` with `name: verify-<app>` and a description naming the app, surface, and trigger. Use valid YAML and these sections with exact repo-grounded commands, no placeholders:
+Write `.pi/skills/verify-<app>/SKILL.md` with YAML frontmatter (`name: verify-<app>` and a `description` that names the app, the surface, and when to reach for it — without frontmatter the skill never registers) and these sections, each grounded in what the interview actually found (no placeholders left):
 
-- **Launch:** startup command, readiness predicate, and teardown. For a short-lived CLI/TUI, build or install once, then start each drive in its own isolated PTY or tmux session rather than keeping a fake server alive.
-- **Doctor:** one read-only check for process health, expected version/build, owned port, and valid auth. Run before first drive and whenever anything looks off. On fresh per-drive sessions, run it each time. After a failed or surprising drive, doctor again; if the process looks healthy but UI state is wedged, reset to a known state or relaunch rather than hoping.
-- **Drive:** real selectors and commands. Prefer ARIA labels, data attributes, prompt strings, and routes over coordinates or tab order.
-- **Evidence:** name a proof directory outside scratch cleanup. Exercise the real user path, not internal setters or test-only endpoints. Capture the action and resulting state, not just a final screen. Check side effects such as files, rows, and messages alongside visible output. Use mocks only at an existing production boundary. Observe what a dry-run or test mode actually skips through files, network, and Git refs; its name is not proof and it may still use the network or open a browser.
-- **Cleanup:** tear down only owned instances and scratch state. Never kill by process name; kill what this run started. For shared instances, remove owned residue, not the instance. Preserve proof artifacts at their named location and check that they survive every cleanup, including failed attempts.
-- **Helpers:** make shipped scripts executable and document their invocation in the skill body. Do not make the next agent reverse-engineer them.
-
-If required drive tools are unavailable, report the gap and mark the skill a draft until its real path can run. The parent must obtain approval for external or irreversible actions under host policy; child readers cannot perform them.
+- **Launch:** the exact command that starts the app for verification, and how to tell it's ready (a log line, a port answering, a prompt). Include teardown. For a short-lived CLI or TUI there is no server to keep alive: launch means build the binary (or install deps) once, then start each drive in its own isolated PTY or tmux session.
+- **Doctor:** one read-only check that answers "is this instance worth driving?" — process up, right version/build, port owned by us, auth valid. An agent runs this first whenever anything looks off.
+- **Drive:** the harness recipe with real selectors/commands from this repo, not examples. Prefer stable handles (ARIA labels, data attributes, prompt strings, route paths) over coordinates and tab order.
+- **Evidence:** what to capture for a proof and where it goes. State the proof standards: exercise the real user path, not internal setters or test-only endpoints; capture the action and the resulting state, not just the final screen; verify side effects (files written, rows inserted, messages sent) alongside what's visible; mocks only where a production boundary already isolates the external system. When the safe path is a dry-run or test mode, verify what it actually skips by observing (files, network, git refs) rather than trusting its name: some dry-runs still touch the network or open a browser.
+- **Cleanup:** how to tear down instances the run created. Never kill by process name; kill what you started. Cleanup removes instances and scratch state, never the evidence: proof artifacts survive the teardown, in a location the skill names.
+- **Helpers:** any script the skill ships is executable and its invocation is shown in the skill body. A helper the reader has to reverse-engineer is not a helper.
 
 ## 3. Seed the feature map
 
-Create `features/README.md` and one file per user-facing feature, starting with the top 3-5 from routes, commands, menus, or docs. Read the complete shape in [the feature-map example](references/feature-map-example/README.md), including the README and feature files. Replace example app details with observed facts.
+Create `.pi/skills/verify-<app>/features/README.md` plus one file per user-facing feature you can identify (aim for the top 3-5 to start, from routes, commands, menus, or docs). Follow the shape in [the feature-map example](references/feature-map-example/README.md), with a README index and one file per feature. Each file answers, from the user's point of view: what the feature is, how to reach it, how to drive it with the harness, and what observable end state proves it works. The four H2s are `Sub-features`, `How to get to it (user POV)`, `Driving it with <harness>`, and `Gotchas`. The map is the repo's maintained verification source; a proof that drives one convenient entry point is incomplete when the map lists others.
 
-Each file starts with an H1 and user-visible summary, then four H2s in order: `Sub-features`, `How to get to it (user POV)`, `Driving it with <harness>`, and `Gotchas`. Include prerequisites, every user entry point, exact action/command/result pairs, and observable pass states. Keep implementation detail out of the map. The index and feature files are the maintained verification source: one convenient entry point does not prove the other listed paths. Record feature ID and entry point on artifacts, and report skipped routes with the attempt and unmet prerequisite instead of calling them verified.
+## 4. Prove the generated skill before handing it over
 
-## 4. Prove the generated instructions
+Run its own instructions end to end once: launch, doctor, drive ONE mapped feature (one is enough; the map exists so later runs can cover the rest), capture evidence, clean up. After cleanup, confirm the evidence still exists at the named location — a cleanup that eats the proof fails this step. Fix what fails, and run the generated cleanup after every failed iteration too, so broken attempts don't strand processes and ports. A generated skill that was never executed is a draft, not a deliverable.
 
-Run the skill end to end once: launch, doctor, drive ONE mapped feature through the real surface, capture action/result and side-effect proof, then clean up. One feature is enough for generation; report what remains untested. Confirm proof files still exist at the named location after cleanup.
+## 5. Offer the maintenance loop
 
-Fix failures, run cleanup after every failed iteration, and repeat until the instructions work. Do not strand processes or ports. Evidence erased by cleanup fails this step. An unexecuted skill is a draft, not a deliverable.
-
-## 5. Offer maintenance
-
-Report generated paths, the feature and entry points exercised, commands, results, evidence, cleanup, and limits. Point to `/skill:maintain-verification-skill` for later upkeep. Suggest a cadence only if asked.
+Point the user at `/skill:maintain-verification-skill` for keeping the map honest as the app changes. Suggest a cadence only if they ask.

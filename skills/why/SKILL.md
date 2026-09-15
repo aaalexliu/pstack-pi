@@ -1,94 +1,151 @@
 ---
 name: why
-description: Investigate why code has its current shape, design rationale, regressions, postmortems, and data-backed thresholds. Search source history, issues, docs, chat, infrastructure observability, error tracking, and product analytics. Use how for runtime behavior.
+description: "Use for 'why does X work this way', 'why we picked Y', design rationale, regressions, postmortems, or data-backed thresholds. Discovers available MCPs and queries each evidence category (source control, issue tracker, long-form docs, real-time chat, infrastructure observability, error tracking, product analytics warehouse) in parallel, then returns a cited read on decisions and tradeoffs. Use how for runtime behavior."
 disable-model-invocation: true
 ---
 
 # Why
 
-Investigate motivation and intent. `how` explains what code does. `why` explains the forces that shaped it. Code alone does not prove intent.
+Investigate the motivation and intent behind code.
 
-## Operating posture
+Companion to the `how` skill. `how` answers what the code does and how it works. `why` answers what forces led to its shape.
 
-Work as a careful, cautious, precise investigator. Read `references/epistemics.md` in full. Every claim uses its tiers: **Direct**, **Supported**, **Inferred**, **Speculative**, **Unknown**. Explicit textual rationale is Direct. Converging indirect evidence is Supported. Inferred claims show the reasoning and use hedges. Speculative claims remain marked hypotheses. Unknown is a valid result, with the searches that failed to answer it.
+## Operating Posture
 
-## Step 1. Understand the target and question
+Operate as a **careful, cautious, and precise investigator**. Be honest about what you know vs what you're inferring. Read `references/epistemics.md` for the full confidence framework and phrasing guide. The synthesizer must follow it.
 
-Identify the code, pattern, feature, or decision and whether the ask concerns rationale, tradeoffs, an edge case, an external constraint, dead code, or broad history. If the referent is vague, infer it from the conversation, state your interpretation briefly, and proceed so the user can redirect.
+## Step 1. Understand the Target and the Question
 
-## Step 2. Establish the code anchor
+Parse what the user is asking. The **target** is usually a chunk of code, a pattern, a feature, or a named design decision. The **question** is usually a design rationale, a tradeoff, a motivating edge case, an external constraint, dead code, or a broad history sweep.
 
-The parent owns the code anchor: file paths and line ranges, key symbols, an initial recent commit list, PR numbers from subjects such as `(#1234)`, and linked ticket IDs. Read current code for orientation, then collect history before assigning readers.
+If the target is vague ("why do we do it this way?" with no clear referent), make your best guess from conversation context (open files, recent edits, cursor location, what was just discussed). State your interpretation briefly so the user can redirect if you're off, then proceed.
 
-Run in the parent, not a read-only child:
+## Step 2. Establish the Code Anchor
+
+Before spawning investigators, anchor the investigation in concrete code. You need:
+
+- The relevant file path(s) and line range(s)
+- The key symbols (function names, class names, constants)
+- An initial commit list. The last few commits touching the target.
+- PR numbers from merge commits (pattern `(#1234)` in the subject line)
+
+Build this inline in the parent. The parent runs all Git commands, `gh`, and external tools; report missing tools, access, or history as gaps.
 
 ```bash
+# Blame target lines for last-touch commits
 git blame -L <start>,<end> <file>
+
+# Full file history, with patches, through renames
 git log --follow -p -- <file>
+
+# Last N commits touching the file, PR numbers visible
 git log --oneline -20 -- <file>
+
+# Extract PR numbers from a commit message
 git log -1 --format=%B <commit>
+```
+
+Pull PR bodies and discussion via `gh` for any substantive commits:
+
+```bash
 gh pr view <number> --json title,body,author,createdAt,mergedAt,labels,closingIssuesReferences,comments,reviews
 ```
 
-Fetch full PR bodies and discussion for substantive commits. Expand beyond last-touch commits with the pickaxe, full diffs, co-changes, earlier origins, and rename history in `references/sources/code-archaeology.md`. Do not treat the newest commit as authoritative. If Git, `gh`, authentication, or repository history is unavailable, report the concrete gap rather than inventing evidence.
+Capture this as seed context (file paths, symbols, commits, PR numbers, linked ticket IDs). Pass it to the investigators.
 
-## Step 3. Investigate in parallel by default
+## Step 3. Spawn Parallel Investigators (default posture)
 
-### Discover coverage
+**Default to the full parallel investigation.**
 
-Inspect the parent session's actual tools and resource descriptions. Do not invent MCP names or assume a service is installed. Map each available source to its primary evidence category; record ambiguous classifications. Aim for complete coverage, not the smallest search.
+### Discovery
 
-Read `references/source-playbook.md`. Its example tools are guides to adapt to the tools actually available, not a promise of child access.
+Before spawning investigators, list the available MCPs and external tools from the parent session's available-tools map and resource descriptions. Do not assume any service is installed.
 
-| Category | What it uniquely contributes | Playbook |
-| --- | --- | --- |
-| Source control history | Implementation-time rationale in commits, review, comments, and tests. Always investigate. | `references/sources/code-archaeology.md` |
-| Issue / ticket tracker | Product or business forcing functions external to engineering. | `references/sources/linear.md` |
-| Long-form documents | Design rationale written before code, alternatives, and decisions. | `references/sources/notion.md` |
-| Real-time team chat | Deliberation that never reached a document, especially with a thin paper trail. | `references/sources/slack.md` |
-| Infrastructure observability | Runtime conditions behind timeouts, retries, limits, and circuit breakers. | `references/sources/datadog.md` |
-| Error / exception tracking | Specific exceptions and error trajectories behind guards and corrective code. | `references/sources/sentry.md` |
-| Product analytics warehouse | Product and data reality behind flags, experiments, migrations, and numeric thresholds. | `references/sources/databricks.md` |
+Map each available MCP to one evidence category:
 
-### Ownership and prompts
+1. Source control history
+2. Issue / ticket tracker
+3. Long-form documents
+4. Real-time team chat
+5. Infrastructure observability
+6. Error / exception tracking
+7. Product analytics warehouse
 
-Keep one investigation lane per available category, each owning exactly one source or tool. Do not make one reader cover multiple MCPs. If several sources match, keep separate source-scoped findings under that category. Run independent parent searches in parallel when supported.
+Check source control access through git and `gh`; record any missing access as a gap. For the other six, classify using the MCP name, server instructions, tool names, and resource descriptors. If an MCP could fit more than one category, choose the one matching its primary evidence. Record ambiguous cases in the coverage map.
 
-The parent runs all Git commands, `gh`, and external searches. `general-purpose` children have only `read`, `grep`, `find`, and `ls`: no bash, writes, external tools, or delegation. Use role `why-investigator` for local code/document reading and analysis of parent-collected evidence, not live Git archaeology. Always assign the source-control lane when delegation is available; otherwise do that investigation locally. Pass full evidence inline or in parent-written local evidence files with original citations and queries. Children return requests for missing history or external verification; the parent fetches it and follows up.
+Aim for a complete **coverage map**, not a minimal one. Document the null, don't skip the search.
 
-Build each lane from `references/investigator-prompt.md`, the single matching category playbook, the code anchor, and the original question. Fill every template input. Explicitly replace commands and external calls in child tasks with analysis of supplied evidence and follow-up requests. The parent follows those playbooks for live searches. Use one `subagent` request with a `tasks` array for independent local readers, at most eight tasks, with at most four running at once. Finish a request before starting another. If delegation is unavailable, keep the same source boundaries and output template in the parent.
+Launch matching evidence readers through `subagent` in requests of at most eight tasks, with four active children. Finish each request before the next. Don't ask one agent to cover multiple MCPs.
 
-Apply the investigator template in full: search wide then narrow, read whole PRs, tickets, documents, and threads, preserve exact quotes and locations, record verbatim queries, and surface contradictions and counterfactuals. Follow links within the assigned source. Return cross-source references as Additional Leads for the parent to route to the right lane. Do not substitute evidence about a nearby feature for the target.
+Use agent `general-purpose` with role `why-investigator`. Children have `read`, `grep`, `find`, `ls`, and child-local `pstack_todo`; no bash, writes, external tools, or delegation. The parent executes each source playbook's live searches and supplies complete evidence with queries and citations inline or in local files. Child prompts replace live calls with reading that evidence and requesting missing searches from the parent. The parent follows up before synthesis. If delegation is unavailable, retain the same source lanes and templates locally and disclose the lost independence.
 
-Each lane returns **Source**, **What I Searched**, **Direct Evidence Found**, **Indirect / Circumstantial Evidence**, **Contradictions**, **Gaps**, and **Additional Leads**, with authors, dates, locations, inference chains, and alternative readings where available. Distinguish searches actually run by the parent from searches still requested.
+Each investigator gets:
+1. The base prompt from `references/investigator-prompt.md`
+2. The category playbook for the selected MCP, adapted from the examples in `references/source-playbook.md`
+3. The cross-cutting `references/sources/incident-postmortem.md` **if the target code looks defensive** (null checks, retry logic, timeout handling, rate limiting, feature flags, egress guards, OOM handlers)
+4. The code anchor from Step 2 (file paths, symbols, commit hashes, PR numbers, ticket IDs)
+5. The user's original question
 
-### Defensive code and incident history
+### Investigator roster. One per available evidence category
 
-For null checks, retries, timeouts, rate limiting, feature flags, egress guards, or OOM handlers, add `references/sources/incident-postmortem.md` to every available source lane. Search incident history around introduction and ship dates. Fetch full postmortems and action items. Correlate incident IDs, tickets, chat, commits, traces, error trajectories, and product events without claiming timing alone proves causation. This is a cross-cutting angle, not an eighth category.
+Spawn one investigator per category that has a matching MCP. Each owns evidence from exactly one tool or MCP; the parent runs that tool.
 
-### Justified skips only
+Each entry names the category and the kind of "why" it uniquely surfaces. Use it to know what to expect back, how to name a gap when a category returns empty, and (only in the rare provably-irrelevant case) to justify a skip.
 
-Record every skipped category in the final Sources Consulted block. Valid reasons are:
+1. **Source control investigator**. Git history, `gh` for PRs, code comments, tests. Always spawn. The only guaranteed source. Best at surfacing *implementation-time rationale captured during review*.
 
-- No matching source or tool is available. This is a coverage gap, not a choice. Also report access failures or retention limits precisely.
-- The source is **provably irrelevant**, not merely probably irrelevant. State the proof, such as a build-only target with no runtime path for error tracking.
+2. **Issue / ticket tracker investigator** (e.g. Linear, Jira, GitHub Issues, Plane, Shortcut MCP). Best at surfacing *the product or business forcing function*. Strongest when the why is external to engineering.
 
-A narrow question does not waive this rule. Document null searches rather than skipping them. A trivial single-commit question may be answered inline only after confirming searches of all seven available categories would be redundant and saying why. This exception should be rare.
+3. **Long-form documents investigator** (e.g. Notion, Confluence, Google Docs, Coda MCP). Best at surfacing *long-form design rationale*. Where the why is written out before it becomes code.
+
+4. **Real-time team chat investigator** (e.g. Slack, Discord, Microsoft Teams, Mattermost MCP). Best at surfacing *real-time deliberation that never reached a doc*. Especially important when the source control, ticket, and doc paper trail is thin.
+
+5. **Infrastructure observability investigator** (e.g. Datadog, New Relic, Honeycomb, Grafana, Splunk MCP). Infra/runtime view. Best at surfacing *infrastructure and runtime reality that motivated the code*. Strongest when the target reacts to an infra signal (timeouts, retries, rate limits, circuit breakers).
+
+6. **Error / exception tracking investigator** (e.g. Sentry, Rollbar, Bugsnag, Airbrake MCP). Best at surfacing *the specific exceptions and error trajectories that motivated defensive or corrective code*. Strongest for catch blocks, null guards, type checks, retries, and other defenses.
+
+7. **Product analytics warehouse investigator** (e.g. Databricks, Snowflake, BigQuery, ClickHouse, dbt, Redshift MCP). Product/data view. Best at surfacing *product and data reality that shaped the code*. Strongest for flag-gated code, experiment-driven ships, data migrations, and "where did this number come from" questions.
+
+### When to skip an investigator
+
+Only skip with an **explicit, written justification** that goes in the final "Sources Consulted" section. Two valid reasons:
+
+- **No MCP is available for that category** in this environment. Flag this as a gap, not a choice. Example: "Real-time team chat skipped. No matching MCP available, so the conversational record was not searchable."
+- **The source is provably irrelevant**, not just "probably irrelevant." A high bar. Example: "Error / exception tracking skipped. Target is a build-time script with no runtime code path."
+
+If your scope assessment suggests a single-commit trivial target where the PR description already contains the complete answer, you may answer inline **only after** confirming all seven available category searches would be redundant. Say so explicitly. This should be rare.
 
 ## Step 4. Synthesize
 
-Build from `references/synthesizer-prompt.md` with all findings, null results, skipped-source reasons, the full code anchor, original question, and `references/epistemics.md`. Use one `general-purpose` task with role `why-synthesizer` when the evidence can be read locally; otherwise synthesize in the parent.
+Spawn one synthesizer subagent:
 
-The template's external citation checks belong to the parent in Pi. Spot-check external citations before handing off, supply their text and source locations, and resolve any new verification requests before presentation. The child can spot-check local citations with its read-only tools. Neither lane modifies external state.
+Use agent `general-purpose` with role `why-synthesizer` and the same leaf tool limits. The parent performs external citation spot-checks required by the template, supplies their full evidence, and resolves further verification requests before presentation. The synthesizer checks local citations with its read tools.
 
-Read all findings, merge duplicate references, surface both sides of contradictions, and calibrate every claim. Treat a hypothesis embedded in the user's question as one candidate, not a conclusion to confirm. Do not rationalize the current shape, erase stale reasons, or treat missing evidence as proof of absence. Follow the template's full quality checklist and revise any claim that fails it.
+The synthesizer gets:
+1. The investigator findings, including any null results and any categories skipped with justification
+2. The code anchor from Step 2 (file paths, symbols, commit hashes, PR numbers, ticket IDs)
+3. The user's original question
+4. The epistemics framework from `references/epistemics.md`
+5. The synthesizer prompt template from `references/synthesizer-prompt.md`
 
 ## Step 5. Present
 
-Present the synthesis with light clarity or context edits only. Do not rewrite its confidence language.
+Take the synthesizer's output and present it to the user. You may lightly edit for clarity or add context from the conversation, but **do not rewrite the confidence language**.
 
-Use the template's sections: **The Question**, **The Code in Question**, **What We Found**, **What We Can Reasonably Infer**, **Competing Hypotheses**, **What We Don't Know**, **Sources Consulted**, and **Confidence Summary**. Omit conditional inference or hypothesis sections only when they do not apply. Keep Direct and Supported findings cited, Inferred reasoning hedged, Speculative alternatives explicit, and Unknown gaps specific.
+## Output Format
 
-Sources Consulted has one line per investigator, covering all seven categories including null results and skips with reasons. Include actual queries, paths, commits/PRs, tickets, pages, chat ranges, operational items, or warehouse tables, time windows, and numeric summaries as appropriate.
+The output structure is the one in `references/synthesizer-prompt.md`: The Question, The Code in Question, What We Found, What We Can Reasonably Infer, Competing Hypotheses, What We Don't Know, Sources Consulted, Confidence Summary. Adapt as needed, but keep the confidence separation intact, and keep Sources Consulted as one line per investigator, including the ones that returned nothing or were skipped, with the reason.
 
-If the question precedes a code change, add a **Preserve / Change / Avoid / Risk** constraint set after Sources Consulted: invariants and intent to preserve, justified changes, rejected or harmful approaches to avoid, and uncertainty or regression risks. Tie each constraint to the lineage evidence and its confidence rather than inventing design rules.
+After the Sources Consulted block, if the user's `why` question is a precursor to actually changing this code, convert the lineage findings into a Preserve / Change / Avoid / Risk constraint set suitable for planning the change.
+
+## Common Failure Modes to Avoid
+
+- **Recency bias**. Assuming the most recent commit is authoritative. The current shape is often the accretion of many earlier decisions. Trace back.
+
+## Reference Files
+
+- `references/epistemics.md`. Confidence tiers and phrasing guide. The synthesizer must follow it.
+- `references/investigator-prompt.md`. Base prompt template for investigator subagents.
+- `references/source-playbook.md`. Index pointing at the category playbooks below.
+- The files under references/sources. One self-contained example playbook per category, plus cross-cutting `incident-postmortem.md`. Give an investigator the single file that matches its category and adapt it to the available MCP.
+- `references/synthesizer-prompt.md`. Prompt template for the synthesizer subagent, including the output format.

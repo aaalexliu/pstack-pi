@@ -1,42 +1,52 @@
 ---
 name: how
-description: Use for "how does X work", code walkthroughs before changing something, and placement, ownership, or layering questions. Explains subsystem architecture, runtime flow, and onboarding mental models. Use why for motivation.
+description: "Use for \"how does X work\", code walkthroughs before changing something, and placement / ownership / layering questions (\"where should this live\", \"which package owns this\", \"is this the right layer\"). Explains subsystem architecture, runtime flow, onboarding mental models. Use why for motivation."
 disable-model-invocation: true
 ---
 
 # How
 
-Explore the codebase to answer how something works. Give a senior engineer new to the subsystem a working mental model, not annotated source code.
+Explore the codebase to answer "how does X work?" questions. Produce architectural explanations at the level of a senior engineer onboarding onto a subsystem, enough to build a working mental model, not so much that it reads like annotated source code.
 
-## Step 1. Assess complexity
+## Step 1. Assess Complexity
 
-If scope is unclear, state your interpretation and explore. The user can redirect.
+If the scope is ambiguous, state your interpretation and explore. The user can redirect.
 
-- **Simple:** one module, a small utility, or a narrow function question. No explorers. One explainer explores and explains in one pass. Go to Step 2b.
-- **Complex:** a subsystem spanning files or services, a cross-cutting feature, or a full architecture overview. Run parallel explorers first. Go to Step 2a.
+- **Simple** (a single module, a small utility, a narrow question such as "how does function X work"): no explorers. One explainer explores and explains in a single pass. Go to Step 2b.
+- **Complex** (a subsystem spanning multiple files or services, a cross-cutting feature, a full architectural overview): spawn parallel explorers first, then hand off to the explainer. Go to Step 2a.
 
 When in doubt, take the simple path.
 
-All children use `general-purpose`, with only `read`, `grep`, `find`, and `ls`. No shell commands, writes, external tools, or nested delegation. The parent owns the workflow. Use exact roles below for Pi model routing. If delegation is unavailable, perform the same work locally without claiming independent agents ran.
+The parent alone orchestrates through `subagent`, with at most eight tasks per request and four active children. Finish each request before the next. Children use `general-purpose` with `read`, `grep`, `find`, `ls`, and child-local `pstack_todo`; no bash, writes, external tools, or delegation. The parent owns external probes. If delegation is unavailable, follow the same steps locally and disclose the lost independence.
 
-## Step 2a. Explore
+## Step 2a. Explore (complex questions only)
 
-Split complex questions into two to four distinct angles. Send one `subagent` request with a `tasks` array, each task using agent `general-purpose` and role `how-explorer`. Build each task from `references/explorer-prompt.md`, filling in the question and angle. Give children readable reference paths and the inputs they need.
+Decompose the question into 2 to 4 exploration angles, each a distinct slice of the subsystem. Spawn all explorers in a single message:
 
-Each explorer owns its angle and goes deep rather than trying to cover the whole subsystem. Wait for every result, then go to Step 3. Keep every request within Pi's eight-task limit and never overlap live delegation requests.
+Use agent `general-purpose` and role `how-explorer` in the `subagent` request.
 
-## Step 2b. Direct explain
+Each explorer gets the prompt in `references/explorer-prompt.md` with its angle filled in. Then go to Step 3.
 
-Send one `subagent` request with agent `general-purpose` and role `how-explainer`. Build its task from `references/explainer-prompt.md`, omitting the explorer-findings section. It must explore and explain in one pass. Go to Step 4.
+## Step 2b. Direct Explain (simple questions)
 
-## Step 3. Synthesize
+Spawn one subagent that explores and explains in one pass:
 
-After all explorers return, send one `general-purpose` task with role `how-explainer`. Use `references/explainer-prompt.md` with every explorer's findings, including gaps. The explainer merges overlap and checks the code to resolve contradictions and fill gaps.
+Use agent `general-purpose` and role `how-explainer` in the `subagent` request.
+
+Build its prompt from `references/explainer-prompt.md` without the explorer-findings section. Go to Step 4.
+
+## Step 3. Synthesize (complex questions only)
+
+Once all explorers have returned, spawn one subagent to synthesize their findings into one explanation:
+
+Use agent `general-purpose` and role `how-explainer` in the `subagent` request.
+
+Build its prompt from `references/explainer-prompt.md` with every explorer's findings filled in.
 
 ## Step 4. Present
 
-Present the explainer's output. Light edits for clarity or conversation context are fine. Do not substantially rewrite it.
+Present the explainer's output to the user. Light edits for clarity or context from the conversation are fine. Do not substantially rewrite it.
 
-## Output
+## Output Format
 
-Use the sections and detail contracts in `references/explainer-prompt.md`, dropping only those that do not apply: Overview, Key Concepts, How It Works, Where Things Live, Gotchas. Acknowledge unresolved questions within the explanation.
+The explanation uses the sections defined in `references/explainer-prompt.md`, dropping any that do not apply: Overview, Key Concepts, How It Works, Where Things Live, Gotchas.

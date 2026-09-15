@@ -1,33 +1,24 @@
 ---
 name: no-comments
-description: "Run Comment Sicko on scoped comments and suppressions, fix accepted findings, and offer structural encodings for claimed constraints."
+description: "Spawn Comment Sicko, fix accepted findings, and offer encodings for claimed constraints."
 disable-model-invocation: true
 ---
 
 # No comments
 
-Use Comment Sicko's fresh perspective. The bundled `comment-sicko` is read-only: its report is a proposal, not an applied diff. The parent owns verification, edits, external lookups, and checks.
+Spawn Comment Sicko. Act on accepted findings. The bundled reviewer is read-only. Its deletions are proposals; the parent verifies and applies accepted deletions, owns external lookups, and runs checks. Children do not delegate or access external services.
+
+Defer to Comment Sicko's fresh perspective.
 
 ## Scope
 
-Use the caller's files or diff. Otherwise use the current diff against the base branch, default `main`, including staged, unstaged, and relevant untracked working-tree files. State the fence before review; no finding or principle widens it.
+Use the caller's files or diff. Otherwise use the current diff against the base branch, default `main`, including the working tree.
 
 ## Steps
 
-1. Send the scope to one `subagent` with `agent: "comment-sicko"`, `role: "no-comments"`, and a finite `timeoutMs`. Do not restate the agent's rules. The child uses `read`, `grep`, `find`, and `ls`, returns findings, and neither edits nor delegates. If it is unavailable, report the missing fresh review; a local pass is not a completed independent `/skill:no-comments` run.
-
-2. Inspect the report and any claimed diff before applying it. Reject application-code edits by the reviewer, scope escapes, exception-protected deletions, misstated `MUST KILL` reasons, and flags that treat kept intentional code as guilty. Apply the same scrutiny to code-shape findings labeled `MUST FIX` by an older reviewer and to all suppression findings. Reshape flags on surprises in our code stay actionable: do not restore their comments as a substitute for a fix. A keep needs proof of something we cannot change, or an exact protected exception such as a legal header or public API contract. An issue link alone is not proof.
-
-   Audit missed scoped lint and TypeScript suppressions, including `eslint-disable`, `@ts-ignore`, and `@ts-expect-error`. Correctness and safety suppressions remain actionable `MUST KILL` findings; understand the suppressed rule and fix the underlying problem, not just hide it elsewhere. Restore a deletion only with an exact exception and scoped proof.
-
-   Before accepting thin `IMPORTANT` or `do not remove` kills or keeps, run `/skill:how` or `/skill:why` on the symbol. The parent gathers external evidence; the child cannot. If a kill remains ambiguous, do not restore it. If a keep is refuted or still ambiguous, delete it. Do not use uncertainty as a reason to keep a workaround story.
-
-   Reject and rerun one invalid report with the failure named. Since the child cannot edit, discard its rejected proposals; revert only parent changes made from that rejected report, preserving unrelated work. If the second report is rejected, report it open and fail this run rather than silently self-approving.
-
-3. Fix trivial accepted flags directly: delete a dead path, drop a parameter, or use the real API. If any accepted fix needs a new code shape, run `/skill:architect` once for the accepted set and nearby code. Stop at the sketch. Architecture shapes; the next step implements.
-
-4. Implement the smallest root-cause fix in scope and remove every named workaround within that fence. If the root cause lies outside scope, land the smallest in-scope fix and report the rest open. `/skill:principle-fix-root-causes` and `/skill:principle-redesign-from-first-principles` guide intent only; neither authorizes widening scope or fixing outside instances. Never bolt on symptom guards.
-
-5. For constraint comments such as `do not remove`, `do not change wording`, or `talk to X before changing`, leave proven keeps about things we cannot change. For actionable constraints, offer the cheapest in-scope type, runtime check, test, or CI lint. Wait for interactive approval before encoding; unattended or eval runs require caller pre-approval. If approved, encode then delete the comment. Otherwise delete the unprotected comment, report the constraint unenforced and open, and sketch any out-of-scope work. Approval to review comments is not approval to expand architecture or enforce new policy.
-
-6. Run format, scoped lint, type checks, and focused behavior tests for changed code. Report deletion count, restored comments and proof, reruns, architect sketch, fixes, encoding offers, approved encodings, unenforced constraints, checks/results, and all other open work.
+1. Use `subagent` with `agent: "comment-sicko"`, `role: "no-comments"`, and a finite `timeoutMs`. Pass the scope and any base diff because the child has only `read`, `grep`, `find`, `ls`, and its own `pstack_todo`. If the fresh reviewer is unavailable, report the independent review gate blocked; a local pass does not complete this run. Do not restate its rules.
+2. Inspect its report and proposed diff before applying accepted deletions. Reject application-code edits, scope escapes, exception-protected deletions, misstated `MUST KILL` reasons, and flags that treat kept intentional code as guilty. Reshape flags on our-code surprises stay actionable. Do not restore those comments. A keep survives only with proof it is about something we cannot change. Audit missed scoped lint and TypeScript suppressions. Correctness or safety suppressions stay actionable `MUST KILL`s. Restore deletions only with exact exceptions and scoped proof. Before accepting thin `IMPORTANT` or `do not remove` kills or keeps, run `/skill:how` or `/skill:why` on their symbol. If a kill is ambiguous, do not restore. If a keep is refuted or still ambiguous, delete it. Discard rejected proposals, revert only parent edits from that rejected report, and rerun one rejected report with the failure named. Reject a second, report it open, and fail `/skill:no-comments`.
+3. Fix trivial accepted flags directly by deleting a dead path, dropping a parameter, or using the real API. If any fix needs a shape, run `/skill:architect` once for the accepted set and surrounding code. Stop at the sketch. Architect shapes. Step 4 implements.
+4. Implement the smallest root-cause fix in scope. Remove every named workaround. If the root cause is out of scope, land the smallest in-scope fix and report the rest open. The **principle-fix-root-causes** and **principle-redesign-from-first-principles** skills guide intent only. Neither authorizes widening the fence nor fixing instances outside it. Never bolt on symptom guards.
+5. Constraint comments say `do not remove`, `do not change wording`, or `talk to X before changing`. Leave keeps about things we cannot change. Offer the cheapest in-scope type, runtime, test, or CI lint. Wait for interactive approval. Unattended and eval require caller pre-approval. If approved, encode then delete. Otherwise delete, report the constraint open, and sketch out-of-scope work.
+6. Report the deletion count, restored comments, reruns, architect sketch, fixes, encoding offers, encodings, unenforced constraints, and other open work.
