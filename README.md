@@ -53,10 +53,10 @@ Pi `0.85.1` exposes 47 manual commands:
 
 Each skill keeps `disable-model-invocation: true` so Pi expands it only through an explicit skill command.
 
-The package ships 83 generated skill and support files, three generated agents, ten extension modules, and the root package files.
-It registers `pstack_config`, `pstack_sessions`, `pstack_todo`, and, at root depth, `subagent`.
-The delegation extension owns one `session_shutdown` hook that stops live children and a `tool_result` hook that marks its own failed calls.
-Todo and Poteto Mode state follow the active session branch through versioned custom entries. The package registers `/pstack`, `/subagents`, and `/pstack-cmux`, but no prompts, themes, or blanket approval hooks.
+The package ships 83 generated skill and support files, three generated agents, fifteen extension modules, and the root package files.
+It registers `pstack_config`, `pstack_papercut`, `pstack_sessions`, `pstack_todo`, and, at root depth, `subagent`.
+The delegation extension owns one `session_shutdown` hook that stops live children and a `tool_result` hook that marks its own failed calls. The papercut journal owns a `tool_execution_start` hook and a `tool_result` hook that append a one-line measurement to other tools' results.
+Todo and Poteto Mode state follow the active session branch through versioned custom entries. The package registers `/pstack`, `/subagents`, `/pstack-cmux`, and `/papercuts`, but no prompts, themes, or blanket approval hooks.
 A usage command remains deferred.
 
 `ADAPTATIONS.md` records each full-file replacement and exact transform. Host changes must preserve the skill's scope, evidence, checkpoints, and outputs. `SYNCING.md` explains the deterministic, count-checked transform path; routine sync needs no LLM.
@@ -95,6 +95,26 @@ Run `/pstack` to show the current model config and the exact file path to edit (
 `pstack_config` has strict `get` and `list-models` actions. `get` reads `<Pi agent dir>/pstack-pi/models.json` through the same version-1 parser used by delegation. `list-models` returns the exact `provider/model-id` values available from Pi's model registry. The tool does not write config. `/skill:setup-pstack` validates model choices first, then writes the file with Pi's normal file tools.
 
 `pstack_sessions` has one strict `list` action. It returns at most 100 saved Pi session paths for the current working directory and reports whether it truncated the list. It does not accept a path from the model and does not scan sessions for other projects.
+
+## Papercuts
+
+The agent can call `pstack_papercut` when it finds friction that could improve future agent work. The tool accepts a free-form lowercase `kind`, a concise `note`, and an optional `evidence` measurement. Its prompt guideline tells the agent not to record expected waits, ordinary project failures, errors caused by the current task, secrets, or raw tool output.
+
+```json
+{"kind":"tool.output-noisy","note":"cat of a lockfile dumped the whole file into context","evidence":{"tool":"bash","durationMs":24,"outputBytes":51338}}
+```
+
+pstack-pi appends a one-line trailer to every other tool result, for example `[pstack: bash 22ms 80B failed]`. The measurement sits next to the output it describes, so the agent can judge a slow call or a large dump in context and copy the numbers into `evidence`. pstack-pi never decides on its own which call a note is about. Tool inputs and outputs are never copied into the journal.
+
+Records stay local in private per-session, per-process JSONL files under `<Pi agent dir>/pstack-pi/papercuts/`. The reader ignores malformed lines and records from newer versions.
+
+| Command | Result |
+| --- | --- |
+| `/papercuts` | Show the 20 most recent papercuts for the current project |
+| `/papercuts all` | Show the 20 most recent papercuts across all projects |
+| `/papercuts aggregate` | Write a timestamped Markdown aggregation across all projects |
+
+Aggregations always span every project because papercuts describe the tooling, not one repository. Each note row still carries its project. Aggregations are immutable snapshots under `<Pi agent dir>/pstack-pi/papercut-aggregations/`.
 
 ## Delegation
 

@@ -120,7 +120,7 @@ async function fileInventory(root, roots) {
 /** @param {ContentInventory} inventory */
 export function extensionFiles(inventory) {
   return inventory.byDestination.has('agents/general-purpose.md')
-    ? ['extensions/pstack/index.ts', 'extensions/pstack/mode.ts', 'extensions/pstack/todo.ts', 'extensions/subagent/agents.ts', 'extensions/subagent/cmux.ts', 'extensions/subagent/cmux-settings.ts', 'extensions/subagent/index.ts', 'extensions/subagent/model-config.ts', 'extensions/subagent/progress.ts', 'extensions/subagent/view.ts'] : [];
+    ? ['extensions/pstack/index.ts', 'extensions/pstack/mode.ts', 'extensions/pstack/papercut-aggregation.ts', 'extensions/pstack/papercut-journal.ts', 'extensions/pstack/papercut-model.ts', 'extensions/pstack/papercut-observer.ts', 'extensions/pstack/papercuts.ts', 'extensions/pstack/todo.ts', 'extensions/subagent/agents.ts', 'extensions/subagent/cmux.ts', 'extensions/subagent/cmux-settings.ts', 'extensions/subagent/index.ts', 'extensions/subagent/model-config.ts', 'extensions/subagent/progress.ts', 'extensions/subagent/view.ts'] : [];
 }
 
 /** @param {ContentInventory} inventory */

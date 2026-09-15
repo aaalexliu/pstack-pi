@@ -131,8 +131,8 @@ test('registered tool follows session branches and persists only mutations', asy
     },
   };
   pstack(/** @type {any} */ (pi));
-  assert.deepEqual([...handlers.keys()], ['session_start', 'session_tree', 'input', 'before_agent_start']);
-  assert.deepEqual([...tools.keys()], ['pstack_config', 'pstack_sessions', 'pstack_todo']);
+  assert.deepEqual([...handlers.keys()], ['session_start', 'session_tree', 'input', 'before_agent_start', 'tool_execution_start', 'tool_result']);
+  assert.deepEqual([...tools.keys()], ['pstack_papercut', 'pstack_config', 'pstack_sessions', 'pstack_todo']);
   assert.equal(Check(tools.get('pstack_config').parameters, { action: 'get' }), true);
   assert.equal(Check(tools.get('pstack_config').parameters, { action: 'list-models' }), true);
   assert.equal(Check(tools.get('pstack_config').parameters, { action: 'get', extra: true }), false);
