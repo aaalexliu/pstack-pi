@@ -53,10 +53,10 @@ Pi `0.85.1` exposes 47 manual commands:
 
 Each skill keeps `disable-model-invocation: true` so Pi expands it only through an explicit skill command.
 
-The package ships 83 generated skill and support files, three generated agents, nine extension modules, and the root package files.
+The package ships 83 generated skill and support files, three generated agents, ten extension modules, and the root package files.
 It registers `pstack_config`, `pstack_sessions`, `pstack_todo`, and, at root depth, `subagent`.
 The delegation extension owns one `session_shutdown` hook that stops live children and a `tool_result` hook that marks its own failed calls.
-Todo and Poteto Mode state follow the active session branch through versioned custom entries. The package registers no prompts, themes, commands, or blanket approval hooks.
+Todo and Poteto Mode state follow the active session branch through versioned custom entries. The package registers `/subagents` and `/pstack-cmux`, but no prompts, themes, or blanket approval hooks.
 A usage command remains deferred.
 
 `ADAPTATIONS.md` lists every full-file Pi replacement, the exact Cursor behavior it replaces, and why a byte copy or short ordered transform would leave a false runtime contract.
@@ -165,7 +165,19 @@ node scripts/demo-subagents.mjs
 
 `--quick` shortens the wait; `--overlap` runs two separate simultaneous calls; `/quit` exits. Fixture responses are not actual review findings.
 
-When the parent runs inside cmux (`CMUX_WORKSPACE_ID` is set), each child opens a right-hand pane without taking focus. The pane shows completed assistant messages, tool calls, tool results, and the child's final status. It is a read-only transcript, not another interactive Pi session. Closing it does not stop the child. The follower stops when the child finishes; the text stays in terminal scrollback. Private transcript files are removed when the parent session shuts down or reloads. If cmux is missing or fails, delegation continues without a pane.
+### Optional cmux transcript tabs
+
+Transcript tabs default to off. Use `/pstack-cmux on` to activate them, `/pstack-cmux off` to deactivate them, and `/pstack-cmux status` to check the setting. The commands save `cmuxTabs` in `<Pi agent dir>/pstack-pi/settings.json`, normally `~/.pi/agent/pstack-pi/settings.json`:
+
+```json
+{"version":1,"cmuxTabs":true}
+```
+
+The setting persists across sessions and applies to newly started subagents without a reload. Turning it off leaves existing tabs and agents running. It does not disable the inline cards or cmux sidebar status.
+
+When enabled and the parent runs inside cmux (`CMUX_WORKSPACE_ID` is set), the first child opens a right-hand pane. Later children, including parallel tasks and chain steps, open tabs in that same pane. New tabs do not take keyboard focus. cmux preserves the tab you are reading in the focused pane, but may select the newest tab in a background pane. If you close the shared pane, the next child creates a new one. Each parent session owns its own pane.
+
+Tabs show completed assistant messages, tool calls, tool results, and final status. They are read-only transcripts, not interactive Pi sessions. Closing a tab does not stop its child. Completed tabs remain for inspection; their followers stop, and the text stays in terminal scrollback. Private transcript files are removed when the parent session shuts down or reloads. Missing or failed cmux commands do not prevent delegation.
 
 Limits worth knowing: a child's own detached, `SIGTERM`-ignoring processes are outside its process group and are not tracked, the same as Pi's bash tool. Delegation needs macOS or Linux for process groups.
 

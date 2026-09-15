@@ -27,13 +27,18 @@ function registration(options = {}) {
   const tools = [];
   /** @type {Map<string, (...args: any[]) => any>} */
   const handlers = new Map();
+  /** @type {Map<string, Parameters<import('@earendil-works/pi-coding-agent').ExtensionAPI['registerCommand']>[1]>} */
+  const commands = new Map();
   const api = {
     registerTool: (/** @type {any} */ tool) => tools.push(tool),
-    registerCommand: (/** @type {string} */ name) => assert.equal(name, 'subagents'),
+    registerCommand: (/** @type {string} */ name, /** @type {Parameters<import('@earendil-works/pi-coding-agent').ExtensionAPI['registerCommand']>[1]} */ command) => {
+      assert.ok(['subagents', 'pstack-cmux'].includes(name));
+      commands.set(name, command);
+    },
     on: (/** @type {string} */ event, /** @type {(...args: any[]) => any} */ handler) => { assert.ok(!handlers.has(event), `duplicate ${event} handler`); handlers.set(event, handler); },
   };
   subagentExtension(/** @type {any} */ (api), { spawnChild: spawnFake, env: {}, ...options });
-  return { tools, handlers };
+  return { tools, handlers, commands };
 }
 
 /** @param {import('node:test').TestContext} t @param {Parameters<typeof subagentExtension>[1]} [options] */
@@ -53,15 +58,17 @@ async function fixture(t, options) {
     }
     await rm(root, { recursive: true, force: true });
   });
-  const { tools, handlers } = registration(options);
+  const { tools, handlers, commands } = registration(options);
   assert.equal(tools.length, 1);
-  const ctx = /** @type {any} */ ({ cwd, model: { provider: 'fixture', id: 'model' }, thinkingLevel: 'high', hasUI: false, isProjectTrusted: () => false, ui: { confirm: async () => false } });
+  /** @type {string[]} */
+  const notices = [];
+  const ctx = /** @type {any} */ ({ cwd, model: { provider: 'fixture', id: 'model' }, thinkingLevel: 'high', hasUI: false, isProjectTrusted: () => false, ui: { confirm: async () => false, notify: (/** @type {string} */ text) => notices.push(text) } });
   /** @type {(params: Record<string, unknown>, signal?: AbortSignal, onUpdate?: (partial: ToolResult) => void) => Promise<ToolResult>} */
   const execute = (params, signal, onUpdate) => tools[0].execute('call', params, signal, onUpdate, ctx);
   /** @param {ToolResult} result @param {boolean} [isError] */
   const resultHook = (result, isError = false) => handlers.get('tool_result')?.({ type: 'tool_result', toolName: 'subagent', toolCallId: 'call', input: {}, content: result.content, details: result.details, isError });
   const promptDirs = async () => (await readdir(root)).filter((name) => name.startsWith('pi-subagent-'));
-  return { root, agentDir, cwd, tool: tools[0], handlers, ctx, execute, resultHook, promptDirs };
+  return { root, agentDir, cwd, tool: tools[0], handlers, commands, notices, ctx, execute, resultHook, promptDirs };
 }
 
 /** @param {string} file @returns {Promise<{pid: number, grandchild: number}>} */
@@ -300,8 +307,9 @@ async function cmuxFixture(t) {
   const f = await fixture(t, { env, cmuxExec: async (args, capturedEnv) => {
     assert.equal(capturedEnv.CMUX_WORKSPACE_ID, 'workspace:fixture');
     calls.push(args);
-    return JSON.stringify({ surface_id: `surface:${calls.length}` });
+    return JSON.stringify({ surface_id: `surface:${calls.length}`, pane_id: 'pane:shared' });
   } });
+  await f.commands.get('pstack-cmux')?.handler('on', f.ctx);
   env.CMUX_WORKSPACE_ID = 'changed-after-registration';
   t.after(async () => { await f.handlers.get('session_shutdown')?.(); });
   const files = async () => (await readdir(f.root)).filter((name) => name.startsWith('pi-cmux-')).map((name) => path.join(f.root, name, 'transcript.txt'));
@@ -322,7 +330,8 @@ test('cmux mirrors per-run output and final status without changing batch result
   assert.ok(texts.some((text) => text.includes('partial answer') && text.includes('[Failed: PRIVATE_BOOM]')));
   assert.ok(texts.some((text) => text.includes('[Failed: exit 2]')));
   for (const file of files) await readFile(file + '.done');
-  assert.equal(f.calls.filter((args) => args[1] === 'new-split').length, 3);
+  assert.equal(f.calls.filter((args) => args[1] === 'new-split').length, 1);
+  assert.equal(f.calls.filter((args) => args[1] === 'new-surface').length, 2);
   await f.handlers.get('session_shutdown')?.();
   assert.deepEqual(await f.files(), []);
 });
@@ -338,7 +347,8 @@ test('cmux creates panes only for started chain steps and none for invalid reque
   ] });
   assert.equal(result.details.results.length, 2);
   assert.deepEqual(result.details.progress?.tasks.map((row) => row.state), ['succeeded', 'failed', 'skipped']);
-  assert.equal(f.calls.filter((args) => args[1] === 'new-split').length, 2);
+  assert.equal(f.calls.filter((args) => args[1] === 'new-split').length, 1);
+  assert.equal(f.calls.filter((args) => args[1] === 'new-surface').length, 1);
   assert.equal((await f.files()).length, 2);
 });
 
@@ -393,7 +403,8 @@ test('closing the cmux follower does not terminate the child or its grandchild',
 test('missing or hung cmux does not delay child results', { timeout: 5000 }, async (t) => {
   const f = await fixture(t);
   for (const cmuxExec of [async () => { throw new Error('cmux unavailable'); }, async () => new Promise(() => {})]) {
-    const { tools, handlers } = registration({ env: { CMUX_WORKSPACE_ID: 'workspace:fixture' }, cmuxExec });
+    const { tools, handlers, commands } = registration({ env: { CMUX_WORKSPACE_ID: 'workspace:fixture' }, cmuxExec });
+    await commands.get('pstack-cmux')?.handler('on', f.ctx);
     t.after(async () => { await handlers.get('session_shutdown')?.(); });
     const result = await Promise.race([
       tools[0].execute('call', { agent: 'general-purpose', task: 'hello' }, undefined, undefined, f.ctx),
@@ -402,4 +413,58 @@ test('missing or hung cmux does not delay child results', { timeout: 5000 }, asy
     assert.equal(result.details.results[0].exitCode, 0);
     assert.equal(JSON.parse(result.content[0].text).task, 'hello');
   }
+});
+
+test('activation is persistent; deactivation prevents new tabs without stopping live agents', { timeout: 6000 }, async (t) => {
+  /** @type {string[][]} */
+  const calls = [];
+  const f = await fixture(t, { env: { CMUX_WORKSPACE_ID: 'workspace:fixture' }, cmuxExec: async (args) => {
+    calls.push(args);
+    return JSON.stringify({ pane_id: 'pane:shared', surface_id: `surface:${calls.length}` });
+  } });
+  t.after(() => f.handlers.get('session_shutdown')?.());
+  const command = f.commands.get('pstack-cmux');
+  assert.ok(command);
+  await command.handler('status', f.ctx);
+  assert.match(f.notices.at(-1) ?? '', /tabs: off/);
+  await f.execute({ agent: 'general-purpose', task: 'default off' });
+  assert.deepEqual(calls, []);
+  await command.handler('on', f.ctx);
+  assert.equal(JSON.parse(await readFile(path.join(f.agentDir, 'pstack-pi/settings.json'), 'utf8')).cmuxTabs, true);
+  const controller = new AbortController();
+  const marker = path.join(f.root, 'live-toggle.json');
+  const pending = f.execute({ agent: 'general-purpose', task: `HANG ${marker}` }, controller.signal);
+  const children = await waitFor(marker);
+  const count = calls.length;
+  await command.handler('off', f.ctx);
+  await f.execute({ agent: 'general-purpose', task: 'off again' });
+  assert.equal(calls.length, count);
+  assert.ok(alive(children.pid) && alive(children.grandchild));
+  assert.equal((await readdir(f.root)).filter((name) => name.startsWith('pi-cmux-')).length, 1);
+  controller.abort();
+  await assert.rejects(pending, /aborted/);
+  await command.handler('on', f.ctx);
+  await f.execute({ agent: 'general-purpose', task: 'reenabled' });
+  assert.equal(calls.filter((args) => args[1] === 'new-split').length, 1);
+  assert.equal(calls.filter((args) => args[1] === 'new-surface').length, 1);
+  const nextSession = registration();
+  await nextSession.commands.get('pstack-cmux')?.handler('status', f.ctx);
+  assert.match(f.notices.at(-1) ?? '', /tabs: on/);
+  await command.handler('invalid', f.ctx);
+  assert.match(f.notices.at(-1) ?? '', /Usage:/);
+  assert.equal(JSON.parse(await readFile(path.join(f.agentDir, 'pstack-pi/settings.json'), 'utf8')).cmuxTabs, true);
+});
+
+test('malformed cmux settings warn once without failing delegation', async (t) => {
+  const f = await fixture(t, { env: { CMUX_WORKSPACE_ID: 'workspace:fixture' }, cmuxExec: async () => { assert.fail('no tabs on invalid config'); } });
+  await mkdir(path.join(f.agentDir, 'pstack-pi'));
+  await writeFile(path.join(f.agentDir, 'pstack-pi/settings.json'), 'broken');
+  f.ctx.hasUI = true;
+  const result = await f.execute({ tasks: ['one', 'two'].map((task) => ({ agent: 'general-purpose', task })) });
+  assert.ok(result.details.results.every((r) => r.exitCode === 0));
+  assert.equal(f.notices.length, 1);
+  assert.match(f.notices[0], /Subagent tabs disabled/);
+  await f.commands.get('pstack-cmux')?.handler('on', f.ctx);
+  assert.match(f.notices.at(-1) ?? '', /Invalid JSON/);
+  assert.equal(await readFile(path.join(f.agentDir, 'pstack-pi/settings.json'), 'utf8'), 'broken');
 });

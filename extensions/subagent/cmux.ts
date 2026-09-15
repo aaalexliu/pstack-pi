@@ -43,10 +43,21 @@ export interface TranscriptPane {
   cleanup(): void;
 }
 
+interface SharedPane {
+  workspace: string;
+  target: string;
+  ref?: string;
+}
+
+const identifier = (id: unknown, ref: unknown): string | undefined =>
+  typeof id === 'string' && id ? id : typeof ref === 'string' && ref ? ref : undefined;
+
 /** Display-only resources. The extension owns this set, not the child runner. */
 export class CmuxTranscripts {
   readonly #panes = new Set<TranscriptPane>();
   #closing = false;
+  #sharedPane?: SharedPane;
+  #allocation: Promise<void> = Promise.resolve();
 
   create({ env = process.env, exec = execCmux, label }: { env?: NodeJS.ProcessEnv; exec?: CmuxExec; label: string }): TranscriptPane | undefined {
     if (this.#closing || !env.CMUX_WORKSPACE_ID) return;
@@ -79,13 +90,27 @@ export class CmuxTranscripts {
         try { fs.rmSync(dir!, { recursive: true, force: true }); } catch { /* best effort */ }
         this.#panes.delete(pane);
       };
-      const command = async (args: string[]) => {
+      const workspace = env.CMUX_WORKSPACE_ID!;
+      const closeSurface = (surface: string) => {
+        void exec(['--json', 'close-surface', '--workspace', workspace, '--surface', surface], env, AbortSignal.timeout(CMUX_TIMEOUT_MS)).catch(() => {});
+      };
+      const command = async (args: string[], allocating = false) => {
         let timer: ReturnType<typeof setTimeout> | undefined;
+        let timedOut = false;
         try {
           return await Promise.race([
-            exec(['--json', ...args], env, controller.signal),
+            exec(['--json', ...args], env, controller.signal).then((reply) => {
+              if (timedOut && allocating) {
+                try {
+                  const created = JSON.parse(reply);
+                  const surface = identifier(created.surface_id, created.surface_ref);
+                  if (surface) closeSurface(surface);
+                } catch { /* best effort */ }
+              }
+              return reply;
+            }),
             new Promise<never>((_, reject) => {
-              timer = setTimeout(() => { controller.abort(); reject(new Error('cmux timed out')); }, CMUX_TIMEOUT_MS);
+              timer = setTimeout(() => { timedOut = true; controller.abort(); reject(new Error('cmux timed out')); }, CMUX_TIMEOUT_MS);
             }),
           ]);
         } finally { clearTimeout(timer); }
@@ -116,26 +141,58 @@ export class CmuxTranscripts {
       };
       this.#panes.add(pane);
       write(`Subagent: ${label}\n`);
-      const ready = (async () => {
-        const workspace = env.CMUX_WORKSPACE_ID!;
-        let surface: string | undefined;
-        try {
+      let surface: string | undefined;
+      // Queue only allocation. File writes and each follower stay independent.
+      const allocation = this.#allocation.then(async () => {
+        if (removed) throw new Error('Session ended');
+        const shared = this.#sharedPane;
+        if (shared && shared.workspace !== workspace) throw new Error('Workspace changed');
+        let reply: string | undefined;
+        if (shared) {
+          try {
+            reply = await command(['new-surface', '--type', 'terminal', '--pane', shared.target, '--workspace', workspace, '--focus', 'false'], true);
+          } catch (error) {
+            if (removed || controller.signal.aborted) throw error;
+            const listed = JSON.parse(await command(['list-panes', '--workspace', workspace]));
+            // Only a valid, complete list can prove that the shared pane is gone.
+            if (!Array.isArray(listed.panes) || !listed.panes.every((entry: any) =>
+              entry && identifier(entry.id ?? entry.pane_id, entry.ref ?? entry.pane_ref))) throw error;
+            const targets = [shared.target, shared.ref].filter(Boolean);
+            if (listed.panes.some((entry: any) =>
+              [entry.id, entry.pane_id, entry.ref, entry.pane_ref].some((value) => targets.includes(value)))) throw error;
+            if (!shared.ref && listed.panes.some((entry: any) => !identifier(entry.id, entry.pane_id))) throw error;
+            this.#sharedPane = undefined;
+          }
+        }
+        if (reply === undefined) {
+          if (removed) throw new Error('Session ended');
           const args = ['new-split', 'right', '--focus', 'false', '--workspace', workspace];
           if (env.CMUX_SURFACE_ID) args.push('--surface', env.CMUX_SURFACE_ID);
-          const created = JSON.parse(await command(args));
-          const target = created.surface_id ?? created.surface_ref;
-          if (typeof target !== 'string' || !target) throw new Error('No created surface');
-          surface = target;
-          if (removed) throw new Error('Session ended');
+          reply = await command(args, true);
+        }
+        const created = JSON.parse(reply);
+        surface = identifier(created.surface_id, created.surface_ref);
+        if (removed) throw new Error('Session ended');
+        if (!this.#sharedPane) {
+          const target = identifier(created.pane_id, created.pane_ref);
+          if (!target) throw new Error('No created pane');
+          this.#sharedPane = { workspace, target, ref: identifier(undefined, created.pane_ref) };
+        }
+        if (!surface) throw new Error('No created surface');
+      });
+      this.#allocation = allocation.catch(() => {});
+      const ready = (async () => {
+        try {
+          await allocation;
+          if (removed || !surface) throw new Error('Session ended');
           const runtime = /^(node|bun)(\.exe)?$/i.test(path.basename(process.execPath)) ? process.execPath : 'node';
           const shellCommand = `${quote(runtime)} ${quote(script)} ${quote(file)} ${quote(String(process.pid))}\n`;
           await command(['send', '--workspace', workspace, '--surface', surface, shellCommand]);
+          if (removed) throw new Error('Session ended');
           await command(['rename-tab', '--workspace', workspace, '--surface', surface, `Subagent: ${readable(label)}`]).catch(() => {});
         } catch {
           cleanup();
-          if (surface) {
-            void exec(['--json', 'close-surface', '--workspace', workspace, '--surface', surface], env, AbortSignal.timeout(CMUX_TIMEOUT_MS)).catch(() => {});
-          }
+          if (surface) closeSurface(surface);
         }
       })();
       Object.assign(pane, { ready });

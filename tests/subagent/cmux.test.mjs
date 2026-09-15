@@ -18,7 +18,7 @@ function fixture(t, exec) {
   const pane = transcripts.create({ env, label: "agent 'quoted'", exec: exec ?? (async (args, capturedEnv) => {
     calls.push(args);
     assert.deepEqual(capturedEnv, env);
-    return JSON.stringify({ surface_id: 'surface:9' });
+    return JSON.stringify({ pane_id: 'pane-id', pane_ref: 'pane:3', surface_id: 'surface:9' });
   }) });
   assert.ok(pane);
   return { transcripts, pane, calls };
@@ -113,7 +113,7 @@ test('failed send removes files and its split; failed rename keeps the working t
         closed.push(args);
       }
       if (args[1] === failedCommand) throw new Error('surface closed');
-      return JSON.stringify({ surface_ref: 'surface:9' });
+      return JSON.stringify({ pane_ref: 'pane:3', surface_ref: 'surface:9' });
     });
     await pane.ready;
     assert.equal(existsSync(pane.file), failedCommand === 'rename-tab');
@@ -132,11 +132,190 @@ test('shutdown during split creation cleans files even after a late reply', asyn
     if (args[1] === 'new-split') return new Promise((resolve) => { reply = resolve; });
     return '{}';
   });
+  await Promise.resolve();
   transcripts.shutdown();
-  reply(JSON.stringify({ surface_id: 'surface:late' }));
+  reply(JSON.stringify({ pane_id: 'pane-late', surface_id: 'surface:late' }));
   await pane.ready;
   assert.equal(existsSync(path.dirname(pane.file)), false);
   assert.deepEqual(calls, ['new-split', 'close-surface']);
+});
+
+for (const concurrent of [true, false]) {
+  test(`${concurrent ? 'concurrent' : 'sequential'} runs share one split and allocate background tabs`, async (t) => {
+    const transcripts = new CmuxTranscripts();
+    t.after(() => transcripts.shutdown());
+    /** @type {string[][]} */
+    const calls = [];
+    /** @type {(() => void) | undefined} */
+    let release;
+    const gate = new Promise((resolve) => { release = () => resolve(undefined); });
+    /** @type {import('../../extensions/subagent/cmux.ts').CmuxExec} */
+    const exec = async (args) => {
+      calls.push(args);
+      if (args[1] === 'new-split') {
+        if (concurrent) await gate;
+        return JSON.stringify({ pane_id: 'stable-pane', pane_ref: 'pane:3', surface_id: 'stable-surface', surface_ref: 'surface:9' });
+      }
+      if (args[1] === 'new-surface') return JSON.stringify({ surface_id: `tab-${calls.length}` });
+      return '{}';
+    };
+    const first = transcripts.create({ env, label: 'first', exec });
+    assert.ok(first);
+    if (!concurrent) { await first.ready; first.finish('Completed'); }
+    const second = transcripts.create({ env, label: 'second', exec });
+    const third = transcripts.create({ env, label: 'third', exec });
+    assert.ok(second && third);
+    second.write('child output before allocation');
+    assert.match(readFileSync(second.file, 'utf8'), /child output before allocation/);
+    if (concurrent) {
+      await Promise.resolve();
+      assert.deepEqual(calls.map((args) => args[1]), ['new-split']);
+      release?.();
+    }
+    await Promise.all([first.ready, second.ready, third.ready]);
+    assert.equal(calls.filter((args) => args[1] === 'new-split').length, 1);
+    assert.deepEqual(calls.filter((args) => args[1] === 'new-surface'), Array.from({ length: 2 }, () =>
+      ['--json', 'new-surface', '--type', 'terminal', '--pane', 'stable-pane', '--workspace', 'workspace:7', '--focus', 'false']));
+    assert.equal(calls.find((args) => args[1] === 'send')?.[5], 'stable-surface');
+    for (const pane of [first, second, third]) { pane.finish('Completed'); assert.ok(existsSync(pane.file)); }
+    assert.ok(calls.every((args) => ['new-split', 'new-surface', 'send', 'rename-tab'].includes(args[1])));
+  });
+}
+
+for (const state of ['missing', 'present', 'query-error', 'malformed', 'unknown-identifiers', 'bad-tab-reply']) {
+  test(`failed tab allocation only recreates a confirmed missing pane: ${state}`, async (t) => {
+    /** @type {string[][]} */
+    const calls = [];
+    /** @type {import('../../extensions/subagent/cmux.ts').CmuxExec} */
+    const exec = async (args) => {
+      calls.push(args);
+      if (args[1] === 'new-split') return JSON.stringify({ pane_id: 'stable-pane', pane_ref: 'pane:3', surface_id: 'surface:9' });
+      if (args[1] === 'new-surface') {
+        if (state === 'bad-tab-reply') return 'not json';
+        throw new Error('arbitrary cmux error');
+      }
+      if (args[1] === 'list-panes') {
+        assert.deepEqual(args, ['--json', 'list-panes', '--workspace', 'workspace:7']);
+        if (state === 'query-error') throw new Error('query failed');
+        if (state === 'malformed') return '{}';
+        if (state === 'unknown-identifiers') return JSON.stringify({ panes: [{}] });
+        return JSON.stringify({ panes: [{ ref: state === 'present' ? 'pane:3' : 'pane:other' }] });
+      }
+      return '{}';
+    };
+    const { transcripts, pane: first } = fixture(t, exec);
+    await first.ready;
+    first.finish('Completed');
+    const next = transcripts.create({ env, label: 'next', exec });
+    assert.ok(next);
+    await next.ready;
+    assert.equal(calls.filter((args) => args[1] === 'new-split').length, state === 'missing' ? 2 : 1);
+    assert.equal(existsSync(next.file), state === 'missing');
+    assert.ok(existsSync(first.file), 'A tab failure must not remove another transcript');
+  });
+}
+
+test('slow send does not hold the surface allocation queue', async (t) => {
+  /** @type {(() => void) | undefined} */
+  let release;
+  const gate = new Promise((resolve) => { release = () => resolve('{}'); });
+  /** @type {string[]} */
+  const calls = [];
+  const { transcripts, pane: first } = fixture(t, async (args) => {
+    calls.push(args[1]);
+    if (args[1] === 'send') return /** @type {Promise<string>} */ (gate);
+    return JSON.stringify({ pane_ref: 'pane:3', surface_ref: 'surface:first' });
+  });
+  const second = transcripts.create({ env, label: 'second', exec: async (args) => {
+    calls.push(args[1]);
+    return JSON.stringify({ surface_ref: 'surface:second' });
+  } });
+  assert.ok(second);
+  await second.ready;
+  assert.equal(calls.filter((cmd) => cmd === 'new-split').length, 1);
+  assert.equal(calls.filter((cmd) => cmd === 'new-surface').length, 1);
+  release?.();
+  await first.ready;
+});
+
+test('shutdown skips queued allocations and closes a late-created tab', async (t) => {
+  /** @type {(value: string) => void} */
+  let reply = () => assert.fail('tab not started');
+  /** @type {string[]} */
+  const calls = [];
+  const { transcripts, pane: first } = fixture(t);
+  await first.ready;
+  /** @type {import('../../extensions/subagent/cmux.ts').CmuxExec} */
+  const exec = async (args) => {
+    calls.push(args[1]);
+    if (args[1] === 'new-surface') return new Promise((resolve) => { reply = resolve; });
+    assert.equal(args[5], 'surface:late');
+    return '{}';
+  };
+  const second = transcripts.create({ env, label: 'second', exec });
+  const third = transcripts.create({ env, label: 'third', exec });
+  assert.ok(second && third);
+  await Promise.resolve();
+  transcripts.shutdown();
+  reply(JSON.stringify({ surface_ref: 'surface:late' }));
+  await Promise.all([second.ready, third.ready]);
+  assert.deepEqual(calls, ['new-surface', 'close-surface']);
+  for (const pane of [first, second, third]) assert.equal(existsSync(pane.file), false);
+});
+
+test('allocation timeout cleans a surface that arrives after ready settles', { timeout: 4000 }, async (t) => {
+  /** @type {(value: string) => void} */
+  let reply = () => assert.fail('split not started');
+  /** @type {string[]} */
+  const calls = [];
+  const { pane } = fixture(t, async (args) => {
+    calls.push(args[1]);
+    if (args[1] === 'new-split') return new Promise((resolve) => { reply = resolve; });
+    return '{}';
+  });
+  await pane.ready;
+  assert.equal(existsSync(pane.file), false);
+  reply(JSON.stringify({ surface_id: 'surface:late' }));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(calls, ['new-split', 'close-surface']);
+});
+
+test('a closed tab does not stop another transcript or discard the shared pane', async (t) => {
+  const { transcripts, pane: first } = fixture(t);
+  await first.ready;
+  /** @type {string[][]} */
+  const calls = [];
+  /** @type {import('../../extensions/subagent/cmux.ts').CmuxExec} */
+  const exec = async (args) => {
+    calls.push(args);
+    if (args[1] === 'send') throw new Error('user closed tab');
+    return JSON.stringify({ surface_ref: 'surface:closed' });
+  };
+  const closed = transcripts.create({ env, label: 'closed', exec });
+  assert.ok(closed);
+  await closed.ready;
+  first.write('still running');
+  first.finish('Completed');
+  assert.match(readFileSync(first.file, 'utf8'), /still running\n\[Completed\]/);
+  const next = transcripts.create({ env, label: 'next', exec: async (args) => {
+    calls.push(args);
+    return JSON.stringify({ surface_ref: 'surface:next' });
+  } });
+  assert.ok(next);
+  await next.ready;
+  assert.ok(existsSync(next.file));
+  assert.equal(calls.filter((args) => args[1] === 'new-surface').length, 2);
+  assert.equal(calls.filter((args) => args[1] === 'new-split').length, 0);
+  assert.deepEqual(calls.filter((args) => args[1] === 'close-surface'),
+    [['--json', 'close-surface', '--workspace', 'workspace:7', '--surface', 'surface:closed']]);
+});
+
+test('immediate shutdown never allocates queued surfaces', async (t) => {
+  const { transcripts, pane, calls } = fixture(t);
+  transcripts.shutdown();
+  await pane.ready;
+  assert.deepEqual(calls, []);
+  assert.equal(existsSync(pane.file), false);
 });
 
 test('shutdown removes transcripts and prevents new panes', async (t) => {

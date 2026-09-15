@@ -32,6 +32,7 @@ import { Container, Markdown, Spacer, Text } from '@earendil-works/pi-tui';
 import { Type } from 'typebox';
 import { RunProgress, type ProgressSnapshot } from './progress.ts';
 import { CmuxTranscripts, type CmuxExec } from './cmux.ts';
+import { loadSettings, registerCmuxSettings } from './cmux-settings.ts';
 import { createProgressView, renderProgressResult } from './view.ts';
 import { type AgentConfig, type AgentScope, type AgentSource, bundledAgents, discoverAgents } from './agents.ts';
 import { formatModelChoice, loadModelConfig, ModelRouter, modelChoiceSchema, modelConfigPath, roleSchema, roles } from './model-config.ts';
@@ -499,6 +500,7 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
   const registry = new ChildRegistry();
   const transcripts = new CmuxTranscripts();
   const cmuxEnv = { ...env };
+  registerCmuxSettings(pi, cmuxEnv);
   const view = createProgressView(pi);
   const pendingDetails = new Map<string, SubagentDetails>();
   const activeProgress = new Set<RunProgress>();
@@ -600,9 +602,18 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
           publish();
         });
         activeProgress.add(progress);
-        const run = (resolved: ResolvedTask, update: OnUpdateCallback | undefined, index: number) => {
+        let settingsErrorShown = false;
+        const run = async (resolved: ResolvedTask, update: OnUpdateCallback | undefined, index: number) => {
+          let enabled = false;
+          if (cmuxEnv.CMUX_WORKSPACE_ID) {
+            try { enabled = (await loadSettings(getAgentDir())).cmuxTabs; }
+            catch (error) {
+              if (!settingsErrorShown && ctx.hasUI) ctx.ui.notify(`Subagent tabs disabled: ${error instanceof Error ? error.message : String(error)}`, 'warning');
+              settingsErrorShown = true;
+            }
+          }
           if (signal?.aborted) throw new Error('Subagent was aborted');
-          const pane = transcripts.create({ env: cmuxEnv, exec: cmuxExec, label: resolved.agent.name });
+          const pane = enabled ? transcripts.create({ env: cmuxEnv, exec: cmuxExec, label: resolved.agent.name }) : undefined;
           return runSingleAgent({ resolved, defaults, depth, signal, timeoutMs: params.timeoutMs, onUpdate: update, makeDetails: makeDetails(mode), spawnChild, registry,
             onEvent: (event, result) => {
               pane?.event(event);
