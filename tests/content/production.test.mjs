@@ -15,7 +15,7 @@ test('production contains exactly the reviewed copied and adapted workflow set',
   const inventory = await checkContent({ root, manifest, lock });
   assert.equal(lock.commit, 'f5bdd6826fd0a0d9cbc4347134c3a74a200b9d9d');
   assert.equal(inventory.bySource.size, 158);
-  assert.equal(inventory.byDestination.size, 86);
+  assert.equal(inventory.byDestination.size, 96);
   assert.equal(inventory.byAgentName.size, 3);
   assert.deepEqual(inventory.byAgentName.get('comment-sicko')?.tools, ['read', 'grep', 'find', 'ls']);
   assert.deepEqual(inventory.byAgentName.get('general-purpose')?.tools, ['read', 'grep', 'find', 'ls']);
@@ -24,10 +24,10 @@ test('production contains exactly the reviewed copied and adapted workflow set',
   const upstreamEntrypoints = manifest.files.filter((file) => /^skills\/[^/]+\/SKILL\.md$/u.test(file.source));
   assert.equal(upstreamEntrypoints.length, 47);
   assert.ok(upstreamEntrypoints.every((file) => file.kind !== 'omit' && file.destination === file.source));
-  assert.equal(manifest.files.filter((file) => file.kind === 'copy').length, 49);
-  assert.equal(manifest.files.filter((file) => file.kind === 'transform').length, 36);
+  assert.equal(manifest.files.filter((file) => file.kind === 'copy').length, 50);
+  assert.equal(manifest.files.filter((file) => file.kind === 'transform').length, 45);
   assert.equal(manifest.files.filter((file) => file.kind === 'replace').length, 0);
-  assert.equal(manifest.files.filter((file) => file.kind === 'omit').length, 73);
+  assert.equal(manifest.files.filter((file) => file.kind === 'omit').length, 63);
   assert.ok(manifest.files.every((file) => file.kind !== 'omit' || !file.reason.includes('reviewed Pi adaptation phase')));
   const adaptationText = await readFile(path.join(root, 'ADAPTATIONS.md'), 'utf8');
   const documentedTransforms = [...adaptationText.matchAll(/^\| `([^`]+)` \|/gmu)].map((match) => match[1]).sort();

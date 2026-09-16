@@ -37,7 +37,7 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
   - [ ] <Resolve and read execution workflow and parent mode gates instructions; record missing access and a local fallback.>
   - [ ] <Resolve and read swarm instructions; record missing access and a local fallback.>
   - [ ] <Resolve and read surface-control instructions; record missing access and a local fallback.>
-  - [ ] <Resolve and read PR publication and parent mode gates instructions; record missing access and a local fallback.>
+  - [ ] [Opening a PR](opening-a-pr.md)
   - [ ] <Resolve and read other installed leaf skill instructions; record missing access and a local fallback.>
 - [ ] Record a 30-minute audit checkpoint while the session is active. Check it between bounded requests. If no timer tool exists, state that no unattended wake is armed and leave a durable resume command when stopping.
 - [ ] Use this tick prompt, verbatim. "Re-read the resolved local execution workflow and the recorded local goal. Audit the operation against both and fix drift in this tick. Probe every active lane and judge progress by side effects only. Request live stop or cancellation only if exposed. Confirm exit before writable scope reuse; defer conflicting work until then. Then post a status message to the operator in chat, whether or not anything changed, with the queue table of PR, owner, state, and head SHA, the verdicts since the last tick, what merged, open operator gates, and blockers."

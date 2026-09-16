@@ -932,46 +932,6 @@
           "count": 1
         },
         {
-          "find": "`playbooks/perf-issue.md`.",
-          "replace": "Perf Issue (not bundled; design local steps through /skill:figure-it-out, preserving the stated gates).",
-          "count": 1
-        },
-        {
-          "find": "`playbooks/hillclimb.md`.",
-          "replace": "Hillclimb (not bundled; design local steps through /skill:figure-it-out, preserving the stated gates).",
-          "count": 1
-        },
-        {
-          "find": "`playbooks/runtime-forensics.md`.",
-          "replace": "Runtime Forensics (not bundled; design local steps through /skill:figure-it-out, preserving the stated gates).",
-          "count": 1
-        },
-        {
-          "find": "`playbooks/trace-forensics.md`.",
-          "replace": "Trace Forensics (not bundled; design local steps through /skill:figure-it-out, preserving the stated gates).",
-          "count": 1
-        },
-        {
-          "find": "`playbooks/refactoring.md`.",
-          "replace": "Refactoring (not bundled; design local steps through /skill:figure-it-out, preserving the stated gates).",
-          "count": 1
-        },
-        {
-          "find": "`playbooks/visual-parity.md`.",
-          "replace": "Visual Parity (not bundled; design local steps through /skill:figure-it-out, preserving the stated gates).",
-          "count": 1
-        },
-        {
-          "find": "`playbooks/authoring-a-skill.md`.",
-          "replace": "Authoring A Skill (not bundled; design local steps through /skill:figure-it-out, preserving the stated gates).",
-          "count": 1
-        },
-        {
-          "find": "`playbooks/eval.md`.",
-          "replace": "Eval (not bundled; design local steps through /skill:figure-it-out, preserving the stated gates).",
-          "count": 1
-        },
-        {
           "find": "`playbooks/babysit.md`.",
           "replace": "Babysit (not bundled; design local steps through /skill:figure-it-out, preserving the stated gates).",
           "count": 1
@@ -1003,17 +963,12 @@
         },
         {
           "find": "Cursor restart, or imminent context compaction. The complement to Session pickup. Full steps: `playbooks/pause-safely.md`.",
-          "replace": "session restart, or imminent context compaction. The complement to Session pickup. Full steps: Pause Safely (not bundled; design local steps through /skill:figure-it-out, preserving the stated gates).",
+          "replace": "session restart, or imminent context compaction. The complement to Session pickup. Full steps: `playbooks/pause-safely.md`.",
           "count": 1
         },
         {
           "find": "`playbooks/worktree-cleanup.md`.",
           "replace": "Upstream Worktree cleanup is not bundled. Inventory disk use and ownership, prove merged or abandoned state and cleanliness, and honor authorization before deletion. Never infer that an idle resource is safe to remove.",
-          "count": 1
-        },
-        {
-          "find": "`playbooks/opening-a-pr.md`.",
-          "replace": "Opening A Pr (not bundled; design local steps through /skill:figure-it-out, preserving the stated gates).",
           "count": 1
         },
         {
@@ -1025,18 +980,22 @@
           "find": "(Shipping (not bundled; design local steps through /skill:figure-it-out, preserving the stated gates)).",
           "replace": "(not bundled; use the local Shipping gates below).",
           "count": 1
-        },
-        {
-          "find": "Opening A Pr (not bundled; design local steps through /skill:figure-it-out, preserving the stated gates).",
-          "replace": "Opening a PR (not bundled; the parent checks the diff, runs repository gates, confirms base and head, and opens a ready PR only when authorized; otherwise report the prepared artifact and publication gate).",
-          "count": 1
         }
       ]
     },
     {
-      "kind": "omit",
+      "kind": "transform",
       "source": "skills/poteto-mode/playbooks/authoring-a-skill.md",
-      "reason": "The activated Pi workflow does not use this optional Cursor support file."
+      "destination": "skills/poteto-mode/playbooks/authoring-a-skill.md",
+      "expectedBlob": "8c5a55a44f5e95bba92f652da0ac87e941c49538",
+      "reason": "Preserve upstream workflow and output; change host-specific runtime boundaries and unavailable paths only.",
+      "transforms": [
+        {
+          "find": "Use the **create-skill** skill (Cursor's built-in for authoring SKILL.md files).",
+          "replace": "Read installed Pi skill-authoring docs and repository skill conventions, or an installed create-skill / `/skill:figure-it-out` path.",
+          "count": 1
+        }
+      ]
     },
     {
       "kind": "omit",
@@ -1078,9 +1037,18 @@
       ]
     },
     {
-      "kind": "omit",
+      "kind": "transform",
       "source": "skills/poteto-mode/playbooks/eval.md",
-      "reason": "The activated Pi workflow does not use this optional Cursor support file."
+      "destination": "skills/poteto-mode/playbooks/eval.md",
+      "expectedBlob": "3dae34e2ef0cbdd9bafa5ab372da5ea143d48452",
+      "reason": "Preserve upstream workflow and output; change host-specific runtime boundaries and unavailable paths only.",
+      "transforms": [
+        {
+          "find": "Read each candidate's local transcript under the active workspace's `agent-transcripts/` directory (the system prompt names this path). Do not glob across `~/.cursor/projects/*/`. That crosses workspace boundaries and reads private chats from unrelated projects.",
+          "replace": "Read each candidate's local Pi session file under the confirmed project-scoped session paths from available session tools or supplied paths. Do not scan unrelated project sessions. That crosses workspace boundaries and reads private chats from unrelated projects.",
+          "count": 1
+        }
+      ]
     },
     {
       "kind": "transform",
@@ -1107,9 +1075,23 @@
       ]
     },
     {
-      "kind": "omit",
+      "kind": "transform",
       "source": "skills/poteto-mode/playbooks/hillclimb.md",
-      "reason": "The activated Pi workflow does not use this optional Cursor support file."
+      "destination": "skills/poteto-mode/playbooks/hillclimb.md",
+      "expectedBlob": "bbbf05a67daa18aa9f7ad810cd3987b2a49e8b68",
+      "reason": "Preserve upstream workflow and output; change host-specific runtime boundaries and unavailable paths only.",
+      "transforms": [
+        {
+          "find": "your configured hillclimb model (default `claude-fable-5-1-thinking-max`)",
+          "replace": "`poteto-agent` and the configured role model for judgment",
+          "count": 1
+        },
+        {
+          "find": "If the run is unattended, borrow only the wake mechanism from the Autonomous run playbook (`playbooks/autonomous-run.md`), not its stop rule.",
+          "replace": "If the run is unattended and no wake tool exists, record durable checkpoints and a resume command instead of inventing a watcher. Autonomous Run is not bundled; do not invent its stop rule.",
+          "count": 1
+        }
+      ]
     },
     {
       "kind": "copy",
@@ -1255,7 +1237,7 @@
         },
         {
           "find": "`git show origin/main:pstack/skills/poteto-mode/playbooks/opening-a-pr.md`",
-          "replace": "<Resolve and read PR publication and parent mode gates instructions; record missing access and a local fallback.>",
+          "replace": "[Opening a PR](opening-a-pr.md)",
           "count": 1
         },
         {
@@ -1336,9 +1318,28 @@
       ]
     },
     {
-      "kind": "omit",
+      "kind": "transform",
       "source": "skills/poteto-mode/playbooks/opening-a-pr.md",
-      "reason": "The activated Pi workflow does not use this optional Cursor support file."
+      "destination": "skills/poteto-mode/playbooks/opening-a-pr.md",
+      "expectedBlob": "a5c65a0959d0c37ebd12d5636710c4e0f91fba88",
+      "reason": "Preserve upstream workflow and output; change host-specific runtime boundaries and unavailable paths only.",
+      "transforms": [
+        {
+          "find": "Multiple `Task` calls on the same branch each get their own worktree, or `git fetch && git reset --hard origin/<branch>` between them.",
+          "replace": "Multiple leaf tasks on the same branch each get their own worktree, or `git fetch && git reset --hard origin/<branch>` between them.",
+          "count": 1
+        },
+        {
+          "find": "Run `/deslop` from `cursor-team-kit` over the diff before commit. Run `/no-comments` before review. Write every PR title, PR description, and commit body with `/technical-writing`, then apply `/unslop`.",
+          "replace": "Inspect the diff for slop before commit. Run `/skill:no-comments` before review. Write every PR title, PR description, and commit body with `/skill:technical-writing`, then apply `/skill:unslop`.",
+          "count": 1
+        },
+        {
+          "find": "A subagent that opens a PR runs `interrogate`, `/deslop`, and `/no-comments`. It returns the URL and does not babysit. Return to the parent.",
+          "replace": "A leaf task that opens a PR runs `/skill:interrogate`, a diff inspection for slop, and `/skill:no-comments`. It returns the URL and does not babysit. Return to the parent.",
+          "count": 1
+        }
+      ]
     },
     {
       "kind": "transform",
@@ -1500,14 +1501,33 @@
       ]
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/poteto-mode/playbooks/pause-safely.md",
-      "reason": "The activated Pi workflow does not use this optional Cursor support file."
+      "destination": "skills/poteto-mode/playbooks/pause-safely.md"
     },
     {
-      "kind": "omit",
+      "kind": "transform",
       "source": "skills/poteto-mode/playbooks/perf-issue.md",
-      "reason": "The activated Pi workflow does not use this optional Cursor support file."
+      "destination": "skills/poteto-mode/playbooks/perf-issue.md",
+      "expectedBlob": "59246262ae562b15bd31b70a40559caae0f6371a",
+      "reason": "Preserve upstream workflow and output; change host-specific runtime boundaries and unavailable paths only.",
+      "transforms": [
+        {
+          "find": "via the matching control skill",
+          "replace": "via available surface-control tools",
+          "count": 1
+        },
+        {
+          "find": "your configured perf-issue model (default `claude-fable-5-1-thinking-max`)",
+          "replace": "`poteto-agent` and the configured role model for judgment",
+          "count": 1
+        },
+        {
+          "find": "For sustained improvement against a metric rather than a one-off fix, use the Hillclimb playbook (`playbooks/hillclimb.md`).",
+          "replace": "For sustained improvement against a metric rather than a one-off fix, use the Hillclimb playbook ([Hillclimb](hillclimb.md)).",
+          "count": 1
+        }
+      ]
     },
     {
       "kind": "transform",
@@ -1524,14 +1544,42 @@
       ]
     },
     {
-      "kind": "omit",
+      "kind": "transform",
       "source": "skills/poteto-mode/playbooks/refactoring.md",
-      "reason": "The activated Pi workflow does not use this optional Cursor support file."
+      "destination": "skills/poteto-mode/playbooks/refactoring.md",
+      "expectedBlob": "dfc5d480f450f1b28d70099650f0d12822ac4b6e",
+      "reason": "Preserve upstream workflow and output; change host-specific runtime boundaries and unavailable paths only.",
+      "transforms": [
+        {
+          "find": "your configured refactoring model (default `grok-4.6-fast-xhigh`)",
+          "replace": "`poteto-agent` and the configured role model for mechanical edits",
+          "count": 1
+        },
+        {
+          "find": "via the relevant control skill",
+          "replace": "via available surface-control tools",
+          "count": 1
+        }
+      ]
     },
     {
-      "kind": "omit",
+      "kind": "transform",
       "source": "skills/poteto-mode/playbooks/runtime-forensics.md",
-      "reason": "The activated Pi workflow does not use this optional Cursor support file."
+      "destination": "skills/poteto-mode/playbooks/runtime-forensics.md",
+      "expectedBlob": "ba659bfe1c4c2f956f3285974bfdc941120f9948",
+      "reason": "Preserve upstream workflow and output; change host-specific runtime boundaries and unavailable paths only.",
+      "transforms": [
+        {
+          "find": "via the control skill",
+          "replace": "via available surface-control tools",
+          "count": 1
+        },
+        {
+          "find": "Parse large artifacts in a subagent (the **guard-the-context-window** principle skill), keep the reduced finding in the main thread.",
+          "replace": "Parse large artifacts in a bounded leaf task using the **guard-the-context-window** principle skill; keep the reduced finding in the main thread.",
+          "count": 1
+        }
+      ]
     },
     {
       "kind": "omit",
@@ -1544,14 +1592,37 @@
       "reason": "The activated Pi workflow does not use this optional Cursor support file."
     },
     {
-      "kind": "omit",
+      "kind": "transform",
       "source": "skills/poteto-mode/playbooks/trace-forensics.md",
-      "reason": "The activated Pi workflow does not use this optional Cursor support file."
+      "destination": "skills/poteto-mode/playbooks/trace-forensics.md",
+      "expectedBlob": "48ed6b2f690215027eda96a1897ed98212bbd07a",
+      "reason": "Preserve upstream workflow and output; change host-specific runtime boundaries and unavailable paths only.",
+      "transforms": [
+        {
+          "find": "Parse large artifacts in a subagent (the **principle-guard-the-context-window** skill) and keep the reduced finding in the main thread.",
+          "replace": "Parse large artifacts in a bounded leaf task using the **principle-guard-the-context-window** skill and keep the reduced finding in the main thread.",
+          "count": 1
+        }
+      ]
     },
     {
-      "kind": "omit",
+      "kind": "transform",
       "source": "skills/poteto-mode/playbooks/visual-parity.md",
-      "reason": "The activated Pi workflow does not use this optional Cursor support file."
+      "destination": "skills/poteto-mode/playbooks/visual-parity.md",
+      "expectedBlob": "248830ec74a593fc22143a842026388f92f1b9f4",
+      "reason": "Preserve upstream workflow and output; change host-specific runtime boundaries and unavailable paths only.",
+      "transforms": [
+        {
+          "find": "via the control skill",
+          "replace": "via available surface-control tools",
+          "count": 1
+        },
+        {
+          "find": "`/loop` per component until the diff is zero.",
+          "replace": "Loop per component with an explicit local checkpoint until the diff is zero.",
+          "count": 1
+        }
+      ]
     },
     {
       "kind": "omit",
