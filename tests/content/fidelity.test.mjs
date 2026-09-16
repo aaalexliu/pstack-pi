@@ -23,7 +23,7 @@ test('production uses no full-file replacements and covers every converted workf
   const converted = manifest.files.filter((file) =>
     (file.kind === 'transform' && !earlierTransforms.includes(file.source)) ||
     file.source === 'skills/poteto-mode/playbooks/investigation.md');
-  assert.equal(converted.length, 40);
+  assert.equal(converted.length, 45);
   assert.deepEqual(Object.keys(contracts).sort(), converted.map(({ source }) => source).sort());
 });
 
