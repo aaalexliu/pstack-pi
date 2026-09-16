@@ -4,14 +4,6 @@ import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
 import { runPiSmoke } from './runner.mjs';
-import { startProvider } from './provider.mjs';
-
-test('provider bounds scripted steps and reply bytes before opening a socket', async () => {
-  const reply = { kind: /** @type {const} */ ('text'), text: 'fixture' };
-  for (const script of [[], Array.from({ length: 17 }, () => ({ reply })), [{ reply: { ...reply, text: 'x'.repeat(32769) } }]]) {
-    await assert.rejects(startProvider({ script }));
-  }
-});
 
 /** @param {Record<string, unknown>} request */
 function toolNames(request) {

@@ -8,6 +8,7 @@
 - `provider.mjs` is a sequential scripted OpenAI-compatible provider. Each request consumes the next step in order. It rejects overlapping requests after a short grace for a just-closed client socket.
 - `concurrent-provider.mjs` routes by the exact final user message, so several children can talk to it at once. Parallel and simultaneous delegation tests use it.
 - `process-observer.mjs` and `production-observer.mjs` read `ps` snapshots to count live Pi processes and confirm that every child under the root is gone before the test rescues anything.
+- `unit.test.mjs` covers sub-second fixtures (revision, JSONL, provider bounds, missing executable). `provider.test.mjs` and `concurrent-provider.test.mjs` are also unit-speed. `npm run test:pi:unit` / `npm run test:fast` run those only.
 - `smoke.test.mjs` proves package loading, three sampled skill expansions (`bro`, `poteto-mode`, one principle), and the declared tool surface. `todo.test.mjs` proves persisted todos.
 - `delegate.test.mjs` proves a real parent delegating to real bundled, user, and poteto children, with exact child tool lists and no leftover prompt files.
 - `progress.test.mjs` proves live model, tool, checklist and usage metadata, persisted final snapshots, and timeout cards through packed Pi. Renderer tests under `tests/subagent/` cover scrolling, raw status, long chains, overlap, and reload. The demo script exercises the real terminal views.
