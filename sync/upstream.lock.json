@@ -533,10 +533,10 @@
       "source": "skills/poteto-mode/SKILL.md",
       "blob": "7559dea02e890c3e72db4dfcd226facae0779576",
       "mode": "100644",
-      "adaptationSha256": "10abf65bae6b5802c87eb83b89b6858a2c4a0c6e14561e598c940bfb2b3ce62f",
+      "adaptationSha256": "e3e8246e7458a59e3299d1389cf946b2d4e7a7194d7cc92f3c406c672e18417a",
       "output": {
         "destination": "skills/poteto-mode/SKILL.md",
-        "sha256": "03244240a148496cb73d7bf3234f4efe849527b0db471557e57d2f48f410fb29",
+        "sha256": "4ede7c76702e902d07889eebf034b845cb9f01ad0009d2691400aa0339158ce0",
         "mode": "100644"
       }
     },
@@ -555,29 +555,45 @@
       "source": "skills/poteto-mode/playbooks/autonomous-run.md",
       "blob": "12c3a7d84effcacf3550cb893be67498d7b28a4a",
       "mode": "100644",
-      "adaptationSha256": null,
-      "output": null
+      "adaptationSha256": "85d25588916143dc8c53f9b51b5d3ba29b056160a9ab231ea4727aad534b5279",
+      "output": {
+        "destination": "skills/poteto-mode/playbooks/autonomous-run.md",
+        "sha256": "4034deea678098b9fc3fdda7292650495df472494d234c655ae8e3adadcd9321",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/poteto-mode/playbooks/autopilot-full.md",
       "blob": "78532504732ce78cc4d0ed95f3b7581fe177c090",
       "mode": "100644",
-      "adaptationSha256": null,
-      "output": null
+      "adaptationSha256": "80936de887ae68d71ce9249147daba30b4935a9f72439a6414810d83a98f2bd6",
+      "output": {
+        "destination": "skills/poteto-mode/playbooks/autopilot-full.md",
+        "sha256": "2c779a4ef56b153fca914f5f5038deb74346936c0cc8895cd44ddcd76edbf428",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/poteto-mode/playbooks/autopilot-stack.md",
       "blob": "f5b6e1df88f815af1add0a0a3eecd12a318719fe",
       "mode": "100644",
-      "adaptationSha256": null,
-      "output": null
+      "adaptationSha256": "6688a97bad123e86abd6a1230ef979f47929f3f06cf52a88224c7914bafe1585",
+      "output": {
+        "destination": "skills/poteto-mode/playbooks/autopilot-stack.md",
+        "sha256": "92fabc6ae670569080be96cdff651cac00d84b1046eed13a7e26c61e7ce7d782",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/poteto-mode/playbooks/babysit.md",
       "blob": "73eddb732ad9d4a4c27c16e3cc6c41f78becc3e1",
       "mode": "100644",
-      "adaptationSha256": null,
-      "output": null
+      "adaptationSha256": "90a1d3362175f8703b7bbdb465fa4e40ccb501287b1c703789666b4e46e2bcbf",
+      "output": {
+        "destination": "skills/poteto-mode/playbooks/babysit.md",
+        "sha256": "07389d27189de72dd3f4d1c2c5a3440a3b1901bc7f1604289edaedbc8d56ac3e",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/poteto-mode/playbooks/bug-fix.md",
@@ -616,10 +632,10 @@
       "source": "skills/poteto-mode/playbooks/hillclimb.md",
       "blob": "bbbf05a67daa18aa9f7ad810cd3987b2a49e8b68",
       "mode": "100644",
-      "adaptationSha256": "26747098b9c472e164b6d2a8b75c3fcc4279d06846c64b6dfa6995198a6013ba",
+      "adaptationSha256": "42e4a1576980511f0340d2d61d1a35b6a6d27daa761bdb2f36bab0d9337642fe",
       "output": {
         "destination": "skills/poteto-mode/playbooks/hillclimb.md",
-        "sha256": "19c58a3eb5e9581e9dbf2ee541ef94cdd0cec32ff8f7cae54c9809671da630c7",
+        "sha256": "28b2f4eb0a75ddb12db9fd4ae0dc2ee655fcdabc82b2b99ee5e98e6cb014a349",
         "mode": "100644"
       }
     },
@@ -638,10 +654,10 @@
       "source": "skills/poteto-mode/playbooks/multi-phase-plan.md",
       "blob": "1fd40dd3f6cd539cd7cc420e2e364282a05a73cf",
       "mode": "100644",
-      "adaptationSha256": "e5b23a6e482d7736d9c36b1fa410f38ba22939d042e3b6f55bb73af28296dfe9",
+      "adaptationSha256": "42bbc5c0dfb898cd1001ae00bcdadff796cfc7f5ec8debc69aec215d88b59819",
       "output": {
         "destination": "skills/poteto-mode/playbooks/multi-phase-plan.md",
-        "sha256": "f189a865ae80a122b9398c4f6682ada144468ea385ec8d5a7771af2685bc1c69",
+        "sha256": "61a54c43ccff6e8873a86d2afbab76302aaf30b51fada3c1c368745019150379",
         "mode": "100644"
       }
     },
@@ -726,15 +742,23 @@
       "source": "skills/poteto-mode/playbooks/session-pickup.md",
       "blob": "9b2ed06e0ff8b01bf03b7a0d6a4cbb8ba3a46720",
       "mode": "100644",
-      "adaptationSha256": null,
-      "output": null
+      "adaptationSha256": "32b7b7088bfca8ad59e10c4ec2f40ab98195c55f48d136606c74b110df67dbb1",
+      "output": {
+        "destination": "skills/poteto-mode/playbooks/session-pickup.md",
+        "sha256": "f8c6c6ef26ce409dc3f6361b74aa2449716c3b99571f1f4134cc54265a49693e",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/poteto-mode/playbooks/shipping.md",
       "blob": "4c83fa3ef3b3457d55ce4b9b3bfd0dd6c12745cd",
       "mode": "100644",
-      "adaptationSha256": null,
-      "output": null
+      "adaptationSha256": "aae16376c59944018b4104a8415861f178dc35deef41927c3c7f4bdf186be1d8",
+      "output": {
+        "destination": "skills/poteto-mode/playbooks/shipping.md",
+        "sha256": "20c0f81bd39b8631dcc8cdbfb1d6e835501e1af2137a95e4b87ff059c1be96a0",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/poteto-mode/playbooks/trace-forensics.md",
@@ -762,15 +786,23 @@
       "source": "skills/poteto-mode/playbooks/worktree-cleanup.md",
       "blob": "39c9ef9f368ac63b0e4245503302a4c174e846d6",
       "mode": "100644",
-      "adaptationSha256": null,
-      "output": null
+      "adaptationSha256": "24d9dba61a69a0118d30b0fdf33ef409d34212e803fc2ab3ed5ccdf7bc12c3bd",
+      "output": {
+        "destination": "skills/poteto-mode/playbooks/worktree-cleanup.md",
+        "sha256": "d82eae3a305fb82a251b625b44a371e25c57eccb1aa8403b35ec31b3c91960a1",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/poteto-mode/references/bugbot-triage.md",
       "blob": "b2fc7d35712783707607cf2f39752885c8d5105c",
       "mode": "100644",
       "adaptationSha256": null,
-      "output": null
+      "output": {
+        "destination": "skills/poteto-mode/references/bugbot-triage.md",
+        "sha256": "b2d146c770d8d3593e1ef3d77b668039b8e1f78093ea1a86f1d45d7f99614309",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/poteto-mode/scripts/bootstrap.ts",
