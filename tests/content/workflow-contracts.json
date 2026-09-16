@@ -167,6 +167,15 @@
       "cleanup ownership and cleanliness": "prove merged or abandoned state and cleanliness"
     }
   },
+  "skills/poteto-mode/playbooks/authoring-a-skill.md": {
+    "upstream": {
+      "own voice": "**You own the skill's voice.**",
+      "validate frontmatter": "frontmatter has `name` and `description`",
+      "delete when in doubt": "When in doubt, delete. Keep only prose that changes a decision.",
+      "reply": "**Reply:** summary of the skill, key design decisions, validation notes."
+    },
+    "pi": {}
+  },
   "skills/poteto-mode/playbooks/bug-fix.md": {
     "upstream": {
       "reproduce personally": "Reproduce it yourself on the matching surface",
@@ -174,6 +183,16 @@
       "same surface": "Verify on the same surface. The original repro now passes.",
       "red first": "Stage the commits so the failing repro lands before the fix in git history.",
       "evidence output": "Paste failing-then-passing repro output verbatim."
+    },
+    "pi": {}
+  },
+  "skills/poteto-mode/playbooks/eval.md": {
+    "upstream": {
+      "blinding nouns": "No `eval`, `test`, `judge`, `experiment`, `rubric`, `score`, `compare`, `benchmark`, `candidate`, or `arena` in any directory, file, or prompt the candidate sees.",
+      "organic prompt": "The candidate prompt looks like an organic user request.",
+      "no self-report chain": "Ask for design notes generally and grade chain-following from code shape, not self-report.",
+      "blinded judge": "The judge can know it's judging but sees outputs by sanitized label only, never by model name.",
+      "synthesize": "Disagreement means a model is biased or the rubric is ambiguous. Synthesize."
     },
     "pi": {}
   },
@@ -186,6 +205,16 @@
       "all consumers": "Port shared-primitive improvements to all consumers and verify each.",
       "one owner": "Code-coupled work (one feature, one migration) goes to a single owner",
       "reply": "**Reply:** what you built, what you chose and why, the throughput checkpoint, open decisions. Tables for design alternatives."
+    },
+    "pi": {}
+  },
+  "skills/poteto-mode/playbooks/hillclimb.md": {
+    "upstream": {
+      "one change": "one change, one measurement, keep or revert",
+      "frozen harness": "Once frozen, one repeatable command emits the metric",
+      "decision log": "A `decision.tsv`, one row per attempt",
+      "accept gate": "Accept only when the metric moves past noise and the gate stays green.",
+      "stop predicate": "Don't relax the predicate to meet it"
     },
     "pi": {}
   },
@@ -211,6 +240,16 @@
     },
     "pi": {}
   },
+  "skills/poteto-mode/playbooks/opening-a-pr.md": {
+    "upstream": {
+      "ready never draft": "Open every PR ready, never as a draft.",
+      "conventional commits": "Use Conventional Commits in the form `type(scope): subject`.",
+      "why section": "`## Why`. State the intent and approach in one or two short paragraphs.",
+      "no summary boilerplate": "Do not use `## Summary` or `## Test plan` boilerplate.",
+      "babysit separate": "Opening a PR does not start a babysit."
+    },
+    "pi": {}
+  },
   "skills/poteto-mode/playbooks/orchestrate.md": {
     "upstream": {
       "brief gate": "Missing fields are a refuse-to-spawn condition.",
@@ -224,6 +263,16 @@
     },
     "pi": {}
   },
+  "skills/poteto-mode/playbooks/perf-issue.md": {
+    "upstream": {
+      "measure first": "Tie every fix to a measurement, don't read source instead of measuring.",
+      "baseline": "Capture a baseline trace",
+      "strategy families": "Most fixes come from eight strategy families.",
+      "inconclusive": "\"Inconclusive\" or wrong-surface is not a pass.",
+      "reply": "**Reply:** baseline number, post-fix number, delta, artifact path."
+    },
+    "pi": {}
+  },
   "skills/poteto-mode/playbooks/prototype.md": {
     "upstream": {
       "decision": "No decision means no prototype. Route to Feature.",
@@ -231,6 +280,46 @@
       "comparison": "build them behind one switcher",
       "observation": "The observation is the test here, not an assertion.",
       "handoff": "The output is the decision plus the throwaway artifact, not shippable code."
+    },
+    "pi": {}
+  },
+  "skills/poteto-mode/playbooks/refactoring.md": {
+    "upstream": {
+      "contract ownership": "**You own the contract. The structure changes. The behavior does not.**",
+      "pin first": "Pin the behavior contract first.",
+      "subtract first": "Subtract before you add.",
+      "prove unchanged": "Prove behavior is unchanged on the real artifact, not \"it compiles\"",
+      "reader load": "If the diff does not lower reader load somewhere, revert it."
+    },
+    "pi": {}
+  },
+  "skills/poteto-mode/playbooks/runtime-forensics.md": {
+    "upstream": {
+      "diagnosis not fix": "The deliverable is a cited diagnosis, not a fix.",
+      "live signal": "Capture the live signal on the matching surface",
+      "prove mechanism": "Prove the mechanism before believing it.",
+      "map to source": "Map the finding back to source: file, symbol, the line that allocates or schedules.",
+      "throughput": "throughput checkpoint: n/a, read-only forensics"
+    },
+    "pi": {}
+  },
+  "skills/poteto-mode/playbooks/trace-forensics.md": {
+    "upstream": {
+      "distinct from runtime": "Distinct from **Runtime forensics**, which instruments the live process.",
+      "fixed dataset": "The artifact is a fixed dataset, read it, don't re-run it.",
+      "queryable shape": "Reach the queryable shape before you read.",
+      "source mapping": "A frame with no source mapping is not yet a diagnosis.",
+      "throughput": "throughput checkpoint: n/a, read-only forensics"
+    },
+    "pi": {}
+  },
+  "skills/poteto-mode/playbooks/visual-parity.md": {
+    "upstream": {
+      "baseline first": "Establish the baseline first, before any migration",
+      "no baseline tampering": "no harness modifications, no baseline tampering",
+      "image diff": "Equivalence is verified by image diff, not by eye.",
+      "nonzero fail": "A nonzero diff is a fail.",
+      "reply": "**Reply:** components migrated, the diff result for each, the baseline harness location, what's left."
     },
     "pi": {}
   },
