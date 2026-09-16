@@ -129,6 +129,8 @@
     "skills/no-comments/SKILL.md",
     "skills/poteto-mode/SKILL.md",
     "skills/poteto-mode/playbooks/authoring-a-skill.md",
+    "skills/poteto-mode/playbooks/autopilot-full.md",
+    "skills/poteto-mode/playbooks/autopilot-stack.md",
     "skills/poteto-mode/playbooks/autonomous-run.md",
     "skills/poteto-mode/playbooks/babysit.md",
     "skills/poteto-mode/playbooks/bug-fix.md",

@@ -1,6 +1,6 @@
 # Reviewed Pi adaptations
 
-**No full-file replacements remain.** The production manifest classifies 158 upstream files as 51 copies, 50 exact transforms, and 57 omissions. The Pi-owned `general-purpose` agent is a separate addition, not an upstream replacement.
+**No full-file replacements remain.** The production manifest classifies 158 upstream files as 51 copies, 52 exact transforms, and 55 omissions. The Pi-owned `general-purpose` agent is a separate addition, not an upstream replacement.
 
 Every transform starts from the pinned upstream file. It changes exact literal regions with checked occurrence counts; everything else stays verbatim. The importer requires the expected Git blob and locks the transform digest and output hash. Routine sync runs no LLM and performs no fuzzy matching.
 
@@ -28,7 +28,9 @@ The manifest contains the exact ordered `find`, `replace`, and `count` values fo
 | `skills/maintain-verification-skill/SKILL.md` | Pi skill paths/commands, bounded source readers, parent driving, and authorized publication. |
 | `skills/make-bot-ui/SKILL.md` | Replace Cursor routine/secret-card UI assumptions with documented service access and private local secret setup. Keep the webhook protocol. |
 | `skills/no-comments/SKILL.md` | Pi reviewer and skill commands; parent applies deletions and owns external checks. |
-| `skills/poteto-mode/SKILL.md` | Remove unsupported frontmatter, Cursor plugins, and task defaults. Add Pi boundaries, string-checklist API examples, pointers to bundled lifecycle playbooks, and fallbacks for still-unbundled Autopilot workflows. |
+| `skills/poteto-mode/SKILL.md` | Remove unsupported frontmatter, Cursor plugins, and task defaults. Add Pi boundaries, string-checklist API examples, and pointers to bundled lifecycle and Autopilot playbooks. |
+| `skills/poteto-mode/playbooks/autopilot-full.md` | Parent-owned PR lifecycles and bounded leaf tasks instead of Cursor cloud owners; local goals and active-session audit checkpoints instead of `/goal`, `/loop`, and cloud-sleeper; available surface-control tools and slop inspection; same-directory Babysit/Shipping and bugbot-triage links. |
+| `skills/poteto-mode/playbooks/autopilot-stack.md` | Same host-boundary edits as Autopilot-full for owner loop, audit ticks, goals, and stand-down; keep stack append, forge resolve, patch-id re-verify, and the Autopilot-full vs stack choice rule. |
 | `skills/poteto-mode/playbooks/authoring-a-skill.md` | Replace Cursor built-in create-skill with Pi skill-authoring docs or an installed create-skill / figure-it-out path. |
 | `skills/poteto-mode/playbooks/autonomous-run.md` | Replace Cursor `/loop` wake and AskQuestion with active-session checkpoints and no unattended wake promise; keep exit-predicate discipline. |
 | `skills/poteto-mode/playbooks/babysit.md` | Replace watch-pr and `/loop` with forge/`gh`/`origin` active-session checkpoints; fold phase-leaf, background fallback, and anti-merge rules from the former Local Babysit gates. |
@@ -36,7 +38,7 @@ The manifest contains the exact ordered `find`, `replace`, and `count` values fo
 | `skills/poteto-mode/playbooks/eval.md` | Replace Cursor agent-transcripts paths with project-scoped Pi session paths. |
 | `skills/poteto-mode/playbooks/feature.md` | Replace default models and nested delegation with parent-dispatched leaf implementation. |
 | `skills/poteto-mode/playbooks/hillclimb.md` | Replace the default hillclimb model with configured judgment roles; point unattended wake limits at `playbooks/autonomous-run.md` without inventing a watcher. |
-| `skills/poteto-mode/playbooks/multi-phase-plan.md` | Local task paths, model roles, bounded lanes, manual checker fallback, and parent-owned status/landing instead of cloud controls. Point Autopilot fallbacks and skeleton gates at bundled Babysit/Shipping and bugbot-triage. |
+| `skills/poteto-mode/playbooks/multi-phase-plan.md` | Local task paths, model roles, bounded lanes, manual checker fallback, and parent-owned status/landing instead of cloud controls. Resolve Autopilot, Babysit, Shipping, Opening a PR, and bugbot-triage to bundled paths. |
 | `skills/poteto-mode/playbooks/opening-a-pr.md` | Replace `/deslop` and Cursor skill commands with local slop inspection and `/skill:` paths; soften Task nesting to leaf-task worktree language. |
 | `skills/poteto-mode/playbooks/orchestrate.md` | Remove cloud/nested-agent and orch runtime requirements; keep the queue, briefs, ledgers, pilot, verification, and reply contracts. |
 | `skills/poteto-mode/playbooks/perf-issue.md` | Use available surface-control tools and configured judgment roles instead of control-skill and default model ids. Retarget the Hillclimb cross-link to a same-directory path. |
@@ -67,7 +69,7 @@ The manifest contains the exact ordered `find`, `replace`, and `count` values fo
 
 Removing a tool reference must not remove the work it supported. Pi readers return evidence requests when only the parent can run Git or external tools. The parent owns orchestration and integration. Logical panels and coverage may span several bounded requests; the eight-task limit does not shrink the planned work. Missing service access remains an explicit gap, not a successful step.
 
-Tier A and Tier B poteto-mode playbooks ship as copies or narrow transforms. Tier B adds `babysit`, `shipping`, `bugbot-triage` (byte-for-byte copy), `autonomous-run`, `session-pickup`, and `worktree-cleanup`. Former Local Babysit and Shipping gates in `SKILL.md` were folded into those playbooks; `SKILL.md` keeps short pointers. Tier C autopilot playbooks and upstream scripts remain omissions. References to still-omitted workflows name the absent file and a local fallback instead of promising an unavailable path.
+Tier A, Tier B, and Tier C poteto-mode playbooks ship as copies or narrow transforms. Tier B adds `babysit`, `shipping`, `bugbot-triage` (byte-for-byte copy), `autonomous-run`, `session-pickup`, and `worktree-cleanup`. Former Local Babysit and Shipping gates in `SKILL.md` were folded into those playbooks; `SKILL.md` keeps short pointers. Tier C adds `autopilot-full` and `autopilot-stack` with parent-owned lifecycles and explicit Pi host limits, linking Babysit, Shipping, and bugbot-triage. Upstream scripts remain omissions.
 
 `tests/content/workflow-contracts.json` records reviewed upstream passages separately from Pi boundary clauses. `tests/content/fidelity.test.mjs` checks both against the package-loaded files, rejects full replacements, and checks that command edits do not alter scratch paths. Production tests replay every transform and verify all copied bytes. These tests check instructions and loading, not model compliance.
 

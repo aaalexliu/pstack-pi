@@ -178,6 +178,45 @@
     },
     "pi": {}
   },
+  "skills/poteto-mode/playbooks/autopilot-full.md": {
+    "upstream": {
+      "state then wait": "When the operator asks for the protocol or the plan to be stated, deliver the statement and stop. Execution starts only on the operator's explicit go.",
+      "ready never draft": "opens the PR ready, never draft",
+      "swarm before merge": "No merge without the root's clean verdict.",
+      "regression lane": "**Regression lane against trunk.**",
+      "forge resolve": "Never require Graphite (`gt`).",
+      "reply": "**Reply:** the queue with each PR's owner, state, and head SHA."
+    },
+    "pi": {
+      "parent owned lifecycle": "One parent-owned lifecycle per PR owns build",
+      "bounded leaf tasks": "at most eight tasks and four active children per request",
+      "local goal": "record a local goal with the full program objective while the session is active",
+      "no unattended wake": "state that no unattended wake is armed",
+      "surface controls": "available surface-control tools as the change demands",
+      "babysit link": "[Babysit](babysit.md)",
+      "shipping link": "[Shipping](shipping.md)",
+      "bugbot link": "`../references/bugbot-triage.md`"
+    }
+  },
+  "skills/poteto-mode/playbooks/autopilot-stack.md": {
+    "upstream": {
+      "stack not land": "**You own the stack, never the landing. Build and verify the queue with full autonomy, then hand the operator one linear base-branch stack to review and land.**",
+      "ready never draft": "opens the PR ready, never draft",
+      "verify before append": "nothing enters the stack unverified",
+      "patch id reverify": "An unchanged patch-id preserves the code verdict. Any changed patch goes back through step 4 before delivery.",
+      "choice rule": "Autopilot-full when the PRs are independent and landing authority is granted. Autopilot-stack when the operator wants review before landing",
+      "no gt": "Never submit or register the chain through `gt`."
+    },
+    "pi": {
+      "parent owned lifecycle": "One parent-owned lifecycle per PR owns its change end to end",
+      "bounded leaf tasks": "at most eight tasks and four active children per request",
+      "local goal": "record a local goal with the full program objective while the session is active",
+      "no unattended wake": "state that no unattended wake is armed",
+      "host fleet limit": "Do not invent an unattended multi-owner cloud fleet Pi cannot run.",
+      "babysit link": "[Babysit](babysit.md)",
+      "bugbot link": "`../references/bugbot-triage.md`"
+    }
+  },
   "skills/poteto-mode/playbooks/bug-fix.md": {
     "upstream": {
       "reproduce personally": "Reproduce it yourself on the matching surface",

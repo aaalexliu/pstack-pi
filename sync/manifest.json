@@ -918,17 +918,7 @@
         },
         {
           "find": "Open a todolist whose first items are the matched playbook's steps, copied in verbatim, before any task-specific todos. A step you choose not to do stays in the list with a one-line `skip: <reason>`. Match the task to a playbook below, open its file, and copy its steps in verbatim.",
-          "replace": "The parent opens `pstack_todo` whose first items are the matched playbook's steps, copied in verbatim, before any task-specific todos. A step you choose not to do stays in the list with a one-line `skip: <reason>`. Match the task to a playbook below. Open bundled files and copy their steps verbatim. For still-omitted workflows (Autopilot-full, Autopilot-stack), use the fallback rather than an absent file. Children return progress as text; their optional `pstack_todo` owns only their leaf checklist.",
-          "count": 1
-        },
-        {
-          "find": "`playbooks/autopilot-full.md`.",
-          "replace": "Autopilot Full (not bundled; design local steps through /skill:figure-it-out, preserving the stated gates).",
-          "count": 1
-        },
-        {
-          "find": "`playbooks/autopilot-stack.md`.",
-          "replace": "Autopilot Stack (not bundled; design local steps through /skill:figure-it-out, preserving the stated gates).",
+          "replace": "The parent opens `pstack_todo` whose first items are the matched playbook's steps, copied in verbatim, before any task-specific todos. A step you choose not to do stays in the list with a one-line `skip: <reason>`. Match the task to a playbook below. Open bundled files and copy their steps verbatim. Children return progress as text; their optional `pstack_todo` owns only their leaf checklist.",
           "count": 1
         },
         {
@@ -972,14 +962,82 @@
       ]
     },
     {
-      "kind": "omit",
+      "kind": "transform",
       "source": "skills/poteto-mode/playbooks/autopilot-full.md",
-      "reason": "The activated Pi workflow does not use this optional Cursor support file."
+      "destination": "skills/poteto-mode/playbooks/autopilot-full.md",
+      "expectedBlob": "78532504732ce78cc4d0ed95f3b7581fe177c090",
+      "reason": "Preserve upstream workflow and output; change host-specific runtime boundaries and unavailable paths only.",
+      "transforms": [
+        {
+          "find": "arm a `/goal` with the full program objective. The goal continues across turns until the queue is done.",
+          "replace": "record a local goal with the full program objective while the session is active. Persist it across turns until the queue is done.",
+          "count": 1
+        },
+        {
+          "find": "2. **Spawn one owner per PR with the full lifecycle and an early trail.**",
+          "replace": "2. **Assign one parent-owned lifecycle per PR with an early trail.**",
+          "count": 1
+        },
+        {
+          "find": "One Cursor cloud agent per PR owns build, the first push, a ready PR, self-proof on the real artifact (the **prove-it-works** principle skill), skeptical Bugbot triage per `../references/bugbot-triage.md`, a slop-strip (the `deslop` skill from the `cursor-team-kit` plugin (`/deslop`)), `/no-comments` (the **no-comments** skill), a rebase onto current trunk, the babysit loop to green (`playbooks/babysit.md`), and the merge itself.",
+          "replace": "One parent-owned lifecycle per PR owns build, the first push, a ready PR, self-proof on the real artifact (the **prove-it-works** principle skill), skeptical Bugbot triage per `../references/bugbot-triage.md`, a slop-strip (inspect the diff for needless abstractions, defensive clutter, and style drift), `/skill:no-comments` (the **no-comments** skill), a rebase onto current trunk, the babysit loop to green ([Babysit](babysit.md)), and the merge itself. Dispatch only bounded leaf tasks (`poteto-agent` / `general-purpose`) for the current stage; no nested child merges; at most eight tasks and four active children per request.",
+          "count": 1
+        },
+        {
+          "find": "3. **Run owners in true parallel and never stack.** Many owners at once when PRs are self-contained: one writer per branch, disjoint files, cross-PR drift absorbed by rebase.",
+          "replace": "3. **Run owners in parallel within host limits and never stack.** Parallelize parent-owned lifecycles across bounded requests when PRs are self-contained: one writer per branch, disjoint files, cross-PR drift absorbed by rebase. Do not invent an unattended multi-owner cloud fleet Pi cannot run.",
+          "count": 1
+        },
+        {
+          "find": "(`control-cli` or `control-ui` from `cursor-team-kit` as the change demands).",
+          "replace": "(available surface-control tools as the change demands).",
+          "count": 1
+        },
+        {
+          "find": "the patch-id rule in `playbooks/shipping.md` governs re-verification.",
+          "replace": "the patch-id rule in [Shipping](shipping.md) governs re-verification.",
+          "count": 1
+        },
+        {
+          "find": "The owner squash-merges its own PR through the resolved forge",
+          "replace": "The authorized parent squash-merges the PR through the resolved forge",
+          "count": 1
+        },
+        {
+          "find": "Run an audit tick over all owners roughly every 30 minutes. A local root arms each tick as a real terminal `/loop`. The loop uses a monitored-shell 30-minute sleep and emits an output-notification sentinel. A cloud root uses the existing cloud-sleeper wake chain instead. Never leave the cadence to memory or lossy completion notifications. At each tick, re-read this playbook from trunk with `git show origin/main:pstack/skills/poteto-mode/playbooks/autopilot-full.md`, then re-read the armed `/goal`. Audit the operation against both. Fix drift during that tick. Probe each owner with a generic liveness or status check, and collect the decision trails. Count only side effects as progress: commits, pushes, PR or check deltas, and store reports. Treat a lane that passes its expected runtime without a side effect as stuck. Stand it down and dispatch a replacement at once. Do not wait for a polite return.",
+          "replace": "Record a 30-minute audit checkpoint while the session is active. Check it between bounded requests. If no timer tool exists, state that no unattended wake is armed and leave a durable resume command when stopping. Never leave the cadence to memory or lossy completion notifications. At each tick, re-read this installed playbook and the recorded local goal. Audit the operation against both. Fix drift during that tick. Probe each owner with a generic liveness or status check, and collect the decision trails. Count only side effects as progress: commits, pushes, PR or check deltas, and store reports. Treat a lane that passes its expected runtime without a side effect as stuck. Request live stop or cancellation only if exposed. Confirm exit before writable scope reuse; defer conflicting work until then. Do not wait for a polite return.",
+          "count": 1
+        },
+        {
+          "find": "The operator's hold or stand-down reaches every owner as a zero-writes order immediately. Owners hold their briefs until the operator releases them.",
+          "replace": "On the operator's hold or stand-down, stop new dispatch and parent writes at once. Send a zero-writes order only if live messaging exists; cancel only if the host supports it. A request is not proof of exit. Without those controls, let the bounded request return, report possible in-flight writes, and keep its scope reserved until confirmed exit. Inspect its final artifacts before any later reassignment. Owners hold their briefs until the operator releases them.",
+          "count": 1
+        }
+      ]
     },
     {
-      "kind": "omit",
+      "kind": "transform",
       "source": "skills/poteto-mode/playbooks/autopilot-stack.md",
-      "reason": "The activated Pi workflow does not use this optional Cursor support file."
+      "destination": "skills/poteto-mode/playbooks/autopilot-stack.md",
+      "expectedBlob": "f5b6e1df88f815af1add0a0a3eecd12a318719fe",
+      "reason": "Preserve upstream workflow and output; change host-specific runtime boundaries and unavailable paths only.",
+      "transforms": [
+        {
+          "find": "One Cursor cloud agent per PR owns its change end to end: build, first push, a ready PR opened before self-proof, self-proof (gates, CI, receipts), skeptical Bugbot triage per `../references/bugbot-triage.md`, a slop-strip (the `deslop` skill from the `cursor-team-kit` plugin (`/deslop`)), `/no-comments` (the **no-comments** skill), and babysit to green per `playbooks/babysit.md`. Owners parallelize when the work is self-contained.",
+          "replace": "One parent-owned lifecycle per PR owns its change end to end: build, first push, a ready PR opened before self-proof, self-proof (gates, CI, receipts), skeptical Bugbot triage per `../references/bugbot-triage.md`, a slop-strip (inspect the diff for needless abstractions, defensive clutter, and style drift), `/skill:no-comments` (the **no-comments** skill), and babysit to green per [Babysit](babysit.md). Dispatch only bounded leaf tasks (`poteto-agent` / `general-purpose`) for the current stage; no nested child merges; at most eight tasks and four active children per request. Parallelize parent-owned lifecycles across bounded requests when the work is self-contained. Do not invent an unattended multi-owner cloud fleet Pi cannot run.",
+          "count": 1
+        },
+        {
+          "find": "The root runs an audit tick roughly every 30 minutes. A local root arms each tick as a real terminal `/loop`. The loop uses a monitored-shell 30-minute sleep and emits an output-notification sentinel. A cloud root uses the existing cloud-sleeper wake chain instead. Never leave the cadence to memory or lossy completion notifications. At each tick, re-read this playbook from trunk with `git show origin/main:pstack/skills/poteto-mode/playbooks/autopilot-stack.md`, then re-read the armed `/goal`. Audit the operation against both. Fix drift during that tick. Probe each owner with a generic liveness or status check. Count only side effects as progress: commits, pushes, PR or check deltas, and store reports. Treat a lane that passes its expected runtime without a side effect as stuck. Stand it down and dispatch a replacement at once. Do not wait for a polite return.",
+          "replace": "The root records a 30-minute audit checkpoint while the session is active. Check it between bounded requests. If no timer tool exists, state that no unattended wake is armed and leave a durable resume command when stopping. Never leave the cadence to memory or lossy completion notifications. At each tick, re-read this installed playbook and the recorded local goal. Audit the operation against both. Fix drift during that tick. Probe each owner with a generic liveness or status check. Count only side effects as progress: commits, pushes, PR or check deltas, and store reports. Treat a lane that passes its expected runtime without a side effect as stuck. Request live stop or cancellation only if exposed. Confirm exit before writable scope reuse; defer conflicting work until then. Do not wait for a polite return.",
+          "count": 1
+        },
+        {
+          "find": "On the operator's explicit go, arm a `/goal` with the full program objective. The goal continues across turns until the chain is done. On the operator's stop, every owner takes an immediate zero-writes hold.",
+          "replace": "On the operator's explicit go, record a local goal with the full program objective while the session is active. Persist it across turns until the chain is done. On the operator's stop, stop new dispatch and parent writes at once. Send a zero-writes order only if live messaging exists; cancel only if the host supports it. A request is not proof of exit. Without those controls, let the bounded request return, report possible in-flight writes, and keep its scope reserved until confirmed exit. Inspect its final artifacts before any later reassignment.",
+          "count": 1
+        }
+      ]
     },
     {
       "kind": "transform",
@@ -1280,7 +1338,7 @@
         },
         {
           "find": "between `playbooks/autopilot-full.md` and `playbooks/autopilot-stack.md` per the rule at the end of `playbooks/autopilot-stack.md`.",
-          "replace": "upstream Autopilot-full for independent parent-owned landing or Autopilot-stack for a linear stack the operator lands. Neither is bundled; write explicit local steps under [Babysit](babysit.md) and [Shipping](shipping.md).",
+          "replace": "between [Autopilot-full](autopilot-full.md) and [Autopilot-stack](autopilot-stack.md) per the rule at the end of [Autopilot-stack](autopilot-stack.md).",
           "count": 1
         },
         {

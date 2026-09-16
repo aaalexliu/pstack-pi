@@ -533,10 +533,10 @@
       "source": "skills/poteto-mode/SKILL.md",
       "blob": "7559dea02e890c3e72db4dfcd226facae0779576",
       "mode": "100644",
-      "adaptationSha256": "978330d631e5a94211d0805e285832165731e1467bb3bf0224ff65c9306f4b39",
+      "adaptationSha256": "e3e8246e7458a59e3299d1389cf946b2d4e7a7194d7cc92f3c406c672e18417a",
       "output": {
         "destination": "skills/poteto-mode/SKILL.md",
-        "sha256": "03afa70f906a09e27b421abdd8090176b219c20397fc61d89cbb93b9cb0f5e74",
+        "sha256": "4ede7c76702e902d07889eebf034b845cb9f01ad0009d2691400aa0339158ce0",
         "mode": "100644"
       }
     },
@@ -566,15 +566,23 @@
       "source": "skills/poteto-mode/playbooks/autopilot-full.md",
       "blob": "78532504732ce78cc4d0ed95f3b7581fe177c090",
       "mode": "100644",
-      "adaptationSha256": null,
-      "output": null
+      "adaptationSha256": "80936de887ae68d71ce9249147daba30b4935a9f72439a6414810d83a98f2bd6",
+      "output": {
+        "destination": "skills/poteto-mode/playbooks/autopilot-full.md",
+        "sha256": "2c779a4ef56b153fca914f5f5038deb74346936c0cc8895cd44ddcd76edbf428",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/poteto-mode/playbooks/autopilot-stack.md",
       "blob": "f5b6e1df88f815af1add0a0a3eecd12a318719fe",
       "mode": "100644",
-      "adaptationSha256": null,
-      "output": null
+      "adaptationSha256": "6688a97bad123e86abd6a1230ef979f47929f3f06cf52a88224c7914bafe1585",
+      "output": {
+        "destination": "skills/poteto-mode/playbooks/autopilot-stack.md",
+        "sha256": "92fabc6ae670569080be96cdff651cac00d84b1046eed13a7e26c61e7ce7d782",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/poteto-mode/playbooks/babysit.md",
@@ -646,10 +654,10 @@
       "source": "skills/poteto-mode/playbooks/multi-phase-plan.md",
       "blob": "1fd40dd3f6cd539cd7cc420e2e364282a05a73cf",
       "mode": "100644",
-      "adaptationSha256": "3ae9f118a03227d7af38a54eb6dc42a120585204e218923ac1ca70905c7da029",
+      "adaptationSha256": "42bbc5c0dfb898cd1001ae00bcdadff796cfc7f5ec8debc69aec215d88b59819",
       "output": {
         "destination": "skills/poteto-mode/playbooks/multi-phase-plan.md",
-        "sha256": "4772da9c86f09535cba480e262f0d8f07adbb9690c59bede66ac18e0a6d5ee1f",
+        "sha256": "61a54c43ccff6e8873a86d2afbab76302aaf30b51fada3c1c368745019150379",
         "mode": "100644"
       }
     },
