@@ -5,7 +5,7 @@ import { syncBuiltinESMExports } from 'node:module';
 import path from 'node:path';
 import test from 'node:test';
 import { importUpstream, parseLock, parseManifest, relockUpstream, serializeLock, sha256, syncUpstream } from '../../scripts/sync-upstream.mjs';
-import { fixture, snapshot } from './fixture.mjs';
+import { fixture, snapshot, validAddition, validLock, validLockedAddition, validManifest } from './fixture.mjs';
 
 /** @param {import('node:test').TestContext} t */
 async function addedFixture(t) {
@@ -20,9 +20,8 @@ async function addedFixture(t) {
   return { ...f, sourcePath: path.join(f.outputRoot, source), destination, bytes };
 }
 
-test('version 2 requires additions arrays and rejects all legacy shapes', async (t) => {
-  const f = await fixture(t);
-  for (const { parse, value } of [{ parse: parseManifest, value: f.manifest }, { parse: parseLock, value: f.lock }]) {
+test('version 2 requires additions arrays and rejects all legacy shapes', () => {
+  for (const { parse, value } of [{ parse: parseManifest, value: validManifest() }, { parse: parseLock, value: validLock() }]) {
     const { additions, ...missing } = value;
     assert.deepEqual(additions, []);
     assert.throws(() => parse(missing), /fields/);
@@ -31,24 +30,34 @@ test('version 2 requires additions arrays and rejects all legacy shapes', async 
   }
 });
 
-test('additions validate source, destination, mode, reason, fields, and combined collisions', async (t) => {
-  const f = await addedFixture(t);
-  const addition = f.manifest.additions[0];
+test('manifest and lock accept a valid addition before rejecting malformed rows', () => {
+  const manifest = validManifest();
+  const lock = validLock();
+  const addition = validAddition();
+  const locked = validLockedAddition();
+  assert.deepEqual(parseManifest({ ...manifest, additions: [addition] }), { ...manifest, additions: [addition] });
+  assert.deepEqual(parseLock({ ...lock, additions: [locked] }), { ...lock, additions: [locked] });
+});
+
+test('additions validate source, destination, mode, reason, fields, and combined collisions', () => {
+  const manifest = validManifest();
+  const lock = validLock();
+  const addition = validAddition();
   for (const patch of [
     { source: 'sync/additions' }, { source: 'sync/replacements/x' }, { source: 'sync/additions/../x' },
     { source: 'sync/additions/CON' }, { source: 'sync/additions/X.' }, { source: 'sync/additions/a\\b' },
     { destination: 'extensions/x' }, { destination: 'skills/native/x' }, { destination: 'skills/shared/copy.bin' },
     { destination: 'skills/shared/COPY.bin' }, { destination: 'skills/shared/copy.bin/child' },
     { mode: '120000' }, { reason: ' ' }, { extra: true },
-  ]) assert.throws(() => parseManifest({ ...f.manifest, additions: [{ ...addition, ...patch }] }));
+  ]) assert.throws(() => parseManifest({ ...manifest, additions: [{ ...addition, ...patch }] }));
   for (const source of [addition.source, 'sync/additions/OWNED.bin']) {
-    assert.throws(() => parseManifest({ ...f.manifest, additions: [addition, { ...addition, source, destination: 'agents/shared/other' }] }), /collision/);
+    assert.throws(() => parseManifest({ ...manifest, additions: [addition, { ...addition, source, destination: 'agents/shared/other' }] }), /collision/);
   }
-  const locked = f.lock.additions[0];
+  const locked = validLockedAddition();
   for (const patch of [{ sha256: 'bad' }, { mode: '120000' }, { destination: 'skills/shared/copy.bin' }, { destination: 'extensions/x' }]) {
-    assert.throws(() => parseLock({ ...f.lock, additions: [{ ...locked, output: { ...locked.output, ...patch } }] }));
+    assert.throws(() => parseLock({ ...lock, additions: [{ ...locked, output: { ...locked.output, ...patch } }] }));
   }
-  assert.throws(() => parseLock({ ...f.lock, additions: [{ ...locked, reason: 'extra' }] }), /fields/);
+  assert.throws(() => parseLock({ ...lock, additions: [{ ...locked, reason: 'extra' }] }), /fields/);
 });
 
 for (const mutation of ['extra', 'empty directory', 'missing', 'bytes', 'mode', 'symlink', 'directory symlink', 'fifo', 'native collision']) {

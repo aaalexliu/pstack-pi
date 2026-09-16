@@ -60,7 +60,7 @@ function assertClean(run) {
 }
 
 test("real Pi loads the packed package and settles with fixture text and usage", async (context) => {
-  const run = await runPiSmoke();
+  const run = await runPiSmoke({ discoverResources: true });
   assertClean(run);
   assert.deepEqual(run.cleanup.signals, []);
   assert.deepEqual(run.pack.files, expectedPackFiles(await productionInventory()));
@@ -128,7 +128,7 @@ for (const name of exactExpansionSkills) {
     assert.deepEqual([...inventory.bySkillName.keys()].sort(), productionSkills);
     const skill = inventory.bySkillName.get(name);
     assert.ok(skill);
-    const run = await runPiSmoke({ prompt: `/skill:${name} inspect α` });
+    const run = await runPiSmoke({ prompt: `/skill:${name} inspect α`, discoverResources: true });
     assertClean(run);
     assertOnlyDeclaredTools(run);
     const location = join(run.paths.package, skill.destination);

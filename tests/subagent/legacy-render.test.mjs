@@ -6,7 +6,7 @@ import subagentExtension from '../../extensions/subagent/index.ts';
 
 /** @type {import('@earendil-works/pi-coding-agent').ToolDefinition | undefined} */
 let tool;
-subagentExtension(/** @type {any} */ ({ registerTool(/** @type {NonNullable<typeof tool>} */ value) { tool = value; }, registerCommand() {}, on() {} }));
+subagentExtension(/** @type {any} */ ({ registerTool(/** @type {NonNullable<typeof tool>} */ value) { tool = value; }, registerCommand() {}, on() {} }), { env: {} });
 const theme = /** @type {import('@earendil-works/pi-coding-agent').Theme} */ ({ fg: (_color, text) => text, bold: (text) => text });
 const usage = { input: 100, output: 20, cacheRead: 300, cacheWrite: 40, cost: 0.1, contextTokens: 440, turns: 2 };
 const row = (overrides = {}) => ({ agent: 'general-purpose', agentSource: 'user', task: 'Review', model: 'fixture/model', exitCode: 0, messages: [{ role: 'assistant', content: [{ type: 'toolCall', id: 'read', name: 'read', arguments: { path: 'latest.ts' } }] }], usage, ...overrides });

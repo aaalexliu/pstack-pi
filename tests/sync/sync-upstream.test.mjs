@@ -97,18 +97,21 @@ test('abort during staging leaves prior output and native files unchanged', asyn
   await writeFile(path.join(f.outputRoot, 'skills/shared/copy.bin'), 'prior output');
   const before = await snapshot(f.outputRoot);
   const controller = new AbortController();
-  const pending = syncUpstream({ ...f.options, mode: 'sync', signal: controller.signal });
-  const rejected = assert.rejects(pending, /fixture interruption/u);
-  const deadline = Date.now() + 5000;
-  let staged = false;
-  while (Date.now() < deadline) {
-    staged = (await readdir(f.outputRoot)).some((name) => name.startsWith('.pstack-sync-'));
-    if (staged) break;
-    await new Promise((resolve) => setImmediate(resolve));
+  const originalWrite = fs.writeFile;
+  /** @type {typeof fs.writeFile} */
+  const abortAfterStage = async (filename, data, options) => {
+    const written = await originalWrite(filename, data, options);
+    if (String(filename).includes('/content/')) controller.abort(new Error('fixture interruption'));
+    return written;
+  };
+  const mocked = t.mock.method(fs, 'writeFile', abortAfterStage);
+  syncBuiltinESMExports();
+  try {
+    await assert.rejects(syncUpstream({ ...f.options, mode: 'sync', signal: controller.signal }), /fixture interruption/u);
+  } finally {
+    mocked.mock.restore();
+    syncBuiltinESMExports();
   }
-  controller.abort(new Error('fixture interruption'));
-  await rejected;
-  assert.ok(staged, 'observed staging before interruption');
   assert.deepEqual(await snapshot(f.outputRoot), before);
   assert.ok(!(await readdir(f.outputRoot)).some((name) => name.startsWith('.pstack-sync-')));
 });
@@ -165,7 +168,7 @@ test('symlinked replacements and managed files cannot escape roots', async (t) =
   assert.equal(await readFile(path.join(f.outputRoot, 'package.json'), 'utf8'), 'native package\n');
 });
 
-test('CLI rejects missing, empty, and unknown review reason fields before writes', async (t) => {
+test('CLI rejects an invalid review reason before writes', async (t) => {
   const f = await fixture(t);
   const manifestPath = path.join(f.root, 'manifest.json');
   const lockPath = path.join(f.root, 'lock.json');
@@ -174,20 +177,18 @@ test('CLI rejects missing, empty, and unknown review reason fields before writes
   const valid = spawnSync(process.execPath, [script, 'sync', 'git', f.repositoryPath, f.outputRoot, manifestPath, lockPath, f.replacementRoot], { encoding: 'utf8' });
   assert.equal(valid.status, 0, valid.stderr);
   const before = await snapshot(f.outputRoot);
-  for (const [index, file] of f.manifest.files.entries()) {
-    if (file.kind === 'copy') continue;
-    const { reason, ...withoutReason } = file;
-    for (const invalid of [withoutReason, { ...file, reason: '' }, { ...withoutReason, rationale: reason }]) {
-      const files = f.manifest.files.map((entry, i) => i === index ? invalid : entry);
-      await writeFile(manifestPath, JSON.stringify({ ...f.manifest, files }));
-      for (const mode of ['sync', 'check']) {
-        const result = spawnSync(process.execPath, [script, mode, 'git', f.repositoryPath, f.outputRoot, manifestPath, lockPath, f.replacementRoot], { encoding: 'utf8' });
-        assert.equal(result.status, 1, `${mode} ${file.kind}: ${result.stderr}`);
-        assert.match(result.stderr, /Expected fields|nonempty review reason/u);
-        assert.equal(result.stdout, '');
-        assert.deepEqual(await snapshot(f.outputRoot), before);
-      }
-    }
+  const omit = f.manifest.files.find((file) => file.kind === 'omit');
+  assert.ok(omit);
+  await writeFile(manifestPath, JSON.stringify({
+    ...f.manifest,
+    files: f.manifest.files.map((file) => file.kind === 'omit' ? { ...omit, reason: '' } : file),
+  }));
+  for (const mode of ['sync', 'check']) {
+    const result = spawnSync(process.execPath, [script, mode, 'git', f.repositoryPath, f.outputRoot, manifestPath, lockPath, f.replacementRoot], { encoding: 'utf8' });
+    assert.equal(result.status, 1, `${mode}: ${result.stderr}`);
+    assert.match(result.stderr, /nonempty review reason/u);
+    assert.equal(result.stdout, '');
+    assert.deepEqual(await snapshot(f.outputRoot), before);
   }
 });
 

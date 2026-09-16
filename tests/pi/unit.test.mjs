@@ -4,9 +4,14 @@ import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import test from "node:test";
 import { FIXTURE_KEY, FIXTURE_MODEL, FIXTURE_TEXT, startProvider } from "./provider.mjs";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { jsonlParser, PiTestError, repositoryRevision, runPiSmoke } from "./runner.mjs";
+import { jsonlParser, PiTestError, disposePreparedPackage, extractPreparedPackage, preparePackedPackage, repositoryRevision, runPiSmoke } from "./runner.mjs";
+import { expectedPackFiles, contentInventory } from "../../scripts/check-content.mjs";
+import { classifyTestFiles, listTestFiles, PI_UNIT_TESTS } from "../../scripts/run-tests.mjs";
+import { fileURLToPath } from "node:url";
+
+const repository = fileURLToPath(new URL("../../", import.meta.url));
 
 /** @param {import("./runner.mjs").PiTestRun} run */
 function assertClean(run) {
@@ -64,6 +69,126 @@ test("JSONL rejects malformed, unfinished, and oversized records", () => {
   assert.throws(() => parser.end(), /without LF/);
   const many = jsonlParser(() => {});
   assert.throws(() => many.write(Buffer.from('{"type":"text"}\n'.repeat(257))), /count exceeded/);
+});
+
+test("run-tests classifies packed Pi files apart from the unified nonpacked set", async () => {
+  const files = await listTestFiles(repository);
+  const { packed, nonpacked } = classifyTestFiles(files);
+  assert.equal(files.length, packed.length + nonpacked.length);
+  assert.equal(nonpacked.includes("tests/pi/unit.test.mjs"), true);
+  assert.equal(packed.includes("tests/pi/unit.test.mjs"), false);
+  for (const file of PI_UNIT_TESTS) assert.equal(nonpacked.includes(file), true);
+  assert.equal(nonpacked.includes("tests/pi/smoke.test.mjs"), false);
+  assert.equal(packed.includes("tests/pi/smoke.test.mjs"), true);
+  const future = "tests/pi/future-integration.test.mjs";
+  const classified = classifyTestFiles([...files, future]);
+  assert.equal(classified.packed.includes(future), true);
+  assert.equal(classified.nonpacked.includes(future), false);
+});
+
+test("prepared production pack is reused and extracts stay isolated", async () => {
+  const content = contentInventory(
+    JSON.parse(await readFile(join(repository, "sync/manifest.json"), "utf8")),
+    JSON.parse(await readFile(join(repository, "sync/upstream.lock.json"), "utf8")),
+  );
+  const files = expectedPackFiles(content);
+  const [first, second] = await Promise.all([
+    preparePackedPackage({ sourceRoot: repository, files, content }),
+    preparePackedPackage({ sourceRoot: repository, files, content }),
+  ]);
+  assert.equal(first, second);
+  assert.equal(first.tarball, second.tarball);
+  assert.equal(first.shasum, second.shasum);
+  assert.equal(first.hold, second.hold);
+  assert.equal(existsSync(first.tarball), true);
+  const root = await mkdtemp(join(tmpdir(), "pstack-pi-extract-"));
+  try {
+    const a = join(root, "a", "packed skills");
+    const b = join(root, "b", "packed skills");
+    await extractPreparedPackage(first, a);
+    await extractPreparedPackage(first, b);
+    const sample = first.files[0];
+    assert.deepEqual(await readFile(join(a, sample)), await readFile(join(repository, sample)));
+    await writeFile(join(a, sample), "mutated extract");
+    assert.deepEqual(await readFile(join(b, sample)), await readFile(join(repository, sample)));
+    assert.deepEqual(await readFile(join(first.hold, "package", sample)), await readFile(join(repository, sample)));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("failed production pack and extract remove their temporary dirs", async () => {
+  await disposePreparedPackage();
+  const tmp = await mkdtemp(join(await realpath(tmpdir()), "pstack-pi-failed-pack-"));
+  const previousTmp = process.env.TMPDIR;
+  process.env.TMPDIR = tmp;
+  try {
+    await assert.rejects(preparePackedPackage({ sourceRoot: repository, files: ["does-not-exist"] }));
+    assert.deepEqual(await readdir(tmp), []);
+  } finally {
+    if (previousTmp === undefined) delete process.env.TMPDIR; else process.env.TMPDIR = previousTmp;
+    await rm(tmp, { recursive: true, force: true });
+  }
+  const content = contentInventory(
+    JSON.parse(await readFile(join(repository, "sync/manifest.json"), "utf8")),
+    JSON.parse(await readFile(join(repository, "sync/upstream.lock.json"), "utf8")),
+  );
+  const pack = await preparePackedPackage({
+    sourceRoot: repository,
+    files: expectedPackFiles(content),
+    content,
+  });
+  const destRoot = await mkdtemp(join(tmpdir(), "pstack-pi-extract-fail-"));
+  try {
+    const dest = join(destRoot, "out");
+    await writeFile(dest, "blocked");
+    await assert.rejects(extractPreparedPackage(pack, dest));
+    assert.equal((await readdir(destRoot)).some((name) => name.startsWith("extract-")), false);
+  } finally {
+    await rm(destRoot, { recursive: true, force: true });
+  }
+});
+
+test("custom fixture packs are not cached across source edits", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "pstack-pi-fixture-pack-"));
+  try {
+    await writeFile(join(root, "package.json"), JSON.stringify({
+      name: "@aaalexliu/pstack-pi",
+      version: "0.0.0",
+      files: ["package.json"],
+    }));
+    const first = await preparePackedPackage({ sourceRoot: root, files: ["package.json"] });
+    t.after(() => rm(first.hold, { recursive: true, force: true }));
+    await writeFile(join(root, "package.json"), JSON.stringify({
+      name: "@aaalexliu/pstack-pi",
+      version: "0.0.1",
+      files: ["package.json"],
+    }));
+    const second = await preparePackedPackage({ sourceRoot: root, files: ["package.json"] });
+    t.after(() => rm(second.hold, { recursive: true, force: true }));
+    assert.notEqual(first.tarball, second.tarball);
+    assert.notEqual(first.shasum, second.shasum);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("keepArtifacts copies the production tarball into the retained run root", async () => {
+  /** @type {string | undefined} */
+  let root;
+  try {
+    await assert.rejects(runPiSmoke({ executable: "/nonexistent-pi-smoke-executable", keepArtifacts: true }), (error) => {
+      assert.ok(error instanceof PiTestError);
+      root = error.run.paths.root;
+      assert.equal(error.run.cleanup.tempRemoved, false);
+      assert.equal(existsSync(root), true);
+      return true;
+    });
+    assert.ok(root);
+    assert.equal((await readdir(root)).some((name) => name.endsWith(".tgz")), true);
+  } finally {
+    if (root) await rm(root, { recursive: true, force: true });
+  }
 });
 
 test("a missing Pi executable retains setup errors and removes temporary state", async () => {

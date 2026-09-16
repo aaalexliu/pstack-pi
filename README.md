@@ -241,7 +241,7 @@ Run `npm ci` in the checkout, then register it with `pi install /absolute/path/t
 Pi records it in the user profile by default.
 Add `-l` to register it in the current project's settings instead.
 
-Run `npm run test:fast` while iterating and `npm run check` once before pushing `main`. `TESTING.md` explains the split and what each suite proves. `AGENTS.md` lists the editing rules, starting with the one that matters most: `skills/` and `agents/` are generated, so edit `sync/manifest.json` and run `npm run sync` instead.
+Use the change-based local checks in `TESTING.md` before pushing `main`. Docs-only prose does not need `npm test`; runtime, packaging, and test-runner changes need `npm run check`. Use `npm run test:fast` while iterating on non-runtime changes. `AGENTS.md` lists the editing rules, starting with the one that matters most: `skills/` and `agents/` are generated, so edit `sync/manifest.json` and run `npm run sync` instead.
 
 `engines.pi` records the tested version but npm does not enforce it.
 The package starts at version `0.1.0` and follows independent SemVer, not Cursor plugin versions.
@@ -275,7 +275,7 @@ The [aaalexliu/pstack-pi project](https://github.com/aaalexliu/pstack-pi) owns t
 
 Never edit generated `skills/`, generated `agents/`, or the pinned snapshot by hand.
 Edit Pi-owned agent sources under `sync/additions/`.
-For a reviewed manifest change against the existing snapshot, run:
+For a reviewed manifest change against the existing snapshot that also affects runtime or package loading, the full-check path is:
 
 ```sh
 npm ci
@@ -288,7 +288,7 @@ Relock verifies the existing snapshot before updating adaptation and addition ha
 Sync writes only managed content.
 Neither command changes package metadata or documentation.
 
-`npm run check` is the release gate. `TESTING.md` lists the scripts it runs and what each suite proves. `SYNCING.md` covers moving the upstream pin and recovering from a failed sync.
+Text-only manifest changes use the same relock and sync steps, then the non-runtime gate in `TESTING.md` instead of `npm run check`. `RELEASING.md` applies those change-based local gates before a push; CI always runs the full check. `SYNCING.md` covers moving the upstream pin and recovering from a failed sync.
 
 The packed package has no runtime dependencies. Pi supplies `@earendil-works/pi-coding-agent`, `@earendil-works/pi-ai`, `@earendil-works/pi-tui`, and `typebox` to extensions.
 `skipLibCheck` skips defective third-party declarations in Pi's dependency tree. Project TypeScript still uses strict checking.

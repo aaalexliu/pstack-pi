@@ -6,6 +6,12 @@ import { sha256, transformDigest } from '../../scripts/sync-upstream.mjs';
 
 /** @typedef {import('../../scripts/sync-upstream.mjs').Manifest} Manifest */
 /** @typedef {import('../../scripts/sync-upstream.mjs').Lock} Lock */
+/** @typedef {import('../../scripts/sync-upstream.mjs').Transform} Transform */
+
+const OBJECT_ID = 'a'.repeat(40);
+const DIGEST = 'b'.repeat(64);
+const fixtureTransforms = () => [{ find: 'Cursor', replace: 'Pi', count: 2 }, { find: 'Pi Pi', replace: 'Pi host', count: 1 }];
+
 /** @param {string} cwd @param {string[]} args */
 export function git(cwd, args) {
   const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')));
@@ -13,6 +19,47 @@ export function git(cwd, args) {
     env: { ...env, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null', GIT_AUTHOR_DATE: '2025-01-01T00:00:00Z', GIT_COMMITTER_DATE: '2025-01-01T00:00:00Z' },
     stdio: ['ignore', 'pipe', 'pipe'],
   }).toString().trim();
+}
+
+/** @param {(source: string) => string} [blob] @param {Transform[]} [transforms] @returns {Manifest} */
+export function validManifest(blob = () => OBJECT_ID, transforms = fixtureTransforms()) {
+  return {
+    version: 2, additions: [], repository: 'https://example.invalid/upstream.git', sourceRoot: 'plugin', managedRoots: ['skills/shared', 'agents/shared'],
+    files: [
+      { kind: 'copy', source: 'copy.bin', destination: 'skills/shared/copy.bin' },
+      { kind: 'transform', source: 'transform.md', destination: 'skills/shared/transform.md', expectedBlob: blob('transform.md'), transforms, reason: 'Use Pi host names instead of Cursor names.' },
+      { kind: 'replace', source: 'replace.md', destination: 'agents/shared/policy.md', expectedBlob: blob('replace.md'), replacement: 'policy.md', reason: 'Replace upstream policy with the reviewed Pi policy.' },
+      { kind: 'omit', source: 'omit.md', reason: 'This file only applies to the upstream host.' },
+      { kind: 'copy', source: 'run.sh', destination: 'agents/shared/run.sh' },
+    ],
+  };
+}
+
+/**
+ * @param {{blob?: (source: string) => string, commit?: string, sourceTree?: string, digest?: (destination: string) => string, adaptation?: (source: string) => string | null}} [ids]
+ * @returns {Lock}
+ */
+export function validLock(ids = {}) {
+  const blob = ids.blob ?? (() => OBJECT_ID);
+  const digestFor = ids.digest ?? (() => DIGEST);
+  const adaptation = ids.adaptation ?? ((source) => source === 'transform.md' || source === 'replace.md' ? DIGEST : null);
+  const manifest = validManifest(blob);
+  return {
+    version: 2, additions: [], repository: manifest.repository, commit: ids.commit ?? OBJECT_ID, sourceRoot: manifest.sourceRoot, sourceTree: ids.sourceTree ?? OBJECT_ID,
+    files: manifest.files.map((file) => ({
+      source: file.source, blob: blob(file.source), mode: file.source === 'run.sh' ? '100755' : '100644',
+      adaptationSha256: adaptation(file.source),
+      output: file.kind === 'omit' ? null : { destination: file.destination, sha256: digestFor(file.destination), mode: file.source === 'run.sh' ? '100755' : '100644' },
+    })),
+  };
+}
+
+export function validAddition() {
+  return { source: 'sync/additions/owned.bin', destination: 'skills/shared/owned.bin', mode: /** @type {const} */ ('100644'), reason: 'Pi-owned fixture.' };
+}
+
+export function validLockedAddition() {
+  return { source: 'sync/additions/owned.bin', output: { destination: 'skills/shared/owned.bin', mode: /** @type {const} */ ('100644'), sha256: DIGEST } };
 }
 
 /** @param {import('node:test').TestContext} t @param {'sha1' | 'sha256'} [objectFormat] */
@@ -26,10 +73,17 @@ export async function fixture(t, objectFormat = 'sha1') {
   await mkdir(outputRoot);
   await mkdir(replacementRoot);
   git(repositoryPath, ['init', '-q', `--object-format=${objectFormat}`]);
-  git(repositoryPath, ['config', 'user.name', 'Sync Test']);
-  git(repositoryPath, ['config', 'user.email', 'sync@example.invalid']);
-  git(repositoryPath, ['config', 'core.fileMode', 'true']);
-  git(repositoryPath, ['remote', 'add', 'origin', 'https://example.invalid/upstream.git']);
+  const configPath = path.join(repositoryPath, '.git/config');
+  await writeFile(configPath, `${await readFile(configPath, 'utf8')}
+[core]
+	fileMode = true
+[user]
+	name = Sync Test
+	email = sync@example.invalid
+[remote "origin"]
+	url = https://example.invalid/upstream.git
+	fetch = +refs/heads/*:refs/remotes/origin/*
+`);
   const original = new Map([
     ['copy.bin', Buffer.from([0, 255, 13, 10])],
     ['transform.md', Buffer.from('\uFEFFCursor Cursor\r\n')],
@@ -42,37 +96,31 @@ export async function fixture(t, objectFormat = 'sha1') {
   git(repositoryPath, ['add', '.']);
   git(repositoryPath, ['commit', '-qm', 'fixture']);
   const commit = git(repositoryPath, ['rev-parse', 'HEAD']);
+  /** @type {Map<string, string>} */
+  const blobs = new Map();
   /** @param {string} source */
-  const blob = (source) => git(repositoryPath, ['rev-parse', `${commit}:plugin/${source}`]);
-  const transforms = [{ find: 'Cursor', replace: 'Pi', count: 2 }, { find: 'Pi Pi', replace: 'Pi host', count: 1 }];
+  const blob = (source) => {
+    const cached = blobs.get(source);
+    if (cached) return cached;
+    const id = git(repositoryPath, ['rev-parse', `${commit}:plugin/${source}`]);
+    blobs.set(source, id);
+    return id;
+  };
+  const transforms = fixtureTransforms();
   const replacement = Buffer.from('reviewed Pi policy\n');
   await writeFile(path.join(replacementRoot, 'policy.md'), replacement);
-  /** @type {Manifest} */
-  const manifest = {
-    version: 2, additions: [], repository: 'https://example.invalid/upstream.git', sourceRoot: 'plugin', managedRoots: ['skills/shared', 'agents/shared'],
-    files: [
-      { kind: 'copy', source: 'copy.bin', destination: 'skills/shared/copy.bin' },
-      { kind: 'transform', source: 'transform.md', destination: 'skills/shared/transform.md', expectedBlob: blob('transform.md'), transforms, reason: 'Use Pi host names instead of Cursor names.' },
-      { kind: 'replace', source: 'replace.md', destination: 'agents/shared/policy.md', expectedBlob: blob('replace.md'), replacement: 'policy.md', reason: 'Replace upstream policy with the reviewed Pi policy.' },
-      { kind: 'omit', source: 'omit.md', reason: 'This file only applies to the upstream host.' },
-      { kind: 'copy', source: 'run.sh', destination: 'agents/shared/run.sh' },
-    ],
-  };
+  const manifest = validManifest(blob, transforms);
   const expected = new Map([
     ['skills/shared/copy.bin', original.get('copy.bin') ?? Buffer.alloc(0)],
     ['skills/shared/transform.md', Buffer.from('\uFEFFPi host\r\n')],
     ['agents/shared/policy.md', replacement],
     ['agents/shared/run.sh', original.get('run.sh') ?? Buffer.alloc(0)],
   ]);
-  /** @type {Lock} */
-  const lock = {
-    version: 2, additions: [], repository: manifest.repository, commit, sourceRoot: 'plugin', sourceTree: git(repositoryPath, ['rev-parse', `${commit}:plugin`]),
-    files: manifest.files.map((file) => ({
-      source: file.source, blob: blob(file.source), mode: file.source === 'run.sh' ? '100755' : '100644',
-      adaptationSha256: file.kind === 'transform' ? transformDigest(transforms) : file.kind === 'replace' ? sha256(replacement) : null,
-      output: file.kind === 'omit' ? null : { destination: file.destination, sha256: sha256(expected.get(file.destination) ?? Buffer.alloc(0)), mode: file.source === 'run.sh' ? '100755' : '100644' },
-    })),
-  };
+  const lock = validLock({
+    blob, commit, sourceTree: git(repositoryPath, ['rev-parse', `${commit}:plugin`]),
+    digest: (destination) => sha256(expected.get(destination) ?? Buffer.alloc(0)),
+    adaptation: (source) => source === 'transform.md' ? transformDigest(transforms) : source === 'replace.md' ? sha256(replacement) : null,
+  });
   await mkdir(path.join(outputRoot, 'skills/native'), { recursive: true });
   await writeFile(path.join(outputRoot, 'skills/native/sentinel'), Buffer.from([0, 42, 255]));
   await writeFile(path.join(outputRoot, 'package.json'), 'native package\n');

@@ -7,9 +7,13 @@ import test from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import subagentExtension, { DEPTH_VARIABLE, MAX_CONCURRENCY, TERM_GRACE_MS, childEnvironment, parentDepth } from '../../extensions/subagent/index.ts';
+import { bundledAgents } from '../../extensions/subagent/agents.ts';
 import { roles } from '../../extensions/subagent/model-config.ts';
 
 const fakePi = fileURLToPath(new URL('./fake-pi.mjs', import.meta.url));
+const realSetTimeout = globalThis.setTimeout.bind(globalThis);
+/** @param {number} ms */
+const realDelay = (ms) => new Promise((resolve) => realSetTimeout(resolve, ms));
 
 /** @typedef {import('../../extensions/subagent/index.ts').SubagentDetails} SubagentDetails */
 /** @typedef {{content: {type: string, text: string}[], details: SubagentDetails}} ToolResult */
@@ -52,29 +56,49 @@ async function fixture(t, options) {
   process.env.PI_CODING_AGENT_DIR = agentDir;
   process.env.TMPDIR = root;
   delete process.env[DEPTH_VARIABLE];
+  const abort = new AbortController();
+  /** @type {import('node:child_process').ChildProcess[]} */
+  const live = [];
+  /** @type {NonNullable<Parameters<typeof subagentExtension>[1]>['spawnChild']} */
+  const spawnChild = (invocation, spawnOptions) => {
+    const child = (options?.spawnChild ?? spawnFake)(invocation, spawnOptions);
+    live.push(child);
+    child.on('exit', () => {
+      const index = live.indexOf(child);
+      if (index !== -1) live.splice(index, 1);
+    });
+    return child;
+  };
   t.after(async () => {
+    abort.abort();
+    for (const child of [...live]) {
+      if (!child.pid) continue;
+      try { process.kill(-child.pid, 'SIGKILL'); } catch {
+        try { process.kill(child.pid, 'SIGKILL'); } catch { /* already gone */ }
+      }
+    }
     for (const [key, value] of /** @type {[string, string | undefined][]} */ ([['PI_CODING_AGENT_DIR', previous.agentDir], ['TMPDIR', previous.tmpdir], [DEPTH_VARIABLE, previous.depth]])) {
       if (value === undefined) delete process.env[key]; else process.env[key] = value;
     }
     await rm(root, { recursive: true, force: true });
   });
-  const { tools, handlers, commands } = registration(options);
+  const { tools, handlers, commands } = registration({ ...options, spawnChild });
   assert.equal(tools.length, 1);
   /** @type {string[]} */
   const notices = [];
   const ctx = /** @type {any} */ ({ cwd, model: { provider: 'fixture', id: 'model' }, thinkingLevel: 'high', hasUI: false, isProjectTrusted: () => false, ui: { confirm: async () => false, notify: (/** @type {string} */ text) => notices.push(text) } });
   /** @type {(params: Record<string, unknown>, signal?: AbortSignal, onUpdate?: (partial: ToolResult) => void) => Promise<ToolResult>} */
-  const execute = (params, signal, onUpdate) => tools[0].execute('call', params, signal, onUpdate, ctx);
+  const execute = (params, signal, onUpdate) => tools[0].execute('call', params, signal ?? abort.signal, onUpdate, ctx);
   /** @param {ToolResult} result @param {boolean} [isError] */
   const resultHook = (result, isError = false) => handlers.get('tool_result')?.({ type: 'tool_result', toolName: 'subagent', toolCallId: 'call', input: {}, content: result.content, details: result.details, isError });
   const promptDirs = async () => (await readdir(root)).filter((name) => name.startsWith('pi-subagent-'));
-  return { root, agentDir, cwd, tool: tools[0], handlers, commands, notices, ctx, execute, resultHook, promptDirs };
+  return { root, agentDir, cwd, tool: tools[0], handlers, commands, notices, ctx, execute, resultHook, promptDirs, abort };
 }
 
 /** @param {string} file @returns {Promise<{pid: number, grandchild: number}>} */
 async function waitFor(file) {
   for (let tries = 0; tries < 200; tries++) {
-    try { return JSON.parse(await readFile(file, 'utf8')); } catch { await delay(25); }
+    try { return JSON.parse(await readFile(file, 'utf8')); } catch { await realDelay(25); }
   }
   throw new Error(`Timed out waiting for ${file}`);
 }
@@ -83,7 +107,7 @@ const alive = (pid) => { try { process.kill(pid, 0); return true; } catch { retu
 /** @param {number[]} pids @param {number} ms */
 async function untilGone(pids, ms) {
   const deadline = Date.now() + ms;
-  while (Date.now() < deadline && pids.some(alive)) await delay(25);
+  while (Date.now() < deadline && pids.some(alive)) await realDelay(25);
   return pids.filter(alive);
 }
 
@@ -97,6 +121,20 @@ test('depth guard: a child Pi registers nothing, the root registers the tool and
   assert.equal(tools[0].name, 'subagent');
   assert.deepEqual([...handlers.keys()].sort(), ['session_shutdown', 'tool_result']);
   for (const text of ['comment-sicko', 'general-purpose', 'poteto-agent', 'inherit-parent', roles[0], 'Children cannot delegate']) assert.ok(tools[0].description.includes(text), text);
+});
+
+test('registered tool description lists bundled capabilities without inferring task intent', () => {
+  const { tools } = registration({ env: {} });
+  const description = tools[0].description;
+  const general = bundledAgents().find((agent) => agent.name === 'general-purpose');
+  const poteto = bundledAgents().find((agent) => agent.name === 'poteto-agent');
+  assert.ok(general && poteto);
+  assert.match(description, /general-purpose: Read files and answer one focused research or code question\. Tools: read, grep, find, ls\./);
+  assert.match(description, /poteto-agent: Implement one bounded coding task in poteto style, test it, and report exact changes for parent review\. Tools: read, grep, find, ls, bash, edit, write\./);
+  assert.match(description, /User and project agents override bundled ones by name/);
+  assert.deepEqual(general.tools, ['read', 'grep', 'find', 'ls']);
+  assert.ok(poteto.tools?.includes('write') && poteto.tools?.includes('edit'));
+  assert.ok(!general.tools?.includes('write') && !general.tools?.includes('edit'));
 });
 
 test('single mode runs the bundled agent in a detached child with prompt file, stdin task, depth, and parent model', async (t) => {
@@ -241,11 +279,17 @@ test('abort with a cooperative child returns before the SIGKILL grace', async (t
   assert.deepEqual(await untilGone([pid, grandchild], 1000), []);
 });
 
-test('timeoutMs stops a stuck child and reports a failed result instead of throwing', { timeout: TERM_GRACE_MS + 5000 }, async (t) => {
-  const f = await fixture(t);
+test('timeoutMs stops a stuck child and reports a failed result instead of throwing', { timeout: 5000 }, async (t) => {
+  const f = await fixture(t, { termGraceMs: 50 });
   const marker = path.join(f.root, 'hang.json');
-  const result = await f.execute({ agent: 'general-purpose', task: `HANG-IGNORE ${marker}`, timeoutMs: 300 });
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const pending = f.execute({ agent: 'general-purpose', task: `HANG-IGNORE ${marker}`, timeoutMs: 300 });
   const { pid, grandchild } = await waitFor(marker);
+  assert.ok(alive(pid) && alive(grandchild));
+  t.mock.timers.tick(300);
+  t.mock.timers.tick(50);
+  const result = await pending;
+  t.mock.timers.reset();
   assert.match(result.content[0].text, /Agent aborted: Timed out after 300 ms/);
   assert.equal(result.details.results[0].stopReason, 'aborted');
   assert.notEqual(result.details.results[0].exitCode, 0);
@@ -255,22 +299,48 @@ test('timeoutMs stops a stuck child and reports a failed result instead of throw
 
 test('progress keeps queued rows distinct, freezes completion, and marks skipped chain steps', async (t) => {
   const f = await fixture(t);
-  const log = path.join(f.root, 'progress.log');
+  const ready = Array.from({ length: 6 }, (_, index) => path.join(f.root, `ready-${index}.json`));
+  const release = Array.from({ length: 6 }, (_, index) => path.join(f.root, `release-${index}`));
+  const releaseAll = () => Promise.all(release.map((file) => writeFile(file, 'go').catch(() => {})));
   /** @type {import('../../extensions/subagent/progress.ts').ProgressSnapshot[]} */
   const snapshots = [];
-  const result = await f.execute({ role: 'review', tasks: Array.from({ length: 6 }, (_, index) => ({ agent: 'general-purpose', task: `SLOW ${index === 0 ? 50 : 1200} ${log}` })) }, undefined,
+  const pending = f.execute({ role: 'review', tasks: ready.map((file, index) => ({ agent: 'general-purpose', task: `WAIT ${file} ${release[index]}` })) }, undefined,
     (partial) => { if (partial.details.progress) snapshots.push(structuredClone(partial.details.progress)); });
-  assert.ok(snapshots.some((snapshot) => snapshot.tasks.some((row) => row.state === 'running') && snapshot.tasks.some((row) => row.state === 'queued')));
-  assert.ok(snapshots.some((snapshot) => snapshot.tasks[0].state === 'succeeded' && snapshot.tasks[1].state === 'running'));
-  assert.ok(result.details.progress?.endedAt);
-  assert.ok(result.details.progress.tasks.every((row) => row.state === 'succeeded' && row.role === 'review'));
-  assert.equal(result.details.progress.tasks[0].endedAt, snapshots.find((snapshot) => snapshot.tasks[0].state === 'succeeded')?.tasks[0].endedAt);
-  const chain = await f.execute({ chain: [{ agent: 'general-purpose', task: 'FAIL first' }, { agent: 'general-purpose', task: 'never {previous}' }] });
-  assert.deepEqual(chain.details.progress?.tasks.map((row) => row.state), ['failed', 'skipped']);
+  try {
+    await Promise.all(ready.slice(0, MAX_CONCURRENCY).map(waitFor));
+    for (let tries = 0; tries < 200; tries++) {
+      if (snapshots.some((snapshot) => snapshot.tasks.some((row) => row.state === 'running') && snapshot.tasks.some((row) => row.state === 'queued'))) break;
+      await delay(25);
+    }
+    assert.ok(snapshots.some((snapshot) => snapshot.tasks.some((row) => row.state === 'running') && snapshot.tasks.some((row) => row.state === 'queued')));
+    await writeFile(release[0], 'go');
+    for (let tries = 0; tries < 200; tries++) {
+      if (snapshots.some((snapshot) => snapshot.tasks[0].state === 'succeeded' && snapshot.tasks[1].state === 'running')) break;
+      await delay(25);
+    }
+    assert.ok(snapshots.some((snapshot) => snapshot.tasks[0].state === 'succeeded' && snapshot.tasks[1].state === 'running'));
+    await releaseAll();
+    const result = await pending;
+    assert.ok(result.details.progress?.endedAt);
+    assert.ok(result.details.progress.tasks.every((row) => row.state === 'succeeded' && row.role === 'review'));
+    assert.equal(result.details.progress.tasks[0].endedAt, snapshots.find((snapshot) => snapshot.tasks[0].state === 'succeeded')?.tasks[0].endedAt);
+    const chain = await f.execute({ chain: [{ agent: 'general-purpose', task: 'FAIL first' }, { agent: 'general-purpose', task: 'never {previous}' }] });
+    assert.deepEqual(chain.details.progress?.tasks.map((row) => row.state), ['failed', 'skipped']);
+  } finally {
+    f.abort.abort();
+    await releaseAll();
+    await new Promise((/** @type {(value?: undefined) => void} */ resolve) => {
+      const timer = realSetTimeout(resolve, 2000);
+      pending.catch(() => {}).then(() => {
+        clearTimeout(timer);
+        resolve();
+      });
+    });
+  }
 });
 
-test('aborted batches wait for all children and preserve terminal metadata through the error hook', { timeout: TERM_GRACE_MS + 6000 }, async (t) => {
-  const f = await fixture(t);
+test('aborted batches wait for all children and preserve terminal metadata through the error hook', { timeout: 5000 }, async (t) => {
+  const f = await fixture(t, { termGraceMs: 50 });
   const markers = [path.join(f.root, 'first.json'), path.join(f.root, 'second.json')];
   const controller = new AbortController();
   const pending = f.execute({ tasks: markers.map((marker, index) => ({ agent: 'general-purpose', task: `${index ? 'HANG-IGNORE' : 'HANG'} ${marker}` })) }, controller.signal);

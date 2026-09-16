@@ -1,7 +1,8 @@
 // Stands in for `pi --mode json -p`: reads the task from stdin and answers with message_end events.
 // The task text selects the behavior so tests can drive success, failure, hangs, and slow replies.
 import { spawn } from 'node:child_process';
-import { appendFileSync, lstatSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, lstatSync, readFileSync, writeFileSync } from 'node:fs';
+import { setTimeout as delay } from 'node:timers/promises';
 
 const args = process.argv.slice(2);
 /** @param {string} name */
@@ -26,6 +27,19 @@ function assistant(text, extra = {}) {
 }
 
 const capture = () => JSON.stringify({ args, task, prompt, promptMode, cwd: process.cwd(), depth: process.env.PSTACK_SUBAGENT_DEPTH ?? null, pid: process.pid });
+const parentPid = process.ppid;
+const loopMs = Number(process.env.FAKE_PI_LOOP_MS) || 15_000;
+const parentGone = () => { try { process.kill(parentPid, 0); return false; } catch { return true; } };
+/** @param {string} file @param {number} ms */
+async function waitForPath(file, ms) {
+  const deadline = Date.now() + ms;
+  while (Date.now() < deadline) {
+    if (existsSync(file)) return true;
+    if (parentGone()) return false;
+    await delay(10);
+  }
+  return false;
+}
 
 if (verb === 'FAIL') {
   assistant('partial answer', { stopReason: 'error', errorMessage: 'PRIVATE_BOOM' });
@@ -38,10 +52,25 @@ if (verb === 'FAIL') {
   await new Promise((resolve) => setTimeout(resolve, Number(ms)));
   if (log) appendFileSync(log, `end ${Date.now()}\n`);
   assistant(capture());
+} else if (verb === 'WAIT') {
+  const [ready, release] = rest;
+  writeFileSync(ready, JSON.stringify({ pid: process.pid }));
+  if (!await waitForPath(release, loopMs)) process.exit(1);
+  assistant(capture());
 } else if (verb === 'HANG' || verb === 'HANG-IGNORE') {
   const [file] = rest;
+  const grandchildReady = `${file}.grandchild-ready`;
   const ignore = verb === 'HANG-IGNORE' ? "process.on('SIGTERM', () => {});" : '';
-  const grandchild = spawn(process.execPath, ['-e', `${ignore} setInterval(() => {}, 1000)`], { stdio: 'ignore' });
+  const grandchild = spawn(process.execPath, ['-e', `${ignore} require('fs').writeFileSync(${JSON.stringify(grandchildReady)}, 'ready'); setInterval(() => {}, 1000)`], { stdio: 'ignore' });
+  const reap = () => {
+    if (grandchild.pid === undefined) return;
+    try { process.kill(grandchild.pid, 'SIGKILL'); } catch { /* already gone */ }
+  };
+  process.on('exit', reap);
+  if (!await waitForPath(grandchildReady, loopMs)) {
+    reap();
+    process.exit(1);
+  }
   if (verb === 'HANG-IGNORE') process.on('SIGTERM', () => {});
   writeFileSync(file, JSON.stringify({ pid: process.pid, grandchild: grandchild.pid, pgid: process.pid }));
   assistant('still working', { stopReason: 'toolUse' });

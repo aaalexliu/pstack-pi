@@ -309,7 +309,7 @@ export interface ResolvedTask {
 
 type OnUpdateCallback = (partial: AgentToolResult<SubagentDetails>) => void;
 
-export async function runSingleAgent({ resolved, defaults, depth, signal, timeoutMs, onUpdate, onEvent, makeDetails, spawnChild = spawnDetachedChild, registry }: {
+export async function runSingleAgent({ resolved, defaults, depth, signal, timeoutMs, onUpdate, onEvent, makeDetails, spawnChild = spawnDetachedChild, registry, termGraceMs = TERM_GRACE_MS }: {
   resolved: ResolvedTask;
   defaults: DispatchDefaults;
   depth: number;
@@ -320,6 +320,7 @@ export async function runSingleAgent({ resolved, defaults, depth, signal, timeou
   makeDetails: (results: SingleResult[]) => SubagentDetails;
   spawnChild?: SpawnChild;
   registry?: ChildRegistry;
+  termGraceMs?: number;
 }): Promise<SingleResult> {
   const { agent, task, cwd, step } = resolved;
   const args: string[] = ['--mode', 'json', '-p', '--no-session'];
@@ -398,7 +399,7 @@ export async function runSingleAgent({ resolved, defaults, depth, signal, timeou
         observe({ type: 'child_stopping' });
         if (proc.pid === undefined) return;
         killProcessGroup(proc.pid, 'SIGTERM');
-        killTimer = setTimeout(() => { if (!settled && proc.pid !== undefined) killProcessGroup(proc.pid, 'SIGKILL'); }, TERM_GRACE_MS);
+        killTimer = setTimeout(() => { if (!settled && proc.pid !== undefined) killProcessGroup(proc.pid, 'SIGKILL'); }, termGraceMs);
       };
       const onAbort = () => stop('user');
 
@@ -481,18 +482,25 @@ const SubagentParams = Type.Object({
   confirmProjectAgents: Type.Optional(Type.Boolean({ description: 'Prompt before running project-local agents. Default true.' })),
 });
 
-export function toolDescription(bundled: string[]): string {
+export function toolDescription(bundled: Pick<AgentConfig, 'name' | 'description' | 'tools'>[]): string {
+  const listing = bundled.length === 0
+    ? 'Bundled agents: none.'
+    : `Bundled agents. ${bundled.map((item) => {
+      const tools = item.tools?.length ? item.tools.join(', ') : '(host default tools)';
+      return `${item.name}: ${item.description} Tools: ${tools}.`;
+    }).join(' ')}`;
   return [
     'Delegate tasks to specialized subagents with isolated context.',
     'Modes: single (agent + task), parallel (tasks array), chain (sequential with {previous} placeholder).',
-    `Bundled agents: ${bundled.join(', ') || 'none'}. User agents live in ${path.join(getAgentDir(), 'agents')} and override bundled ones by name.`,
+    listing,
+    `User and project agents override bundled ones by name. User agents live in ${path.join(getAgentDir(), 'agents')}.`,
     `To enable project-local agents in ${CONFIG_DIR_NAME}/agents, set agentScope: "both".`,
     `model accepts inherit-parent or provider/model-id. role selects a configured model from ${modelConfigPath(getAgentDir())}; roles: ${roles.join(', ')}.`,
     'Explicit model overrides role, then the agent default, then the parent model. Children cannot delegate.',
   ].join(' ');
 }
 
-export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawnDetachedChild, env = process.env, cmuxExec }: { spawnChild?: SpawnChild; env?: NodeJS.ProcessEnv; cmuxExec?: CmuxExec } = {}) {
+export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawnDetachedChild, env = process.env, cmuxExec, termGraceMs = TERM_GRACE_MS }: { spawnChild?: SpawnChild; env?: NodeJS.ProcessEnv; cmuxExec?: CmuxExec; termGraceMs?: number } = {}) {
   const depth = parentDepth(env);
   if (depth >= 1) return;
 
@@ -529,7 +537,7 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
   pi.registerTool({
     name: 'subagent',
     label: 'Subagent',
-    description: toolDescription(bundledAgents().map((a) => a.name)),
+    description: toolDescription(bundledAgents()),
     parameters: SubagentParams,
 
     async execute(toolCallId, params, signal, update, ctx) {
@@ -614,7 +622,7 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
           }
           if (signal?.aborted) throw new Error('Subagent was aborted');
           const pane = enabled ? transcripts.create({ env: cmuxEnv, exec: cmuxExec, label: resolved.agent.name }) : undefined;
-          return runSingleAgent({ resolved, defaults, depth, signal, timeoutMs: params.timeoutMs, onUpdate: update, makeDetails: makeDetails(mode), spawnChild, registry,
+          return runSingleAgent({ resolved, defaults, depth, signal, timeoutMs: params.timeoutMs, onUpdate: update, makeDetails: makeDetails(mode), spawnChild, registry, termGraceMs,
             onEvent: (event, result) => {
               pane?.event(event);
               const type = (event as { type?: string } | null)?.type;

@@ -1,16 +1,17 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { parseLock, parseManifest } from '../../scripts/sync-upstream.mjs';
-import { fixture } from './fixture.mjs';
+import { validLock, validManifest } from './fixture.mjs';
 
-test('manifest and lock accept strict versioned fixture data', async (t) => {
-  const { manifest, lock } = await fixture(t);
+test('manifest and lock accept strict versioned fixture data', () => {
+  const manifest = validManifest();
+  const lock = validLock();
   assert.deepEqual(parseManifest(JSON.parse(JSON.stringify(manifest))), manifest);
   assert.deepEqual(parseLock(JSON.parse(JSON.stringify(lock))), lock);
 });
 
-test('manifest rejects unknown fields and illegal dispositions', async (t) => {
-  const { manifest } = await fixture(t);
+test('manifest rejects unknown fields and illegal dispositions', () => {
+  const manifest = validManifest();
   for (const file of [
     { kind: 'copy', source: 'x', destination: 'skills/shared/x', transforms: [] },
     { kind: 'omit', source: 'x', destination: 'skills/shared/x', reason: 'Not used by Pi.' },
@@ -24,8 +25,8 @@ test('manifest rejects unknown fields and illegal dispositions', async (t) => {
   assert.throws(() => parseManifest({ ...manifest, managedRoots: ['extensions'] }));
 });
 
-test('manifest requires a nonempty review reason only for adapted and omitted sources', async (t) => {
-  const { manifest } = await fixture(t);
+test('manifest requires a nonempty review reason only for adapted and omitted sources', () => {
+  const manifest = validManifest();
   for (const file of manifest.files) {
     /** @param {unknown} candidate */
     const parse = (candidate) => parseManifest({ ...manifest, files: [candidate] });
@@ -46,8 +47,8 @@ test('manifest requires a nonempty review reason only for adapted and omitted so
   }
 });
 
-test('manifest rejects duplicate and native-colliding sources, outputs, and roots', async (t) => {
-  const { manifest } = await fixture(t);
+test('manifest rejects duplicate and native-colliding sources, outputs, and roots', () => {
+  const manifest = validManifest();
   for (const [first, second] of [
     ['a', 'a'], ['A', 'a'], ['é', 'e\u0301'], ['dir/A', 'Dir/B'], ['a', 'a/b'], ['a/b', 'a'],
   ]) {
@@ -61,8 +62,8 @@ test('manifest rejects duplicate and native-colliding sources, outputs, and root
   assert.throws(() => parseManifest({ ...manifest, managedRoots: ['skills', 'skills/shared'] }), /collision/u);
 });
 
-test('manifest rejects unsafe paths at every path boundary', async (t) => {
-  const { manifest } = await fixture(t);
+test('manifest rejects unsafe paths at every path boundary', () => {
+  const manifest = validManifest();
   for (const bad of ['/tmp/x', '../x', 'a/../x', 'a/./x', 'a//x', 'a\\x', 'C:/x', 'a\0x', 'a\nx', 'a.', 'a ', '.git/x', 'CON.txt', 'a/', 'a*', 'a?', 'a"', 'a<', 'a>', 'a|']) {
     assert.throws(() => parseManifest({ ...manifest, sourceRoot: bad }), /path/iu, bad);
     assert.throws(() => parseManifest({ ...manifest, files: [{ kind: 'omit', source: bad, reason: 'Not used by Pi.' }] }), /path/iu, bad);
@@ -71,8 +72,8 @@ test('manifest rejects unsafe paths at every path boundary', async (t) => {
   }
 });
 
-test('lock rejects unknown fields, abbreviated hashes, invalid modes, and collisions', async (t) => {
-  const { lock } = await fixture(t);
+test('lock rejects unknown fields, abbreviated hashes, invalid modes, and collisions', () => {
+  const lock = validLock();
   assert.throws(() => parseLock({ ...lock, extra: true }));
   assert.throws(() => parseLock({ ...lock, commit: 'HEAD' }));
   assert.throws(() => parseLock({ ...lock, sourceTree: 'abc123' }));

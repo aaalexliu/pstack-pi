@@ -20,7 +20,7 @@ This repository packages Lauren Tan's Cursor pstack for Pi. Read this file befor
 1. To change a skill, edit its transform in `sync/manifest.json`, update its row in `ADAPTATIONS.md`, then run `npm run sync:relock && npm run sync`. Never edit `skills/` or `agents/` directly. `SYNCING.md` has the full procedure.
 2. Keep transforms narrow. Change the host-specific clause, not the file. A full rewrite disguised as one large transform fails review. `ADAPTATIONS.md` explains why.
 3. When you add or remove a shipped file, update `files` in `package.json`, `expectedPackFiles` in `scripts/check-content.mjs`, and the pack count in `tests/pi/smoke.test.mjs`. `npm run check:content` and `npm run test:pi` fail if they disagree.
-4. Run `npm run test:fast` while iterating. Run `npm run check` once on the final tree before pushing `main`. `TESTING.md` says which changes need the slow packed-Pi suite.
+4. Match local checks to the change using `TESTING.md`. Docs-only prose needs `sync:check`, `check:content`, and `git diff --check`, not `npm test`. Run `test:fast` for skill text, sync, and other non-runtime changes. Runtime, packaging, and test-runner changes need `npm run check`. Mixed changes use the strongest gate. CI still runs the full suite.
 5. The release is a pushed commit on `main`. No npm publish, no tags, no GitHub releases without an explicit request. `RELEASING.md` has the gate.
 6. Docs use plain dashes, straight quotes, and sentence-case headings. No em dashes.
 

@@ -6,7 +6,7 @@ This package ships through Git only. Do not publish it to npm.
 
 1. Start from a clean `main` that matches `origin/main`.
 2. Install the locked development dependencies with `npm ci`.
-3. Run the cheap gates while editing:
+3. Select the local gate from [`TESTING.md`](./TESTING.md). Docs-only prose needs `sync:check`, `check:content`, and `git diff --check`; it does not need `npm test`. For skill text, sync, and non-runtime changes, run:
 
    ```sh
    npm run typecheck
@@ -15,8 +15,8 @@ This package ships through Git only. Do not publish it to npm.
    npm run test:fast
    ```
 
-4. Run `npm run test:pi` only when the change touches packed real-Pi paths. [`TESTING.md`](./TESTING.md) lists them. Do not rerun the full process-cleanup suite after every prose or manifest edit.
-5. Run `npm run check` once against the final tree. This is the release gate. It includes the slower real-process cleanup and packed real-Pi tests.
+4. Runtime, packaging, packed-Pi harness, and test-runner changes need `npm run check`. Use `npm run test:pi` for focused iteration. Mixed changes use the strongest gate.
+5. Verify that the selected gate covers the final change set. A prose-only follow-up after a passing full check needs only the docs gate. There is no blanket local full-suite requirement for a docs-only release. CI still runs `npm run check` in the checkout and a clean archive.
 6. Check the exact package contents:
 
    ```sh

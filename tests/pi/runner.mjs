@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
-import { existsSync } from "node:fs";
-import { lstat, mkdir, mkdtemp, readFile, realpath, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { existsSync, rmSync } from "node:fs";
+import { copyFile, lstat, mkdir, mkdtemp, readFile, realpath, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
+import { after } from "node:test";
 import { jsonlParser } from './jsonl.mjs';
 export { jsonlParser } from './jsonl.mjs';
 import { setTimeout as delay } from "node:timers/promises";
@@ -34,6 +35,135 @@ import { contentInventory, expectedPackFiles, checkPackedContent } from '../../s
 const MAX_OUTPUT = 1024 * 1024;
 const MAX_LINE = 64 * 1024;
 const repository = fileURLToPath(new URL("../../", import.meta.url));
+
+/**
+ * @typedef {object} PreparedPackage
+ * @property {string} hold
+ * @property {string} tarball
+ * @property {string[]} files
+ * @property {string} inventory
+ * @property {string} shasum
+ */
+
+/** @type {Promise<PreparedPackage> | null} */
+let productionPack = null;
+/** @type {string | null} */
+let productionHold = null;
+
+/** @type {{ executable: string, version: string, sdk: string } | null} */
+let resolvedPi = null;
+
+/** @param {string} hold */
+function packEnv(hold) {
+  return {
+    PATH: process.env.PATH,
+    HOME: hold,
+    TMPDIR: hold,
+    npm_config_cache: join(hold, "npm-cache"),
+    npm_config_userconfig: join(hold, "user.npmrc"),
+    npm_config_globalconfig: join(hold, "global.npmrc"),
+    npm_config_offline: "true",
+    npm_config_ignore_scripts: "true",
+  };
+}
+
+/** @param {NodeJS.ProcessEnv} env @param {string} cwd @param {string} bin @param {string[]} args */
+function runCommand(env, cwd, bin, args) {
+  return execFileSync(bin, args, {
+    cwd, env, encoding: "utf8", timeout: 15_000, killSignal: "SIGKILL", maxBuffer: MAX_OUTPUT,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+}
+
+export async function disposePreparedPackage() {
+  const pack = await productionPack?.catch(() => null);
+  try {
+    if (pack) await rm(pack.hold, { recursive: true, force: true });
+  } finally {
+    productionPack = null;
+    productionHold = null;
+    resolvedPi = null;
+  }
+}
+
+process.once("exit", () => {
+  if (!productionHold) return;
+  try { rmSync(productionHold, { recursive: true, force: true }); } catch { /* process is exiting */ }
+});
+
+after(async () => {
+  await disposePreparedPackage();
+});
+
+/**
+ * @param {{ sourceRoot: string, files: string[], content?: ReturnType<typeof contentInventory>, hold?: string }} options
+ * @returns {Promise<PreparedPackage>}
+ */
+async function packOnce({ sourceRoot, files, content, hold }) {
+  const owned = hold === undefined;
+  const packHold = hold ?? await mkdtemp(join(await realpath(tmpdir()), "pstack-pi-pack-"));
+  try {
+    const env = packEnv(packHold);
+    const packed = JSON.parse(runCommand(env, sourceRoot, "npm", ["pack", "--json", "--ignore-scripts", "--pack-destination", packHold]))[0];
+    const packFiles = packed.files.map(/** @param {{ path: string }} file */ (file) => file.path).sort();
+    assert.deepEqual(packFiles, [...files].sort());
+    const tarball = join(packHold, packed.filename);
+    const inventory = runCommand(env, packHold, "tar", ["-tf", tarball]);
+    assert.deepEqual(inventory.trim().split("\n").sort(), files.map((name) => `package/${name}`).sort(), "Tar inventory differs");
+    runCommand(env, packHold, "tar", ["-xf", tarball, "-C", packHold]);
+    const extracted = join(packHold, "package");
+    if (content) await checkPackedContent(extracted, content);
+    for (const name of files) {
+      const filename = join(extracted, name);
+      const stat = await lstat(filename);
+      assert.ok(stat.isFile() && !stat.isSymbolicLink());
+      assert.equal(stat.mode & 0o7777, 0o644);
+      assert.deepEqual(await readFile(filename), await readFile(join(sourceRoot, name)), `Packed bytes differ: ${name}`);
+    }
+    const manifest = JSON.parse(await readFile(join(extracted, "package.json"), "utf8"));
+    assert.equal(manifest.name, "@aaalexliu/pstack-pi");
+    assert.equal(manifest.dependencies, undefined, "The packed package must not need an install step");
+    return { hold: packHold, tarball, files: packFiles, inventory, shasum: packed.shasum };
+  } catch (error) {
+    if (owned) await rm(packHold, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+/**
+ * @param {{ sourceRoot: string, files: string[], content?: ReturnType<typeof contentInventory> }} options
+ * @returns {Promise<PreparedPackage>}
+ */
+export async function preparePackedPackage({ sourceRoot, files, content }) {
+  if (sourceRoot !== repository) return packOnce({ sourceRoot, files, content });
+  if (!productionPack) {
+    productionPack = packOnce({ sourceRoot, files, content }).then((pack) => {
+      productionHold = pack.hold;
+      return pack;
+    }).catch((error) => {
+      productionPack = null;
+      productionHold = null;
+      throw error;
+    });
+  }
+  return productionPack;
+}
+
+/** @param {PreparedPackage} pack @param {string} destination */
+export async function extractPreparedPackage(pack, destination) {
+  const parent = dirname(destination);
+  await mkdir(parent, { recursive: true });
+  const staging = await mkdtemp(join(parent, "extract-"));
+  try {
+    execFileSync("tar", ["-xf", pack.tarball, "-C", staging], {
+      encoding: "utf8", timeout: 15_000, killSignal: "SIGKILL", maxBuffer: MAX_OUTPUT,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    await rename(join(staging, "package"), destination);
+  } finally {
+    await rm(staging, { recursive: true, force: true });
+  }
+}
 
 /** @param {string} root @returns {string} */
 export function repositoryRevision(root) {
@@ -106,10 +236,10 @@ export class PiTestError extends Error {
  * @typedef {{kind: 'packed'}} TestLaunch
  */
 /**
- * @param {{ startFixture?: typeof startProvider, thinkingLevel?: 'off' | 'high', configureModels?: (paths: PiTestRun['paths'], baseUrl: string) => Promise<void>, launch?: TestLaunch, expectedExit?: {code: number | null, signal: NodeJS.Signals | null}, launchEnvironment?: NodeJS.ProcessEnv, observer?: import('./process-observer.mjs').ProcessObserver, verifyStopped?: (run: PiTestRun) => Promise<void>, fixture?: import("./provider.mjs").FixtureOptions, timeoutMs?: number, executable?: string, prompt?: string, packageFixture?: {root: string, files: string[]}, allowDiagnostics?: boolean, expectedText?: string, expectedRequests?: number, setup?: (paths: PiTestRun['paths']) => Promise<void>, verify?: (run: PiTestRun) => Promise<void>, keepArtifacts?: boolean, onSpawn?: (pid: number) => void }} options
+ * @param {{ startFixture?: typeof startProvider, thinkingLevel?: 'off' | 'high', configureModels?: (paths: PiTestRun['paths'], baseUrl: string) => Promise<void>, launch?: TestLaunch, expectedExit?: {code: number | null, signal: NodeJS.Signals | null}, launchEnvironment?: NodeJS.ProcessEnv, observer?: import('./process-observer.mjs').ProcessObserver, verifyStopped?: (run: PiTestRun) => Promise<void>, fixture?: import("./provider.mjs").FixtureOptions, timeoutMs?: number, executable?: string, prompt?: string, packageFixture?: {root: string, files: string[]}, discoverResources?: boolean, allowDiagnostics?: boolean, expectedText?: string, expectedRequests?: number, setup?: (paths: PiTestRun['paths']) => Promise<void>, verify?: (run: PiTestRun) => Promise<void>, keepArtifacts?: boolean, onSpawn?: (pid: number) => void }} options
  * @returns {Promise<PiTestRun>}
  */
-export async function runPiSmoke({ startFixture = startProvider, thinkingLevel = 'off', configureModels, launch = { kind: 'packed' }, launchEnvironment, expectedExit = { code: 0, signal: null }, observer, verifyStopped, fixture, timeoutMs = 20_000, executable = "pi", prompt = 'Return the fixture response.', packageFixture, allowDiagnostics = false, expectedText = FIXTURE_TEXT, expectedRequests = 1, setup, verify, keepArtifacts = false, onSpawn } = {}) {
+export async function runPiSmoke({ startFixture = startProvider, thinkingLevel = 'off', configureModels, launch = { kind: 'packed' }, launchEnvironment, expectedExit = { code: 0, signal: null }, observer, verifyStopped, fixture, timeoutMs = 20_000, executable = "pi", prompt = 'Return the fixture response.', packageFixture, discoverResources, allowDiagnostics = false, expectedText = FIXTURE_TEXT, expectedRequests = 1, setup, verify, keepArtifacts = false, onSpawn } = {}) {
   assert.notEqual(process.platform, "win32", "Pi process-group tests require Unix; Windows cleanup is unverified");
   assert.ok(Number.isFinite(timeoutMs) && timeoutMs > 0);
   const started = Date.now();
@@ -161,10 +291,7 @@ export async function runPiSmoke({ startFixture = startProvider, thinkingLevel =
   const failures = [];
   const parser = jsonlParser((event) => run.events.push(event));
   /** @param {string} command @param {string[]} args @param {string} [cwd] */
-  const command = (command, args, cwd = run.paths.cwd) => execFileSync(command, args, {
-    cwd, env, encoding: "utf8", timeout: 15_000, killSignal: "SIGKILL", maxBuffer: MAX_OUTPUT,
-    stdio: ["ignore", "pipe", "pipe"],
-  });
+  const command = (command, args, cwd = run.paths.cwd) => runCommand(env, cwd, command, args);
   try {
     for (const path of [run.paths.home, run.paths.profile, run.paths.cwd, run.paths.sessions]) {
       await mkdir(path, { recursive: true });
@@ -176,27 +303,20 @@ export async function runPiSmoke({ startFixture = startProvider, thinkingLevel =
       JSON.parse(await readFile(join(repository, 'sync/upstream.lock.json'), 'utf8')),
     );
     const expectedFiles = packageFixture?.files ?? (inventory ? expectedPackFiles(inventory) : []);
-    const packed = JSON.parse(command("npm", ["pack", "--json", "--ignore-scripts", "--pack-destination", root], packageRoot))[0];
-    run.pack.files = packed.files.map(/** @param {{ path: string }} file */ (file) => file.path).sort();
-    assert.deepEqual(run.pack.files, [...expectedFiles].sort());
-    run.pack.shasum = packed.shasum;
-    const tarball = join(root, packed.filename);
-    run.pack.inventory = command("tar", ["-tf", tarball]);
-    assert.deepEqual(run.pack.inventory.trim().split('\n').sort(), expectedFiles.map((name) => `package/${name}`).sort(), 'Tar inventory differs');
-    command("tar", ["-xf", tarball, "-C", root]);
-    await mkdir(join(root, 'relocated'));
-    await rename(join(root, 'package'), run.paths.package);
-    if (inventory) await checkPackedContent(run.paths.package, inventory);
-    for (const name of expectedFiles) {
-      const filename = join(run.paths.package, name);
-      const stat = await lstat(filename);
-      assert.ok(stat.isFile() && !stat.isSymbolicLink());
-      assert.equal(stat.mode & 0o7777, 0o644);
-      assert.deepEqual(await readFile(filename), await readFile(join(packageRoot, name)), `Packed bytes differ: ${name}`);
+    const prepared = packageFixture
+      ? await packOnce({ sourceRoot: packageRoot, files: expectedFiles, hold: root })
+      : await preparePackedPackage({ sourceRoot: repository, files: expectedFiles, content: inventory });
+    run.pack.files = prepared.files;
+    run.pack.shasum = prepared.shasum;
+    run.pack.inventory = prepared.inventory;
+    await mkdir(join(root, "relocated"), { recursive: true });
+    await extractPreparedPackage(prepared, run.paths.package);
+    if (keepArtifacts && dirname(prepared.tarball) !== root) {
+      await copyFile(prepared.tarball, join(root, basename(prepared.tarball)));
     }
     const manifest = JSON.parse(await readFile(join(run.paths.package, "package.json"), "utf8"));
     assert.equal(manifest.name, "@aaalexliu/pstack-pi");
-    assert.equal(manifest.dependencies, undefined, 'The packed package must not need an install step');
+    assert.equal(manifest.dependencies, undefined, "The packed package must not need an install step");
     await writeFile(join(run.paths.profile, "settings.json"), JSON.stringify({
       packages: [run.paths.package],
       enableInstallTelemetry: false,
@@ -206,16 +326,23 @@ export async function runPiSmoke({ startFixture = startProvider, thinkingLevel =
       retry: { enabled: false, provider: { maxRetries: 0 } },
     }));
     await setup?.(run.paths);
-    run.process.version = command(executable, ["--version"]).trim();
-    assert.equal(run.process.version, "0.85.1", "Tests require Pi 0.85.1");
-    run.pack.listing = command(executable, ["list", "--no-approve"]);
-    assert.ok(run.pack.listing.includes(run.paths.package), "Pi did not list the extracted package");
-    const cliPath = await realpath(command('which', [executable]).trim());
-    const resolveSdk = ['--input-type=module', '-e', "process.stdout.write(import.meta.resolve('@earendil-works/pi-coding-agent'))"];
-    let sdk;
-    try { sdk = command(process.execPath, resolveSdk, dirname(cliPath)); }
-    catch { sdk = command(process.execPath, resolveSdk, join(dirname(dirname(cliPath)), 'libexec/lib')); }
-    const resourceOutput = command(process.execPath, ['--input-type=module', '-e', `
+    const scanResources = discoverResources ?? Boolean(packageFixture);
+    if (!resolvedPi || resolvedPi.executable !== executable) {
+      const version = command(executable, ["--version"]).trim();
+      assert.equal(version, "0.85.1", "Tests require Pi 0.85.1");
+      const cliPath = await realpath(command("which", [executable]).trim());
+      const resolveSdk = ["--input-type=module", "-e", "process.stdout.write(import.meta.resolve('@earendil-works/pi-coding-agent'))"];
+      let sdk;
+      try { sdk = command(process.execPath, resolveSdk, dirname(cliPath)); }
+      catch { sdk = command(process.execPath, resolveSdk, join(dirname(dirname(cliPath)), "libexec/lib")); }
+      resolvedPi = { executable, version, sdk };
+    }
+    run.process.version = resolvedPi.version;
+    const sdk = resolvedPi.sdk;
+    if (scanResources) {
+      run.pack.listing = command(executable, ["list", "--no-approve"]);
+      assert.ok(run.pack.listing.includes(run.paths.package), "Pi did not list the extracted package");
+      const resourceOutput = command(process.execPath, ["--input-type=module", "-e", `
       const { DefaultResourceLoader } = await import(${JSON.stringify(sdk)});
       const loader = new DefaultResourceLoader({ cwd: process.cwd(), agentDir: process.env.PI_CODING_AGENT_DIR });
       await loader.reload();
@@ -226,16 +353,17 @@ export async function runPiSmoke({ startFixture = startProvider, thinkingLevel =
         diagnostics, extensions: extensions.map(({ path }) => path), errors,
       }) + '\\n');
     `]);
-    const resourceParser = jsonlParser((event) => {
-      assert.equal(run.resources, null, 'Expected one resource record');
-      assert.equal(event.type, 'resources');
-      assert.ok(Array.isArray(event.diagnostics) && Array.isArray(event.errors));
-      run.resources = event;
-      run.diagnostics.push(...[...event.diagnostics, ...event.errors].map((item) => JSON.stringify(item)));
-    });
-    resourceParser.write(Buffer.from(resourceOutput));
-    resourceParser.end();
-    assert.ok(run.resources, 'Missing resource record');
+      const resourceParser = jsonlParser((event) => {
+        assert.equal(run.resources, null, "Expected one resource record");
+        assert.equal(event.type, "resources");
+        assert.ok(Array.isArray(event.diagnostics) && Array.isArray(event.errors));
+        run.resources = event;
+        run.diagnostics.push(...[...event.diagnostics, ...event.errors].map((item) => JSON.stringify(item)));
+      });
+      resourceParser.write(Buffer.from(resourceOutput));
+      resourceParser.end();
+      assert.ok(run.resources, "Missing resource record");
+    }
     provider = await startFixture(fixture);
     run.provider = provider.state;
     await writeFile(join(run.paths.profile, "models.json"), JSON.stringify({
