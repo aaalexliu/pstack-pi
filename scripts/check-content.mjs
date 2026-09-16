@@ -125,7 +125,7 @@ export function extensionFiles(inventory) {
 
 /** @param {ContentInventory} inventory */
 export function expectedPackFiles(inventory) {
-  const guides = inventory.byDestination.has('skills/poteto-mode/SKILL.md') ? ['ADAPTATIONS.md', 'RELEASING.md', 'SYNCING.md'] : [];
+  const guides = inventory.byDestination.has('skills/poteto-mode/SKILL.md') ? ['ADAPTATIONS.md', 'RELEASING.md', 'SYNCING.md', 'TESTING.md'] : [];
   return [...guides, 'LICENSE', 'README.md', 'package.json', ...inventory.byDestination.keys(), ...extensionFiles(inventory)].sort();
 }
 

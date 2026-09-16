@@ -12,9 +12,10 @@ This package ships through Git only. Do not publish it to npm.
    npm run typecheck
    npm run sync:check
    npm run check:content
+   npm run test:fast
    ```
 
-4. Run focused tests for each changed subsystem. Do not rerun the full process-cleanup suite after every prose or manifest edit.
+4. Run `npm run test:pi` only when the change touches packed real-Pi paths. [`TESTING.md`](./TESTING.md) lists them. Do not rerun the full process-cleanup suite after every prose or manifest edit.
 5. Run `npm run check` once against the final tree. This is the release gate. It includes the slower real-process cleanup and packed real-Pi tests.
 6. Check the exact package contents:
 

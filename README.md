@@ -40,9 +40,18 @@ pi install git:github.com/aaalexliu/pstack-pi@<new-full-commit-sha>
 pi remove git:github.com/aaalexliu/pstack-pi
 ```
 
-See `RELEASING.md` for the release gate and `SYNCING.md` for upstream and adaptation updates.
-
 The package supports Pi `0.85.1` and Node.js `>=22.19.0` in this release.
+
+## Documentation
+
+| File | Answers |
+| --- | --- |
+| `README.md` (this file) | What the package does and how to install and use it |
+| `AGENTS.md` | Rules for agents and contributors editing this repository |
+| `SYNCING.md` | How to regenerate, change a transform, or move the upstream pin |
+| `ADAPTATIONS.md` | Which upstream files change, and why |
+| `TESTING.md` | Which test script to run, and what each suite proves |
+| `RELEASING.md` | The release gate and install-by-commit procedure |
 
 ## Supported scope
 
@@ -57,9 +66,8 @@ The package ships 83 generated skill and support files, three generated agents, 
 It registers `pstack_config`, `pstack_papercut`, `pstack_sessions`, `pstack_todo`, and, at root depth, `subagent`.
 The delegation extension owns one `session_shutdown` hook that stops live children and a `tool_result` hook that marks its own failed calls. The papercut journal owns a `tool_execution_start` hook and a `tool_result` hook that append a one-line measurement to other tools' results.
 Todo and Poteto Mode state follow the active session branch through versioned custom entries. The package registers `/pstack`, `/subagents`, `/pstack-cmux`, and `/papercuts`, but no prompts, themes, or blanket approval hooks.
-A usage command remains deferred.
 
-`ADAPTATIONS.md` lists every transformed file and its edit scope. Host changes must preserve the skill's scope, evidence, checkpoints, and outputs. `SYNCING.md` explains the deterministic, count-checked transform path; routine sync needs no LLM.
+`ADAPTATIONS.md` lists every transformed file and its edit scope. Host changes must preserve the skill's scope, evidence, checkpoints, and outputs. `SYNCING.md` explains the deterministic, count-checked transform path. Routine sync needs no LLM.
 
 The package never installs a blanket command-approval gate, inspects unrelated shell strings, or requests package-wide confirmation for routine Git pushes or pull-request edits.
 Those actions remain under host policy.
@@ -233,6 +241,8 @@ Run `npm ci` in the checkout, then register it with `pi install /absolute/path/t
 Pi records it in the user profile by default.
 Add `-l` to register it in the current project's settings instead.
 
+Run `npm run test:fast` while iterating and `npm run check` once before pushing `main`. `TESTING.md` explains the split and what each suite proves. `AGENTS.md` lists the editing rules, starting with the one that matters most: `skills/` and `agents/` are generated, so edit `sync/manifest.json` and run `npm run sync` instead.
+
 `engines.pi` records the tested version but npm does not enforce it.
 The package starts at version `0.1.0` and follows independent SemVer, not Cursor plugin versions.
 
@@ -252,13 +262,7 @@ Transforms change only reviewed commands, frontmatter, paths, runtime sections, 
 Each transformation requires its locked source blob and exact match count.
 Even execution-ownership changes use targeted transforms rather than rewritten copies. All 23 principle skills and the Investigation playbook remain byte-for-byte copies.
 
-The manifest and lock use strict version 2 with required `additions` arrays.
-`sync/additions/agents/general-purpose.md` is a Pi-owned source, separate from the 158 upstream paths.
-Its manifest entry records `source`, `destination`, `mode`, and `reason`.
-Its lock entry records `source` and `output` with `destination`, `sha256`, and `mode`.
-Additions copy raw bytes from strictly below `sync/additions/` into managed roots.
-The same evaluator checks all output collisions and stages both upstream and authored content.
-Missing, extra, symlinked, special, and native-colliding addition inputs stop sync.
+`sync/additions/agents/general-purpose.md` is a Pi-owned source, separate from the 158 upstream paths. `SYNCING.md` describes how additions are declared and checked.
 
 Cursor distribution metadata, guides, branding assets, Cloud Automations, unbundled playbooks, and unsupported scripts remain omitted.
 All 47 main skill entrypoints are present, including the webhook-backed `make-bot-ui`. Missing external service capabilities remain explicit limits, not silently changed tasks.
@@ -284,28 +288,7 @@ Relock verifies the existing snapshot before updating adaptation and addition ha
 Sync writes only managed content.
 Neither command changes package metadata or documentation.
 
-`npm run check` runs type checking, `sync:check`, `check:content`, and tests in that order.
-CI runs the same command in the checkout and in a clean Git archive with no `.git` directory.
-`npm run sync:check` and `npm run check:content` also run on their own.
+`npm run check` is the release gate. `TESTING.md` lists the scripts it runs and what each suite proves. `SYNCING.md` covers moving the upstream pin and recovering from a failed sync.
 
-`check:content` validates exact membership, YAML frontmatter, dependency closure, local links, file modes, explicit package exposure, and the dry-run pack inventory.
-The fixture tests reject duplicate YAML keys, unresolved dependencies, Cursor-only mechanics, undeclared agents, and unexpected runtime registration.
-Fake ExtensionAPI tests check tool and command registration, lifecycle hooks, and the absence of a blanket command gate. Fidelity tests protect reviewed upstream passages and Pi boundaries, reject full-file replacements, and preserve Interrogate's unchanged sections exactly.
-They preserve genuine protocol identifiers such as review author `cursor` and `CURSOR_AUTOMATION_ID`.
-
-The real Pi tests pack and move the package into an isolated profile.
-They check discovery of all 47 commands, exact expansion of each main workflow plus one principle, arguments, relocated paths, and the declared extension tools.
-A scripted real parent delegates a fixture read to a real bundled child, receives the result, and runs harmless bash containing literal `git push` and `gh pr edit` text.
-Other runs hide project agents by default, run a user override in a subdirectory `cwd`, and let `poteto-agent` edit through its tool set.
-Child requests carry the agent's tools plus `pstack_todo`, never `subagent`; the child leads its own process group, and prompt temp files are gone after return.
-The packed execution tests cover `timeoutMs`, two simultaneous single calls, eight parallel tasks with a four-child ceiling and one failing sibling, depth rejection, fake `pi` in `PATH`, and parent `SIGTERM` and `SIGHUP` cleanup.
-The parallel tests use a concurrent provider keyed by the exact final user marker, never global request order.
-Unit tests under `tests/subagent/` drive the tool with a fake `pi` that speaks the JSON protocol: routing precedence and pool rotation, stdin task and `0600` prompt delivery, parallel order and concurrency, chain substitution, abort and timeout killing a `SIGTERM`-ignoring grandchild, and shutdown behavior.
-Progress tests check live tools, child-owned todos, model and usage before completion, saved snapshots, and timeout cards through packed real Pi. Renderer tests cover narrow terminals, long chains, output expansion, and both inspector views. E2E files run serially to avoid startup contention against short watchdogs; individual tests still exercise concurrent children.
-The main delegation tests retain their tarballs and `run.json` under the artifact paths printed in test output.
-Other test profiles are removed.
 The packed package has no runtime dependencies. Pi supplies `@earendil-works/pi-coding-agent`, `@earendil-works/pi-ai`, `@earendil-works/pi-tui`, and `typebox` to extensions.
-`skipLibCheck` skips defective third-party declarations in Pi's dependency tree; project TypeScript still uses strict checking.
-They check duplicate-name diagnostics through Pi's resource-loader SDK because print-mode JSONL does not emit those warnings.
-The deterministic provider runs on loopback and needs no provider credentials.
-These checks prove content loading and real tool execution, not model compliance with the skill instructions.
+`skipLibCheck` skips defective third-party declarations in Pi's dependency tree. Project TypeScript still uses strict checking.
