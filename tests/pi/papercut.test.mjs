@@ -25,7 +25,16 @@ test('packed real Pi trails every tool result and journals agent-supplied paperc
         { id: 'fail', name: 'bash', arguments: { command: 'printf oops; exit 3' } },
       ] }, check: (request) => {
         assert.ok(Array.isArray(request.tools));
-        assert.ok(request.tools.map((/** @type {any} */ tool) => tool.function.name).includes('pstack_papercut'));
+        const tool = request.tools.find((/** @type {any} */ tool) => tool.function.name === 'pstack_papercut');
+        assert.ok(tool);
+        assert.match(tool.function.description, /retries, workarounds/u);
+        assert.match(tool.function.parameters.properties.note.description, /extra work/u);
+        assert.ok(Array.isArray(request.messages));
+        const system = JSON.stringify(request.messages.filter((/** @type {any} */ message) => message.role === 'system'));
+        for (const hint of ['even if you recover or the command succeeds', 'missing dependencies', 'truncated output', 'Before your final response', 'one note per distinct problem', 'Never include secrets or raw tool output']) {
+          assert.ok(system.includes(hint), `Missing papercut hint: ${hint}`);
+        }
+        assert.ok(!system.includes('errors caused by the current task'));
       } },
       { reply: { kind: 'tool', id: 'papercut', name: 'pstack_papercut', arguments: { kind: 'tool.confusing-error', note: 'The shell error had no structured exit status.', evidence } }, check: (request) => {
         assert.match(toolResult(request, 'echo'), /^done\n\n\[pstack: bash \d+ms 5B\]$/u);

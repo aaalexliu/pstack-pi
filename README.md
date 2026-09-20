@@ -106,7 +106,11 @@ Run `/pstack` to show the current model config and the exact file path to edit (
 
 ## Papercuts
 
-The agent can call `pstack_papercut` when it finds friction that could improve future agent work. The tool accepts a free-form lowercase `kind`, a concise `note`, and an optional `evidence` measurement. Its prompt guideline tells the agent not to record expected waits, ordinary project failures, errors caused by the current task, secrets, or raw tool output.
+The agent calls `pstack_papercut` for retries, workarounds, repeated discovery, confusing errors, excessive output, and avoidable delay. Recovered failures and successful but onerous workflows count too, including recurring setup and environment problems. Prompt hints name missing dependencies, unclear flags or schemas, stale paths or docs, repeated searches, truncated output, and avoidable manual steps.
+
+Before its final response, the agent checks for missed friction. It records one note per distinct problem in the task, not every retry. It skips routine negative results, expected waits with useful progress, and product bugs unless tooling makes diagnosis or recovery harder. Secrets and raw tool output never belong in a note.
+
+The tool accepts a free-form lowercase `kind`, a concise `note` describing what happened and the extra work it caused, and an optional `evidence` measurement copied from the affected result trailer. A possible improvement helps but is not required. These are agent instructions, not automatic failure logging or a forced follow-up turn.
 
 ```json
 {"kind":"tool.output-noisy","note":"cat of a lockfile dumped the whole file into context","evidence":{"tool":"bash","durationMs":24,"outputBytes":51338}}

@@ -33,7 +33,7 @@ export const papercutParameters = Type.Object({
     pattern: papercutKindPattern,
   })),
   note: Type.String({
-    description: 'A concise account of the friction and why it was unexpected',
+    description: 'What happened, the extra work it caused, and a possible improvement if known. Recovered failures and successful but onerous workflows count too.',
     maxLength: maxPapercutNoteLength,
     pattern: '\\S',
   }),

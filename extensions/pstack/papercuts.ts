@@ -39,10 +39,13 @@ export function registerPapercuts(pi: ExtensionAPI, rootDirectory = join(getAgen
   pi.registerTool({
     name: papercutToolName,
     label: 'Pstack Papercut',
-    description: 'Record friction in the local pstack-pi papercut journal for later review and aggregation.',
-    promptSnippet: 'Record pstack-pi workflow friction in a local papercut journal',
+    description: 'Record workflow friction such as retries, workarounds, confusing errors, or avoidable delay in the local pstack-pi papercut journal. Successful but onerous commands count too.',
+    promptSnippet: 'Record workflow friction: retries, workarounds, repeated discovery, noisy output, and avoidable delay',
     promptGuidelines: [
-      'Use pstack_papercut when you encounter friction that could improve future agent work. Do not record expected waits, ordinary project failures, errors caused by the current task, secrets, or raw tool output.',
+      'Use pstack_papercut when friction causes retries, workarounds, repeated discovery, confusing errors, excessive output, or avoidable delay, even if you recover or the command succeeds. Include recurring setup and environment problems.',
+      'Hints for pstack_papercut: missing dependencies, unclear flags or schemas, stale paths or docs, repeated searches, truncated output that needs extra calls, manual steps that a tool could handle, and failures that need a different tool or command to recover.',
+      'Before your final response, briefly check for unrecorded friction and call pstack_papercut for any you missed. Record one note per distinct problem in the task, not every retry. State what happened, the extra work it caused, and a possible improvement if known; no proven fix is required.',
+      'For pstack_papercut, skip routine negative results (such as a search with no matches), expected waits with useful progress, and product bugs unless tooling makes diagnosis or recovery harder. Never include secrets or raw tool output. Copy evidence from the affected result trailer when available; omit evidence rather than invent measurements.',
     ],
     parameters: papercutParameters,
     async execute(_toolCallId, params, _signal, _onUpdate, ctx): Promise<AgentToolResult<PapercutToolDetails>> {
