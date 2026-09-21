@@ -209,7 +209,9 @@ Transcript tabs default to off. Use `/pstack-cmux on` to activate them, `/pstack
 
 The setting persists across sessions and applies to newly started subagents without a reload. Turning it off leaves existing tabs and agents running. It does not disable the inline cards or cmux sidebar status.
 
-When enabled and the parent runs inside cmux (`CMUX_WORKSPACE_ID` is set), the first child opens a right-hand pane. Later children, including parallel tasks and chain steps, open tabs in that same pane. New tabs do not take keyboard focus. cmux preserves the tab you are reading in the focused pane, but may select the newest tab in a background pane. If you close the shared pane, the next child creates a new one. Each parent session owns its own pane.
+When enabled, transcript tabs open in the existing pane containing the parent Pi surface. Both `CMUX_WORKSPACE_ID` and `CMUX_SURFACE_ID` must be set. Each allocation resolves the parent's current pane, so new tabs follow the parent if you move it. Parallel tasks and chain steps use the same rule. Transcript tabs never create splits or take keyboard focus. cmux may select the newest tab in a background pane.
+
+If cmux cannot resolve the parent surface in its workspace, that transcript tab is skipped. The extension never falls back to the focused pane or creates a replacement pane. Delegation continues without the tab.
 
 Tabs show completed assistant messages, tool calls, tool results, and final status. They are read-only transcripts, not interactive Pi sessions. Closing a tab does not stop its child. Completed tabs remain for inspection; their followers stop, and the text stays in terminal scrollback. Private transcript files are removed when the parent session shuts down or reloads. Missing or failed cmux commands do not prevent delegation.
 

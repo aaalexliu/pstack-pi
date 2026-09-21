@@ -377,7 +377,8 @@ async function cmuxFixture(t) {
   const f = await fixture(t, { env, cmuxExec: async (args, capturedEnv) => {
     assert.equal(capturedEnv.CMUX_WORKSPACE_ID, 'workspace:fixture');
     calls.push(args);
-    return JSON.stringify({ surface_id: `surface:${calls.length}`, pane_id: 'pane:shared' });
+    if (args[1] === 'identify') return JSON.stringify({ caller: { workspace_ref: 'workspace:fixture', surface_ref: 'surface:parent', pane_ref: 'pane:parent' } });
+    return JSON.stringify({ surface_id: `surface:${calls.length}` });
   } });
   await f.commands.get('pstack-cmux')?.handler('on', f.ctx);
   env.CMUX_WORKSPACE_ID = 'changed-after-registration';
@@ -400,13 +401,13 @@ test('cmux mirrors per-run output and final status without changing batch result
   assert.ok(texts.some((text) => text.includes('partial answer') && text.includes('[Failed: PRIVATE_BOOM]')));
   assert.ok(texts.some((text) => text.includes('[Failed: exit 2]')));
   for (const file of files) await readFile(file + '.done');
-  assert.equal(f.calls.filter((args) => args[1] === 'new-split').length, 1);
-  assert.equal(f.calls.filter((args) => args[1] === 'new-surface').length, 2);
+  assert.equal(f.calls.filter((args) => args[1] === 'new-split').length, 0);
+  assert.deepEqual(f.calls.filter((args) => args[1] === 'new-surface').map((args) => args[5]), ['pane:parent', 'pane:parent', 'pane:parent']);
   await f.handlers.get('session_shutdown')?.();
   assert.deepEqual(await f.files(), []);
 });
 
-test('cmux creates panes only for started chain steps and none for invalid requests', async (t) => {
+test('cmux creates tabs only for started chain steps and none for invalid requests', async (t) => {
   const f = await cmuxFixture(t);
   await f.execute({ agent: 'missing', task: 'x' });
   assert.deepEqual(f.calls, []);
@@ -417,8 +418,8 @@ test('cmux creates panes only for started chain steps and none for invalid reque
   ] });
   assert.equal(result.details.results.length, 2);
   assert.deepEqual(result.details.progress?.tasks.map((row) => row.state), ['succeeded', 'failed', 'skipped']);
-  assert.equal(f.calls.filter((args) => args[1] === 'new-split').length, 1);
-  assert.equal(f.calls.filter((args) => args[1] === 'new-surface').length, 1);
+  assert.equal(f.calls.filter((args) => args[1] === 'new-split').length, 0);
+  assert.deepEqual(f.calls.filter((args) => args[1] === 'new-surface').map((args) => args[5]), ['pane:parent', 'pane:parent']);
   assert.equal((await f.files()).length, 2);
 });
 
@@ -473,7 +474,7 @@ test('closing the cmux follower does not terminate the child or its grandchild',
 test('missing or hung cmux does not delay child results', { timeout: 5000 }, async (t) => {
   const f = await fixture(t);
   for (const cmuxExec of [async () => { throw new Error('cmux unavailable'); }, async () => new Promise(() => {})]) {
-    const { tools, handlers, commands } = registration({ env: { CMUX_WORKSPACE_ID: 'workspace:fixture' }, cmuxExec });
+    const { tools, handlers, commands } = registration({ env: { CMUX_WORKSPACE_ID: 'workspace:fixture', CMUX_SURFACE_ID: 'surface:parent' }, cmuxExec });
     await commands.get('pstack-cmux')?.handler('on', f.ctx);
     t.after(async () => { await handlers.get('session_shutdown')?.(); });
     const result = await Promise.race([
@@ -488,9 +489,10 @@ test('missing or hung cmux does not delay child results', { timeout: 5000 }, asy
 test('activation is persistent; deactivation prevents new tabs without stopping live agents', { timeout: 6000 }, async (t) => {
   /** @type {string[][]} */
   const calls = [];
-  const f = await fixture(t, { env: { CMUX_WORKSPACE_ID: 'workspace:fixture' }, cmuxExec: async (args) => {
+  const f = await fixture(t, { env: { CMUX_WORKSPACE_ID: 'workspace:fixture', CMUX_SURFACE_ID: 'surface:parent' }, cmuxExec: async (args) => {
     calls.push(args);
-    return JSON.stringify({ pane_id: 'pane:shared', surface_id: `surface:${calls.length}` });
+    if (args[1] === 'identify') return JSON.stringify({ caller: { workspace_ref: 'workspace:fixture', surface_ref: 'surface:parent', pane_ref: 'pane:parent' } });
+    return JSON.stringify({ surface_id: `surface:${calls.length}` });
   } });
   t.after(() => f.handlers.get('session_shutdown')?.());
   const command = f.commands.get('pstack-cmux');
@@ -515,8 +517,8 @@ test('activation is persistent; deactivation prevents new tabs without stopping 
   await assert.rejects(pending, /aborted/);
   await command.handler('on', f.ctx);
   await f.execute({ agent: 'general-purpose', task: 'reenabled' });
-  assert.equal(calls.filter((args) => args[1] === 'new-split').length, 1);
-  assert.equal(calls.filter((args) => args[1] === 'new-surface').length, 1);
+  assert.equal(calls.filter((args) => args[1] === 'new-split').length, 0);
+  assert.deepEqual(calls.filter((args) => args[1] === 'new-surface').map((args) => args[5]), ['pane:parent', 'pane:parent']);
   const nextSession = registration();
   await nextSession.commands.get('pstack-cmux')?.handler('status', f.ctx);
   assert.match(f.notices.at(-1) ?? '', /tabs: on/);
