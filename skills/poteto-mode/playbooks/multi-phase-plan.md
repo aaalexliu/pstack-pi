@@ -5,7 +5,7 @@
 1. When the change is one or two files with an obvious approach, skip the plan. Say so and stop.
 2. Settle open questions by prototype before you write. Run [Prototype](prototype.md) for each. Keep the branch, the SHA, and the screenshots for Appendix A. Ask the operator only about a product or preference call that no run can settle. Give options (the **never-block-on-the-human** principle skill).
 3. Explore in bounded read-only `general-purpose` leaf tasks with configured role models per the Subagents section (the **guard-the-context-window** principle skill). Each returns file pointers, conventions, test commands, and entry points. No inlined dumps.
-4. Copy the skeleton below into the plan file and fill every placeholder. Unless the operator names a path, write the file under a named durable local task directory's `docs/`. Keep every heading and every sub-block in the order shown. One section per PR. One PR is one change with its own evidence (the **sequence-verifiable-units** principle skill). Name the execution playbook in **How to read this**. Pick upstream Autopilot-full for independent parent-owned landing or Autopilot-stack for a linear stack the operator lands. Neither is bundled; write explicit local steps under the parent mode local Babysit and Shipping gates. A standing program takes [Orchestrate](orchestrate.md).
+4. Copy the skeleton below into the plan file and fill every placeholder. Unless the operator names a path, write the file under a named durable local task directory's `docs/`. Keep every heading and every sub-block in the order shown. One section per PR. One PR is one change with its own evidence (the **sequence-verifiable-units** principle skill). Name the execution playbook in **How to read this**. Pick between [Autopilot-full](autopilot-full.md) and [Autopilot-stack](autopilot-stack.md) per the rule at the end of [Autopilot-stack](autopilot-stack.md). A standing program takes [Orchestrate](orchestrate.md).
 5. Write under `/skill:technical-writing` in full, then `/skill:unslop`. The body is one Diátaxis mode, how-to. Appendices hold explanation and reference. Each heading states the task or the finding. No long dashes. No mid-sentence colons.
 6. The upstream check-plan script is not bundled. If the repository supplies a reviewed equivalent, record its real path, run it on the plan, and fix every finding. Otherwise manually check every heading, placeholder, dependency, evidence box, and gate listed in the skeleton below and report the missing automated check (the **encode-lessons-in-structure** principle skill).
 7. Hand back. Post the plan path and actual checker output or labeled manual-check results and the automation gap, then stop. Execution starts on the operator's explicit go, under the execution playbook the plan names.
@@ -23,7 +23,7 @@
 
 One box is one unit of work. Every box names the evidence that checks it. A nested box is a sub-step of the box above it. Check a box only when its evidence exists, a file, a log line, a screenshot, a test run, or a SHA. The body is a how-to. The appendices explain and record.
 
-The program follows <named workflow and explicit local fallback under the parent mode local Babysit and Shipping gates>. <Who merges, and which PR ids are the operator's items that stop at merge-ready.>
+The program follows <named workflow and explicit local fallback under [Babysit](babysit.md) and [Shipping](shipping.md)>. <Who merges, and which PR ids are the operator's items that stop at merge-ready.>
 
 Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
@@ -58,14 +58,14 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
 - [ ] Open the PR ready, never draft, with `origin pr create --status open --base <base-branch>` or `gh pr create --base <base-branch>` according to the resolved forge. A stack child targets its parent branch.
 - [ ] Run the repo's lint and typecheck once before the PR-facing push. Push with hooks on.
 - [ ] Inspect the diff for slop before each commit and `/skill:no-comments` before review.
-- [ ] Triage every Bugbot and security-reviewer comment per the skeptical fix / dismiss / ask rule against code and runtime evidence; the upstream rubric is not bundled, so dismiss with concrete disproof and escalate unresolved security, auth, billing, data, or migration risk.
+- [ ] Triage every Bugbot and security-reviewer comment per `../references/bugbot-triage.md`.
 - [ ] Outside Babysit, the parent prepares the authorized branch against its intended base. Independent PRs use current trunk; stack children keep their parent base. Conflicts or stale bases found during Babysit stop for the parent, not topology changes inside triage. Recheck verdict validity and current-head checks after any base or head change.
 
 ### Verdict and merge, for every PR
 
 - [ ] At the merge-ready head SHA, run the swarm per `/skill:swarm`. One gates lane. The ten live lanes from the PR's **Verify, live** block. The perf lane from its **Verify, perf** block. One audit lane that reads the diff and the receipts and distrusts the PR body.
 - [ ] Clean only when every lane is `PASS`. Findings go back to the owner. A new head gets a fresh swarm and a fresh verdict.
-- [ ] <The merge or append rule from the execution playbook, with the patch-id rule from the parent mode local Shipping gates.>
+- [ ] <The merge or append rule from the execution playbook, with the patch-id rule from [Shipping](shipping.md).>
 
 ### Boot recipe, for every live lane
 
@@ -130,7 +130,7 @@ Each live scenario runs in an isolated local environment at the PR head. The par
 - [ ] Bugbot triage done.
 - [ ] For authorized independent landing or the current stack bottom only, fetch trunk and rebase if needed. Compare stable base-to-head patch-id with the recorded verdict base/head SHAs. Re-verify changed patches independently; unchanged patches still need current-head CI and mergeability. Stack descendants stay on their parent until they become bottom.
 - [ ] <The authorized parent squash-merges the current eligible PR, or the root appends it to the base-branch stack and the operator lands it bottom-up.>
-- [ ] Apply the parent mode local Shipping gates. Only the current bottom may be retargeted, armed, or landed. Confirm actual merge and fetched trunk presence before advancing; readiness is not merge.
+- [ ] Apply [Shipping](shipping.md). Only the current bottom may be retargeted, armed, or landed. Confirm actual merge and fetched trunk presence before advancing; readiness is not merge.
 
 ## Close the program
 
