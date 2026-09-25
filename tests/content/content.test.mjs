@@ -4,6 +4,7 @@ import { chmod, lstat, readFile, rename, rm, symlink } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
 import { assertPackageExposure, assertPackInventory, checkContent, checkPackedContent, contentInventory, expectedPackFiles, parseSkill } from '../../scripts/check-content.mjs';
+import { sha256 } from '../../scripts/sync-upstream.mjs';
 import { contentFixture, skillText } from './fixture.mjs';
 
 const entrypoint = 'skills/copied/SKILL.md';
@@ -112,6 +113,39 @@ test('support files also require dependency closure', async (t) => {
   const f = await contentFixture(t);
   await f.rewrite('skills/copied/references/notes.md', 'Apply the **omitted** skill.');
   await assert.rejects(checkContent(f), /Missing named skill/);
+});
+
+/** @param {import('node:test').TestContext} t @param {string} body */
+async function withAgentPrompt(t, body) {
+  const f = await contentFixture(t);
+  const destination = 'agents/poteto-agent.md';
+  const text = `---\nname: poteto-agent\ndescription: Bounded leaf.\n---\n${body}\n`;
+  f.manifest.files.push({ kind: 'copy', source: destination, destination });
+  f.lock.files.push({
+    source: destination, blob: 'a'.repeat(40), mode: '100644', adaptationSha256: null,
+    output: { destination, sha256: sha256(text), mode: '100644' },
+  });
+  await f.put(destination, text);
+  f.pkg.files.push(destination);
+  f.pkg.files.sort();
+  await f.put('package.json', JSON.stringify(f.pkg));
+  return f;
+}
+
+test('rejects a package-root path that is not in the package', async (t) => {
+  const f = await withAgentPrompt(t, 'Read `{{PSTACK_ROOT}}/skills/missing/SKILL.md`.');
+  await assert.rejects(checkContent(f), /Missing local dependency: agents\/poteto-agent\.md -> \{\{PSTACK_ROOT\}\}\/skills\/missing\/SKILL\.md/);
+});
+
+test('rejects a bare package-root path that is not in the package', async (t) => {
+  const f = await withAgentPrompt(t, 'Read {{PSTACK_ROOT}}/skills/missing/SKILL.md.');
+  await assert.rejects(checkContent(f), /Missing local dependency: agents\/poteto-agent\.md -> \{\{PSTACK_ROOT\}\}\/skills\/missing\/SKILL\.md$/);
+});
+
+test('rejects a package-root token outside an agent prompt', async (t) => {
+  const f = await contentFixture(t);
+  await f.rewrite(entrypoint, skillText('copied', 'Read `{{PSTACK_ROOT}}/skills/copied/SKILL.md`.'));
+  await assert.rejects(checkContent(f), /Package root token outside an agent prompt: skills\/copied\/SKILL\.md/);
 });
 
 test('manifest and lock must agree on every source, output, and adaptation', async (t) => {

@@ -19,6 +19,7 @@ export type AgentConfig = AgentDefinition & { source: AgentSource; filePath: str
 export type AgentDiscoveryResult = { agents: AgentConfig[]; projectAgentsDir: string | null };
 
 export const bundledAgentsDirectory = fileURLToPath(new URL('../../agents/', import.meta.url));
+const packageRoot = path.resolve(bundledAgentsDirectory, '..');
 
 type AgentFrontmatter = { name?: unknown; description?: unknown; tools?: unknown; model?: unknown };
 
@@ -38,7 +39,7 @@ export function parseAgent(content: string): AgentDefinition {
     description: frontmatter.description,
     tools: parseToolList(frontmatter.tools),
     model: typeof frontmatter.model === 'string' ? frontmatter.model : undefined,
-    systemPrompt: body,
+    systemPrompt: body.replaceAll('{{PSTACK_ROOT}}', packageRoot),
   };
 }
 

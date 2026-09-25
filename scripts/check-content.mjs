@@ -180,6 +180,13 @@ function dependencies(text, filename, inventory) {
     const resolved = path.posix.normalize(path.posix.join(path.posix.dirname(filename), decoded));
     assert.ok(inventory.byDestination.has(resolved) || ['LICENSE', 'README.md'].includes(resolved), `Missing local dependency: ${filename} -> ${target}`);
   }
+  const agentPrompt = /^agents\/[^/]+\.md$/u.test(filename);
+  assert.ok(agentPrompt || !text.includes('{{PSTACK_ROOT}}'), `Package root token outside an agent prompt: ${filename}`);
+  for (const match of text.matchAll(/\{\{PSTACK_ROOT\}\}\/([^\s`)'"]+)/gu)) {
+    const ref = match[1].replace(/[.,;:]+$/u, '');
+    const shipped = inventory.byDestination.has(ref) || (ref.endsWith('/') && [...inventory.byDestination.keys()].some((name) => name.startsWith(ref)));
+    assert.ok(shipped, `Missing local dependency: ${filename} -> {{PSTACK_ROOT}}/${ref}`);
+  }
 }
 
 /** @param {{root: string, manifest: unknown, lock: unknown}} options */

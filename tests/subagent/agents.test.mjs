@@ -1,9 +1,13 @@
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { bundledAgents, bundledAgentsDirectory, discoverAgents, parseAgent } from '../../extensions/subagent/agents.ts';
+
+const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
+const installedSkill = path.join(repoRoot, 'skills/poteto-mode/SKILL.md');
 
 /** @param {string} name @param {string} [extra] @param {string} [body] */
 const agentFile = (name, extra = '', body = `Prompt for ${name}.`) => `---\nname: ${name}\ndescription: ${name} agent.\n${extra}---\n${body}\n`;
@@ -13,6 +17,22 @@ test('bundled agents parse with their tool lists and prompts', () => {
   assert.deepEqual(agents.map((a) => a.name).sort(), ['comment-sicko', 'general-purpose', 'poteto-agent']);
   assert.ok(agents.every((a) => a.source === 'bundled' && a.filePath.startsWith(bundledAgentsDirectory) && a.systemPrompt.trim()));
   assert.deepEqual(agents.find((a) => a.name === 'poteto-agent')?.tools, ['read', 'grep', 'find', 'ls', 'bash', 'edit', 'write']);
+});
+
+test('bundled poteto-agent names the installed poteto-mode skill', async () => {
+  await access(installedSkill);
+  const prompt = bundledAgents().find((agent) => agent.name === 'poteto-agent')?.systemPrompt ?? '';
+  assert.equal(prompt.includes(installedSkill), true);
+  assert.equal(prompt.includes('{{PSTACK_ROOT}}'), false);
+});
+
+test('a user-dir agent resolves the package root token to the installed skill', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'agents-token-'));
+  const userDir = path.join(root, 'user');
+  await mkdir(userDir);
+  await writeFile(path.join(userDir, 'local.md'), agentFile('local', '', 'Read `{{PSTACK_ROOT}}/skills/poteto-mode/SKILL.md` before work.'));
+  const prompt = discoverAgents(root, 'user', { userDir }).agents.find((agent) => agent.name === 'local')?.systemPrompt.trim();
+  assert.equal(prompt, `Read \`${installedSkill}\` before work.`);
 });
 
 test('parseAgent accepts both tool spellings and rejects files without a name or description', () => {

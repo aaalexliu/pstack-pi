@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 Fan out N local leaf workers. They may cover separate slices, race the same brief, or mix both. The parent waits, aggregates, and returns one report.
 
-The parent owns orchestration, runtime probes for read-only judges, forge actions, and integration. Children never delegate or resume. Use one live `subagent` request at a time, at most eight tasks per request and four active children without dropping coverage. Use `general-purpose` for read-only exploration and judgment and `poteto-agent` for scoped implementation. Pass the absolute installed poteto-mode skill path to writers. Read-only children cannot run shell commands, edit, or access external tools. Children may use their own `pstack_todo` and return text progress. Missing delegation requires local work with a separate review and disclosure of lost independence.
+The parent owns orchestration, runtime probes for read-only judges, forge actions, and integration. Children never delegate or resume. Use one live `subagent` request at a time, at most eight tasks per request and four active children without dropping coverage. Use `general-purpose` for read-only exploration and judgment and `poteto-agent` for scoped implementation. Read-only children cannot run shell commands, edit, or access external tools. Children may use their own `pstack_todo` and return text progress. Missing delegation requires local work with a separate review and disclosure of lost independence.
 
 ## Start
 
