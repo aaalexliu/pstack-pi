@@ -182,8 +182,8 @@ function dependencies(text, filename, inventory) {
   }
   const agentPrompt = /^agents\/[^/]+\.md$/u.test(filename);
   assert.ok(agentPrompt || !text.includes('{{PSTACK_ROOT}}'), `Package root token outside an agent prompt: ${filename}`);
-  for (const match of text.matchAll(/`\{\{PSTACK_ROOT\}\}\/([^`\s]+)`/gu)) {
-    const ref = match[1];
+  for (const match of text.matchAll(/\{\{PSTACK_ROOT\}\}\/([^\s`)'"]+)/gu)) {
+    const ref = match[1].replace(/[.,;:]+$/u, '');
     const shipped = inventory.byDestination.has(ref) || (ref.endsWith('/') && [...inventory.byDestination.keys()].some((name) => name.startsWith(ref)));
     assert.ok(shipped, `Missing local dependency: ${filename} -> {{PSTACK_ROOT}}/${ref}`);
   }

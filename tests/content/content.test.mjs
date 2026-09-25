@@ -137,6 +137,11 @@ test('rejects a package-root path that is not in the package', async (t) => {
   await assert.rejects(checkContent(f), /Missing local dependency: agents\/poteto-agent\.md -> \{\{PSTACK_ROOT\}\}\/skills\/missing\/SKILL\.md/);
 });
 
+test('rejects a bare package-root path that is not in the package', async (t) => {
+  const f = await withAgentPrompt(t, 'Read {{PSTACK_ROOT}}/skills/missing/SKILL.md.');
+  await assert.rejects(checkContent(f), /Missing local dependency: agents\/poteto-agent\.md -> \{\{PSTACK_ROOT\}\}\/skills\/missing\/SKILL\.md$/);
+});
+
 test('rejects a package-root token outside an agent prompt', async (t) => {
   const f = await contentFixture(t);
   await f.rewrite(entrypoint, skillText('copied', 'Read `{{PSTACK_ROOT}}/skills/copied/SKILL.md`.'));
