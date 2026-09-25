@@ -14,10 +14,12 @@
   },
   "agents/poteto-agent.md": {
     "upstream": {
-      "read full shared skill before work": "Read the `poteto-mode` skill's `SKILL.md` in full before doing any work, including its inline Principles index.",
       "principle navigation gate": "Navigate to a leaf `principle-*` skill whenever you apply that principle."
     },
-    "pi": {}
+    "pi": {
+      "read full shared skill before work": "Read `{{PSTACK_ROOT}}/skills/poteto-mode/SKILL.md` in full before doing any work, including its inline Principles index.",
+      "principle leaves live in the package": "Those leaves live under `{{PSTACK_ROOT}}/skills/`."
+    }
   },
   "skills/architect/SKILL.md": {
     "upstream": {

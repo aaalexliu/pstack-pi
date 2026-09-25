@@ -13,7 +13,7 @@ The manifest contains the exact ordered `find`, `replace`, and `count` values fo
 | Upstream file | Edit scope |
 | --- | --- |
 | `agents/comment-sicko.md` | Lowercase agent name and explicit read tools; parent supplies Git/context and applies proposed deletions. |
-| `agents/poteto-agent.md` | Remove background/resume fields; add Pi tools, an absolute shared-skill path, and a bounded implementation role. |
+| `agents/poteto-agent.md` | Remove background/resume fields; add Pi tools and a bounded implementation role. The skill-read sentence names `{{PSTACK_ROOT}}/skills/poteto-mode/SKILL.md`, and principle leaves live under `{{PSTACK_ROOT}}/skills/`. |
 | `skills/architect/SKILL.md` | Pi command, todo, and model-panel routing; parent orchestrates isolated leaf design tasks. |
 | `skills/architect/references/runner-prompt.md` | Remove the promise that every candidate uses a different model. |
 | `skills/arena/SKILL.md` | Pi command, todos, full configured panel, isolated writers, bounded requests, file receipts, and read-only cross-judge. |
