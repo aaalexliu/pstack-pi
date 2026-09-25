@@ -6,7 +6,7 @@ import { Type } from 'typebox';
 import { roles, loadModelConfig, modelConfigPath, formatModelChoice } from '../subagent/model-config.ts';
 import { registerPapercuts } from './papercuts.ts';
 import { disabledModeState, enabledModeState, invokesPotetoMode, modeEntryType, restoreMode, type ModeState } from './mode.ts';
-import { formatTodos, reduceTodos, restoreTodos, todoEntryType, todoParameters, emptyTodoState, type TodoState } from './todo.ts';
+import { formatTodos, parseTodoAction, reduceTodos, restoreTodos, todoEntryType, todoParameters, emptyTodoState, type TodoState } from './todo.ts';
 
 const potetoSkill = fileURLToPath(new URL('../../skills/poteto-mode/SKILL.md', import.meta.url));
 
@@ -74,10 +74,10 @@ export default function pstack(pi: ExtensionAPI): void {
     name: 'pstack_config',
     label: 'Pstack Config',
     description: 'Read pstack model roles or list exact Pi model selectors. The setup-pstack skill writes the reviewed config.',
-    parameters: Type.Union([
-      Type.Object({ action: Type.Literal('get') }, { additionalProperties: false }),
-      Type.Object({ action: Type.Literal('list-models') }, { additionalProperties: false }),
-    ], { type: 'object' }),
+    // Anthropic copies properties and required only, so a root union drops every field.
+    parameters: Type.Object({
+      action: Type.Union([Type.Literal('get'), Type.Literal('list-models')]),
+    }, { additionalProperties: false }),
     async execute(_toolCallId, request, _signal, _onUpdate, ctx) {
       if (request.action === 'list-models') {
         const models = ctx.modelRegistry.getAvailable().map((model) => `${model.provider}/${model.id}`);
@@ -121,7 +121,8 @@ export default function pstack(pi: ExtensionAPI): void {
     label: 'Pstack Todo',
     description: "Maintain pstack's current task checklist. State follows the active session branch. Use at the start of non-trivial multi-step work, then update it as work advances.",
     parameters: todoParameters,
-    async execute(_toolCallId, action) {
+    async execute(_toolCallId, params) {
+      const action = parseTodoAction(params);
       const next = reduceTodos(todos, action);
       if (action.action !== 'get') pi.appendEntry(todoEntryType, next);
       todos = next;

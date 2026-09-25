@@ -35,18 +35,23 @@ test('todo reducer is immutable, versioned, bounded, and deterministic', () => {
   assert.throws(() => reduceTodos(full, { action: 'add', item: 'overflow' }), /full/);
 });
 
-test('strict actions reject shape drift before execution', () => {
+test('todo schema accepts cross-field calls and rejects malformed ones', () => {
   for (const valid of [
     { action: 'get' },
     { action: 'set', items: [] },
     { action: 'add', item: 'one' },
     { action: 'complete', item: 'one' },
   ]) assert.equal(Check(todoParameters, valid), true);
+
   for (const invalid of [
-    {}, { action: 'get', item: 'x' }, { action: 'set' }, { action: 'set', items: [''] },
-    { action: 'add' }, { action: 'add', item: ' ' }, { action: 'complete', items: [] },
+    {}, { action: 'set', items: [''] }, { action: 'add', item: ' ' },
     { action: 'clear' }, { action: 'get', extra: true },
-  ]) assert.equal(Check(todoParameters, invalid), false);
+  ]) assert.equal(Check(todoParameters, invalid), false, JSON.stringify(invalid));
+
+  for (const crossField of [
+    { action: 'get', item: 'x' }, { action: 'get', items: ['x'] }, { action: 'set' },
+    { action: 'add' }, { action: 'set', items: ['a'], item: 'x' }, { action: 'complete', items: [] },
+  ]) assert.equal(Check(todoParameters, crossField), true, JSON.stringify(crossField));
 });
 
 test('restore uses only ordered current-branch snapshots and ignores malformed or future data', () => {
