@@ -147,14 +147,26 @@ test('a user agent overrides the bundled one by name and runs in a subdirectory 
 
 test('packed poteto-agent can edit through its explicit tool set', async () => {
   const final = 'Poteto delegate finished.';
+  let packageRoot = '';
+  let testRoot = '';
   const run = await runPiSmoke({
     expectedText: final, expectedRequests: 4,
     prompt: 'Delegate the bounded fixture edit.',
-    setup: setupProject,
+    setup: async (paths) => {
+      await setupProject(paths);
+      packageRoot = paths.package;
+      testRoot = paths.root;
+    },
     fixture: { script: [
       { reply: { kind: 'tool', id: 'delegate-poteto', name: 'subagent', arguments: { agent: 'poteto-agent', task: 'Create poteto-created.txt with the exact text POTETO_LEAF.' } } },
-      { reply: { kind: 'tool', id: 'write-poteto', name: 'bash', arguments: { command: 'printf %s POTETO_LEAF > poteto-created.txt' } }, check: (request) => {
+      { reply: { kind: 'tool', id: 'write-poteto', name: 'bash', arguments: { command: 'printf %s POTETO_LEAF > poteto-created.txt' } }, check: async (request) => {
         assertChild(request, ['read', 'grep', 'find', 'ls', 'bash', 'edit', 'write']);
+        const skillPath = path.join(packageRoot, 'skills/poteto-mode/SKILL.md');
+        const promptDirs = (await readdir(testRoot)).filter((name) => name.startsWith('pi-subagent-'));
+        assert.equal(promptDirs.length, 1);
+        const text = await readFile(path.join(testRoot, promptDirs[0], 'prompt-poteto-agent.md'), 'utf8');
+        assert.equal(text.includes(skillPath), true);
+        assert.equal(text.includes('{{PSTACK_ROOT}}'), false);
       } },
       { reply: { kind: 'text', text: 'Created poteto-created.txt.' }, check: (request) => { toolResult(request, 'write-poteto'); } },
       { reply: { kind: 'text', text: final }, check: (request) => assert.match(toolResult(request, 'delegate-poteto'), /Created poteto-created\.txt/) },
