@@ -46,6 +46,13 @@ test('pstack_todo stays visible to Anthropic and rejects a bad call', async () =
   assert.notEqual(projection.properties.items, undefined);
   assert.notEqual(projection.properties.item, undefined);
   assert.deepEqual(projection.required, ['action']);
+  const parameters = JSON.parse(JSON.stringify(tool.parameters));
+  assert.equal(parameters.properties.items.items.pattern, undefined);
+  assert.equal(parameters.properties.item.pattern, undefined);
+  assert.equal(parameters.properties.items.items.minLength, 1);
+  assert.equal(parameters.properties.items.items.maxLength, 4096);
+  assert.equal(parameters.properties.item.minLength, 1);
+  assert.equal(parameters.properties.item.maxLength, 4096);
 
   const session = registeredTools();
   const live = session.tools.get('pstack_todo');
@@ -72,7 +79,6 @@ test('pstack_todo stays visible to Anthropic and rejects a bad call', async () =
     { action: 'replace', items: ['step one'] },
     { action: 'get', extra: true },
     { action: 'set', items: [{ id: '1', content: 'step one', status: 'pending' }] },
-    { action: 'add', item: ' ' },
     { merge: true, todos: [{ content: 'step one', status: 'pending' }] },
   ];
   for (const input of schemaInvalid) {
@@ -85,6 +91,8 @@ test('pstack_todo stays visible to Anthropic and rejects a bad call', async () =
     { input: { action: 'get', item: 'x' }, field: 'item' },
     { input: { action: 'set', items: ['a'], item: 'x' }, field: 'item' },
     { input: { action: 'add' }, field: 'item' },
+    { input: { action: 'add', item: ' ' }, field: 'item' },
+    { input: { action: 'set', items: ['ok', '  '] }, field: 'items' },
     { input: { action: 'complete', items: [] }, field: 'items' },
   ];
   for (const { input, field } of crossField) {
