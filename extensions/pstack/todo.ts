@@ -3,7 +3,8 @@ import { Check } from 'typebox/value';
 
 export const todoEntryType = 'pstack-todo';
 export const todoStateVersion = 1 as const;
-const itemOptions = { minLength: 1, maxLength: 4096, pattern: '\\S' };
+// Grok mis-samples arrays whose strings carry a pattern.
+const itemOptions = { minLength: 1, maxLength: 4096 };
 const itemSchema = Type.String(itemOptions);
 const itemsSchema = Type.Array(itemSchema, { maxItems: 128, description: 'Checklist items. Used by set.' });
 const storedItemSchema = Type.String({ minLength: 1, maxLength: 4103, pattern: '\\S' });
@@ -42,7 +43,7 @@ function invalidTodo(field: string, example: string): never {
   throw new Error(`pstack_todo ${field} is invalid. Example: ${example}`);
 }
 
-// Pi checks the flat schema before execute. Only cross-field presence remains.
+// Pi checks the flat schema before execute.
 export function parseTodoAction(value: Static<typeof todoParameters>): TodoAction {
   switch (value.action) {
     case 'get':
@@ -51,13 +52,13 @@ export function parseTodoAction(value: Static<typeof todoParameters>): TodoActio
       return { action: 'get' };
     case 'set':
       if (value.item !== undefined) invalidTodo('item', examples.set);
-      if (value.items === undefined) invalidTodo('items', examples.set);
+      if (value.items === undefined || value.items.some((item) => !/\S/.test(item))) invalidTodo('items', examples.set);
       return { action: 'set', items: value.items };
     case 'add':
     case 'complete': {
       const example = examples[value.action];
       if (value.items !== undefined) invalidTodo('items', example);
-      if (value.item === undefined) invalidTodo('item', example);
+      if (value.item === undefined || !/\S/.test(value.item)) invalidTodo('item', example);
       return { action: value.action, item: value.item };
     }
   }
