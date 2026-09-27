@@ -44,13 +44,13 @@ test('todo schema accepts cross-field calls and rejects malformed ones', () => {
   ]) assert.equal(Check(todoParameters, valid), true);
 
   for (const invalid of [
-    {}, { action: 'set', items: [''] }, { action: 'add', item: ' ' },
+    {}, { action: 'set', items: [''] },
     { action: 'clear' }, { action: 'get', extra: true },
   ]) assert.equal(Check(todoParameters, invalid), false, JSON.stringify(invalid));
 
   for (const crossField of [
     { action: 'get', item: 'x' }, { action: 'get', items: ['x'] }, { action: 'set' },
-    { action: 'add' }, { action: 'set', items: ['a'], item: 'x' }, { action: 'complete', items: [] },
+    { action: 'add' }, { action: 'add', item: ' ' }, { action: 'set', items: ['a'], item: 'x' }, { action: 'complete', items: [] },
   ]) assert.equal(Check(todoParameters, crossField), true, JSON.stringify(crossField));
 });
 
