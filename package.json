@@ -87,6 +87,7 @@
     "agents/comment-sicko.md",
     "agents/general-purpose.md",
     "agents/poteto-agent.md",
+    "extensions/pstack/export-session.ts",
     "extensions/pstack/index.ts",
     "extensions/pstack/mode.ts",
     "extensions/pstack/papercut-aggregation.ts",

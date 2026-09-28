@@ -4,6 +4,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Type } from 'typebox';
 import { roles, loadModelConfig, modelConfigPath, formatModelChoice } from '../subagent/model-config.ts';
+import { registerExport } from './export-session.ts';
 import { registerPapercuts } from './papercuts.ts';
 import { disabledModeState, enabledModeState, invokesPotetoMode, modeEntryType, restoreMode, type ModeState } from './mode.ts';
 import { formatTodos, parseTodoAction, reduceTodos, restoreTodos, todoEntryType, todoParameters, emptyTodoState, type TodoState } from './todo.ts';
@@ -69,6 +70,7 @@ export default function pstack(pi: ExtensionAPI): void {
   });
 
   registerPapercuts(pi);
+  registerExport(pi);
 
   pi.registerTool({
     name: 'pstack_config',
