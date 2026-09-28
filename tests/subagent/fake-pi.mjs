@@ -43,6 +43,10 @@ async function waitForPath(file, ms) {
 
 if (verb === 'FAIL') {
   assistant('partial answer', { stopReason: 'error', errorMessage: 'PRIVATE_BOOM' });
+} else if (verb === 'OTHERMODEL') {
+  assistant('other model', { provider: 'observed', model: 'actual' });
+} else if (verb === 'NOMODEL') {
+  assistant('no model field', { provider: undefined, model: undefined });
 } else if (verb === 'EXIT2') {
   process.stderr.write('child exploded\n');
   process.exitCode = 2;

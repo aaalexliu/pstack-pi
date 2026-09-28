@@ -6,11 +6,18 @@ import path from 'node:path';
 import test from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
-import subagentExtension, { DEPTH_VARIABLE, MAX_CONCURRENCY, TERM_GRACE_MS, childEnvironment, parentDepth } from '../../extensions/subagent/index.ts';
+import subagentExtension, { DEPTH_VARIABLE, MAX_CONCURRENCY, TERM_GRACE_MS, childEnvironment, observedModelId, parentDepth } from '../../extensions/subagent/index.ts';
 import { bundledAgents } from '../../extensions/subagent/agents.ts';
 import { roles } from '../../extensions/subagent/model-config.ts';
 
 const fakePi = fileURLToPath(new URL('./fake-pi.mjs', import.meta.url));
+
+/** @param {string} text */
+function childOutput(text) {
+  const match = /^resolved-model: [^\n]+\n\n/.exec(text);
+  assert.ok(match, `missing resolved-model line: ${text.slice(0, 120)}`);
+  return text.slice(match[0].length);
+}
 const realSetTimeout = globalThis.setTimeout.bind(globalThis);
 /** @param {number} ms */
 const realDelay = (ms) => new Promise((resolve) => realSetTimeout(resolve, ms));
@@ -149,9 +156,11 @@ test('single mode runs the bundled agent in a detached child with prompt file, s
   assert.equal(details.results[0].agentSource, 'bundled');
   assert.equal(details.results[0].modelSource, 'parent');
   assert.equal(details.results[0].model, 'fixture/model');
+  assert.equal(details.results[0].observedModel, 'fixture/model');
   assert.equal(details.results[0].usage.turns, 1);
   assert.equal(details.results[0].usage.input, 11);
-  const capture = JSON.parse(result.content[0].text);
+  assert.match(result.content[0].text, /^resolved-model: fixture\/model\n/);
+  const capture = JSON.parse(childOutput(result.content[0].text));
   assert.equal(capture.task, task);
   assert.equal(capture.depth, '1');
   assert.equal(capture.cwd, f.cwd);
@@ -175,7 +184,7 @@ test('model routing: explicit beats role beats agent default beats parent, and p
   /** @param {Record<string, unknown>} params */
   const modelOf = async (params) => {
     const result = await f.execute(params);
-    const capture = JSON.parse(result.content[0].text);
+    const capture = JSON.parse(childOutput(result.content[0].text));
     return { model: capture.args[capture.args.indexOf('--model') + 1], thinking: capture.args.includes('--thinking') ? capture.args[capture.args.indexOf('--thinking') + 1] : null, source: result.details.results[0].modelSource };
   };
   assert.deepEqual(await modelOf({ agent: 'custom', task: 'x', model: 'explicit/win', role: 'feature' }), { model: 'explicit/win', thinking: null, source: 'explicit' });
@@ -186,6 +195,23 @@ test('model routing: explicit beats role beats agent default beats parent, and p
   assert.deepEqual(await modelOf({ agent: 'general-purpose', task: 'x' }), { model: 'fixture/model', thinking: 'high', source: 'parent' });
   await writeFile(path.join(f.agentDir, 'pstack-pi', 'models.json'), '{"version":1,"roles":{"feature":"broken"}}');
   await assert.rejects(f.execute({ agent: 'general-purpose', task: 'x' }), /Invalid pstack-pi\/models.json/);
+});
+
+test('resolved-model comes from the child response, not the requested selector', async (t) => {
+  assert.equal(observedModelId('openai-codex', 'gpt-6-sol'), 'openai-codex/gpt-6-sol');
+  assert.equal(observedModelId('openai-codex', 'gpt\n6'), undefined);
+  assert.equal(observedModelId(undefined, 'gpt-6-sol'), undefined);
+  const f = await fixture(t);
+  const other = await f.execute({ agent: 'general-purpose', task: 'OTHERMODEL', model: 'requested/selector' });
+  assert.equal(other.details.results[0].model, 'observed/actual');
+  assert.equal(other.details.results[0].observedModel, 'observed/actual');
+  assert.match(other.content[0].text, /^resolved-model: observed\/actual\n/);
+  assert.equal(childOutput(other.content[0].text), 'other model');
+  const missing = await f.execute({ agent: 'general-purpose', task: 'NOMODEL', model: 'requested/selector' });
+  assert.equal(missing.details.results[0].observedModel, undefined);
+  assert.equal(missing.details.results[0].model, 'requested/selector');
+  assert.match(missing.content[0].text, /^resolved-model: unknown\n/);
+  assert.doesNotMatch(missing.content[0].text, /requested\/selector/);
 });
 
 test('unknown agents, mixed modes, and too many tasks return guidance without spawning', async (t) => {
@@ -211,7 +237,7 @@ test('parallel mode keeps input order, caps concurrency, and reports one failure
   assert.deepEqual(result.details.results.map((r) => r.exitCode), [0, 0, 0, 0, 0, 0]);
   assert.deepEqual(result.details.results.map((r) => r.stopReason), ['stop', 'stop', 'error', 'stop', 'stop', 'stop']);
   assert.match(result.content[0].text, /^Parallel: 5\/6 succeeded/);
-  assert.match(result.content[0].text, /### \[poteto-agent\] failed \(error\)\n\nPRIVATE_BOOM/);
+  assert.match(result.content[0].text, /### \[poteto-agent\] failed \(error\)\nresolved-model: fixture\/model\n\nPRIVATE_BOOM/);
   const events = (await readFile(log, 'utf8')).trim().split('\n').map((line) => line.split(' '));
   let live = 0; let peak = 0;
   for (const [kind] of events.sort((a, b) => Number(a[1]) - Number(b[1]))) { live += kind === 'start' ? 1 : -1; peak = Math.max(peak, live); }
@@ -219,7 +245,7 @@ test('parallel mode keeps input order, caps concurrency, and reports one failure
   assert.equal(f.resultHook(result), undefined, 'A partial failure is not an error result');
   const allFailed = await f.execute({ tasks: [{ agent: 'general-purpose', task: 'FAIL a' }, { agent: 'general-purpose', task: 'EXIT2 b' }] });
   assert.deepEqual(f.resultHook(allFailed), { isError: true });
-  assert.match(allFailed.content[0].text, /\[general-purpose\] failed\n\nchild exploded/);
+  assert.match(allFailed.content[0].text, /\[general-purpose\] failed\nresolved-model: unknown\n\nchild exploded/);
 });
 
 test('chain mode substitutes {previous} and stops at the first failed step', async (t) => {
@@ -227,7 +253,8 @@ test('chain mode substitutes {previous} and stops at the first failed step', asy
   const ok = await f.execute({ chain: [{ agent: 'general-purpose', task: 'first' }, { agent: 'general-purpose', task: 'second after {previous}' }] });
   assert.equal(ok.details.mode, 'chain');
   assert.deepEqual(ok.details.results.map((r) => r.step), [1, 2]);
-  const second = JSON.parse(ok.content[0].text);
+  assert.match(ok.content[0].text, /^resolved-model: fixture\/model\n/);
+  const second = JSON.parse(childOutput(ok.content[0].text));
   assert.ok(second.task.startsWith('second after {"args"'), second.task.slice(0, 40));
   const stopped = await f.execute({ chain: [{ agent: 'general-purpose', task: 'FAIL early' }, { agent: 'general-purpose', task: 'never {previous}' }] });
   assert.equal(stopped.details.results.length, 1);
@@ -239,11 +266,14 @@ test('chain mode substitutes {previous} and stops at the first failed step', asy
 test('a failed single result is an error result and a spawn failure is reported', async (t) => {
   const f = await fixture(t);
   const failed = await f.execute({ agent: 'general-purpose', task: 'FAIL x' });
-  assert.match(failed.content[0].text, /^Agent error: PRIVATE_BOOM/);
+  assert.match(failed.content[0].text, /^resolved-model: fixture\/model\n\nAgent error: PRIVATE_BOOM/);
+  assert.equal(failed.details.results[0].observedModel, 'fixture/model');
   assert.deepEqual(f.resultHook(failed), { isError: true });
   const exited = await f.execute({ agent: 'general-purpose', task: 'EXIT2 x' });
   assert.equal(exited.details.results[0].exitCode, 2);
-  assert.match(exited.content[0].text, /child exploded/);
+  assert.match(exited.content[0].text, /^resolved-model: unknown\n\nAgent failed: child exploded/);
+  assert.equal(exited.details.results[0].observedModel, undefined);
+  assert.equal(exited.details.results[0].model, 'fixture/model');
   const { tools } = registration({ spawnChild: () => spawn('/nonexistent/pi', [], { stdio: 'pipe' }) });
   const broken = await tools[0].execute('call', { agent: 'general-purpose', task: 'x' }, undefined, undefined, f.ctx);
   assert.equal(broken.details.results[0].exitCode, 1);
@@ -482,7 +512,7 @@ test('missing or hung cmux does not delay child results', { timeout: 5000 }, asy
       delay(700).then(() => { throw new Error('cmux blocked the runner'); }),
     ]);
     assert.equal(result.details.results[0].exitCode, 0);
-    assert.equal(JSON.parse(result.content[0].text).task, 'hello');
+    assert.equal(JSON.parse(childOutput(result.content[0].text)).task, 'hello');
   }
 });
 

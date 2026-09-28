@@ -52,7 +52,7 @@ Read `references/reviewer-prompt.md` and fill in the template with:
 3. The review rubric from `references/rubric.md`
 4. The code-quality lens from `references/code-quality-review.md`
 
-The same filled template goes to all reviewers, so every model applies the code-quality lens. Record each reviewer's requested selector and whether it completed, failed, or returned no findings. Report a resolved model identity only when the tool result exposes it; otherwise label inherited or unresolved identities as unknown, not a guessed model name. Repeated or inherited model choices do not count as distinct model families.
+The same filled template goes to all reviewers, so every model applies the code-quality lens. Record each reviewer's requested selector and whether it completed, failed, or returned no findings. Each reviewer result includes a `resolved-model:` line (first line for a single result; one line per task block for parallel). Report that id when it is a `provider/model-id`. If the line is missing or `unknown`, label the identity unknown. Do not guess from the requested selector, `details.results[].model`, or the child's own text. Repeated or inherited model choices do not count as distinct model families.
 
 ## Step 4, Synthesize
 

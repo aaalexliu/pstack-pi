@@ -150,6 +150,8 @@ export interface SingleResult {
   stderr: string;
   usage: UsageStats;
   model?: string;
+  /** Set only from an assistant response. Never the requested selector. */
+  observedModel?: string;
   modelSource?: 'explicit' | 'role' | 'agent' | 'parent';
   stopReason?: string;
   errorMessage?: string;
@@ -185,6 +187,19 @@ export function isFailedResult(result: SingleResult): boolean {
 function getResultOutput(result: SingleResult): string {
   if (isFailedResult(result)) return result.errorMessage || result.stderr || getFinalOutput(result.messages) || '(no output)';
   return getFinalOutput(result.messages) || '(no output)';
+}
+
+// details are not sent to the model. This line is the only resolved identity a parent can check.
+export function observedModelId(provider: unknown, model: unknown): string | undefined {
+  if (typeof provider !== 'string' || typeof model !== 'string') return undefined;
+  const left = provider.trim();
+  const right = model.trim();
+  if (!left || !right || /[\r\n]/.test(left) || /[\r\n]/.test(right)) return undefined;
+  return `${left}/${right}`;
+}
+
+export function modelFacingText(observed: string | undefined, body: string): string {
+  return `resolved-model: ${observed ?? 'unknown'}\n\n${body}`;
 }
 
 function truncateParallelOutput(output: string): string {
@@ -377,7 +392,11 @@ export async function runSingleAgent({ resolved, defaults, depth, signal, timeou
             result.usage.cost += usage.cost?.total || 0;
             result.usage.contextTokens = usage.totalTokens || 0;
           }
-          if (msg.model) result.model = `${msg.provider}/${msg.model}`;
+          const observed = observedModelId(msg.provider, msg.model);
+          if (observed) {
+            result.observedModel = observed;
+            result.model = observed;
+          }
           if (msg.stopReason) result.stopReason = msg.stopReason;
           if (msg.errorMessage) result.errorMessage = msg.errorMessage;
         }
@@ -497,6 +516,7 @@ export function toolDescription(bundled: Pick<AgentConfig, 'name' | 'description
     `To enable project-local agents in ${CONFIG_DIR_NAME}/agents, set agentScope: "both".`,
     `model accepts inherit-parent or provider/model-id. role selects a configured model from ${modelConfigPath(getAgentDir())}; roles: ${roles.join(', ')}.`,
     'Explicit model overrides role, then the agent default, then the parent model. Children cannot delegate.',
+    'Single and chain result text starts with `resolved-model: provider/model-id` from the child response, or `resolved-model: unknown`. Parallel results include that line in each task block. That line is the resolved identity. The requested selector is not.',
   ].join(' ');
 }
 
@@ -656,11 +676,12 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
             const result = await run(withContext, chainUpdate, index);
             results.push(result);
             if (isFailedResult(result)) {
-              return { content: [{ type: 'text', text: `Chain stopped at step ${resolved.step} (${resolved.agent.name}): ${getResultOutput(result)}` }], details: makeDetails('chain')(results) };
+              return { content: [{ type: 'text', text: modelFacingText(result.observedModel, `Chain stopped at step ${resolved.step} (${resolved.agent.name}): ${getResultOutput(result)}`) }], details: makeDetails('chain')(results) };
             }
             previousOutput = getFinalOutput(result.messages);
           }
-          return { content: [{ type: 'text', text: getFinalOutput(results[results.length - 1].messages) || '(no output)' }], details: makeDetails('chain')(results) };
+          const last = results[results.length - 1];
+          return { content: [{ type: 'text', text: modelFacingText(last.observedModel, getFinalOutput(last.messages) || '(no output)') }], details: makeDetails('chain')(results) };
         }
 
         if (mode === 'parallel') {
@@ -686,7 +707,7 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
           const successCount = results.filter((r) => !isFailedResult(r)).length;
           const summaries = results.map((r) => {
             const status = isFailedResult(r) ? `failed${r.stopReason && r.stopReason !== 'stop' ? ` (${r.stopReason})` : ''}` : 'completed';
-            return `### [${r.agent}] ${status}\n\n${truncateParallelOutput(getResultOutput(r))}`;
+            return `### [${r.agent}] ${status}\n${modelFacingText(r.observedModel, truncateParallelOutput(getResultOutput(r)))}`;
           });
           return {
             content: [{ type: 'text', text: `Parallel: ${successCount}/${results.length} succeeded\n\n${summaries.join('\n\n---\n\n')}` }],
@@ -696,9 +717,9 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
 
         const result = await run(resolvedTasks[0], onUpdate, 0);
         if (isFailedResult(result)) {
-          return { content: [{ type: 'text', text: `Agent ${result.stopReason || 'failed'}: ${getResultOutput(result)}` }], details: makeDetails('single')([result]) };
+          return { content: [{ type: 'text', text: modelFacingText(result.observedModel, `Agent ${result.stopReason || 'failed'}: ${getResultOutput(result)}`) }], details: makeDetails('single')([result]) };
         }
-        return { content: [{ type: 'text', text: getFinalOutput(result.messages) || '(no output)' }], details: makeDetails('single')([result]) };
+        return { content: [{ type: 'text', text: modelFacingText(result.observedModel, getFinalOutput(result.messages) || '(no output)') }], details: makeDetails('single')([result]) };
       };
       try {
         const result = await request();

@@ -445,10 +445,10 @@
       "source": "skills/interrogate/SKILL.md",
       "blob": "b59dff74c3f665cf82fabd9d197d814df8115531",
       "mode": "100644",
-      "adaptationSha256": "d8558b83ad30e1cb42f6d3658323042ff74651b017b6639b7a3bc20c84ca6fba",
+      "adaptationSha256": "0d3b0d3809b2c83a24e5219f353b199e97ab2272e4c569d1a20e5d5b21807bd7",
       "output": {
         "destination": "skills/interrogate/SKILL.md",
-        "sha256": "1c6e5c045afc4651e0b00898287c2815c5cf01541f9301e3e4e49cc460ff4131",
+        "sha256": "3eb0eddf189e081b9882584d8bed72ecc671be89d4b2e18a3d6041d78c7a574d",
         "mode": "100644"
       }
     },
@@ -1246,10 +1246,10 @@
       "source": "skills/show-me-your-work/SKILL.md",
       "blob": "6e98dd24e619a9097ddd51b2a58ffb8f92b62cbf",
       "mode": "100644",
-      "adaptationSha256": "a9ccc061687bd939f99f6611a51fb1f2df12e58dff30400fafc08711f74aa914",
+      "adaptationSha256": "972dde78ffb1cfbd55da76d5c834d964518a1c3ba3fef2de72bbe64021886fe0",
       "output": {
         "destination": "skills/show-me-your-work/SKILL.md",
-        "sha256": "347c96d61c54c4cf2f8ee66e6abad40454487f5a836f40ba465f0adbe7522be4",
+        "sha256": "b5d602489cb94696961bc8d53bd86e65436fe183e4d702fa6f4ae4b9dfd9464b",
         "mode": "100644"
       }
     },
