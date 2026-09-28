@@ -1,0 +1,4 @@
+{
+  "name": "pstack-pi",
+  "install": "export NVM_DIR=\"$HOME/.nvm\" && . \"$NVM_DIR/nvm.sh\" && nvm install 22.22.2 && nvm alias default 22.22.2 && nvm use 22.22.2 && npm ci"
+}
