@@ -533,10 +533,10 @@
       "source": "skills/poteto-mode/SKILL.md",
       "blob": "7559dea02e890c3e72db4dfcd226facae0779576",
       "mode": "100644",
-      "adaptationSha256": "893a518c1ad31ca336721d952f0d0482362061fef115f1442e2bb1619d46d5f7",
+      "adaptationSha256": "2c131f18ce427d558a232a3d248ad0cb0413494718cc34d1c62bd7792c6bb858",
       "output": {
         "destination": "skills/poteto-mode/SKILL.md",
-        "sha256": "144ef0dd9bb745351f746c6d4b49fc64d28d71ed97b28cf30dd96b55164e7fa0",
+        "sha256": "51b9d48cde3c8a6eddd9aa61793af2ca18795bc73e86db422278d4dfed876847",
         "mode": "100644"
       }
     },

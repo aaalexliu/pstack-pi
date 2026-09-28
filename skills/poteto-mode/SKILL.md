@@ -32,7 +32,7 @@ Remaining triggers:
 
 ## Principles
 
-Read the leaf skill in full for any principle you apply. Each entry names when it applies.
+Read the leaf skill in full for any principle you apply. Each entry names when it applies. Those leaves are sibling skills next to this directory, for example `../principle-prove-it-works/SKILL.md` or `/skill:principle-prove-it-works`. They are not under `principles/` here.
 
 **Core**
 
