@@ -88,7 +88,9 @@
       "all findings": "Build its prompt from `references/explainer-prompt.md` with every explorer's findings filled in.",
       "presentation": "Do not substantially rewrite it."
     },
-    "pi": {}
+    "pi": {
+      "reader not in the code": "The reader is not in the weeds of this codebase."
+    }
   },
   "skills/how/references/explainer-prompt.md": {
     "upstream": {
@@ -97,7 +99,9 @@
       "diagram": "A diagram should clarify, not decorate. If prose covers the flow, skip the diagram.",
       "gaps": "If the explorers flagged open questions or gaps, acknowledge them rather than hiding them"
     },
-    "pi": {}
+    "pi": {
+      "concrete case before the call chain": "Walk one concrete case before you name the call chain."
+    }
   },
   "skills/how/references/explorer-prompt.md": {
     "upstream": {
@@ -167,7 +171,8 @@
     },
     "pi": {
       "cleanup ownership and cleanliness": "prove merged or abandoned state and cleanliness",
-      "principle sibling leaves": "Those leaves are sibling skills next to this directory, for example `../principle-prove-it-works/SKILL.md` or `/skill:principle-prove-it-works`. They are not under `principles/` here."
+      "principle sibling leaves": "Those leaves are sibling skills next to this directory, for example `../principle-prove-it-works/SKILL.md` or `/skill:principle-prove-it-works`. They are not under `principles/` here.",
+      "reader not in the code": "**The reader is not in this code.**"
     }
   },
   "skills/poteto-mode/playbooks/authoring-a-skill.md": {
@@ -228,7 +233,9 @@
       "output shape": "Overview / Key Concepts / How It Works / Where Things Live / Gotchas",
       "real judgment": "include your real judgment with reasons"
     },
-    "pi": {}
+    "pi": {
+      "reader not in the code": "The reader is not in the weeds of this codebase."
+    }
   },
   "skills/poteto-mode/playbooks/multi-phase-plan.md": {
     "upstream": {
@@ -463,7 +470,17 @@
       "progressive": "Draw a short series instead, where each diagram redraws the last and adds a single part",
       "reply": "**Reply:** the explanation itself, never a report about what you did or delivered."
     },
-    "pi": {}
+    "pi": {
+      "reader not in the code": "The reader is not in the weeds of this codebase."
+    }
+  },
+  "skills/unslop/SKILL.md": {
+    "upstream": {
+      "concrete word": "Pick the concrete word."
+    },
+    "pi": {
+      "coined local names": "Do not invent a short name for a step, phase, or path and then use it as if the reader knew it."
+    }
   },
   "skills/why/SKILL.md": {
     "upstream": {
@@ -474,6 +491,8 @@
       "change constraints": "convert the lineage findings into a Preserve / Change / Avoid / Risk constraint set suitable for planning the change.",
       "recency": "The current shape is often the accretion of many earlier decisions. Trace back."
     },
-    "pi": {}
+    "pi": {
+      "why is not a change plan": "A why question is not a request to plan a change."
+    }
   }
 }

@@ -566,7 +566,7 @@
       "source": "skills/how/SKILL.md",
       "destination": "skills/how/SKILL.md",
       "expectedBlob": "7d4627c3bec8a6a994a3cf9bb5686ab33c39ac8f",
-      "reason": "Adapt only host tools, models, paths, and ownership; preserve all other upstream text.",
+      "reason": "Pi roles and bounded leaf readers. Explanations lead with the surrounding workflow, one concrete example, and no coined phase name.",
       "transforms": [
         {
           "find": "When in doubt, take the simple path.",
@@ -587,6 +587,11 @@
           "find": "Task ",
           "replace": "",
           "count": 2
+        },
+        {
+          "find": "Explore the codebase to answer \"how does X work?\" questions. Produce architectural explanations at the level of a senior engineer onboarding onto a subsystem, enough to build a working mental model, not so much that it reads like annotated source code.",
+          "replace": "Explore the codebase to answer \"how does X work?\" questions. The reader is not in the weeds of this codebase. Lead with the surrounding workflow: who acts, in what order, and what someone watching would see. Then one concrete example. Use a failure example when the point is a bug, a race, or an edge. Keep file and function names as places to look. Those names are not the explanation. Do not invent a short name for a phase. Use a name only if the code, the docs, or the user already use it, and say what it is the first time. Enough to follow the flow, not an annotated source dump.",
+          "count": 1
         }
       ]
     },
@@ -595,7 +600,7 @@
       "source": "skills/how/references/explainer-prompt.md",
       "destination": "skills/how/references/explainer-prompt.md",
       "expectedBlob": "3a36fb6736c5b74ac2774350841e332a019dec94",
-      "reason": "Adapt only host tools, models, paths, and ownership; preserve all other upstream text.",
+      "reason": "Pi read-tool names. The reader is not in this code: workflow and one example first, then file and function names, and no coined phase name.",
       "transforms": [
         {
           "find": "Read, Grep, and Glob",
@@ -605,6 +610,21 @@
         {
           "find": "The explorers did the work, so you shouldn't need to re-explore from scratch.",
           "replace": "When explorer findings are supplied, use them rather than re-exploring from scratch. On the direct path, explore the code yourself before explaining it.",
+          "count": 1
+        },
+        {
+          "find": "You are writing an architectural explanation for a senior engineer.",
+          "replace": "You are writing an explanation for someone who is not in the weeds of this codebase.",
+          "count": 1
+        },
+        {
+          "find": "Write an explanation a senior engineer unfamiliar with this area could read and walk away with a solid mental model, understanding the architecture well enough to start working in it confidently.",
+          "replace": "The reader is not in the weeds of this codebase. Lead with the surrounding workflow: who acts, in what order, and what someone watching would see. Then one concrete example. Use a failure example when the point is a bug, a race, or an edge. Keep file and function names as places to look. Those names are not the explanation. Do not invent a short name for a phase. Use a name only if the code, the docs, or the user already use it, and say what it is the first time.",
+          "count": 1
+        },
+        {
+          "find": "Use prose, not pseudocode. Reference specific files and functions so the reader knows where to look, but don't dump large code blocks unless a snippet is essential to a point.",
+          "replace": "Use prose, not pseudocode. Walk one concrete case before you name the call chain. Reference specific files and functions so the reader knows where to look, but don't dump large code blocks unless a snippet is essential to a point.",
           "count": 1
         }
       ]
@@ -839,7 +859,7 @@
       "source": "skills/poteto-mode/SKILL.md",
       "destination": "skills/poteto-mode/SKILL.md",
       "expectedBlob": "7559dea02e890c3e72db4dfcd226facae0779576",
-      "reason": "Preserve upstream workflow and output; change host-specific runtime boundaries and unavailable paths only.",
+      "reason": "Preserve upstream workflow and output; change host-specific runtime boundaries and unavailable paths only. Explanations lead with the surrounding workflow, one concrete example, and no coined phase name.",
       "transforms": [
         {
           "find": "Poteto Mode",
@@ -985,6 +1005,11 @@
           "find": "(Shipping (not bundled; design local steps through /skill:figure-it-out, preserving the stated gates)).",
           "replace": "(not bundled; use the local Shipping gates below).",
           "count": 1
+        },
+        {
+          "find": "- **Frame impact for the consumer and the maintainer.** Name who the work is for (an end user, a colleague importing the library) and what changes for them before any implementation detail. Then what the next engineer who owns this code inherits. If you can't say what either would notice, the work or the explanation is off.",
+          "replace": "- **Frame impact for the consumer and the maintainer.** Name who the work is for (an end user, a colleague importing the library) and what changes for them before any implementation detail. Then what the next engineer who owns this code inherits. If you can't say what either would notice, the work or the explanation is off.\n- **The reader is not in this code.** When a reply explains a behavior, a finding, or a design choice, lead with the surrounding workflow: who acts, in what order, and what someone watching would see. Then one concrete example. Use a failure example when the point is a bug, a race, or an edge. Keep file and function names as places to look. Those names are not the explanation. Do not invent a short name for a phase. Use a name only if the code, the docs, or the user already use it, and say what it is the first time.",
+          "count": 1
         }
       ]
     },
@@ -1099,9 +1124,18 @@
       ]
     },
     {
-      "kind": "copy",
+      "kind": "transform",
       "source": "skills/poteto-mode/playbooks/investigation.md",
-      "destination": "skills/poteto-mode/playbooks/investigation.md"
+      "destination": "skills/poteto-mode/playbooks/investigation.md",
+      "expectedBlob": "cd119f04f23e0b7acb3f8cc5ba13ce4ab7aa6c7d",
+      "reason": "Explanations lead with the surrounding workflow, a concrete failure example, and no coined phase name.",
+      "transforms": [
+        {
+          "find": "3. Produce the `how`-shaped output (Overview / Key Concepts / How It Works / Where Things Live / Gotchas), or a recommendation with a tradeoffs table if the request is a decision between alternatives.\n4. Apply the **unslop** skill to the reply.",
+          "replace": "3. Produce the `how`-shaped output (Overview / Key Concepts / How It Works / Where Things Live / Gotchas), or a recommendation with a tradeoffs table if the request is a decision between alternatives. The reader is not in the weeds of this codebase. Lead with the surrounding workflow: who acts, in what order, and what someone watching would see. Then one concrete example. Use a failure example when the point is a bug, a race, or an edge. Keep file and function names as places to look. Those names are not the explanation. Do not invent a short name for a phase. Use a name only if the code, the docs, or the user already use it, and say what it is the first time.\n4. Apply the **unslop** skill to the reply.",
+          "count": 1
+        }
+      ]
     },
     {
       "kind": "transform",
@@ -2358,7 +2392,7 @@
     {
       "kind": "transform",
       "source": "skills/teach/SKILL.md",
-      "reason": "Adapt only host tools, models, paths, and ownership; preserve all other upstream text.",
+      "reason": "Parent-owned research and available visual tools. The person is not in this code: workflow and one example first, then anchors, and no coined phase name.",
       "destination": "skills/teach/SKILL.md",
       "expectedBlob": "25369f3f554ed6b5826340ae3eee688fac0bda80",
       "transforms": [
@@ -2370,6 +2404,11 @@
         {
           "find": ", don't settle for describing it in words",
           "replace": " with an available parent image tool, don't settle for describing it in words. If no image tool is available, draw the same progressive picture with ASCII or an allowed parent SVG/HTML output and state the limitation; do not change the target code",
+          "count": 1
+        },
+        {
+          "find": "Listing functions and constants is reference, not teaching.",
+          "replace": "Listing functions and constants is reference, not teaching. The reader is not in the weeds of this codebase. Lead with the surrounding workflow: who acts, in what order, and what someone watching would see. Then one concrete example. Use a failure example when the point is a bug, a race, or an edge. Keep file and function names as places to look. Those names are not the explanation. Do not invent a short name for a phase. Use a name only if the code, the docs, or the user already use it, and say what it is the first time.",
           "count": 1
         }
       ]
@@ -2408,14 +2447,23 @@
       "destination": "skills/typescript-best-practices/references/patterns.md"
     },
     {
-      "kind": "copy",
+      "kind": "transform",
       "source": "skills/unslop/SKILL.md",
-      "destination": "skills/unslop/SKILL.md"
+      "destination": "skills/unslop/SKILL.md",
+      "expectedBlob": "a3a7dc7baf0bed5fed4fe0f12ea7fcfe48d94c89",
+      "reason": "Reject a coined local name for a step or phase. Say what happens, or use a name the code, the docs, or the user already use.",
+      "transforms": [
+        {
+          "find": "Pick the concrete word.\n\n### Plain speech",
+          "replace": "Pick the concrete word.\n\n34. **Coined local names.** Do not invent a short name for a step, phase, or path and then use it as if the reader knew it. \"The intermediate wave\" for a mid-suite cleanup is a made-up label. Say what happens. Use a name only if the code, the docs, or the user already use it. The first time you use a real name the reader may not know, say what it is in the same sentence.\n\n### Plain speech",
+          "count": 1
+        }
+      ]
     },
     {
       "kind": "transform",
       "source": "skills/why/SKILL.md",
-      "reason": "Adapt only host tools, models, paths, and ownership; preserve all other upstream text.",
+      "reason": "Parent owns Git and MCP searches. Present the answer as a workflow and one concrete example before the evidence sections. Do not coin a phase name. A why question is not a change plan.",
       "destination": "skills/why/SKILL.md",
       "expectedBlob": "53045ddba6f52fa0eec44101fd8e363d47141832",
       "transforms": [
@@ -2462,6 +2510,16 @@
         {
           "find": "`references/sources/*.md`",
           "replace": "The files under references/sources",
+          "count": 1
+        },
+        {
+          "find": "Take the synthesizer's output and present it to the user. You may lightly edit for clarity or add context from the conversation, but **do not rewrite the confidence language**.",
+          "replace": "Take the synthesizer's output and present it to the user. You may lightly edit for clarity or add context from the conversation, but **do not rewrite the confidence language**.\n\nThe reader is not in the weeds of this codebase. Lead with the surrounding workflow: who acts, in what order, and what someone watching would see. Then one concrete example. Use a failure example when the point is a bug, a race, or an edge. Keep file and function names as places to look. Those names are not the explanation. Do not invent a short name for a phase. Use a name only if the code, the docs, or the user already use it, and say what it is the first time. Then the evidence sections. Keep their confidence wording.",
+          "count": 1
+        },
+        {
+          "find": "After the Sources Consulted block, if the user's `why` question is a precursor to actually changing this code, convert the lineage findings into a Preserve / Change / Avoid / Risk constraint set suitable for planning the change.",
+          "replace": "A why question is not a request to plan a change. Emit the constraint set only when they asked what to change or what to keep.\n\nAfter the Sources Consulted block, if the user's `why` question is a precursor to actually changing this code, convert the lineage findings into a Preserve / Change / Avoid / Risk constraint set suitable for planning the change.",
           "count": 1
         }
       ]
