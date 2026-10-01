@@ -132,9 +132,13 @@ The synthesizer gets:
 
 Take the synthesizer's output and present it to the user. You may lightly edit for clarity or add context from the conversation, but **do not rewrite the confidence language**.
 
+The reader is not in the weeds of this codebase. Lead with the surrounding workflow: who acts, in what order, and what someone watching would see. Then one concrete example. Use a failure example when the point is a bug, a race, or an edge. Keep file and function names as places to look. Those names are not the explanation. Do not invent a short name for a phase. Use a name only if the code, the docs, or the user already use it, and say what it is the first time. Then the evidence sections. Keep their confidence wording.
+
 ## Output Format
 
 The output structure is the one in `references/synthesizer-prompt.md`: The Question, The Code in Question, What We Found, What We Can Reasonably Infer, Competing Hypotheses, What We Don't Know, Sources Consulted, Confidence Summary. Adapt as needed, but keep the confidence separation intact, and keep Sources Consulted as one line per investigator, including the ones that returned nothing or were skipped, with the reason.
+
+A why question is not a request to plan a change. Emit the constraint set only when they asked what to change or what to keep.
 
 After the Sources Consulted block, if the user's `why` question is a precursor to actually changing this code, convert the lineage findings into a Preserve / Change / Avoid / Risk constraint set suitable for planning the change.
 
