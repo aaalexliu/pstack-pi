@@ -111,7 +111,7 @@ test('interrogate preserves upstream bytes outside Step 3 and claim verification
     'the exact configured entry, including `inherit-parent`',
     'do not substitute assigned personas or different prompts',
     'do not silently substitute a model or edit configuration',
-    'label inherited or unresolved identities as unknown, not a guessed model name',
+    'If the line is missing or `unknown`, label the identity unknown. Do not guess from the requested selector',
   ]) assert.ok(actual.includes(clause), clause);
 });
 
