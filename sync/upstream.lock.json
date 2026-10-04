@@ -434,10 +434,10 @@
       "source": "skills/how/SKILL.md",
       "blob": "cd22fff659f14822ad2f485f711a355b6da0668d",
       "mode": "100644",
-      "adaptationSha256": "2b53ff04e51d330efc6b64ee5b6fe720dcd15a7e0c6df93cb799b4081465c230",
+      "adaptationSha256": "0ac4d4fd02e576b3a45d691b5763db2b2f99dbbfe275fc16449d320c11df2f94",
       "output": {
         "destination": "skills/how/SKILL.md",
-        "sha256": "2d1938b98f9cd7ecb0f53a826e8269851cdea30a6637f22f9865da89ad700f66",
+        "sha256": "e5f40cc7f032a10d0f2479c885e994f6cd7d7182564cdff19fccf787aa20faa5",
         "mode": "100644"
       }
     },
@@ -445,10 +445,10 @@
       "source": "skills/how/references/explainer-prompt.md",
       "blob": "3a36fb6736c5b74ac2774350841e332a019dec94",
       "mode": "100644",
-      "adaptationSha256": "fd1bc04ef09377041457af5c0232f9f46314befa0cb9b0f137aa424488d97b3d",
+      "adaptationSha256": "d991b1f81e63618d75978d296116242d18c062ceb6fee9a4fe26d279c6b53959",
       "output": {
         "destination": "skills/how/references/explainer-prompt.md",
-        "sha256": "b935972ac39466cdd075634bd181edac153000d74d2d540afc2caf3d6e4a2ece",
+        "sha256": "a90ca3cc8d50a5d4ef234baadf9827fca96bb2f373b08a49b2288c026a1aa4cb",
         "mode": "100644"
       }
     },
@@ -555,10 +555,10 @@
       "source": "skills/poteto-mode/SKILL.md",
       "blob": "90bfebeecd3b8344eee39d08803a3e2a0f09e3c9",
       "mode": "100644",
-      "adaptationSha256": "ff0a52000a146c9b27ff8e767353541db09624018d1551b8b71c374199c17c1c",
+      "adaptationSha256": "1bb2ed8ed5d58839b3206aeaaddb87b71a13d2aab1361f39ff1b4bd2f38681f4",
       "output": {
         "destination": "skills/poteto-mode/SKILL.md",
-        "sha256": "95792b4071f2cb45f6ae4d55baf44a7539fdbd7d5cd448d8854753501e4641ce",
+        "sha256": "7a79951b4e8d07dcf99bb928316deb2258f085354d20976519f3dfca9c6dfa7e",
         "mode": "100644"
       }
     },
@@ -649,10 +649,10 @@
       "source": "skills/poteto-mode/playbooks/investigation.md",
       "blob": "cd119f04f23e0b7acb3f8cc5ba13ce4ab7aa6c7d",
       "mode": "100644",
-      "adaptationSha256": null,
+      "adaptationSha256": "9c088cd8d7f104832e924c85972125c7f74fc8ca7994b2214790df8ef653cd21",
       "output": {
         "destination": "skills/poteto-mode/playbooks/investigation.md",
-        "sha256": "dc66bcf6af3a074fc7f67aa5e12b93ef571a4fb4d8e17f2f1af5ae5359f42e46",
+        "sha256": "108f12f96771030554aae590dabc8f839e606d3d7022cb780bc2252ef7bf88eb",
         "mode": "100644"
       }
     },
@@ -1330,10 +1330,10 @@
       "source": "skills/teach/SKILL.md",
       "blob": "25369f3f554ed6b5826340ae3eee688fac0bda80",
       "mode": "100644",
-      "adaptationSha256": "e961354dee7bbe4b90e633644aa41f7d8a7ce0ed7442747c65c57e6fdaee1d86",
+      "adaptationSha256": "0b884c2ed8b12826bc0fbb7e57b11b9254feb6eb56b420afca81764f984d85be",
       "output": {
         "destination": "skills/teach/SKILL.md",
-        "sha256": "4e94b4e1327f97c9ceeddcd8abbab94aeae613a85664a6dc5940071fc9f29398",
+        "sha256": "3d5c60a05ecf1a46cbbb3cafb521e6aef3ed28f23a590d23e6ac80e87f984938",
         "mode": "100644"
       }
     },
@@ -1374,10 +1374,10 @@
       "source": "skills/unslop/SKILL.md",
       "blob": "229a090708710c36caa0017f8d33e90880dc6846",
       "mode": "100644",
-      "adaptationSha256": null,
+      "adaptationSha256": "a8e58c07cc41a139e0db3a00a9b34c4437f9a4d788aa7542b25c2abc90992359",
       "output": {
         "destination": "skills/unslop/SKILL.md",
-        "sha256": "195411d320b5b328f9f642baf59757ed19aaf0931c0838740e0aca273d538dc1",
+        "sha256": "d9305bf6c5a61f9bd2939b8107a2ca3c014b9c537fac054cc7343f72dc189b3e",
         "mode": "100644"
       }
     },
@@ -1385,10 +1385,10 @@
       "source": "skills/why/SKILL.md",
       "blob": "daac2c734a8f8fe43d30663054d694066f2b41ec",
       "mode": "100644",
-      "adaptationSha256": "ed4f98124a089a9ea43fc2e1f4d9d0d54cfac0f9c38bc6612b9341d75655732c",
+      "adaptationSha256": "777a1f7c256cdeae592bd83c3cee65a9d0082195e22bc284c8e96be793bf735c",
       "output": {
         "destination": "skills/why/SKILL.md",
-        "sha256": "0fe4d3eb8ada067c9755cf060d9165b8153878e87bb0ba9e7bdd1e22b9f4080a",
+        "sha256": "13e8e83294064474a5661953e3c0f2f4c72af6a4602d445c6469843be49ad7e4",
         "mode": "100644"
       }
     },
