@@ -23,7 +23,7 @@ test('production uses no full-file replacements and covers every converted workf
   const converted = manifest.files.filter((file) =>
     (file.kind === 'transform' && !earlierTransforms.includes(file.source)) ||
     file.source === 'skills/poteto-mode/playbooks/investigation.md');
-  assert.equal(converted.length, 40);
+  assert.equal(converted.length, 41);
   assert.deepEqual(Object.keys(contracts).sort(), converted.map(({ source }) => source).sort());
 });
 
@@ -111,7 +111,7 @@ test('interrogate preserves upstream bytes outside Step 3 and claim verification
     'the exact configured entry, including `inherit-parent`',
     'do not substitute assigned personas or different prompts',
     'do not silently substitute a model or edit configuration',
-    'label inherited or unresolved identities as unknown, not a guessed model name',
+    'Without a configured role, use one `inherit-parent` reviewer and disclose that model diversity is unavailable',
   ]) assert.ok(actual.includes(clause), clause);
 });
 

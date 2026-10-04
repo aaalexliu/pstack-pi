@@ -1,10 +1,10 @@
 # Reviewed Pi adaptations
 
-**No full-file replacements remain.** The production manifest classifies 158 upstream files as 50 copies, 45 exact transforms, and 63 omissions. The Pi-owned `general-purpose` agent is a separate addition, not an upstream replacement.
+**No full-file replacements remain.** The production manifest classifies 161 upstream files as 52 copies, 46 exact transforms, and 63 omissions. The Pi-owned `general-purpose` agent is a separate addition, not an upstream replacement.
 
 Every transform starts from the pinned upstream file. It changes exact literal regions with checked occurrence counts; everything else stays verbatim. The importer requires the expected Git blob and locks the transform digest and output hash. Routine sync runs no LLM and performs no fuzzy matching.
 
-The 31 former replacements were rebuilt from upstream, not encoded as whole-file patches of the rewrites. Thirty became targeted transforms. `skills/poteto-mode/playbooks/investigation.md` needed no host edits and is now a byte-for-byte copy. All 23 principle skills also remain byte-for-byte copies.
+The 31 former replacements were rebuilt from upstream, not encoded as whole-file patches of the rewrites. Thirty became targeted transforms. `skills/poteto-mode/playbooks/investigation.md` needed no host edits and is now a byte-for-byte copy. Principle skills remain byte-for-byte copies, including the new `principle-explain-the-number` leaf. `benchmark-checklist` is a copy. `correct` only rewrites the Pi skill command.
 
 ## Transformed files
 
@@ -49,7 +49,8 @@ The manifest contains the exact ordered `find`, `replace`, and `count` values fo
 | `skills/reflect/references/judgment-reviewer.md` | Pi transcript/tool paths and invocation evidence; parent performs referenced external lookups. |
 | `skills/reflect/references/synthesizer.md` | Parent external checks, Pi authoring routes, and supported trigger metadata; keep acceptance criteria and output tables. |
 | `skills/reflect/references/tooling-reviewer.md` | Pi transcript/tool paths and invocation evidence; parent performs referenced external lookups. |
-| `skills/setup-pstack/SKILL.md` | Pi model discovery and version-1 role JSON instead of Cursor rules; keep confirmation, validation, and verification-skill offer. |
+| `skills/correct/SKILL.md` | Pi skill command only. |
+| `skills/setup-pstack/SKILL.md` | Pi model discovery and version-1 role JSON instead of Cursor rules; keep budget ask, confirmation, validation, and verification-skill offer. |
 | `skills/show-me-your-work/SKILL.md` | Scoped Pi sessions, a manual TSV appender, append-only corrections, and explicit independent reviewer selection. |
 | `skills/swarm/SKILL.md` | Local leaf workers and Pi model roles instead of cloud fields; retain logical coverage across bounded requests. |
 | `skills/teach/SKILL.md` | Parent-owned research and available visual tools; keep teaching and progressive-diagram rules. |
@@ -72,4 +73,4 @@ Commit `0a6f170` activated Interrogate as an 18-line replacement of the 111-line
 
 Commit `033024e` restored the missing contracts and converted Interrogate to two exact transforms. This pass removes the remaining full replacements. Future edits should change the narrow host-specific region, not summarize the skill. Do not use a giant transform to disguise a full rewrite.
 
-The upstream pin remains `f5bdd6826fd0a0d9cbc4347134c3a74a200b9d9d`. Later Cursor model-default and reasoning-budget changes require a separate upstream update.
+The upstream pin is `e43c7ee26e0038c6c1fa8380dd34ce86ff94cb2a` (tree `54dfdd87fd191ddda7fce01dd354d220adaeeacc`).

@@ -10,11 +10,11 @@ import { sha256 } from '../../scripts/sync-upstream.mjs';
 
 const repository = fileURLToPath(new URL('../../', import.meta.url));
 const productionSkills = [
-  'architect', 'arena', 'automate-me', 'blast-radius',
-  'bro', 'create-verification-skill', 'figure-it-out', 'how',
+  'architect', 'arena', 'automate-me', 'benchmark-checklist', 'blast-radius',
+  'bro', 'correct', 'create-verification-skill', 'figure-it-out', 'how',
   'interrogate', 'maintain-verification-skill', 'make-bot-ui', 'no-comments',
   'poteto-mode', 'principle-attack-the-premise', 'principle-boundary-discipline', 'principle-build-the-lever',
-  'principle-encode-lessons-in-structure', 'principle-exhaust-the-design-space', 'principle-experience-first', 'principle-fix-root-causes',
+  'principle-encode-lessons-in-structure', 'principle-exhaust-the-design-space', 'principle-experience-first', 'principle-explain-the-number', 'principle-fix-root-causes',
   'principle-foundational-thinking', 'principle-guard-the-context-window', 'principle-laziness-protocol', 'principle-make-operations-idempotent',
   'principle-migrate-callers-then-delete-legacy-apis', 'principle-minimize-reader-load', 'principle-model-the-domain', 'principle-never-block-on-the-human',
   'principle-outcome-oriented-execution', 'principle-prove-it-works', 'principle-redesign-from-first-principles', 'principle-separate-before-serializing-shared-state',
