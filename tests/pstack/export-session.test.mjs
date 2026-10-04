@@ -32,12 +32,13 @@ test('tokensFromUsage sums provider usage fields', () => {
 });
 
 test('branchUsagePoints keeps message order and assistant tokens only', () => {
-  const branch = [
+  /** @type {import('@earendil-works/pi-coding-agent').SessionEntry[]} */
+  const branch = /** @type {any} */ ([
     { type: 'message', id: 'u1', parentId: null, timestamp: '2026-03-27T18:05:00.000Z', message: { role: 'user', content: 'hi', timestamp: Date.parse('2026-03-27T18:05:00.000Z') } },
     { type: 'message', id: 'a1', parentId: 'u1', timestamp: '2026-03-27T18:05:30.000Z', message: { role: 'assistant', content: [], usage: { input: 50, output: 5, cacheRead: 0, cacheWrite: 0, totalTokens: 55 }, timestamp: Date.parse('2026-03-27T18:05:30.000Z') } },
     { type: 'model_change', id: 'm1', parentId: 'a1', timestamp: '2026-03-27T18:06:00.000Z', provider: 'x', modelId: 'y' },
     { type: 'message', id: 'a2', parentId: 'm1', timestamp: '2026-03-27T18:06:10.000Z', message: { role: 'assistant', content: [], usage: { input: 1, output: 2, cacheRead: 9, cacheWrite: 0, totalTokens: 12 }, timestamp: Date.parse('2026-03-27T18:06:10.000Z') } },
-  ];
+  ]);
   const points = branchUsagePoints(branch);
   assert.equal(points.length, 3);
   assert.equal(points[0].entryId, 'u1');
@@ -104,7 +105,7 @@ test('registerExport wires one command', () => {
   /** @type {Map<string, any>} */
   const commands = new Map();
   registerExport(/** @type {any} */ ({
-    registerCommand(name, value) { commands.set(name, value); },
+    registerCommand(/** @type {string} */ name, /** @type {any} */ value) { commands.set(name, value); },
   }));
   assert.deepEqual([...commands.keys()], ['pstack-export']);
 });
@@ -142,7 +143,7 @@ test('pstack-export enhances stock HTML from a session file', async () => {
   /** @type {Array<{message: string, level: string}>} */
   const notifications = [];
   registerExport(/** @type {any} */ ({
-    registerCommand(name, value) { commands.set(name, value); },
+    registerCommand(/** @type {string} */ name, /** @type {any} */ value) { commands.set(name, value); },
   }));
   const command = commands.get('pstack-export');
   await command.handler(outPath, {
@@ -166,7 +167,7 @@ test('pstack-export enhances stock HTML from a session file', async () => {
       ],
     },
     ui: {
-      notify(message, level) { notifications.push({ message, level }); },
+      notify(/** @type {string} */ message, /** @type {string} */ level) { notifications.push({ message, level }); },
     },
   });
 
