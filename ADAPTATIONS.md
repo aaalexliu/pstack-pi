@@ -22,7 +22,7 @@ The manifest contains the exact ordered `find`, `replace`, and `count` values fo
 | `skills/create-verification-skill/references/feature-map-example/search.md` | Restore the query and results before recording proof after the clear-query step. |
 | `skills/figure-it-out/SKILL.md` | Pi command and todos; bounded readers/writers, parent-owned services, and isolated scratch outputs. |
 | `skills/how/SKILL.md` | Replace Cursor task fields and models with Pi roles and bounded leaf readers. Keep the senior-engineer bar. Explanations still lead with the surrounding workflow, one concrete example, and no coined phase name. |
-| `skills/how/references/explainer-prompt.md` | Pi read-tool names; distinguish direct exploration from supplied explorer findings. Keep the senior-engineer audience. The reader is still not in this code: workflow and one example first, then file and function names. Drop "start working in it confidently." |
+| `skills/how/references/explainer-prompt.md` | Pi read-tool names; distinguish direct exploration from supplied explorer findings. Keep the senior-engineer audience, including the depth bar. The reader is still not in this code: workflow and one example first, then file and function names. |
 | `skills/how/references/explorer-prompt.md` | Pi read-tool names only. |
 | `skills/interrogate/SKILL.md` | Replace only reviewer launch mechanics; add parent claim verification. Scope, judgment, and verdict format stay verbatim. |
 | `skills/maintain-verification-skill/SKILL.md` | Pi skill paths/commands, bounded source readers, parent driving, and authorized publication. |

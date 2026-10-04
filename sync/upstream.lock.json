@@ -445,10 +445,10 @@
       "source": "skills/how/references/explainer-prompt.md",
       "blob": "3a36fb6736c5b74ac2774350841e332a019dec94",
       "mode": "100644",
-      "adaptationSha256": "d991b1f81e63618d75978d296116242d18c062ceb6fee9a4fe26d279c6b53959",
+      "adaptationSha256": "890c5e44b1511cdff1da73f133072b8725f7795688a75df8d7e6f8a8c4e4fe73",
       "output": {
         "destination": "skills/how/references/explainer-prompt.md",
-        "sha256": "a90ca3cc8d50a5d4ef234baadf9827fca96bb2f373b08a49b2288c026a1aa4cb",
+        "sha256": "548b4c261a09277b62f03cd64c92d3de84cbf896a224b0eec3fdcd2b607c516a",
         "mode": "100644"
       }
     },
