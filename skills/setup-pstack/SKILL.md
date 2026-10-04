@@ -1,6 +1,6 @@
 ---
 name: setup-pstack
-description: Configure which models pstack uses per role and at what reasoning budget. Detects your available models and writes the user-level Pi role map that overrides the skill defaults, including an optional reasoning-budget preference. Use for /skill:setup-pstack, "configure pstack models", "pstack budget", or changing pstack's model choices.
+description: Configure which models pstack uses per role and at what reasoning budget. Detects your available models and writes the user-level Pi role map that overrides the skill defaults. It does not store a reasoning budget. Use for /skill:setup-pstack, "configure pstack models", "pstack budget", or changing pstack's model choices.
 disable-model-invocation: true
 ---
 
@@ -20,7 +20,7 @@ The default role-to-model mapping is the JSON shape shown in step 5 below. Call 
 
 ### 3. Budget, map, and confirm
 
-**(a) Ask for a budget.** Prefer an available structured choice tool or numbered chat choices over free text. Offer these four options with these exact labels, and name the current budget when a prior run recorded one.
+**(a) Ask for a budget.** Prefer an available structured choice tool or numbered chat choices over free text. Offer these four options with these exact labels, and ask every run, because models.json does not store a budget; name a prior choice only when the user states it in this chat.
 
 - `unlimited - keep max`
 - `large - xhigh reasoning`

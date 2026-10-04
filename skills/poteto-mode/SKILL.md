@@ -90,7 +90,9 @@ Use `subagent` for bounded leaf tasks. Use `poteto-agent` for writes and `genera
 
 The parent alone orchestrates. One live request contains at most eight `tasks`, with at most four active children. Children cannot delegate or resume a nested workflow. Split larger workloads into bounded requests. Give file pointers, exact scope, acceptance checks, and separate writable outputs. A branch alone does not isolate files in a shared checkout. Use distinct worktrees or scratch paths.
 
-You own every subagent's work. Review the diff and write your own summary, don't pass through what it said. Interrupt-chained resumes silently drop directives, so fire a fresh subagent with consolidated scope rather than trusting a "done" summary. A second opinion is the same prompt against a different model. Agreement is high-signal.
+You own every subagent's work. Review the diff and write your own summary, don't pass through what it said. A second opinion is the same prompt against a different model. Agreement is high-signal.
+
+**Fresh subagents by default.** Give new work to a fresh subagent with consolidated scope, meaning the original brief, every later directive, and the prior agent's report and branch. This holds for a fix round, a follow-up, a retry, and the next queue item. Pi cannot resume a child. When the new work needs state that lived only in that agent (its checkout, uncommitted changes, or a process it still runs), put that state in the handoff. A stop or hold order is not reuse. A role such as a PR owner outlives its agent. Once that agent returns, a fresh agent takes the role's next round. Interrupt-chained resumes silently drop directives, so fire a fresh subagent with consolidated scope rather than trusting a "done" summary.
 
 ## Host boundary
 

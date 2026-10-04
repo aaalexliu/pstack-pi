@@ -555,10 +555,10 @@
       "source": "skills/poteto-mode/SKILL.md",
       "blob": "90bfebeecd3b8344eee39d08803a3e2a0f09e3c9",
       "mode": "100644",
-      "adaptationSha256": "aab19988492bc50341252bf6577767074a15753e3ba2cc68e32137ebbdba51b2",
+      "adaptationSha256": "ff0a52000a146c9b27ff8e767353541db09624018d1551b8b71c374199c17c1c",
       "output": {
         "destination": "skills/poteto-mode/SKILL.md",
-        "sha256": "f2a20bc38df38761b42c64b562f610c2c167d942629723eb5375ef50f31be5b0",
+        "sha256": "95792b4071f2cb45f6ae4d55baf44a7539fdbd7d5cd448d8854753501e4641ce",
         "mode": "100644"
       }
     },
@@ -1268,10 +1268,10 @@
       "source": "skills/setup-pstack/SKILL.md",
       "blob": "1009e73c6116c8f6c24b5870c8f0600ae144b631",
       "mode": "100644",
-      "adaptationSha256": "35b1b555987b3e4e15d417af44fc2e385c09cbaa474ee61650a57a67763045a0",
+      "adaptationSha256": "1115a26dd1ff39cb8dcca9b3131dd2742b38b99f3bebbb879f51d3349e3c4f61",
       "output": {
         "destination": "skills/setup-pstack/SKILL.md",
-        "sha256": "99e0d4f09ebb7dd5bba4ee9761bb4586dd4ebe613351c7d7594a7bab5dea0a3b",
+        "sha256": "b1f03c6260c92348ac223ea106b8ece1a6604f5e2e43c08e66b2a29fd1898088",
         "mode": "100644"
       }
     },

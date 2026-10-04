@@ -28,7 +28,7 @@ The manifest contains the exact ordered `find`, `replace`, and `count` values fo
 | `skills/maintain-verification-skill/SKILL.md` | Pi skill paths/commands, bounded source readers, parent driving, and authorized publication. |
 | `skills/make-bot-ui/SKILL.md` | Replace Cursor routine/secret-card UI assumptions with documented service access and private local secret setup. Keep the webhook protocol. |
 | `skills/no-comments/SKILL.md` | Pi reviewer and skill commands; parent applies deletions and owns external checks. |
-| `skills/poteto-mode/SKILL.md` | Remove unsupported frontmatter, Cursor plugins, and task defaults. Add Pi boundaries, string-checklist API examples, and explicit fallbacks for still-unbundled workflows. Tier A playbook index paths stay bundled. Point principle leaves at sibling paths such as `../principle-prove-it-works/SKILL.md` or `/skill:principle-prove-it-works` so Pi's skill-relative base does not invent `principles/`. |
+| `skills/poteto-mode/SKILL.md` | Remove unsupported frontmatter, Cursor plugins, and task defaults. Add Pi boundaries, string-checklist API examples, and explicit fallbacks for still-unbundled workflows. Keep the fresh-subagent default and consolidated handoff; Pi cannot resume a child. Tier A playbook index paths stay bundled. Point principle leaves at sibling paths such as `../principle-prove-it-works/SKILL.md` or `/skill:principle-prove-it-works` so Pi's skill-relative base does not invent `principles/`. |
 | `skills/poteto-mode/playbooks/authoring-a-skill.md` | Replace Cursor built-in create-skill with Pi skill-authoring docs or an installed create-skill / figure-it-out path. |
 | `skills/poteto-mode/playbooks/bug-fix.md` | Replace the Cursor loop command and default model with local checkpoints and the bug-fix role. |
 | `skills/poteto-mode/playbooks/eval.md` | Replace Cursor agent-transcripts paths with project-scoped Pi session paths. |
@@ -50,7 +50,7 @@ The manifest contains the exact ordered `find`, `replace`, and `count` values fo
 | `skills/reflect/references/synthesizer.md` | Parent external checks, Pi authoring routes, and supported trigger metadata; keep acceptance criteria and output tables. |
 | `skills/reflect/references/tooling-reviewer.md` | Pi transcript/tool paths and invocation evidence; parent performs referenced external lookups. |
 | `skills/correct/SKILL.md` | Pi skill command only. |
-| `skills/setup-pstack/SKILL.md` | Pi model discovery and version-1 role JSON instead of Cursor rules; keep budget ask, confirmation, validation, and verification-skill offer. |
+| `skills/setup-pstack/SKILL.md` | Pi model discovery and version-1 role JSON instead of Cursor rules; keep the budget ask in chat, confirmation, validation, and verification-skill offer. `models.json` does not store the budget. |
 | `skills/show-me-your-work/SKILL.md` | Scoped Pi sessions, a manual TSV appender, append-only corrections, and explicit independent reviewer selection. |
 | `skills/swarm/SKILL.md` | Local leaf workers and Pi model roles instead of cloud fields; retain logical coverage across bounded requests. |
 | `skills/teach/SKILL.md` | Parent-owned research and available visual tools; keep teaching and progressive-diagram rules. |
