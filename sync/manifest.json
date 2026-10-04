@@ -585,7 +585,7 @@
       "source": "skills/how/SKILL.md",
       "destination": "skills/how/SKILL.md",
       "expectedBlob": "cd22fff659f14822ad2f485f711a355b6da0668d",
-      "reason": "Pi roles and bounded leaf readers. Explanations lead with the surrounding workflow, one concrete example, and no coined phase name.",
+      "reason": "Pi roles and bounded leaf readers. Keep the senior-engineer bar. Explanations still lead with the surrounding workflow, one concrete example, and no coined phase name.",
       "transforms": [
         {
           "find": "When in doubt, take the simple path.",
@@ -614,7 +614,7 @@
         },
         {
           "find": "Explore the codebase to answer \"how does X work?\" questions. Produce architectural explanations at the level of a senior engineer onboarding onto a subsystem, enough to build a working mental model, not so much that it reads like annotated source code.",
-          "replace": "Explore the codebase to answer \"how does X work?\" questions. The reader is not in the weeds of this codebase. Lead with the surrounding workflow: who acts, in what order, and what someone watching would see. Then one concrete example. Use a failure example when the point is a bug, a race, or an edge. Keep file and function names as places to look. Those names are not the explanation. Do not invent a short name for a phase. Use a name only if the code, the docs, or the user already use it, and say what it is the first time. Enough to follow the flow, not an annotated source dump.",
+          "replace": "Explore the codebase to answer \"how does X work?\" questions. Produce architectural explanations at the level of a senior engineer onboarding onto a subsystem, enough to build a working mental model, not so much that it reads like annotated source code. The reader is not in the weeds of this codebase. Lead with the surrounding workflow: who acts, in what order, and what someone watching would see. Then one concrete example. Use a failure example when the point is a bug, a race, or an edge. Keep file and function names as places to look. Those names are not the explanation. Do not invent a short name for a phase. Use a name only if the code, the docs, or the user already use it, and say what it is the first time.",
           "count": 1
         }
       ]
@@ -624,7 +624,7 @@
       "source": "skills/how/references/explainer-prompt.md",
       "destination": "skills/how/references/explainer-prompt.md",
       "expectedBlob": "3a36fb6736c5b74ac2774350841e332a019dec94",
-      "reason": "Pi read-tool names. The reader is not in this code: workflow and one example first, then file and function names, and no coined phase name.",
+      "reason": "Pi read-tool names. Keep the senior-engineer audience. The reader is still not in this code: workflow and one example first, then file and function names, and no coined phase name.",
       "transforms": [
         {
           "find": "Read, Grep, and Glob",
@@ -638,12 +638,12 @@
         },
         {
           "find": "You are writing an architectural explanation for a senior engineer.",
-          "replace": "You are writing an explanation for someone who is not in the weeds of this codebase.",
+          "replace": "You are writing an architectural explanation for a senior engineer. They are not in the weeds of this codebase.",
           "count": 1
         },
         {
           "find": "Write an explanation a senior engineer unfamiliar with this area could read and walk away with a solid mental model, understanding the architecture well enough to start working in it confidently.",
-          "replace": "The reader is not in the weeds of this codebase. Lead with the surrounding workflow: who acts, in what order, and what someone watching would see. Then one concrete example. Use a failure example when the point is a bug, a race, or an edge. Keep file and function names as places to look. Those names are not the explanation. Do not invent a short name for a phase. Use a name only if the code, the docs, or the user already use it, and say what it is the first time.",
+          "replace": "Write an explanation a senior engineer unfamiliar with this area could read and walk away with a solid mental model. The reader is not in the weeds of this codebase. Lead with the surrounding workflow: who acts, in what order, and what someone watching would see. Then one concrete example. Use a failure example when the point is a bug, a race, or an edge. Keep file and function names as places to look. Those names are not the explanation. Do not invent a short name for a phase. Use a name only if the code, the docs, or the user already use it, and say what it is the first time.",
           "count": 1
         },
         {
