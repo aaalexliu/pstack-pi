@@ -35,7 +35,7 @@ Write one clear paragraph. If you're unsure about the intent, ask the user befor
 
 Read `pstack_config` with action `get`. Use the `interrogate-reviewer` role's configured model pool, one reviewer per entry. A single model assignment means one reviewer. Without a configured role, use one `inherit-parent` reviewer and disclose that model diversity is unavailable; offer `setup-pstack` rather than inventing defaults or calling repeated samples different models.
 
-Launch reviewers with Pi's `subagent` tool using a `tasks` array. Use one request for up to eight reviewers; process larger configured pools in successive batches without dropping entries. Extend or shrink Reviewer A/B/C/D labels to match the pool. For each task set:
+Launch reviewers with Pi's `subagent` tool using a `tasks` array. Use one request for up to eight reviewers; process larger configured pools in successive batches without dropping entries. Extend or shrink Reviewer A/B/C labels to match the pool. For each task set:
 
 - `agent`: `general-purpose`
 - `role`: `interrogate-reviewer`
