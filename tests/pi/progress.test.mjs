@@ -32,7 +32,7 @@ test('packed Pi streams live metadata and saves the finished inline card with un
   assert.ok(live.tasks[0].usage.input > 0);
   assert.equal(live.endedAt, null);
   const result = /** @type {{content: {text: string}[], details: Details}} */ (run.events[end].result);
-  assert.equal(result.content[0].text, 'Checked the fixture.');
+  assert.equal(result.content[0].text, 'resolved-model: pi-fixture/pi-smoke-model\n\nChecked the fixture.');
   const final = result.details.progress;
   assert.ok(final?.endedAt);
   assert.equal(final.tasks[0].state, 'succeeded');
