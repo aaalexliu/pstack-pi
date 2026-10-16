@@ -10,7 +10,7 @@ import { sha256 } from '../../scripts/sync-upstream.mjs';
 
 const repository = fileURLToPath(new URL('../../', import.meta.url));
 const productionSkills = [
-  'architect', 'arena', 'automate-me', 'benchmark-checklist', 'blast-radius',
+  'alex-show-me', 'architect', 'arena', 'automate-me', 'benchmark-checklist', 'blast-radius',
   'bro', 'correct', 'create-verification-skill', 'deeper', 'figure-it-out', 'how',
   'interrogate', 'maintain-verification-skill', 'make-bot-ui', 'no-comments',
   'poteto-mode', 'principle-attack-the-premise', 'principle-boundary-discipline', 'principle-build-the-lever',
@@ -64,7 +64,7 @@ test("real Pi loads the packed package and settles with fixture text and usage",
   assertClean(run);
   assert.deepEqual(run.cleanup.signals, []);
   assert.deepEqual(run.pack.files, expectedPackFiles(await productionInventory()));
-  assert.equal(run.pack.files.length, 123);
+  assert.equal(run.pack.files.length, 125);
   assertOnlyDeclaredTools(run);
   context.diagnostic(JSON.stringify({
     pi: run.process.version, revision: run.process.revision, pid: run.process.pid,

@@ -12,6 +12,18 @@
       "destination": "skills/deeper/SKILL.md",
       "mode": "100644",
       "reason": "Pi-owned prompt-deepening skill with no upstream counterpart. Names the expert gap, raw material, methods, and outside check, then rewrites the prompt without doing the work."
+    },
+    {
+      "source": "sync/additions/skills/alex-show-me/SKILL.md",
+      "destination": "skills/alex-show-me/SKILL.md",
+      "mode": "100644",
+      "reason": "Pi-owned visual explanation skill adapted from HumanLayer's MIT show-me. Adds matched What happened and What should happen views for bugs, and set nodes for rule diagrams."
+    },
+    {
+      "source": "sync/additions/skills/alex-show-me/references/humanlayer-license.md",
+      "destination": "skills/alex-show-me/references/humanlayer-license.md",
+      "mode": "100644",
+      "reason": "Carry the HumanLayer MIT notice required for the adapted show-me text."
     }
   ],
   "repository": "https://github.com/cursor/plugins.git",

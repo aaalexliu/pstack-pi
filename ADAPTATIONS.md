@@ -1,10 +1,10 @@
 # Reviewed Pi adaptations
 
-**No full-file replacements remain.** The production manifest classifies 161 upstream files as 50 copies, 48 exact transforms, and 63 omissions. Pi-owned additions are separate from upstream: the `general-purpose` agent and the `deeper` skill. Neither is an upstream replacement.
+**No full-file replacements remain.** The production manifest classifies 161 upstream files as 50 copies, 48 exact transforms, and 63 omissions. Pi-owned additions are separate from upstream: the `general-purpose` agent and the `deeper` and `alex-show-me` skills. None is an upstream replacement.
 
 Every transform starts from the pinned upstream file. It changes exact literal regions with checked occurrence counts; everything else stays verbatim. The importer requires the expected Git blob and locks the transform digest and output hash. Routine sync runs no LLM and performs no fuzzy matching.
 
-The 31 former replacements were rebuilt from upstream, not encoded as whole-file patches of the rewrites. Thirty became targeted transforms. `skills/poteto-mode/playbooks/investigation.md` is a narrow reader-explanation transform, not a copy. Principle skills remain byte-for-byte copies, including the new `principle-explain-the-number` leaf. `benchmark-checklist` is a copy. `correct` only rewrites the Pi skill command. `deeper` is authored under `sync/additions/` and has no upstream file.
+The 31 former replacements were rebuilt from upstream, not encoded as whole-file patches of the rewrites. Thirty became targeted transforms. `skills/poteto-mode/playbooks/investigation.md` is a narrow reader-explanation transform, not a copy. Principle skills remain byte-for-byte copies, including the new `principle-explain-the-number` leaf. `benchmark-checklist` is a copy. `correct` only rewrites the Pi skill command. `deeper` is authored under `sync/additions/` and has no upstream file. `alex-show-me` is also authored there. It adapts HumanLayer's MIT `show-me` skill, not a pstack file, and ships that license notice under `references/`.
 
 ## Transformed files
 
