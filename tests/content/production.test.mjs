@@ -15,12 +15,15 @@ test('production contains exactly the reviewed copied and adapted workflow set',
   const inventory = await checkContent({ root, manifest, lock });
   assert.equal(lock.commit, 'e43c7ee26e0038c6c1fa8380dd34ce86ff94cb2a');
   assert.equal(inventory.bySource.size, 161);
-  assert.equal(inventory.byDestination.size, 99);
+  assert.equal(inventory.byDestination.size, 100);
   assert.equal(inventory.byAgentName.size, 3);
   assert.deepEqual(inventory.byAgentName.get('comment-sicko')?.tools, ['read', 'grep', 'find', 'ls']);
   assert.deepEqual(inventory.byAgentName.get('general-purpose')?.tools, ['read', 'grep', 'find', 'ls']);
   assert.deepEqual(inventory.byAgentName.get('poteto-agent')?.tools, ['read', 'grep', 'find', 'ls', 'bash', 'edit', 'write']);
-  assert.equal(inventory.bySkillName.size, 50);
+  assert.equal(inventory.bySkillName.size, 51);
+  assert.equal(manifest.additions.length, 2);
+  assert.ok(inventory.bySkillName.has('deeper'));
+  assert.equal(inventory.byDestination.get('skills/deeper/SKILL.md')?.disposition.kind, 'addition');
   const upstreamEntrypoints = manifest.files.filter((file) => /^skills\/[^/]+\/SKILL\.md$/u.test(file.source));
   assert.equal(upstreamEntrypoints.length, 50);
   assert.ok(upstreamEntrypoints.every((file) => file.kind !== 'omit' && file.destination === file.source));

@@ -9,7 +9,7 @@ The repository keeps four layers separate:
 - `sync/additions/` contains Pi-owned content with no upstream counterpart. `ADAPTATIONS.md` lists every upstream transform and its reason.
 - `skills/` and `agents/` are generated outputs. Do not edit them directly.
 
-The manifest and lock use strict version 2 with required `additions` arrays. An addition's manifest entry records `source`, `destination`, `mode`, and `reason`. Its lock entry records `source` and `output` with `destination`, `sha256`, and `mode`. Additions copy raw bytes from strictly below `sync/additions/` into managed roots. The same evaluator checks all output collisions and stages both upstream and authored content. Missing, extra, symlinked, special, and native-colliding addition inputs stop sync. `sync/additions/agents/general-purpose.md` is the one addition today.
+The manifest and lock use strict version 2 with required `additions` arrays. An addition's manifest entry records `source`, `destination`, `mode`, and `reason`. Its lock entry records `source` and `output` with `destination`, `sha256`, and `mode`. Additions copy raw bytes from strictly below `sync/additions/` into managed roots. The same evaluator checks all output collisions and stages both upstream and authored content. Missing, extra, symlinked, special, and native-colliding addition inputs stop sync. The additions today are `sync/additions/agents/general-purpose.md` and `sync/additions/skills/deeper/SKILL.md`.
 
 ## Check or regenerate the current pin
 

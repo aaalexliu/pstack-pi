@@ -1533,6 +1533,14 @@
         "sha256": "38a30fbf8ee06f5c4fdd0f68111af1d5fdaa09f821f11a13d4b7fd8e12375044",
         "mode": "100644"
       }
+    },
+    {
+      "source": "sync/additions/skills/deeper/SKILL.md",
+      "output": {
+        "destination": "skills/deeper/SKILL.md",
+        "sha256": "b0c8601dd579edd2f9449444077acec35b44afba3382e92e32dd91df1e35d362",
+        "mode": "100644"
+      }
     }
   ]
 }
