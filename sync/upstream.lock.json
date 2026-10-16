@@ -1535,6 +1535,22 @@
       }
     },
     {
+      "source": "sync/additions/skills/alex-show-me/SKILL.md",
+      "output": {
+        "destination": "skills/alex-show-me/SKILL.md",
+        "sha256": "134c0c381ab7bf506c071972b333c81fff755d02f3201e4e4e449ac09c6b9f94",
+        "mode": "100644"
+      }
+    },
+    {
+      "source": "sync/additions/skills/alex-show-me/references/humanlayer-license.md",
+      "output": {
+        "destination": "skills/alex-show-me/references/humanlayer-license.md",
+        "sha256": "aac3d3264cc96e75f328c3d5a967cf7502285f0fb13642a0ce540a9d3fcd1ca1",
+        "mode": "100644"
+      }
+    },
+    {
       "source": "sync/additions/skills/deeper/SKILL.md",
       "output": {
         "destination": "skills/deeper/SKILL.md",

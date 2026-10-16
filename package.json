@@ -26,6 +26,7 @@
       "extensions/subagent/index.ts"
     ],
     "skills": [
+      "skills/alex-show-me/SKILL.md",
       "skills/architect/SKILL.md",
       "skills/arena/SKILL.md",
       "skills/automate-me/SKILL.md",
@@ -108,6 +109,8 @@
     "extensions/subagent/progress.ts",
     "extensions/subagent/view.ts",
     "package.json",
+    "skills/alex-show-me/SKILL.md",
+    "skills/alex-show-me/references/humanlayer-license.md",
     "skills/architect/SKILL.md",
     "skills/architect/references/design-red-flags.md",
     "skills/architect/references/rationale-template.md",
