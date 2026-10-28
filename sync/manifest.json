@@ -634,6 +634,11 @@
           "find": "Explore the codebase to answer \"how does X work?\" questions. Produce architectural explanations at the level of a senior engineer onboarding onto a subsystem, enough to build a working mental model, not so much that it reads like annotated source code.",
           "replace": "Explore the codebase to answer \"how does X work?\" questions. Produce architectural explanations at the level of a senior engineer onboarding onto a subsystem, enough to build a working mental model, not so much that it reads like annotated source code. The reader is not in the weeds of this codebase. Lead with the surrounding workflow: who acts, in what order, and what someone watching would see. Then one concrete example. Use a failure example when the point is a bug, a race, or an edge. Keep file and function names as places to look. Those names are not the explanation. Do not invent a short name for a phase. Use a name only if the code, the docs, or the user already use it, and say what it is the first time.",
           "count": 1
+        },
+        {
+          "find": "If the scope is ambiguous, state your interpretation and explore. The user can redirect.",
+          "replace": "If the scope is ambiguous, state your interpretation and explore. The user can redirect.\n\nWhen the answer depends on how an outside product behaves, such as a vendor's record lifecycle or which identifiers it lets admins edit, the parent reads that vendor's docs alongside the code and hands readers bounded extracts. Report what the docs guarantee apart from what you assume.",
+          "count": 1
         }
       ]
     },
@@ -1051,6 +1056,11 @@
         {
           "find": "- **Frame impact for the consumer and the maintainer.** Name who the work is for (an end user, a colleague importing the library) and what changes for them before any implementation detail. Then what the next engineer who owns this code inherits. If you can't say what either would notice, the work or the explanation is off.",
           "replace": "- **Frame impact for the consumer and the maintainer.** Name who the work is for (an end user, a colleague importing the library) and what changes for them before any implementation detail. Then what the next engineer who owns this code inherits. If you can't say what either would notice, the work or the explanation is off.\n- **The reader is not in this code.** When a reply explains a behavior, a finding, or a design choice, lead with the surrounding workflow: who acts, in what order, and what someone watching would see. Then one concrete example. Use a failure example when the point is a bug, a race, or an edge. Keep file and function names as places to look. Those names are not the explanation. Do not invent a short name for a phase. Use a name only if the code, the docs, or the user already use it, and say what it is the first time.",
+          "count": 1
+        },
+        {
+          "find": "**No is an acceptable answer.**",
+          "replace": "**Live design discussion.** When the user is iterating with you on a design in real time, keep the main thread fast. Before a widespread edit, such as a rename across docs or a batch of screenshots, confirm it or hand it to a subagent. When the user asks why you are doing something, stop that work and answer before you continue.\n\n**No is an acceptable answer.**",
           "count": 1
         }
       ]
@@ -1620,6 +1630,11 @@
         {
           "find": "the control skill",
           "replace": "available surface-control tools",
+          "count": 1
+        },
+        {
+          "find": "The observation is the test here, not an assertion.",
+          "replace": "The observation is the test here, not an assertion. It proves only the contract it ran. If you change that contract afterward, run the check again before you cite its result, or say the result no longer covers the change.",
           "count": 1
         }
       ]
