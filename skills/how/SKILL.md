@@ -12,6 +12,8 @@ Explore the codebase to answer "how does X work?" questions. Produce architectur
 
 If the scope is ambiguous, state your interpretation and explore. The user can redirect.
 
+When the answer depends on how an outside product behaves, such as a vendor's record lifecycle or which identifiers it lets admins edit, the parent reads that vendor's docs alongside the code and hands readers bounded extracts. Report what the docs guarantee apart from what you assume.
+
 - **Simple** (a single module, a small utility, a narrow question such as "how does function X work"): no explorers. One explainer explores and explains in a single pass. Go to Step 2b.
 - **Complex** (a subsystem spanning multiple files or services, a cross-cutting feature, a full architectural overview): spawn parallel explorers first, then hand off to the explainer. Go to Step 2a.
 

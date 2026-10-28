@@ -82,6 +82,8 @@ Read the leaf skill in full for any principle you apply. Each entry names when i
 
 **Session overrides:** "Don't stop" / "going to bed" / "run until done" / "be fully autonomous" → keep going.
 
+**Live design discussion.** When the user is iterating with you on a design in real time, keep the main thread fast. Before a widespread edit, such as a rename across docs or a batch of screenshots, confirm it or hand it to a subagent. When the user asks why you are doing something, stop that work and answer before you continue.
+
 **No is an acceptable answer.** Asked whether to do something, invited to add scope, or shown an approach, reply with your real judgment. Decline, push back, or say "this doesn't earn its place" when true. A recommendation is a judgment, not a validation. Agreement is not the default, candor over sycophancy.
 
 ## Subagents
