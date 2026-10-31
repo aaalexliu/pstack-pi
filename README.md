@@ -1,6 +1,6 @@
 # pstack for Pi
 
-`@aaalexliu/pstack-pi` provides 54 of the 58 main skills from Lauren Tan's pstack, plus the Pi-owned `deeper` and `alex-show-me` skills.
+`@aaalexliu/pstack-pi` provides 55 of the 58 main skills from Lauren Tan's pstack, plus the Pi-owned `deeper` and `alex-show-me` skills.
 It copies compatible upstream content and applies exact, reviewed edits to Cursor-specific instructions. No full-file replacements remain. It also includes branch-aware task tracking, scoped session discovery, model-config readback, and a `subagent` tool built on Pi's bundled example with bundled agents, role-based model routing, a depth guard, and process-group cleanup. The three Benny Cursor Cloud Automation skills are outside this package's main-skill scope.
 
 ## Install
@@ -55,16 +55,16 @@ The package supports Pi `0.85.1` and Node.js `>=22.19.0` in this release.
 
 ## Supported scope
 
-Pi `0.85.1` exposes 56 manual commands:
+Pi `0.85.1` exposes 57 manual commands:
 
-- Workflows: `/skill:alex-show-me`, `/skill:architect`, `/skill:arena`, `/skill:automate-me`, `/skill:benchmark-checklist`, `/skill:blast-radius`, `/skill:bro`, `/skill:correct`, `/skill:create-formal-verification-skill`, `/skill:create-verification-skill`, `/skill:deeper`, `/skill:figure-it-out`, `/skill:how`, `/skill:in-your-own-words`, `/skill:interrogate`, `/skill:maintain-formal-verification-skill`, `/skill:maintain-verification-skill`, `/skill:make-bot-ui`, `/skill:no-comments`, `/skill:poteto-mode`, `/skill:recall`, `/skill:reflect`, `/skill:setup-pstack`, `/skill:show-me-your-work`, `/skill:statechart`, `/skill:swarm`, `/skill:tdd`, `/skill:teach`, `/skill:technical-writing`, `/skill:typescript-best-practices`, `/skill:unslop`, and `/skill:why`.
+- Workflows: `/skill:alex-show-me`, `/skill:architect`, `/skill:arena`, `/skill:automate-me`, `/skill:benchmark-checklist`, `/skill:blast-radius`, `/skill:bro`, `/skill:correct`, `/skill:create-formal-verification-skill`, `/skill:create-verification-skill`, `/skill:deeper`, `/skill:figure-it-out`, `/skill:how`, `/skill:in-your-own-words`, `/skill:interrogate`, `/skill:ketchup`, `/skill:maintain-formal-verification-skill`, `/skill:maintain-verification-skill`, `/skill:make-bot-ui`, `/skill:no-comments`, `/skill:poteto-mode`, `/skill:recall`, `/skill:reflect`, `/skill:setup-pstack`, `/skill:show-me-your-work`, `/skill:statechart`, `/skill:swarm`, `/skill:tdd`, `/skill:teach`, `/skill:technical-writing`, `/skill:typescript-best-practices`, `/skill:unslop`, and `/skill:why`.
 - Principles: `/skill:principle-attack-the-premise`, `/skill:principle-boundary-discipline`, `/skill:principle-build-the-lever`, `/skill:principle-encode-lessons-in-structure`, `/skill:principle-exhaust-the-design-space`, `/skill:principle-experience-first`, `/skill:principle-explain-the-number`, `/skill:principle-fix-root-causes`, `/skill:principle-foundational-thinking`, `/skill:principle-guard-the-context-window`, `/skill:principle-laziness-protocol`, `/skill:principle-make-operations-idempotent`, `/skill:principle-migrate-callers-then-delete-legacy-apis`, `/skill:principle-minimize-reader-load`, `/skill:principle-model-the-domain`, `/skill:principle-never-block-on-the-human`, `/skill:principle-outcome-oriented-execution`, `/skill:principle-prove-it-works`, `/skill:principle-redesign-from-first-principles`, `/skill:principle-separate-before-serializing-shared-state`, `/skill:principle-sequence-verifiable-units`, `/skill:principle-subtract-before-you-add`, `/skill:principle-test-behavior-not-implementation`, and `/skill:principle-type-system-discipline`.
 
 Each skill keeps `disable-model-invocation: true` so Pi expands it only through an explicit skill command.
 
 `/skill:statechart` runs its bundled `scripts/statechart` command. That command needs Node 22.18 to 22.x, Node 23.6 or later, Bun 1.1.5 or later, or Deno 2.0 or later, plus `mise`. Its first run downloads TLC and Java through mise. Rendering a chart to SVG uses the npm package `pele@1.9.0`, installed outside your repo. Node will not run the TypeScript scripts from a `node_modules` folder, so use the Git install above.
 
-The package ships 127 generated skill and support files, three generated agents, fifteen extension modules, and the root package files.
+The package ships 128 generated skill and support files, three generated agents, fifteen extension modules, and the root package files.
 It registers `pstack_config`, `pstack_papercut`, `pstack_sessions`, `pstack_todo`, and, at root depth, `subagent`.
 The delegation extension owns one `session_shutdown` hook that stops live children and a `tool_result` hook that marks its own failed calls. The papercut journal owns a `tool_execution_start` hook and a `tool_result` hook that append a one-line measurement to other tools' results.
 Todo and Poteto Mode state follow the active session branch through versioned custom entries. The package registers `/pstack`, `/pstack-export`, `/subagents`, `/pstack-cmux`, and `/papercuts`, but no prompts, themes, or blanket approval hooks.
@@ -268,7 +268,7 @@ Its `pstack` tree is `4719e1c4b4c43bac85d4206a8b41dd2899769c1c`.
 `sync/upstream.lock.json` records source blobs, modes, and generated hashes.
 
 `sync/manifest.json` is the only authored classification of the 573 source files.
-It copies 74 files, transforms 52, and explicitly omits 447. No file uses `replace`.
+It copies 74 files, transforms 53, and explicitly omits 446. No file uses `replace`.
 Transforms change only reviewed commands, frontmatter, paths, runtime sections, or proof steps, leaving all other source bytes intact.
 Each transformation requires its locked source blob and exact match count.
 Even execution-ownership changes use targeted transforms rather than rewritten copies. All 23 principle skills and the Investigation playbook remain byte-for-byte copies.
@@ -276,7 +276,7 @@ Even execution-ownership changes use targeted transforms rather than rewritten c
 `sync/additions/agents/general-purpose.md`, `sync/additions/skills/deeper/SKILL.md`, and the two files under `sync/additions/skills/alex-show-me/` are Pi-owned sources, separate from the 573 upstream paths. `alex-show-me` adapts the MIT-licensed `show-me` skill from [humanlayer/skills](https://github.com/humanlayer/skills) and ships its license notice in `skills/alex-show-me/references/humanlayer-license.md`. `SYNCING.md` describes how additions are declared and checked.
 
 Cursor distribution metadata, guides, branding assets, Cloud Automations, unbundled playbooks, and unsupported scripts remain omitted.
-54 of the 58 upstream main skill entrypoints are present, including the webhook-backed `make-bot-ui`, plus the Pi-owned `deeper` and `alex-show-me` skills. `ADAPTATIONS.md` lists the four omitted skills and why. Missing external service capabilities remain explicit limits, not silently changed tasks.
+55 of the 58 upstream main skill entrypoints are present, including the webhook-backed `make-bot-ui`, plus the Pi-owned `deeper` and `alex-show-me` skills. `ADAPTATIONS.md` lists the three omitted skills and why. Missing external service capabilities remain explicit limits, not silently changed tasks.
 Two upstream agents have targeted Pi transforms; the third agent is a Pi-owned addition.
 
 [0xrsydn/pstack-pi](https://github.com/0xrsydn/pstack-pi) and [kkgogogo17/pi-pstack](https://github.com/kkgogogo17/pi-pstack) are implementation references, not sources for shared content.

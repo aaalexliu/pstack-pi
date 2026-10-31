@@ -771,12 +771,46 @@
     {
       "kind": "omit",
       "source": "skills/ketchup-video/SKILL.md",
-      "reason": "Ketchup-video extends the omitted ketchup skill and embeds a rendered video in the reply; a Pi reply contract for those visuals needs its own review."
+      "reason": "Ketchup-video replaces ketchup's summary with a rendered video embedded in the reply; Pi cannot play a video in the transcript, so the reply's main output would become a file path."
     },
     {
-      "kind": "omit",
+      "kind": "transform",
       "source": "skills/ketchup/SKILL.md",
-      "reason": "Ketchup's reply embeds screenshots and videos inline and draws charts with Cursor's /visualize; a Pi reply contract for those visuals needs its own review."
+      "reason": "Use Pi skill commands. Pi shows only the alt text of a Markdown image, plays no video, and has no /visualize, so show screenshots with the read tool, give video paths, and draw charts as text.",
+      "destination": "skills/ketchup/SKILL.md",
+      "expectedBlob": "9eef27f92f8029137a7bfa7378305b075df9dc4f",
+      "transforms": [
+        {
+          "find": "/ketchup",
+          "replace": "/skill:ketchup",
+          "count": 2
+        },
+        {
+          "find": "[`/bro`]",
+          "replace": "[`/skill:bro`]",
+          "count": 1
+        },
+        {
+          "find": "Embed inline the screenshots and videos the work produced",
+          "replace": "Show the screenshots and videos the work produced",
+          "count": 1
+        },
+        {
+          "find": "a chart or diagram from `/visualize`",
+          "replace": "a text chart in a code block",
+          "count": 1
+        },
+        {
+          "find": "Embed screenshots and videos inline when the change is visible, not only as links.",
+          "replace": "Show screenshots inline when the change is visible, not only as links. Pi shows only the alt text of a Markdown image in a reply, so open each screenshot with the read tool before you write the reply, and give its absolute path in the reply. Pi cannot play a video, so give each video's absolute path.",
+          "count": 1
+        },
+        {
+          "find": "a `/visualize` chart for numbers",
+          "replace": "a text bar chart in a code block for numbers",
+          "count": 1
+        }
+      ]
     },
     {
       "kind": "transform",

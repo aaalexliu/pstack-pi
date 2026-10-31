@@ -1,15 +1,15 @@
 # Reviewed Pi adaptations
 
-**No full-file replacements remain.** The production manifest classifies 573 upstream files as 74 copies, 52 exact transforms, and 447 omissions. The statechart test suite and its two dev configs account for 378 of the omissions. Pi-owned additions are separate from upstream: the `general-purpose` agent and the `deeper` and `alex-show-me` skills. None is an upstream replacement.
+**No full-file replacements remain.** The production manifest classifies 573 upstream files as 74 copies, 53 exact transforms, and 446 omissions. The statechart test suite and its two dev configs account for 378 of the omissions. Pi-owned additions are separate from upstream: the `general-purpose` agent and the `deeper` and `alex-show-me` skills. None is an upstream replacement.
 
 Every transform starts from the pinned upstream file. It changes exact literal regions with checked occurrence counts; everything else stays verbatim. The importer requires the expected Git blob and locks the transform digest and output hash. Routine sync runs no LLM and performs no fuzzy matching.
 
 The 31 former replacements were rebuilt from upstream, not encoded as whole-file patches of the rewrites. Thirty became targeted transforms. `skills/poteto-mode/playbooks/investigation.md` is a narrow reader-explanation transform, not a copy. Principle skills remain byte-for-byte copies, including the new `principle-explain-the-number` leaf. `benchmark-checklist` is a copy. `correct` only rewrites the Pi skill command. `deeper` is authored under `sync/additions/` and has no upstream file. `alex-show-me` is also authored there. It adapts HumanLayer's MIT `show-me` skill, not a pstack file, and ships that license notice under `references/`.
 
-The `c742dd6` pin added eight upstream skills. Four ship as narrow transforms: `in-your-own-words`, `create-formal-verification-skill`, `maintain-formal-verification-skill`, and `statechart`. Four upstream skills are omitted:
+The `c742dd6` pin added eight upstream skills. Five ship as narrow transforms: `in-your-own-words`, `create-formal-verification-skill`, `maintain-formal-verification-skill`, `statechart`, and `ketchup`. Three upstream skills are omitted:
 
 - `poteto-help` is a Cursor setup guide that links to the omitted guide pages.
-- `ketchup` and `ketchup-video` embed screenshots, videos, and Cursor `/visualize` charts in the reply. A Pi reply contract for those visuals needs its own review.
+- `ketchup-video` renders a subtitled slide video and embeds it in the reply in place of ketchup's summary. Pi cannot play a video in the transcript, so the reply's main output would become a file path.
 - `sharpen` asks the same four questions as the Pi-owned `deeper` addition, which predates the pin.
 
 `statechart` ships its 27 runtime scripts as byte-for-byte copies. The `scripts/statechart` wrapper keeps its executable mode and runs `statechart.ts` with Node 22.18 to 22.x, Node 23.6 or later, Bun 1.1.5 or later, or Deno 2.0 or later. Its first run installs TLC and Java with mise and needs the network. The upstream suite under `scripts/test/` and the `scripts/package.json` and `scripts/tsconfig.json` that serve it stay omitted. The runtime never reads them, and the suite needs fast-check, Pele, Java, and TLC. Node refuses to strip types under `node_modules`, so the skill runs from a Git or local-path install, not an npm install. The content checker treats `skills/<name>/scripts/` as code: it checks bytes and mode, not instruction prose.
@@ -34,6 +34,7 @@ The manifest contains the exact ordered `find`, `replace`, and `count` values fo
 | `skills/how/references/explainer-prompt.md` | Pi read-tool names; distinguish direct exploration from supplied explorer findings. Keep the senior-engineer audience, including the depth bar. The reader is still not in this code: workflow and one example first, then file and function names. |
 | `skills/in-your-own-words/SKILL.md` | Pi skill command only. |
 | `skills/interrogate/SKILL.md` | Replace only the panel line and the adversary agent. Adversaries run as writable `poteto-agent` children in their own worktrees because each finding needs a run. The brief, verification, and output stay verbatim. |
+| `skills/ketchup/SKILL.md` | Pi skill commands. A real Pi session showed a Markdown image in a reply as its alt text only, with the path dropped, so the reply shows each screenshot with the read tool and gives its absolute path. Pi plays no video, so the reply gives video paths. Pi has no `/visualize`, so charts become text bar charts in a code block. Mermaid stays because Pi draws supported Mermaid diagrams in the transcript. |
 | `skills/maintain-formal-verification-skill/SKILL.md` | Pi skill commands only. |
 | `skills/maintain-verification-skill/SKILL.md` | Pi skill paths/commands, bounded source readers, parent driving, and authorized publication. |
 | `skills/make-bot-ui/SKILL.md` | Replace Cursor routine/secret-card UI assumptions with documented service access and private local secret setup. Keep the webhook protocol. |

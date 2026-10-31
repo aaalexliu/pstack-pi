@@ -12,7 +12,7 @@ const repository = fileURLToPath(new URL('../../', import.meta.url));
 const productionSkills = [
   'alex-show-me', 'architect', 'arena', 'automate-me', 'benchmark-checklist', 'blast-radius',
   'bro', 'correct', 'create-formal-verification-skill', 'create-verification-skill', 'deeper', 'figure-it-out', 'how',
-  'in-your-own-words', 'interrogate', 'maintain-formal-verification-skill', 'maintain-verification-skill', 'make-bot-ui', 'no-comments',
+  'in-your-own-words', 'interrogate', 'ketchup', 'maintain-formal-verification-skill', 'maintain-verification-skill', 'make-bot-ui', 'no-comments',
   'poteto-mode', 'principle-attack-the-premise', 'principle-boundary-discipline', 'principle-build-the-lever',
   'principle-encode-lessons-in-structure', 'principle-exhaust-the-design-space', 'principle-experience-first', 'principle-explain-the-number', 'principle-fix-root-causes',
   'principle-foundational-thinking', 'principle-guard-the-context-window', 'principle-laziness-protocol', 'principle-make-operations-idempotent',
@@ -64,7 +64,7 @@ test("real Pi loads the packed package and settles with fixture text and usage",
   assertClean(run);
   assert.deepEqual(run.cleanup.signals, []);
   assert.deepEqual(run.pack.files, expectedPackFiles(await productionInventory()));
-  assert.equal(run.pack.files.length, 153);
+  assert.equal(run.pack.files.length, 154);
   assertOnlyDeclaredTools(run);
   context.diagnostic(JSON.stringify({
     pi: run.process.version, revision: run.process.revision, pid: run.process.pid,

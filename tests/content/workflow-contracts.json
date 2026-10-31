@@ -565,5 +565,19 @@
     "pi": {
       "skill command": "Use for /skill:in-your-own-words."
     }
+  },
+  "skills/ketchup/SKILL.md": {
+    "upstream": {
+      "read-only turn": "Keep this turn read-only. Make visuals only from what you already have: do not change code, start an app or a job, or post anything.",
+      "action item definition": "An action item is a call or step only the user can take, such as a product choice, an approval, an irreversible action, or access you lack.",
+      "no invented visuals": "Never invent a number, and never draw or generate a picture of a screen you did not capture. Link only artifacts that exist."
+    },
+    "pi": {
+      "skill command": "Use for /skill:ketchup.",
+      "bro voice": "Use [`/skill:bro`](../bro/SKILL.md)'s voice, not its task",
+      "screenshots through read": "Pi shows only the alt text of a Markdown image in a reply, so open each screenshot with the read tool before you write the reply, and give its absolute path in the reply.",
+      "video paths": "Pi cannot play a video, so give each video's absolute path.",
+      "text charts": "a Mermaid diagram for how things connect and a text bar chart in a code block for numbers"
+    }
   }
 }

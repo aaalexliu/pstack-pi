@@ -521,8 +521,12 @@
       "source": "skills/ketchup/SKILL.md",
       "blob": "9eef27f92f8029137a7bfa7378305b075df9dc4f",
       "mode": "100644",
-      "adaptationSha256": null,
-      "output": null
+      "adaptationSha256": "2c5f6441c6697b59b0a6a1fd6755b3b54dfbb91e51035aa0ad4c9838ff65e766",
+      "output": {
+        "destination": "skills/ketchup/SKILL.md",
+        "sha256": "5a45ee7de41644a092cf0d07305ec91e6e8b0a50315c1de3213551dd7accd166",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/maintain-formal-verification-skill/SKILL.md",
