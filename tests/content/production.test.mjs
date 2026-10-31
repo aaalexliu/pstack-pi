@@ -32,8 +32,8 @@ test('production contains exactly the reviewed copied and adapted workflow set',
   const omittedSkills = ['skills/ketchup-video/SKILL.md', 'skills/ketchup/SKILL.md', 'skills/poteto-help/SKILL.md', 'skills/sharpen/SKILL.md'];
   assert.deepEqual(upstreamEntrypoints.filter((file) => file.kind === 'omit').map((file) => file.source), omittedSkills);
   assert.ok(upstreamEntrypoints.every((file) => file.kind === 'omit' || file.destination === file.source));
-  assert.equal(manifest.files.filter((file) => file.kind === 'copy').length, 75);
-  assert.equal(manifest.files.filter((file) => file.kind === 'transform').length, 51);
+  assert.equal(manifest.files.filter((file) => file.kind === 'copy').length, 74);
+  assert.equal(manifest.files.filter((file) => file.kind === 'transform').length, 52);
   assert.equal(manifest.files.filter((file) => file.kind === 'replace').length, 0);
   assert.equal(manifest.files.filter((file) => file.kind === 'omit').length, 447);
   assert.ok(manifest.files.every((file) => file.kind !== 'omit' || !file.reason.includes('reviewed Pi adaptation phase')));

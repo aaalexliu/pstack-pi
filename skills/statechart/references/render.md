@@ -12,6 +12,7 @@ These colors are suggestions. They are the colors of the old skill. Put them in 
 
 ```css
 .pele {
+  background: var(--pele-bg);
   --pele-bg: #ffffff;
   --pele-fg: #1c1c1c;
   --pele-muted: #656565;

@@ -2370,9 +2370,18 @@
       ]
     },
     {
-      "kind": "copy",
+      "kind": "transform",
       "source": "skills/statechart/references/render.md",
-      "destination": "skills/statechart/references/render.md"
+      "reason": "Paint the chart background from --pele-bg so the dark-mode title and edge labels stay readable in a browser.",
+      "destination": "skills/statechart/references/render.md",
+      "expectedBlob": "5ef0519d6f7ae97ef7befceaf174f94f52dd42f5",
+      "transforms": [
+        {
+          "find": ".pele {\n  --pele-bg: #ffffff;\n",
+          "replace": ".pele {\n  background: var(--pele-bg);\n  --pele-bg: #ffffff;\n",
+          "count": 1
+        }
+      ]
     },
     {
       "kind": "copy",

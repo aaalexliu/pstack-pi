@@ -468,6 +468,16 @@
       "skill command": "Use for /skill:statechart,"
     }
   },
+  "skills/statechart/references/render.md": {
+    "upstream": {
+      "renderer pin": "Render each `.mmd` file that you show with the npm package `pele@1.9.0`, and give the user the SVG.",
+      "render options": "Pass `{ limit: 1_000_000, outputLimit: 8_000_000, maxEdges: 10_000 }` as the options of `render`.",
+      "mark rules win": "So the rules for the marks below use `!important`."
+    },
+    "pi": {
+      "painted background": ".pele {\n  background: var(--pele-bg);\n  --pele-bg: #ffffff;"
+    }
+  },
   "skills/swarm/SKILL.md": {
     "upstream": {
       "predicate": "State the done predicate and the artifact or report the swarm must return.",

@@ -1350,10 +1350,10 @@
       "source": "skills/statechart/references/render.md",
       "blob": "5ef0519d6f7ae97ef7befceaf174f94f52dd42f5",
       "mode": "100644",
-      "adaptationSha256": null,
+      "adaptationSha256": "8cea7f352a3b30e7f8e39f722dbd09620565a0ffe52128d076f0a2fdc6b0387b",
       "output": {
         "destination": "skills/statechart/references/render.md",
-        "sha256": "8cca446eb0c8f87f2ef7b97c4b149f59aacdc153134b4217c4bcde09b10ac3c4",
+        "sha256": "4cb14fb57af22d70de659ea975d31b3381a13fc38c52831a41df6d5d67e9e211",
         "mode": "100644"
       }
     },

@@ -1,6 +1,6 @@
 # Reviewed Pi adaptations
 
-**No full-file replacements remain.** The production manifest classifies 573 upstream files as 75 copies, 51 exact transforms, and 447 omissions. The statechart test suite and its two dev configs account for 378 of the omissions. Pi-owned additions are separate from upstream: the `general-purpose` agent and the `deeper` and `alex-show-me` skills. None is an upstream replacement.
+**No full-file replacements remain.** The production manifest classifies 573 upstream files as 74 copies, 52 exact transforms, and 447 omissions. The statechart test suite and its two dev configs account for 378 of the omissions. Pi-owned additions are separate from upstream: the `general-purpose` agent and the `deeper` and `alex-show-me` skills. None is an upstream replacement.
 
 Every transform starts from the pinned upstream file. It changes exact literal regions with checked occurrence counts; everything else stays verbatim. The importer requires the expected Git blob and locks the transform digest and output hash. Routine sync runs no LLM and performs no fuzzy matching.
 
@@ -64,6 +64,7 @@ The manifest contains the exact ordered `find`, `replace`, and `count` values fo
 | `skills/setup-pstack/SKILL.md` | Pi model discovery and version-1 role JSON instead of Cursor rules; keep the budget ask in chat, confirmation, validation, and the verification and formal verification skill offers. `models.json` does not store the budget. |
 | `skills/show-me-your-work/SKILL.md` | Scoped Pi sessions, a manual TSV appender, append-only corrections, and explicit independent reviewer selection. |
 | `skills/statechart/SKILL.md` | Pi skill command in the invocation hint only. Pi renders `mermaid` code blocks in interactive transcripts, so the chart and Pele rules stay upstream. |
+| `skills/statechart/references/render.md` | Paint the chart background from `--pele-bg`. Pele draws no full background, so in dark mode a browser showed the light title and edge-label boxes on a white canvas. |
 | `skills/swarm/SKILL.md` | Local leaf workers and Pi model roles instead of cloud fields; retain logical coverage across bounded requests. |
 | `skills/teach/SKILL.md` | Parent-owned research and available visual tools; keep teaching and progressive-diagram rules. The person is not in this code: workflow and one example first, then file and function names. |
 | `skills/technical-writing/SKILL.md` | Change one skill command to Pi syntax. |

@@ -268,7 +268,7 @@ Its `pstack` tree is `4719e1c4b4c43bac85d4206a8b41dd2899769c1c`.
 `sync/upstream.lock.json` records source blobs, modes, and generated hashes.
 
 `sync/manifest.json` is the only authored classification of the 573 source files.
-It copies 75 files, transforms 51, and explicitly omits 447. No file uses `replace`.
+It copies 74 files, transforms 52, and explicitly omits 447. No file uses `replace`.
 Transforms change only reviewed commands, frontmatter, paths, runtime sections, or proof steps, leaving all other source bytes intact.
 Each transformation requires its locked source blob and exact match count.
 Even execution-ownership changes use targeted transforms rather than rewritten copies. All 23 principle skills and the Investigation playbook remain byte-for-byte copies.
