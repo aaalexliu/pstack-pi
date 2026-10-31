@@ -4538,7 +4538,7 @@
       "source": "sync/additions/skills/alex-show-me/SKILL.md",
       "output": {
         "destination": "skills/alex-show-me/SKILL.md",
-        "sha256": "134c0c381ab7bf506c071972b333c81fff755d02f3201e4e4e449ac09c6b9f94",
+        "sha256": "d5a30c5d888443bfa1aab343293415eab6426a3454b946d0ddda321b02717479",
         "mode": "100644"
       }
     },
@@ -4555,6 +4555,14 @@
       "output": {
         "destination": "skills/deeper/SKILL.md",
         "sha256": "b0c8601dd579edd2f9449444077acec35b44afba3382e92e32dd91df1e35d362",
+        "mode": "100644"
+      }
+    },
+    {
+      "source": "sync/additions/skills/list-writing/SKILL.md",
+      "output": {
+        "destination": "skills/list-writing/SKILL.md",
+        "sha256": "c82239305e6c1d96a7e3f17e9f598d0fa20bceba18fd0949647179970f02b84c",
         "mode": "100644"
       }
     }

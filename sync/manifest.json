@@ -24,6 +24,12 @@
       "destination": "skills/alex-show-me/references/humanlayer-license.md",
       "mode": "100644",
       "reason": "Carry the HumanLayer MIT notice required for the adapted show-me text."
+    },
+    {
+      "source": "sync/additions/skills/list-writing/SKILL.md",
+      "destination": "skills/list-writing/SKILL.md",
+      "mode": "100644",
+      "reason": "Pi-owned skill for lists and breakdowns, from the fsdatalab post Agent text at scale. The only skill the model may load without a command, because it applies whenever a reply holds a list."
     }
   ],
   "repository": "https://github.com/cursor/plugins.git",
