@@ -1,13 +1,13 @@
 {
   "version": 2,
   "repository": "https://github.com/cursor/plugins.git",
-  "commit": "e43c7ee26e0038c6c1fa8380dd34ce86ff94cb2a",
+  "commit": "c742dd61706fbacc1b95f1a20b7b988cf096ce6c",
   "sourceRoot": "pstack",
-  "sourceTree": "54dfdd87fd191ddda7fce01dd354d220adaeeacc",
+  "sourceTree": "4719e1c4b4c43bac85d4206a8b41dd2899769c1c",
   "files": [
     {
       "source": ".cursor-plugin/plugin.json",
-      "blob": "0ab7fa1b6a2bbcbb1a25e797e74be5ee63370bed",
+      "blob": "1295f46878218d568a037344877f0b603a887696",
       "mode": "100644",
       "adaptationSha256": null,
       "output": null
@@ -28,16 +28,16 @@
     },
     {
       "source": "README.md",
-      "blob": "cf64d3602995ddf54f06fb8bf27e3520850d21f2",
+      "blob": "bb613a100841eb7da66b0ee0eda1a4f728d0a6dd",
       "mode": "100644",
       "adaptationSha256": null,
       "output": null
     },
     {
       "source": "agents/comment-sicko.md",
-      "blob": "9a688b8c5b5734ee80f782d4616a78c4c59b0946",
+      "blob": "209e3704dfa75022060c936bd3f3362fa3bbe254",
       "mode": "100644",
-      "adaptationSha256": "5f28195869e7981cfdc6d2301a6b5b5ca4aad1c2348df1b1a3c0b578f07d3b1d",
+      "adaptationSha256": "fde8342a5c3ac20a7c01d4dd718febaf15e0b37a0404ad671dae17ddd4bb8c57",
       "output": {
         "destination": "agents/comment-sicko.md",
         "sha256": "f024777cc01bc19cd5f014f2ed544bf96a6e4db7502ede8a6faed5974abe6f62",
@@ -46,12 +46,12 @@
     },
     {
       "source": "agents/poteto-agent.md",
-      "blob": "f9d79a75560520cbb2f939c587ce00fa7e33037a",
+      "blob": "e1d2df2e8c3c4954b87ee1b29655c898bc7ee699",
       "mode": "100644",
-      "adaptationSha256": "ed2633ff3e5d7ae510693333eb64203e9c958a58fc5ed267cea87dc130a2ed47",
+      "adaptationSha256": "fedc31eae2edd1115c9181b6e3d79fa97d0129e9f0dc9f99a854c8363d737a79",
       "output": {
         "destination": "agents/poteto-agent.md",
-        "sha256": "8977367defa7d2305d3a4310ce3b4da172cdc2a47676f4ba3e31399de35b334f",
+        "sha256": "2c5974859634044ddcc130ce25e1a89574af3bb376ec796c0a0d089037ba9ba9",
         "mode": "100644"
       }
     },
@@ -148,77 +148,77 @@
     },
     {
       "source": "docs/guide/01-setup.md",
-      "blob": "1e602f61c81eb1902150b849682b92b8e583fa7c",
+      "blob": "2c2ef341357ea7c39c8b831ee8c8669b17e85475",
       "mode": "100644",
       "adaptationSha256": null,
       "output": null
     },
     {
       "source": "docs/guide/02-poteto-mode.md",
-      "blob": "403cbe8cc9dbc5204c6f9399abcced228f8e76f7",
+      "blob": "89c594b3eb4fe53ef4a6b12a93e29dfde0bd337a",
       "mode": "100644",
       "adaptationSha256": null,
       "output": null
     },
     {
       "source": "docs/guide/03-understand.md",
-      "blob": "af985988c2ac9babbabf6e9b4447c2f22a346ee7",
+      "blob": "e26661f913e2ba31a0f043df3ede772461fd6a96",
       "mode": "100644",
       "adaptationSha256": null,
       "output": null
     },
     {
       "source": "docs/guide/04-design.md",
-      "blob": "681d39cff22438b4feb3d40a8d97017af026bc3d",
+      "blob": "9da6470a919ca21ef3e4786e08c997b69b6c5255",
       "mode": "100644",
       "adaptationSha256": null,
       "output": null
     },
     {
       "source": "docs/guide/05-build-and-clean.md",
-      "blob": "c38bc44a39fe5e6ace2cd228f631c7eb57ecccf3",
+      "blob": "dbadc3d41294ab2cc3cde04f96b861dd294e496e",
       "mode": "100644",
       "adaptationSha256": null,
       "output": null
     },
     {
       "source": "docs/guide/06-verify-and-ship.md",
-      "blob": "d96c76612c647bfd33270d510440991946c508ed",
+      "blob": "ffcdc0d15815cf28c8f4db6230f6cba364436aea",
       "mode": "100644",
       "adaptationSha256": null,
       "output": null
     },
     {
       "source": "docs/guide/07-overnight.md",
-      "blob": "9ff66b7706041179ff3661213939a961eb196212",
+      "blob": "17bae40b97fcbb7a41b9d6a7b0f6285445501477",
       "mode": "100644",
       "adaptationSha256": null,
       "output": null
     },
     {
       "source": "docs/guide/08-principles.md",
-      "blob": "283a5e66b99917c12ca88f8c3e3e70ad69342062",
+      "blob": "d2921500bb44643ac3f841fa03e19e0b3a240c8b",
       "mode": "100644",
       "adaptationSha256": null,
       "output": null
     },
     {
       "source": "docs/guide/09-make-it-yours.md",
-      "blob": "6723069b5108f586575fe5353272ee6567a49b02",
+      "blob": "8d1c4b4f951bbb203ff1288e02ce91e8b6832a43",
       "mode": "100644",
       "adaptationSha256": null,
       "output": null
     },
     {
       "source": "docs/guide/10-recipes-and-pitfalls.md",
-      "blob": "da0af5e6f7984d24818ef1cd28f518d0014da788",
+      "blob": "782394f891d0bcf7cdaafe2120f193261c641115",
       "mode": "100644",
       "adaptationSha256": null,
       "output": null
     },
     {
       "source": "docs/guide/README.md",
-      "blob": "564eee1d5b43729d57caca4fddcef45d3dffdef5",
+      "blob": "17422b9921f1179b2a2b7137805267225ab271c2",
       "mode": "100644",
       "adaptationSha256": null,
       "output": null
@@ -266,13 +266,27 @@
       "output": null
     },
     {
-      "source": "skills/architect/SKILL.md",
-      "blob": "2bd58a7d46f1899f107f3c502f6ddcfbd6717f99",
+      "source": "docs/harness/claude-code.md",
+      "blob": "bf154e6464a6cca96a9627bbe10a628092e8c09e",
       "mode": "100644",
-      "adaptationSha256": "5ee287e6de37baaea76d2a87ae5abec42bca0d056e1c2fd3bb573da2bfe48ab6",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "plugin.json",
+      "blob": "14b42b7225231a2f01ab225df1d9d13839c6d616",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/architect/SKILL.md",
+      "blob": "88e23ca105b89e67f4085d0e676c40d4b170a623",
+      "mode": "100644",
+      "adaptationSha256": "c23e1d0f06b5abfe9ebf0f6a2df16404b13c9f4bacf4db5f2f5cd50aa1519c82",
       "output": {
         "destination": "skills/architect/SKILL.md",
-        "sha256": "53706b6256bf4c7cd70815af0af0a9349c9bc69baa92a6664806eacec5e5a2b0",
+        "sha256": "d46ed8fb1315001505df31d6e9f2348382dbe3bdacf343dc145f0cde1bcfddd4",
         "mode": "100644"
       }
     },
@@ -300,9 +314,9 @@
     },
     {
       "source": "skills/architect/references/runner-prompt.md",
-      "blob": "580ec47a5df4259a6a9ace5c452e33092053bb90",
+      "blob": "b1ad21aef22e80d718c361787190b599eb359d6c",
       "mode": "100644",
-      "adaptationSha256": "563eab31fd0ab62854d10cf3314cb057c9e1fe590bdb983c4c6558792c316e0e",
+      "adaptationSha256": "04172cac0055a4db7e9a87f6fd55273e9072b92a7da1191a152d8f1b364e139f",
       "output": {
         "destination": "skills/architect/references/runner-prompt.md",
         "sha256": "89a23298fea5f3318cf0f99f73f04588b933a4e4ca2a2a941cb9eb0091561d5a",
@@ -311,45 +325,45 @@
     },
     {
       "source": "skills/arena/SKILL.md",
-      "blob": "e50356e2f97608dbb48d9c1cd75af6d70b3f7059",
+      "blob": "7580c3c9a7770d81b9dd7a537d9caa7362c04279",
       "mode": "100644",
-      "adaptationSha256": "220441aeda9b07a9f31a33bdbf3f2df50823b6180d6711207174bedd5a846fdc",
+      "adaptationSha256": "0da3c6955b3fd77354543a16801e9332072225a8092878e47f5311f5eb2ff4b7",
       "output": {
         "destination": "skills/arena/SKILL.md",
-        "sha256": "bb2a03b3322edbe0d9aa00062254d301059288c9726f245e8331dabcd6d4ce60",
+        "sha256": "90abf3129ce72b1aa1ab601119e25f022fd21cafa9c9a3af0974bc8ccc13f435",
         "mode": "100644"
       }
     },
     {
       "source": "skills/automate-me/SKILL.md",
-      "blob": "cd3636e9a53c7c782cf15254204dccfc854086b5",
+      "blob": "50971b894688b1e1923458996b89f2a9961feeb3",
       "mode": "100644",
-      "adaptationSha256": "a272fad71d55ae70788858ce1a4614ac3cb95e70feb32b4dbdbe6c3ccbddd09d",
+      "adaptationSha256": "c06e34d6dfa0dddfa8294eef3069023f8060fa41140cf21e4c14b6490b975eca",
       "output": {
         "destination": "skills/automate-me/SKILL.md",
-        "sha256": "c27f80b17d1f74ecfbe9114d5bd421f9c2201f21eefaeeade35445bdf33e0ec1",
+        "sha256": "5f788626d7987c0eb03e37d494d768e2c458345d3f86b4843724ed58d89b74ae",
         "mode": "100644"
       }
     },
     {
       "source": "skills/benchmark-checklist/SKILL.md",
-      "blob": "c02adb78929d0c1218fba554a31c423d65deb24d",
+      "blob": "e901d1fdbc9ffce53e94d6514be7d9a22e771a1a",
       "mode": "100644",
       "adaptationSha256": null,
       "output": {
         "destination": "skills/benchmark-checklist/SKILL.md",
-        "sha256": "6a767e788a60428fa14e645ee10fe2e49896e514ff654f668b1d824deb9038e8",
+        "sha256": "ba109e96c8f6c1c391baccf19e5d11e14370df7b3f2605e1572cd565a6c0fca0",
         "mode": "100644"
       }
     },
     {
       "source": "skills/blast-radius/SKILL.md",
-      "blob": "1713b283d477530be64e925ede2bdbe5ce2d6e31",
+      "blob": "b296cce0d746260a53c16e3671cb05bacfe82daf",
       "mode": "100644",
       "adaptationSha256": null,
       "output": {
         "destination": "skills/blast-radius/SKILL.md",
-        "sha256": "5f02db9101ccf26c20254718f0fcd5c2c7ac5d4292b0e0923d0944ac47237aff",
+        "sha256": "2e10745b97f5862323dcda3b29ca60d56b5c3c98e37020085d26b48efbe0a436",
         "mode": "100644"
       }
     },
@@ -366,23 +380,34 @@
     },
     {
       "source": "skills/correct/SKILL.md",
-      "blob": "c09f486e32935a154dd98daa13aa8187856600fe",
+      "blob": "c45e06f48a0982ae19f92c6e83a8cd05988097a3",
       "mode": "100644",
       "adaptationSha256": "f4362ca74f68b060f232c28a1939559afdb2037cd6edf6d9e657b7a79b3f6c89",
       "output": {
         "destination": "skills/correct/SKILL.md",
-        "sha256": "3045d96347dc1e7257f4857f76758e8423ac6d7aec95c6d1d719a1b9a55d50bf",
+        "sha256": "1617e8ec260148bae7508d2efd2cd2efa8dbc28fa94595e89181c59a628f429b",
+        "mode": "100644"
+      }
+    },
+    {
+      "source": "skills/create-formal-verification-skill/SKILL.md",
+      "blob": "92f7aa4fa966b857dd7fcc994b3c59650767c878",
+      "mode": "100644",
+      "adaptationSha256": "b7caf975a1a2f75912139982177089d3a5193e118d9c60b000b1ee04fc282dc3",
+      "output": {
+        "destination": "skills/create-formal-verification-skill/SKILL.md",
+        "sha256": "e35ab592426bfb816238ce5541feefd57ebb4e1bf364ed050a97c264381f8ad1",
         "mode": "100644"
       }
     },
     {
       "source": "skills/create-verification-skill/SKILL.md",
-      "blob": "f869e26122991252373d5b8f6357e5b9ff195a00",
+      "blob": "140d033a001e8d27acd14b06004506c43053b199",
       "mode": "100644",
       "adaptationSha256": "f2b534ecb9752b631e7066d0174885e79aa7693a60bd8eca6435a03e01ba9d81",
       "output": {
         "destination": "skills/create-verification-skill/SKILL.md",
-        "sha256": "007cc103335478e4851c84bca9f55346b10cad68eddeda468012526d675da9f8",
+        "sha256": "4aeb92ef419989135dd1095b6cd932edfdd2d047f92196fe70bb54bf18a02ea6",
         "mode": "100644"
       }
     },
@@ -421,23 +446,23 @@
     },
     {
       "source": "skills/figure-it-out/SKILL.md",
-      "blob": "fbf3fb122cab127d71d3c41e84711e61cc5dec4c",
+      "blob": "0d04c2e69b75b22ff1a9a1d8ab339580a5fbbfed",
       "mode": "100644",
-      "adaptationSha256": "2948bfd208d6ede60a8bdcba29173f4486a5fd8968f8990308d1cc02a9955cd0",
+      "adaptationSha256": "886edd97788173b31de6d9f380d1cb22787f7478b15837ee8379c119a2fcebff",
       "output": {
         "destination": "skills/figure-it-out/SKILL.md",
-        "sha256": "f603a3e861e7811ac7f4a946782b48cb7a1606a8bba41aefdcacd7fa4176bedf",
+        "sha256": "1ed893aa15d13b30c2bbd78a3c9f52fbf45990f71122d434f9b08159c373f405",
         "mode": "100644"
       }
     },
     {
       "source": "skills/how/SKILL.md",
-      "blob": "cd22fff659f14822ad2f485f711a355b6da0668d",
+      "blob": "67edc340d4d8a9c7ab0b9e08c663e0e63b8d9125",
       "mode": "100644",
-      "adaptationSha256": "161c58af781c0eadca0658f9fa461a92ffc3fb706d570166f58eef632c32a3a0",
+      "adaptationSha256": "b5ceec04a8f98c4879f6a0c7cfe301f5afa26f43b03cf4f6924e544add957427",
       "output": {
         "destination": "skills/how/SKILL.md",
-        "sha256": "d5916f07aff2dbce339cd2549144998291ac615f43952b8bde46de251a913632",
+        "sha256": "882bb6dadce0d4ee1f70783d258fda989cd9b95a22d86dfaf25c69b71b97bdb2",
         "mode": "100644"
       }
     },
@@ -454,67 +479,59 @@
     },
     {
       "source": "skills/how/references/explorer-prompt.md",
-      "blob": "9b4b0594bfd779015616e9d280369aba939583b4",
+      "blob": "724bacfc7df759865c0c29705bfee641e4c1aeca",
       "mode": "100644",
-      "adaptationSha256": "68ac0ebcd40669170c21bfaad4e67af4409f60ac29bc6342c538699b77245981",
+      "adaptationSha256": null,
       "output": {
         "destination": "skills/how/references/explorer-prompt.md",
-        "sha256": "8da3751b745bbfe38428813759d725188497cb81e453b9130c2182a2704c8586",
+        "sha256": "6300128385ee940fd42ecb84b0e623435440a2dc283eae54ee4a52ba56947ba1",
+        "mode": "100644"
+      }
+    },
+    {
+      "source": "skills/in-your-own-words/SKILL.md",
+      "blob": "4b2a476a9017863032c8dba9d12f0a2026943292",
+      "mode": "100644",
+      "adaptationSha256": "16dfb55b969c071ff5a226ab030225b054a95ac0b25ed255e14b26cd4e6c6c4b",
+      "output": {
+        "destination": "skills/in-your-own-words/SKILL.md",
+        "sha256": "251e7e0dc80af640ab652439453ad9cb1ca6977c6a02615e8e3e86b1fa3b714d",
         "mode": "100644"
       }
     },
     {
       "source": "skills/interrogate/SKILL.md",
-      "blob": "bd82e5b179f186e1cd7913dd112db9f8b07b4846",
+      "blob": "169f5b478f4cb53a4c5ab6046576034b4b07cfe8",
       "mode": "100644",
-      "adaptationSha256": "2c78204c0d6fd8bdad5f9377be0d7c90018578e1d12f2557dc7e699885a84773",
+      "adaptationSha256": "8720addda851edc18ba1e8ffbcfa2476e1f4a25797bfc08df74bf4f9d2a25f77",
       "output": {
         "destination": "skills/interrogate/SKILL.md",
-        "sha256": "a96c2081d5555b063a9c0cc93c1bc7a5d04d1433cbc13f229f966cf0628db166",
+        "sha256": "2a7b7960c97b15655200995f49bcd780d2221506641907b81eff197876266bcf",
         "mode": "100644"
       }
     },
     {
-      "source": "skills/interrogate/references/code-quality-review.md",
-      "blob": "16581250d81044c7e80fe234c4970a3f7b7fc98a",
+      "source": "skills/ketchup-video/SKILL.md",
+      "blob": "c0c614288dea9f413a418064d7e7d37791dd9e5e",
       "mode": "100644",
       "adaptationSha256": null,
-      "output": {
-        "destination": "skills/interrogate/references/code-quality-review.md",
-        "sha256": "79162fda183eafd40d51661fbb5e151c7ba250f89e506ba17f5bd135dcbd50a8",
-        "mode": "100644"
-      }
+      "output": null
     },
     {
-      "source": "skills/interrogate/references/lead-judgment.md",
-      "blob": "5ce526097fdd3dfeaf4cd3b126a3f486c3ee36ae",
+      "source": "skills/ketchup/SKILL.md",
+      "blob": "9eef27f92f8029137a7bfa7378305b075df9dc4f",
       "mode": "100644",
       "adaptationSha256": null,
-      "output": {
-        "destination": "skills/interrogate/references/lead-judgment.md",
-        "sha256": "6e5bdf5670eb34017692e9b6c546f36ac7552e6bb9f3f2f3429164fcc46a9361",
-        "mode": "100644"
-      }
+      "output": null
     },
     {
-      "source": "skills/interrogate/references/reviewer-prompt.md",
-      "blob": "13a252b2c3cd18522d4c8dc39a7030477037b249",
+      "source": "skills/maintain-formal-verification-skill/SKILL.md",
+      "blob": "5d2f7f2228a3b771ca5b03124fc265ddfc53c5fc",
       "mode": "100644",
-      "adaptationSha256": null,
+      "adaptationSha256": "83a4262abe413e1da2240c70a233ba582e33ebb7cba8ea072383aef58eb37c03",
       "output": {
-        "destination": "skills/interrogate/references/reviewer-prompt.md",
-        "sha256": "e0598e254792b56de39bb16b1e6db559b03a522fdc54b98f942d254090920ae6",
-        "mode": "100644"
-      }
-    },
-    {
-      "source": "skills/interrogate/references/rubric.md",
-      "blob": "2d92f1b83e13be03fb10f20cba12639a1406a2da",
-      "mode": "100644",
-      "adaptationSha256": null,
-      "output": {
-        "destination": "skills/interrogate/references/rubric.md",
-        "sha256": "a85aa801abbaf14434f00579440abc0d8e2723227ba8bf57de7cca8d6e7d2f25",
+        "destination": "skills/maintain-formal-verification-skill/SKILL.md",
+        "sha256": "4719a6fa5272c18a723a61bf7311b6c85fdf5067b096d57d896abd7bead6237b",
         "mode": "100644"
       }
     },
@@ -531,9 +548,9 @@
     },
     {
       "source": "skills/make-bot-ui/SKILL.md",
-      "blob": "285df7569758a70e62e9f3596a1f829a5b6ba80e",
+      "blob": "446342ca35a46af771271e0cd901354a61997589",
       "mode": "100644",
-      "adaptationSha256": "6e9b50353522c8a80f1931fd362c1928330b50ca045fee3a189aeb1f636fca5c",
+      "adaptationSha256": "524e90507127de620dfd3633a15d8d6ed02a3d7ed9cb4eb458c59660523bd498",
       "output": {
         "destination": "skills/make-bot-ui/SKILL.md",
         "sha256": "c0a7f1cf7d2d763a0adf20e6ec3164f3da25fc874baa986e3fdc649e5b78b304",
@@ -542,23 +559,44 @@
     },
     {
       "source": "skills/no-comments/SKILL.md",
-      "blob": "3b3e76295a7ad66806dcc683e4de92fb25690f8b",
+      "blob": "a07ce9dfc657bdf1b2bdf3f7619225e7faac091b",
       "mode": "100644",
-      "adaptationSha256": "205b2d4b8793b435359207830427be52debc3ffdcee877da26bd2edb92861b71",
+      "adaptationSha256": "870eb3dcea52f1a82cbbe3be4790aa2dbbc1b37db9a6ba87d98b70166618b449",
       "output": {
         "destination": "skills/no-comments/SKILL.md",
-        "sha256": "c69b5fa90417b08c037e3a55b7889c89b5401d3eeb6b2fcb3bbc97b78d88c341",
+        "sha256": "0cf8202551b5f749defe271c556db9e840a6b927b03f82529d3506e7cb14f360",
         "mode": "100644"
       }
     },
     {
-      "source": "skills/poteto-mode/SKILL.md",
-      "blob": "90bfebeecd3b8344eee39d08803a3e2a0f09e3c9",
+      "source": "skills/poteto-help/SKILL.md",
+      "blob": "a0604c9c4e63c7f798f19f33acd8a74ccb5b8531",
       "mode": "100644",
-      "adaptationSha256": "c353059ce9ccadc4140262088de210473d604f52409b3c213543e71e814e149b",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/poteto-help/references/prompting.md",
+      "blob": "6b72b2e6081fdb78a3261bd77cf7334596d1ee20",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/poteto-help/references/recipes.md",
+      "blob": "cc7a4e6828f5bfc3bcbf5954876358074718f45c",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/poteto-mode/SKILL.md",
+      "blob": "2dd5e76fde228141d3fe78b0b09ca68456b49531",
+      "mode": "100644",
+      "adaptationSha256": "2d0553381d32cf8976b73f7155bd9eac74cbf57682aada2d230a05798e55f680",
       "output": {
         "destination": "skills/poteto-mode/SKILL.md",
-        "sha256": "2099dba36f064a323f48a8d969afe23bdca9cd136be1bc130ac72d19f9d43306",
+        "sha256": "8e817a22433075493212460f8789512f9779a96a956139cec624b7357a21fdee",
         "mode": "100644"
       }
     },
@@ -575,73 +613,73 @@
     },
     {
       "source": "skills/poteto-mode/playbooks/autonomous-run.md",
-      "blob": "12c3a7d84effcacf3550cb893be67498d7b28a4a",
+      "blob": "af3bf11609a24020f678f859f13a65710ab67fbd",
       "mode": "100644",
       "adaptationSha256": null,
       "output": null
     },
     {
       "source": "skills/poteto-mode/playbooks/autopilot-full.md",
-      "blob": "d5a68c339e25ac016ffad9c51d858f0f6c37937a",
+      "blob": "bbc5b3751ad789cfbd92f8937a2e84de365509ad",
       "mode": "100644",
       "adaptationSha256": null,
       "output": null
     },
     {
       "source": "skills/poteto-mode/playbooks/autopilot-stack.md",
-      "blob": "750a7547235ae8eb340285684b9be7c36dff323a",
+      "blob": "819862c8fe7b756c8571eed410a30a09625673d9",
       "mode": "100644",
       "adaptationSha256": null,
       "output": null
     },
     {
       "source": "skills/poteto-mode/playbooks/babysit.md",
-      "blob": "683cf0ba889789cbe2d880fce667c75349f9ed12",
+      "blob": "14d5783d447ba3530d038c9dffa514f2492a54e0",
       "mode": "100644",
       "adaptationSha256": null,
       "output": null
     },
     {
       "source": "skills/poteto-mode/playbooks/bug-fix.md",
-      "blob": "eeebc42b7477d435d8ac61d631d84822f908f59c",
+      "blob": "b5de0bfa63add6ed38a38a8bd668cf36ac009c61",
       "mode": "100644",
-      "adaptationSha256": "7e17f0b8c946e821de51fe873dc367b1ca04e0664bc82d3f2c972fad22849012",
+      "adaptationSha256": "4423f07ecc5ef4ebc410d4e932210d3f14b6c1ec96142b17396c80bf1e028f6b",
       "output": {
         "destination": "skills/poteto-mode/playbooks/bug-fix.md",
-        "sha256": "009130d027fb60568093eeeb204baa75fe81f57bd9056ecc9570043fe732c717",
+        "sha256": "8dd8441fb61ee00132c7e1d0bf92ca0fd3ab04423e96cabeca5e0b1721ca380d",
         "mode": "100644"
       }
     },
     {
       "source": "skills/poteto-mode/playbooks/eval.md",
-      "blob": "3dae34e2ef0cbdd9bafa5ab372da5ea143d48452",
+      "blob": "768a894e275b1e9b198e83ceb6b46964e3f9d6db",
       "mode": "100644",
-      "adaptationSha256": "f8f3dd6f80a6f546a33aea69d672b702eb8b63eafffb617a05446b229e8bb05a",
+      "adaptationSha256": "248af7e1c484fc1144dfe22bda5de4d320e29329402f8caf8f44416ab9bedf3c",
       "output": {
         "destination": "skills/poteto-mode/playbooks/eval.md",
-        "sha256": "c6e3c5c85638e4ec904aff58b2ad2386f60bf2e9b8e3818f474f018df38d06ef",
+        "sha256": "25f65f1b5aa7c331ee4633a141c0d58b049d27a8e9adf4f933d70396ed01d645",
         "mode": "100644"
       }
     },
     {
       "source": "skills/poteto-mode/playbooks/feature.md",
-      "blob": "79a6bbbe0ce61c3b5ef9af1ee8e3ccdb0557edc6",
+      "blob": "eb1040cb2631f3eeacd8f9f6469d7e97277f24ef",
       "mode": "100644",
-      "adaptationSha256": "d3553502cbc406bfdb97a1f6f52dd972e64eb09102ad3f6fb82f272071e9181f",
+      "adaptationSha256": "6a54c6284b64bc07e5bdc2a4bc331ae72a3fdfdf0757df4ceba3ed72b7edd208",
       "output": {
         "destination": "skills/poteto-mode/playbooks/feature.md",
-        "sha256": "c94f7d12b87b88173be10fc6915fd1779e6bfc7633e9e2c3a2adfdae11c2c026",
+        "sha256": "9e619b54406bdc26f0451c63b2ecf33aac0b1b78ddb2b9f9e077b08e1e516a79",
         "mode": "100644"
       }
     },
     {
       "source": "skills/poteto-mode/playbooks/hillclimb.md",
-      "blob": "c6441b92d30a71489d88eae5bfa8dc457da55cb1",
+      "blob": "e9cf267908a9737236b3a8a8a5a99fe9066f7554",
       "mode": "100644",
-      "adaptationSha256": "78032ddd767d53cb4af2ce1c46355686b156777d86849e1f37a9d768d886a632",
+      "adaptationSha256": "191c220c6dd3dc367a99119598b5b57c579584901a5735e963a596052d12ea47",
       "output": {
         "destination": "skills/poteto-mode/playbooks/hillclimb.md",
-        "sha256": "7bb4e60c1415f626d937ea19805e990ae3985a4d573a7a03e460efc6dbbb0a6b",
+        "sha256": "a58a0be02e0e5ce126c40d04e46bb9421d5552f27a9a240f6311bdae3f81d5c7",
         "mode": "100644"
       }
     },
@@ -658,34 +696,34 @@
     },
     {
       "source": "skills/poteto-mode/playbooks/multi-phase-plan.md",
-      "blob": "f8ed78a6533cc5d738d3a3ec106bf2577d3f98ca",
+      "blob": "7101aa71dbc08f2b84baa227a7bd589f800f13e8",
       "mode": "100644",
-      "adaptationSha256": "ac49a17586b4da23d262c4f9b7086de0e0cfe71c2e2cff6ea5a59cbb576c1ebe",
+      "adaptationSha256": "f4ae0e27617324ff6db9fdb3c4a026f17a79392a0873d047c949f14ecbabb054",
       "output": {
         "destination": "skills/poteto-mode/playbooks/multi-phase-plan.md",
-        "sha256": "565ee9ffbb31af740e7c9aa7524292e7904b6b3cfe5a2e9a40172b2f488d483a",
+        "sha256": "0645af85b90128e4bf2d58e2723bdf679630c48a0918be526be4f74ce7d5444c",
         "mode": "100644"
       }
     },
     {
       "source": "skills/poteto-mode/playbooks/opening-a-pr.md",
-      "blob": "4e25989729174580e48ce36e265f298231c6de7f",
+      "blob": "4a92c501f184ea24392d59a9889ce2f08e8e9201",
       "mode": "100644",
-      "adaptationSha256": "0a7567afd4198a9921e1f9a8ffc8eb7d8bc892a3ec7bfb6617785baad2ca12e6",
+      "adaptationSha256": "473b121aac9e7e13ce9ae75276d5f7b1c1e9de8a890a0b38a093f2730ef348a1",
       "output": {
         "destination": "skills/poteto-mode/playbooks/opening-a-pr.md",
-        "sha256": "740fff4a8c6d515353b2aed5cf07ae004f95013bd05b9e3cef215cf1bbc9ce09",
+        "sha256": "d86ceea3fcbe769714f7fa06c2d7fc9b26d716fce97c9d824d56d64327806800",
         "mode": "100644"
       }
     },
     {
       "source": "skills/poteto-mode/playbooks/orchestrate.md",
-      "blob": "d5b6d008026ff0177f52e22a6fb4b2edae5c87e2",
+      "blob": "b6e5f5661a1e6b4778845de53f331cee3486905b",
       "mode": "100644",
-      "adaptationSha256": "6edb66c708084c7c4078289078ab332ba03449a2575d1709bb0bedd10b3121e1",
+      "adaptationSha256": "6292135398d7b5e472fb28d7c79e978fd7dc8caf2903bc036b837f95a88da6b4",
       "output": {
         "destination": "skills/poteto-mode/playbooks/orchestrate.md",
-        "sha256": "afe5409e55f4d11b9f6e77f4e5a7a407271ae080f8a99c0ec0c82bc56922d2d9",
+        "sha256": "f45e1d7241e4006b8b9a2e3b02ca0a98be2e5430ee7482debb5608420064262e",
         "mode": "100644"
       }
     },
@@ -702,12 +740,12 @@
     },
     {
       "source": "skills/poteto-mode/playbooks/perf-issue.md",
-      "blob": "405c7a4362bedbd4194a5ef234553adf0dff78c9",
+      "blob": "46dcc9963366992016dfb1d59ccaae977930f982",
       "mode": "100644",
-      "adaptationSha256": "737b5fcf060dc9e3dfa0898280149d4dda7ec2b11aa7e00b7f6f4bb8c6b90748",
+      "adaptationSha256": "f0f4ddc56be795b239c9596425bc8aba051a407d57d25f4c6c9a501fff7c322c",
       "output": {
         "destination": "skills/poteto-mode/playbooks/perf-issue.md",
-        "sha256": "453fa3d988abae18287d46ff4d233673aa0b097e24e1fe170486f24c96354569",
+        "sha256": "93a37f99b5d91a4415f470b74212a8ec86422c06fb2fb1053cae3a4f1a76c58e",
         "mode": "100644"
       }
     },
@@ -724,48 +762,48 @@
     },
     {
       "source": "skills/poteto-mode/playbooks/refactoring.md",
-      "blob": "df2a863b531906c64f92b9f9d8feb62f8c7a8665",
+      "blob": "c04b07eeb8b8fa651d080729363466ab73d2fe40",
       "mode": "100644",
-      "adaptationSha256": "60802954ba1e07b48d90871ba4174c28a0091f43bcc3c33423b1372a86310873",
+      "adaptationSha256": "28597f2c993274efaf3c523344245f67e359b2ec94934a012feb6d71fa9cdf10",
       "output": {
         "destination": "skills/poteto-mode/playbooks/refactoring.md",
-        "sha256": "a08650ccf0c7bf47db4edcdda7153f055433706e90cec692427be5bb5556dccf",
+        "sha256": "71a8d215495d3ea329e98edfa74a78806643773db720b85f2aaa9bf9e8c29b92",
         "mode": "100644"
       }
     },
     {
       "source": "skills/poteto-mode/playbooks/runtime-forensics.md",
-      "blob": "ba659bfe1c4c2f956f3285974bfdc941120f9948",
+      "blob": "6bf64240d1a890df290b98c632ad374d20ca9fd4",
       "mode": "100644",
-      "adaptationSha256": "8d3a441c725cd655fd49287f08091cbb6e57ec53acbd82260c228ace7434b175",
+      "adaptationSha256": "08619828817f426ea2da672d8826d78b09e2558a4bd998b2ddbb89a858662448",
       "output": {
         "destination": "skills/poteto-mode/playbooks/runtime-forensics.md",
-        "sha256": "fc031a5ee97daf51504a6a60f8b169efcccda002bea7bbef26f5c9b8181a5527",
+        "sha256": "3d6101fdc3f03f7fea61b3958e005c39b72aad2bb0855cffcee4d2ef54909e9b",
         "mode": "100644"
       }
     },
     {
       "source": "skills/poteto-mode/playbooks/session-pickup.md",
-      "blob": "9b2ed06e0ff8b01bf03b7a0d6a4cbb8ba3a46720",
+      "blob": "876b1433828ccc7c874123cdf300240abb285dd9",
       "mode": "100644",
       "adaptationSha256": null,
       "output": null
     },
     {
       "source": "skills/poteto-mode/playbooks/shipping.md",
-      "blob": "0f1d41f189222b991734015926a3b22607e1b92f",
+      "blob": "0a0c3cfde8948e3aa8ee80c6f3f9ce7e3e64fcba",
       "mode": "100644",
       "adaptationSha256": null,
       "output": null
     },
     {
       "source": "skills/poteto-mode/playbooks/trace-forensics.md",
-      "blob": "48ed6b2f690215027eda96a1897ed98212bbd07a",
+      "blob": "bf1b003786503623d91ca173fc97a6e54eee3acf",
       "mode": "100644",
-      "adaptationSha256": "89cd014515a5ad6c8b1915199473175d7c2ab8e826f6bcfc0ce11a828a2b0a97",
+      "adaptationSha256": "6625f901298a1d102d7685ef5739384f3ef0f47b402325ab0699c600d7caf0f6",
       "output": {
         "destination": "skills/poteto-mode/playbooks/trace-forensics.md",
-        "sha256": "24f232a8bcb9cea225a4abfa3d050984ba3b2c1081abf885c81523eaecdcb11c",
+        "sha256": "1d0aabb6d13d400866ba2320af41c64f36723a1116842e80d783de548ef4b76d",
         "mode": "100644"
       }
     },
@@ -782,7 +820,7 @@
     },
     {
       "source": "skills/poteto-mode/playbooks/worktree-cleanup.md",
-      "blob": "39c9ef9f368ac63b0e4245503302a4c174e846d6",
+      "blob": "45e1af693cc40d0271249a0e98f15bfc815af615",
       "mode": "100644",
       "adaptationSha256": null,
       "output": null
@@ -810,35 +848,21 @@
     },
     {
       "source": "skills/poteto-mode/scripts/check-plan.mjs",
-      "blob": "d242f28eb801e781ccc2f2ba93b700b263a77816",
+      "blob": "c3ddc398997d29d3c97a414e5c2b37172b901254",
       "mode": "100755",
       "adaptationSha256": null,
       "output": null
     },
     {
-      "source": "skills/poteto-mode/scripts/orch/orch.test.ts",
-      "blob": "9c234de724991083b4644e906a5f1358f8ef8dcc",
-      "mode": "100644",
-      "adaptationSha256": null,
-      "output": null
-    },
-    {
-      "source": "skills/poteto-mode/scripts/orch/orch.ts",
-      "blob": "219ac17bd8805b45140eca7c429834be9ded1b7d",
-      "mode": "100755",
-      "adaptationSha256": null,
-      "output": null
-    },
-    {
-      "source": "skills/poteto-mode/scripts/orch/store.ts",
-      "blob": "5e6c602fb670a6b5598977f5bf85d717cf797ef7",
+      "source": "skills/poteto-mode/scripts/check-plan.test.ts",
+      "blob": "cd1debfa31579068dc41b8657b7de3b341be29a0",
       "mode": "100644",
       "adaptationSha256": null,
       "output": null
     },
     {
       "source": "skills/poteto-mode/scripts/package.json",
-      "blob": "8a3dfe27c2d0221a786e1ce61963d51c55260725",
+      "blob": "c8839d74d9be87dc78b3af0bc6f68f935b4ecc25",
       "mode": "100644",
       "adaptationSha256": null,
       "output": null
@@ -859,35 +883,35 @@
     },
     {
       "source": "skills/poteto-mode/scripts/watch-pr/fakes.test-helper.ts",
-      "blob": "2312522cd7399334115a5f39fd6438aab7fc5aa5",
+      "blob": "84ccf596b01e03e7fb77e73ea82ec3b1738026ad",
       "mode": "100644",
       "adaptationSha256": null,
       "output": null
     },
     {
       "source": "skills/poteto-mode/scripts/watch-pr/github.test.ts",
-      "blob": "87f4048f08a63a54975c4ef2de8065375e751683",
+      "blob": "4e58938389bb8ac6f3728aea65c56e30ed047a5e",
       "mode": "100644",
       "adaptationSha256": null,
       "output": null
     },
     {
       "source": "skills/poteto-mode/scripts/watch-pr/github.ts",
-      "blob": "79bc06fb682c5d99de7d48338b0a6ecd27a518da",
+      "blob": "123a33b19f807cff4c641fff3d44f9a02ba449e0",
       "mode": "100644",
       "adaptationSha256": null,
       "output": null
     },
     {
       "source": "skills/poteto-mode/scripts/watch-pr/policy.test.ts",
-      "blob": "0620ddedde46da8e763ab2a55ebceaad2aa6d0a7",
+      "blob": "966b7536754602e2550bf7245eed2124af623b76",
       "mode": "100644",
       "adaptationSha256": null,
       "output": null
     },
     {
       "source": "skills/poteto-mode/scripts/watch-pr/policy.ts",
-      "blob": "4665be37e8f9afff1c9e1f5dd60d98e0d70c8c6c",
+      "blob": "8179f2d8ba5bf675feb3b1449161360827031518",
       "mode": "100644",
       "adaptationSha256": null,
       "output": null
@@ -915,7 +939,7 @@
     },
     {
       "source": "skills/poteto-mode/scripts/watch-pr/types.ts",
-      "blob": "b67144e0d757e0b61ff079f981ced0a98555ea9d",
+      "blob": "60b9abcac983fc0a4319428c1be145dc110a8cc5",
       "mode": "100644",
       "adaptationSha256": null,
       "output": null
@@ -929,19 +953,19 @@
     },
     {
       "source": "skills/poteto-mode/scripts/worktree-audit.sh",
-      "blob": "b9af08160032aeb17143248f2a3648e98f5a75b3",
+      "blob": "47e08919d7b08c32923a7bdaaa70b17ca708f5f6",
       "mode": "100755",
       "adaptationSha256": null,
       "output": null
     },
     {
       "source": "skills/principle-attack-the-premise/SKILL.md",
-      "blob": "f9785ff9fdcf37d1c689e4468da7d611f3b76d4b",
+      "blob": "e9a6d499606992edd9963b80f8f8f57feaccb221",
       "mode": "100644",
       "adaptationSha256": null,
       "output": {
         "destination": "skills/principle-attack-the-premise/SKILL.md",
-        "sha256": "c87bd7536f772f8a403ad8155535ee17a1bbec9a353156693eb3bb1520c87ae3",
+        "sha256": "6a932884daad4aa189e9b5d1665226bbc75621d4d2a398fd4003bebd382f4599",
         "mode": "100644"
       }
     },
@@ -958,34 +982,34 @@
     },
     {
       "source": "skills/principle-build-the-lever/SKILL.md",
-      "blob": "277189a10b00fddc7cbb63fcf2323c7341abb0df",
+      "blob": "cbf003850489d95fea78e64198fd972c35b1aad3",
       "mode": "100644",
       "adaptationSha256": null,
       "output": {
         "destination": "skills/principle-build-the-lever/SKILL.md",
-        "sha256": "458b269eab8e95a1573276955312f7d2a13ae8599879a9efc748248f6bc34b56",
+        "sha256": "3434b0ad0c640c6f1d7960be7a8986c3bcdc14e26060360dec29903df60074ff",
         "mode": "100644"
       }
     },
     {
       "source": "skills/principle-encode-lessons-in-structure/SKILL.md",
-      "blob": "df9cd5ff2fb3c18267349cc6aecd8121848ef834",
+      "blob": "4a96f77fe70e36cb030f9c5efa142f66877bf58a",
       "mode": "100644",
       "adaptationSha256": null,
       "output": {
         "destination": "skills/principle-encode-lessons-in-structure/SKILL.md",
-        "sha256": "77044c83a9ac6df78fc643887ea5f1f11f082adaf14b717c060cdaed03cce863",
+        "sha256": "228963799189f481827d6f28065f278bc2008ffa37030b1234cbd5814d36b9e9",
         "mode": "100644"
       }
     },
     {
       "source": "skills/principle-exhaust-the-design-space/SKILL.md",
-      "blob": "85dd16f1312f3427e2dddcfc8e7deb89e2555bb3",
+      "blob": "395a0839126bb231430a9c9da02ebab5422557d5",
       "mode": "100644",
       "adaptationSha256": null,
       "output": {
         "destination": "skills/principle-exhaust-the-design-space/SKILL.md",
-        "sha256": "8583310d7297b7823d75494faa57b003564d436807febecdecbd8321abe5cf6e",
+        "sha256": "2de83d99f93f60ec6313455b0bc9aa9f0bfb93dd59f414f403691322db00d4db",
         "mode": "100644"
       }
     },
@@ -1002,23 +1026,23 @@
     },
     {
       "source": "skills/principle-explain-the-number/SKILL.md",
-      "blob": "9c22351d1fbe1ffcf277e61aef9fdb7816306fa7",
+      "blob": "3948ad34092437918f366e2cbb270e9ae31977fb",
       "mode": "100644",
       "adaptationSha256": null,
       "output": {
         "destination": "skills/principle-explain-the-number/SKILL.md",
-        "sha256": "5aac99e7ce0bb1b37e2579acf4fe88c32a1456d9d46afd4a57cfe1df9092e89c",
+        "sha256": "3c84fbf9a7d9842abcfcd134010782b32092ac3d3fb4aaf9ed5732dca83aa58c",
         "mode": "100644"
       }
     },
     {
       "source": "skills/principle-fix-root-causes/SKILL.md",
-      "blob": "7e5a419aeec97b4076fa517865013677428a9fa3",
+      "blob": "14fc189fa1ec3fb1614b0a3c75557f92943d8f13",
       "mode": "100644",
       "adaptationSha256": null,
       "output": {
         "destination": "skills/principle-fix-root-causes/SKILL.md",
-        "sha256": "ba4cd38da1dcc8fe5432feb64457cba95594736a9b21b2ebf8f8c52aee068707",
+        "sha256": "8df3c8c3fe57eb0055a5c8efab8ab144557fdf301da70b1cdc77a3a3ef3f3052",
         "mode": "100644"
       }
     },
@@ -1035,78 +1059,78 @@
     },
     {
       "source": "skills/principle-guard-the-context-window/SKILL.md",
-      "blob": "c4db544909b26981c45eed9caa6591d32885f841",
+      "blob": "0a1d3cfcf4539fe048887174000fecbf2fa40e81",
       "mode": "100644",
       "adaptationSha256": null,
       "output": {
         "destination": "skills/principle-guard-the-context-window/SKILL.md",
-        "sha256": "d2cef147862576e3d709b7afc149d85196245e8338b9c7eef337c95fba412b3e",
+        "sha256": "af0b9dd70b43628ce4a59a4d332e9d9ad055084e460f430e7a757495c627e81a",
         "mode": "100644"
       }
     },
     {
       "source": "skills/principle-laziness-protocol/SKILL.md",
-      "blob": "e5bc77e62aa96ae13e482a84df61b3c711c5d828",
+      "blob": "016c3c7c8dfffd995c1a02135a62248e6625879b",
       "mode": "100644",
       "adaptationSha256": null,
       "output": {
         "destination": "skills/principle-laziness-protocol/SKILL.md",
-        "sha256": "9006579e9e3f33955d17569733db688ae65f22577dc3b21803d219a5a8445aff",
+        "sha256": "1be6e7a435f26a75a76eb848b9c3d611b9977d0f5822361753244da25ca3ca45",
         "mode": "100644"
       }
     },
     {
       "source": "skills/principle-make-operations-idempotent/SKILL.md",
-      "blob": "a0834247ca99b09c11441747717a8034d4c22d7c",
+      "blob": "c93f323d694a4d310515ea27165a093d399bc55e",
       "mode": "100644",
       "adaptationSha256": null,
       "output": {
         "destination": "skills/principle-make-operations-idempotent/SKILL.md",
-        "sha256": "540738217c3da7bf513b9886924ad6a2bc77e58be867f5bd2e1831c74bf2ce70",
+        "sha256": "7aa9327cf1f1aa057e95d47a0a78bd88a8f9d556b608866fee939d455a53a019",
         "mode": "100644"
       }
     },
     {
       "source": "skills/principle-migrate-callers-then-delete-legacy-apis/SKILL.md",
-      "blob": "06c7cfd87becc62d614d0af075b792f8ec6eb21d",
+      "blob": "57ddd7b27d06ba4ee9e2d3811880476a18b88df6",
       "mode": "100644",
       "adaptationSha256": null,
       "output": {
         "destination": "skills/principle-migrate-callers-then-delete-legacy-apis/SKILL.md",
-        "sha256": "09978915a4a11990cf0a9a02d9c08cc59e0b7a04c5c24b83aa560fbe4146f75b",
+        "sha256": "580ad9bb1a0994ecb924321ba49efc38a2f85c64e22c76fb133f57a78272a2e6",
         "mode": "100644"
       }
     },
     {
       "source": "skills/principle-minimize-reader-load/SKILL.md",
-      "blob": "64541d963123e344078d82fd3977e857e76129df",
+      "blob": "628999088c5d05c1c546b3a3ca89da553cd3f3b2",
       "mode": "100644",
       "adaptationSha256": null,
       "output": {
         "destination": "skills/principle-minimize-reader-load/SKILL.md",
-        "sha256": "42551c5dc74cd578163c148da552db3ff67d29b78600ef216bfd311fb828fe69",
+        "sha256": "1ea2b7fef2391cae5844c4efdbd59031f775e8a52d06b7495d707229a200dcca",
         "mode": "100644"
       }
     },
     {
       "source": "skills/principle-model-the-domain/SKILL.md",
-      "blob": "e1d664a19243c90a84e5e7a816e9e05146c88720",
+      "blob": "09b7c739955facf03f08f66e1e329745d2f8880e",
       "mode": "100644",
       "adaptationSha256": null,
       "output": {
         "destination": "skills/principle-model-the-domain/SKILL.md",
-        "sha256": "bbadbb9a723fac3f76e782ae45665eb94058ec10993e4bae36d4dc6b0e4eac07",
+        "sha256": "52c0d85e0c3827c41c18299b642657d7b47eaf77b7b31609e42e0df42b84c75f",
         "mode": "100644"
       }
     },
     {
       "source": "skills/principle-never-block-on-the-human/SKILL.md",
-      "blob": "11f08b6ef1fd93a3b3e47c57eb84716dc9acbff9",
+      "blob": "4f59bdc69f79d536b30b0014a563ed3be05b8b62",
       "mode": "100644",
       "adaptationSha256": null,
       "output": {
         "destination": "skills/principle-never-block-on-the-human/SKILL.md",
-        "sha256": "f2764bb9338cbfc788c903cf4b9cd0a5f4042d3a04dd6d59cbd525d9beaadd0a",
+        "sha256": "05030a7a083c337676f793881b4e93cd218e8f1dd676529f56e6ac1d3efb8d1f",
         "mode": "100644"
       }
     },
@@ -1134,12 +1158,12 @@
     },
     {
       "source": "skills/principle-redesign-from-first-principles/SKILL.md",
-      "blob": "090a4325f43a96080cce3895f0e932b62c39146a",
+      "blob": "5ca5246cbb0fa08884ce17b0d22c117ae1ad67b8",
       "mode": "100644",
       "adaptationSha256": null,
       "output": {
         "destination": "skills/principle-redesign-from-first-principles/SKILL.md",
-        "sha256": "a1c7fd0a96b40e12a74bceb0e6bb20a9666dd844dcabfb624acb27da23b929fe",
+        "sha256": "170e0a658783e43fee8ec5a8c2422a4abb8f69cef621dd1819a95910b8207034",
         "mode": "100644"
       }
     },
@@ -1167,122 +1191,129 @@
     },
     {
       "source": "skills/principle-subtract-before-you-add/SKILL.md",
-      "blob": "d28770cf47a5798d0250a25ad494aedfecad154e",
+      "blob": "b8740ba6f06922d8e7ef3b23f9fb16e0fc4a876f",
       "mode": "100644",
       "adaptationSha256": null,
       "output": {
         "destination": "skills/principle-subtract-before-you-add/SKILL.md",
-        "sha256": "a983a50e732c1ed315eba7aaf47a61329e31c4794eb1ab9d25d9945265b31e03",
+        "sha256": "8c93bb9d1a7f38e2ef37655d93f0e790fa59903105af3d500cc8a663ebe45f3f",
         "mode": "100644"
       }
     },
     {
       "source": "skills/principle-test-behavior-not-implementation/SKILL.md",
-      "blob": "42de6f8f7cab01b9f67aa28bd59b128f7574fbab",
+      "blob": "78c9389bfe707d6d56485ade32c59150958228f9",
       "mode": "100644",
       "adaptationSha256": null,
       "output": {
         "destination": "skills/principle-test-behavior-not-implementation/SKILL.md",
-        "sha256": "87e40efe4e486f7ea639d2ed1fc0abe6c93b8fd0e89a81218086909d2470a52e",
+        "sha256": "f7223698623b6a26fea49c751e466b38e6691b1f32ce841d3983e7ffbe2b74a6",
         "mode": "100644"
       }
     },
     {
       "source": "skills/principle-type-system-discipline/SKILL.md",
-      "blob": "6030f171bee0d1902cf7ca91f06225e09f0f5433",
+      "blob": "9fa08b0b17d536ce751fffa90134be8fb03699c7",
       "mode": "100644",
       "adaptationSha256": null,
       "output": {
         "destination": "skills/principle-type-system-discipline/SKILL.md",
-        "sha256": "c83da8031ffb4c86410030d3e261f659598fca2b7d8158fd9dc269d70a3a025e",
+        "sha256": "5cdaf79785e3c12b2592b9469ee8c272143eb86ab7a18d8382197cea5fd30106",
         "mode": "100644"
       }
     },
     {
       "source": "skills/recall/SKILL.md",
-      "blob": "a70062a3f89a8d68b3391bc71fc4c6cc2dfcf6a4",
+      "blob": "cd8cc20790d90579e632626fe6db2b1fff593eea",
       "mode": "100644",
-      "adaptationSha256": "593ad85453dd839ee7feaf3d992a91902f61e701f2b4dbb7628c72a71681825a",
+      "adaptationSha256": "314e32022f7107b3796bcd08847500901a5ade1249a10e180a09a55c8a32a2dc",
       "output": {
         "destination": "skills/recall/SKILL.md",
-        "sha256": "898dfe4a269b19cbacf70ce61888e021cf2f8773cc9b412e39ef5330f267486d",
+        "sha256": "4f2e075086ffcb63461428ddc3546eed40d69c14bb53bde79e490a50f27115eb",
         "mode": "100644"
       }
     },
     {
       "source": "skills/reflect/SKILL.md",
-      "blob": "cb270acc507aeaeab7c37db11fc8130cbb2f93f4",
+      "blob": "9bb153bd2121e49d73a7af7d55ef372079889e62",
       "mode": "100644",
-      "adaptationSha256": "fe0c93cb8ccc5d6f0e4af6bbdfc3f9fe8919fec9ddf100656ab61f4bd55dfff3",
+      "adaptationSha256": "579c033b3d9d6ba22a229dfc40cb349bbed7105b84f05e39818ee7c3d1c8d886",
       "output": {
         "destination": "skills/reflect/SKILL.md",
-        "sha256": "58f8fb8e8f0c85faddf2dfd1b2d8f6a9349f686a0c20687202daaca48682633a",
+        "sha256": "a4e8eac4c7eed9d345f92a4775ddcc01f5bd4ea15e5b3c72bd738787e07741a4",
         "mode": "100644"
       }
     },
     {
       "source": "skills/reflect/references/divergent-reviewer.md",
-      "blob": "de95be3b9cc9c11052596249336dcc328473eb26",
+      "blob": "1e070a2a3754f4dc0ddbaec4450a56179b81c92f",
       "mode": "100644",
-      "adaptationSha256": "aef71f543f76f7396ae3417c9d4e8e4423b5e5bac14faed5c95f0560e3983754",
+      "adaptationSha256": "9720d3e11335a7c2b6c374ad79234c7b01c4e88a6c16628a5f1096d102264817",
       "output": {
         "destination": "skills/reflect/references/divergent-reviewer.md",
-        "sha256": "67e039656821ca29732976ad64a3612482d64b596928d1beedc77695c62ed4c8",
+        "sha256": "2c7938b34a976fc0b871e4b033b990916bb24fc84f44340cfc5cb1e2e4d50bba",
         "mode": "100644"
       }
     },
     {
       "source": "skills/reflect/references/judgment-reviewer.md",
-      "blob": "222f02b1c3c6eb3e700fa09a71bad108807d3485",
+      "blob": "61d15d76fff852eb573b551bc1317d79ed5a2e5f",
       "mode": "100644",
-      "adaptationSha256": "aef71f543f76f7396ae3417c9d4e8e4423b5e5bac14faed5c95f0560e3983754",
+      "adaptationSha256": "9720d3e11335a7c2b6c374ad79234c7b01c4e88a6c16628a5f1096d102264817",
       "output": {
         "destination": "skills/reflect/references/judgment-reviewer.md",
-        "sha256": "dc2ecf0728c18a9def4bafa3f84383df084a5cb824330790d408ad2293f2ec00",
+        "sha256": "ba0c952cfa029bd2611eb41d5d794567b4ce8197ffb2c63899bdafd4766eaef3",
         "mode": "100644"
       }
     },
     {
       "source": "skills/reflect/references/synthesizer.md",
-      "blob": "d0e78195186c0dd6cfdc87ba19402ea8cd2aa385",
+      "blob": "1a090d86134987719ddb418023020c2ef58a6dae",
       "mode": "100644",
       "adaptationSha256": "2e6bfb122d579a9e8ba3278faa4d470bd879220386b4dee9992666df25fcda4b",
       "output": {
         "destination": "skills/reflect/references/synthesizer.md",
-        "sha256": "00bfef513420d4b5eb0f76a5010df4cc74f0a9a70f8fca18b462881392456df8",
+        "sha256": "990046a2dc7824e430d240fb340743ae17bb12c432574cb0bb48d2dc5d565994",
         "mode": "100644"
       }
     },
     {
       "source": "skills/reflect/references/tooling-reviewer.md",
-      "blob": "a37e2009d6ef08f535df87e020e52426c6a5fa33",
+      "blob": "a839db4318798c51539c319cb90387ce02557225",
       "mode": "100644",
-      "adaptationSha256": "aef71f543f76f7396ae3417c9d4e8e4423b5e5bac14faed5c95f0560e3983754",
+      "adaptationSha256": "9720d3e11335a7c2b6c374ad79234c7b01c4e88a6c16628a5f1096d102264817",
       "output": {
         "destination": "skills/reflect/references/tooling-reviewer.md",
-        "sha256": "d51039032483c36265464dec7db718f4eb3d5c8f874fb421ffda041b326e45df",
+        "sha256": "52129b968efe046e67312dc7d62383f6200e0791b3c99b6e514ccabde3171431",
         "mode": "100644"
       }
     },
     {
       "source": "skills/setup-pstack/SKILL.md",
-      "blob": "1009e73c6116c8f6c24b5870c8f0600ae144b631",
+      "blob": "91f1127f8b14415fef9698b02a64d3d0bdef4f54",
       "mode": "100644",
-      "adaptationSha256": "1115a26dd1ff39cb8dcca9b3131dd2742b38b99f3bebbb879f51d3349e3c4f61",
+      "adaptationSha256": "4f4e9cbf6ebac8393e9813e94f2b77ceace336e61012fd07ae8d008961a82bf1",
       "output": {
         "destination": "skills/setup-pstack/SKILL.md",
-        "sha256": "b1f03c6260c92348ac223ea106b8ece1a6604f5e2e43c08e66b2a29fd1898088",
+        "sha256": "7d780d97210e9eee2f2cad3742b6334ce220c2782b9b24642e1804ebf8a2fa75",
         "mode": "100644"
       }
     },
     {
-      "source": "skills/show-me-your-work/SKILL.md",
-      "blob": "d350a150c36ca16382b4aa6d4196b39e67454ad1",
+      "source": "skills/sharpen/SKILL.md",
+      "blob": "5b4a7b104e709f8cded1726541be42431c334164",
       "mode": "100644",
-      "adaptationSha256": "0a796a2e0a36d46de3dce248ed781b47364a56a67f2b5d2fabcde80498fb397a",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/show-me-your-work/SKILL.md",
+      "blob": "ada1bba1e51356de0e0d4da1d13ba5a56ba9c7cb",
+      "mode": "100644",
+      "adaptationSha256": "eaddd26319485f5e0a6a107acb8ea0e381e04f453edcc18e7819eb4d347e98da",
       "output": {
         "destination": "skills/show-me-your-work/SKILL.md",
-        "sha256": "ff0eb28e52d9cbb01d38b393eae7a9ed56e060b4646ef26f884e0dd76dbfcf55",
+        "sha256": "275eb8a02e0e559898f85f3a9f8f29a1b62e5ce477bb6f6727a1a23800f03e1a",
         "mode": "100644"
       }
     },
@@ -1305,13 +1336,2862 @@
       "output": null
     },
     {
-      "source": "skills/swarm/SKILL.md",
-      "blob": "db22b8787966abc61216052d9f3142018404cab8",
+      "source": "skills/statechart/SKILL.md",
+      "blob": "f5a64a8db4b8a5957ac5e76e051b1823cecd4d5e",
       "mode": "100644",
-      "adaptationSha256": "38a342c46eb0d34f255565d0649102aafe965529b2254f2210fe939c46d3d936",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/references/render.md",
+      "blob": "5ef0519d6f7ae97ef7befceaf174f94f52dd42f5",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/backends/cfg.ts",
+      "blob": "dec8b2f6671f2d110cd880f7af8d2c714cdf23a3",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/backends/mermaid.ts",
+      "blob": "327220cad69baa1d4fa5aa1cfe03f3cf9e13c133",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/backends/plain-text.ts",
+      "blob": "1ece33e8c45995493e84bc948ad613fce15481ab",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/backends/report.ts",
+      "blob": "62e2a853375a1141491ef54fed8fd0d81a1bcd3c",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/frontends/config.ts",
+      "blob": "4f6ade5a9a74c8e74a58125dc7a5d035ea2ca36b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/frontends/dot.ts",
+      "blob": "003dfc89d4925c6aed3e59073b6a9414da78117b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/frontends/marks.ts",
+      "blob": "9b1eda59f12861b8fb981d6046741417cd1be667",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/frontends/messages.ts",
+      "blob": "e835b065e775a1b822eede5b1515d0401ce8356b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/frontends/spec.ts",
+      "blob": "3fbe34f1a6b344c56cfd5afba3b90fe9a397c405",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/frontends/trace.ts",
+      "blob": "43387c12b314c343d7a046de2fd095a3950b0026",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/frontends/value.ts",
+      "blob": "d73ddec9ee3fa6077c644625002707a96d0938a1",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/frontends/verdict.ts",
+      "blob": "4f2ddd925332773b68918c40e62fc79a3a32571b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/frontends/view.ts",
+      "blob": "ed8a1b5f9f0b4104a901a966bdfd66f13102d5ce",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/ir.ts",
+      "blob": "80fd403fe3c231b0986f239ba8c74a60b52c05f7",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/package.json",
+      "blob": "16bd68507bac879f00d9efb90f6a5df689dbbd3a",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/passes/annotate.ts",
+      "blob": "7d95d4fb57311c26bbbaca42eb283421f56140e0",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/passes/label.ts",
+      "blob": "cc8c197726137a0875462702e39cd07cbf55d547",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/passes/lift.ts",
+      "blob": "15db7deda016faee9c0da33c2c419be51e528ed6",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/passes/loop-check.ts",
+      "blob": "7e5a3825adde46e8a625ad9e167cb0ce6b712174",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/passes/paths.ts",
+      "blob": "632a5c4ae6d6101c89f46803605c09b6a96f9b6f",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/passes/reach.ts",
+      "blob": "d5b6a521dc970f888d615d41caf692d0f7bcb2ec",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/passes/region-check.ts",
+      "blob": "ae499230f5ba441d704386bd24df73cad3c92af7",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/passes/regions.ts",
+      "blob": "bb7aea062410be42c25c779ca748c2b52c3e5a82",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/pipeline.ts",
+      "blob": "f12a2e07f6e4fe283cfd1b2fc0d3f83dd3d75758",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/run.ts",
+      "blob": "4efd368e5bcd0b4ef7cf8d8cfd1e511483c720aa",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/statechart",
+      "blob": "7d3aeb8c219bf20aea4cbc321892fca9cbd582f1",
+      "mode": "100755",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/statechart.ts",
+      "blob": "4e2967e680895875d7d5352bfe997a4c08c2d1fc",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/ConfigOracle.java",
+      "blob": "d916e540ba1d23733be5486ac2911252e49f81dc",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/chart.test.ts",
+      "blob": "ef220432d79345fc5fa36210cef6c6ae7468fb4e",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/charts/Braces.mmd",
+      "blob": "4cc99ed3082d412117750da757f767475daf63be",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/charts/Escapes.mmd",
+      "blob": "6b2de4b7aebfb644700889469c0219d10424afde",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/charts/Phases.mmd",
+      "blob": "1412a97ef4198500a1c730124c20e9cfc3a934f9",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/cli.test.ts",
+      "blob": "97b71c30c228eafd55f599375f16be4f656f20e5",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/config-fuzz.test.ts",
+      "blob": "88ec2d3d0b09cd85759507aaf786722add1a2cb7",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus.test.ts",
+      "blob": "8934373187b213d9be5ef6011db1893cbb8b037f",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/Counter/ChartRun.out",
+      "blob": "87dec2842dcace3f3725ab7e3570d649abb5022e",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/Counter/Counter.cfg",
+      "blob": "accc477b2e456e9cacee880aa8a579b7f2fb3f7d",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/Counter/Counter.tla",
+      "blob": "c72accbb7b5d4a0fd7302607798f1d5962156e31",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/Counter/chart.mmd",
+      "blob": "a65ea8434a27b918dd425548d1664ec02d030ab1",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/Counter/graph.dot",
+      "blob": "19ef461866782514d24f9bbe8e07a2e40fe4d5c1",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/Counter/report.md",
+      "blob": "76a07da6b47cebf9b629f0f3fe2031603fb9eff0",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/Counter/sany.out",
+      "blob": "bc0268192dd95ee0e3dd197657b324e780761cec",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/Counter/verdict-1.out",
+      "blob": "769fa7cb9a5e69a7d5820309aba8da91edab9ac9",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterAction/ChartRun.out",
+      "blob": "4d04f9bfb7af5a34b663b9f98a7c6e8e9f0ca7c8",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterAction/CounterAction.cfg",
+      "blob": "b1763a8ad02a313c1237039ad0ead0404716d5ec",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterAction/CounterAction.tla",
+      "blob": "148b1f3a0d0e7ebb30c00c164c403d6d1f2610fb",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterAction/chart.mmd",
+      "blob": "2142a4553be585c01cea18319acc580f0057f161",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterAction/graph.dot",
+      "blob": "39f2651e18efcdf3da400eb5239175e340f2e6b7",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterAction/report.md",
+      "blob": "d468ab4477bd75c9fcbb83540aebff57facceb6b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterAction/sany.out",
+      "blob": "a5c0ae2483c1a80e683adef887854fcc13d91eff",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterAction/verdict-1.exit",
+      "blob": "48082f72f087ce7e6fa75b9c41d7387daecd447b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterAction/verdict-1.out",
+      "blob": "446128703357032b71fbe6c4c5e48651cebb3077",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterAction/verdict-2.exit",
+      "blob": "48082f72f087ce7e6fa75b9c41d7387daecd447b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterAction/verdict-2.out",
+      "blob": "232ed26873747dc21e375b725ab4282cae09dc78",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterAction/verdict-3.out",
+      "blob": "f49ccadb2c33ec641c935b5dcce5a591a2d46048",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterDeadlock/ChartRun.out",
+      "blob": "abf573b92cd3aec2e2eeb759d954aac4912476b7",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterDeadlock/CounterDeadlock.cfg",
+      "blob": "64e80fff74246f1c3ad536ca2084e63a9ae1afe0",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterDeadlock/CounterDeadlock.tla",
+      "blob": "67f26b04c403e2b24e682be5cba8019fbc52f755",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterDeadlock/chart.mmd",
+      "blob": "9190b9fb7514f5af3275b3253e40cfd36289eabc",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterDeadlock/graph.dot",
+      "blob": "19ef461866782514d24f9bbe8e07a2e40fe4d5c1",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterDeadlock/report.md",
+      "blob": "d72af35b15cf5275490f6b8944681b1f7506858b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterDeadlock/sany.out",
+      "blob": "87c12d75a5d0cd2487d481ef0a0e83a09bbf8a13",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterDeadlock/verdict-1.exit",
+      "blob": "48082f72f087ce7e6fa75b9c41d7387daecd447b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterDeadlock/verdict-1.out",
+      "blob": "fc41768fce93b978734fd3aaeb60f9ca1a6c8612",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterDeadlock/verdict-2.exit",
+      "blob": "b4de3947675361a7770d29b8982c407b0ec6b2a0",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterDeadlock/verdict-2.out",
+      "blob": "1680ce4ae6586a7d86259046260f0f06435e98b7",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterFan/ChartRun.out",
+      "blob": "fe624fd4f650a8164f527d2f9a0955774dfe3e61",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterFan/CounterFan.cfg",
+      "blob": "27e8506dbb0a6da840cffa4a848804f312bf90f3",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterFan/CounterFan.tla",
+      "blob": "f2b4e5271068fe343a9d9557b145e6c7acec7c70",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterFan/chart.mmd",
+      "blob": "045aa4218b417aec221f3ad014c56c7c8903fff9",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterFan/graph.dot",
+      "blob": "d60e23ac86f212a53dff308f4c0298fb286f1df1",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterFan/report.md",
+      "blob": "1090826acf60bd5b1f1803813e3c74ebfa33e273",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterFan/sany.out",
+      "blob": "eac7a21ab606f3d1e092b9a182658f788d94e89f",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterFan/verdict-1.exit",
+      "blob": "48082f72f087ce7e6fa75b9c41d7387daecd447b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterFan/verdict-1.out",
+      "blob": "6156d07f95185eb1951650fcebde54d482389faa",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterFan/verdict-2.out",
+      "blob": "a60056632dc77ea3338584851486cc7e6be453b0",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterGuard/ChartRun.exit",
+      "blob": "78eb67cee1ab25652fe5c9e29efc173671301400",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterGuard/ChartRun.out",
+      "blob": "bc54efe7c1b7595618b41ae1358daad63cc3c251",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterGuard/CounterGuard.cfg",
+      "blob": "93c95c10ff801ffcbc5da14bae1b9f4246a21433",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterGuard/CounterGuard.tla",
+      "blob": "84b115bef2952e55814fa49d14064e3b506801c4",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterGuard/chart.mmd",
+      "blob": "11839886fb466f8059e8683c8e886471f6298795",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterGuard/graph.dot",
+      "blob": "8312469c683be164474194eb4dfa787597d95f85",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterGuard/report.md",
+      "blob": "3f37ac2326595ee790200a8b796dec46521f6dbe",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterGuard/sany.out",
+      "blob": "c057222d7b5a33880d417cef92b2bdc7f7dd6514",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterGuard/verdict-1.exit",
+      "blob": "48082f72f087ce7e6fa75b9c41d7387daecd447b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterGuard/verdict-1.out",
+      "blob": "c3169f0752ff1ab06b0d0bb4b58bde9660c7dbc4",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterGuard/verdict-2.exit",
+      "blob": "78eb67cee1ab25652fe5c9e29efc173671301400",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterGuard/verdict-2.out",
+      "blob": "ea9327a80672e55ceb70989234dd4abefd724352",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterInitPast/ChartRun.out",
+      "blob": "6dab5e6f65a2328f257d7ab113577253a2c21f22",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterInitPast/CounterInitPast.cfg",
+      "blob": "18a798096dd459b718cf51c5a9a8b6d677c37044",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterInitPast/CounterInitPast.tla",
+      "blob": "dfe3125ca4355d205330148d47b6887bcdabb8c1",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterInitPast/chart.mmd",
+      "blob": "e70633f1157c80d8f09cced99b6f381ac4e48414",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterInitPast/graph.dot",
+      "blob": "5bdffe2b5caf1984f0249589f99fa929330ea93a",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterInitPast/report.md",
+      "blob": "e6c422152821af9499fca3f2b64ed94a65965618",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterInitPast/sany.out",
+      "blob": "13471a1ab7ca435f685e66df4b2e7b6e47b17f0b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterInitPast/verdict-1.exit",
+      "blob": "48082f72f087ce7e6fa75b9c41d7387daecd447b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterInitPast/verdict-1.out",
+      "blob": "e55acaa87b29fecb8f0e3be3525d29848b9ac2c6",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterInitPast/verdict-2.out",
+      "blob": "ae7dfd0acb2c9ce6bcc36d8acc388c6faece36ac",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterInitPastHolds/ChartRun.out",
+      "blob": "e8295dd7cc27b793fd56269be2f3596b4433b28a",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterInitPastHolds/CounterInitPastHolds.cfg",
+      "blob": "823d31a55438107a7805ef0b92ef0d5da3f835a8",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterInitPastHolds/CounterInitPastHolds.tla",
+      "blob": "cb291f044b9b799e6bcb4e294b17a0ab47e88b43",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterInitPastHolds/chart.mmd",
+      "blob": "b57b606becb0dde9c8ff1bc6ce1835de277c5bc1",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterInitPastHolds/graph.dot",
+      "blob": "5bdffe2b5caf1984f0249589f99fa929330ea93a",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterInitPastHolds/report.md",
+      "blob": "5ad2f21648fe6caa2ebab960deeed49afcc38e5f",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterInitPastHolds/sany.out",
+      "blob": "f4c128b5395a4bcff1d52b3c10b3d6586c2c33d0",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterInitPastHolds/verdict-1.out",
+      "blob": "b8c8f34dd061f48b210e49bd5014003d902d7fad",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterInstance/ChartRun.out",
+      "blob": "bd9932f5cd0aaae9308e121b89892322d54eca7c",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterInstance/CounterInstance.cfg",
+      "blob": "a73eb3f49699de9a2c9776368d9d1d79ba498529",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterInstance/CounterInstance.tla",
+      "blob": "ad5bdcb74c40f03fc0400d1eb0ce10f1c36e8bba",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterInstance/CounterSteps.tla",
+      "blob": "1551d5ec4db346e76ef013b90cddb07dd043ecb1",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterInstance/chart.mmd",
+      "blob": "58eb5e285fcb7c32de4967a656f5a213252aa4ca",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterInstance/graph.dot",
+      "blob": "6213bdaec4dd30c1af50e173b4ce62bc87ff7b89",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterInstance/report.md",
+      "blob": "ffe2e10de17d69b211a8277cbf346d2ebb3d0e57",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterInstance/sany.out",
+      "blob": "2b24bb54b8fcb7e92a23c4dfeb8df4b897d8a0cb",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterInstance/verdict-1.exit",
+      "blob": "b1bd38b62a0800a4f6a80c34e21c5acffae52c7e",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterInstance/verdict-1.out",
+      "blob": "e880efe7092914a114d2addc76a98ba3c7b276c2",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterJump/ChartRun.out",
+      "blob": "18aedf2894414abbe939f68360d4d2f08f998022",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterJump/CounterJump.cfg",
+      "blob": "bb86e2c8cc5621168f4a4a64e4eb50d33b699237",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterJump/CounterJump.tla",
+      "blob": "9158973604d69dced60314510ad6dd39c0f9890b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterJump/chart.mmd",
+      "blob": "92d95a38f2343778641c69f500942cf1cc02146d",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterJump/graph.dot",
+      "blob": "a60662b180c48f9f3e51725c5ab87702f4325b14",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterJump/report.md",
+      "blob": "b92624593b84eb2a11cdcf0a069f3546d0f9b3f6",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterJump/sany.out",
+      "blob": "92b207093eb1484a0ef0dbb6e6b7938b14a44cc8",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterJump/verdict-1.exit",
+      "blob": "48082f72f087ce7e6fa75b9c41d7387daecd447b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterJump/verdict-1.out",
+      "blob": "920247b844f89238b291c643021e2bc22a0e1a4f",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterJump/verdict-2.out",
+      "blob": "83457e1c6bde2a2e48f85714278fb6a95970aee9",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterLoop/ChartRun.out",
+      "blob": "11e7ef47867e8d2f056b1ce74d4698f698f7b0e1",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterLoop/CounterLoop.cfg",
+      "blob": "a73eb3f49699de9a2c9776368d9d1d79ba498529",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterLoop/CounterLoop.tla",
+      "blob": "51a6dd2cc62245f93dd1a8ace343475df3866b55",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterLoop/chart.mmd",
+      "blob": "9198ee16fe2f14a4541e7541a6a667fbd707b697",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterLoop/graph.dot",
+      "blob": "4c4a31e899d8897a871007d9f11673c93dfb2f94",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterLoop/report.md",
+      "blob": "db2cb8358dfb5adc37141d9f323e6ae9ceade117",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterLoop/sany.out",
+      "blob": "7fc577a326189e64706e6c33ecfa2f1503393164",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterLoop/verdict-1.exit",
+      "blob": "b1bd38b62a0800a4f6a80c34e21c5acffae52c7e",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterLoop/verdict-1.out",
+      "blob": "114d60ba3e320ef621749a47bb09812cf98b21ee",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterOrder/ChartRun.out",
+      "blob": "b99b2956ac43a76c342e94b6d2284515b8b6fc02",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterOrder/CounterOrder.cfg",
+      "blob": "cadbd94c6c11b355f17f51a61ef87099fb42d6ed",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterOrder/CounterOrder.tla",
+      "blob": "9168efe4ea204dabd327f64ee4581d4ba6c5840b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterOrder/chart.mmd",
+      "blob": "7dda491605eedca0200677f67265edecf0f25130",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterOrder/graph.dot",
+      "blob": "3943d6aa2c830224e97d65ea784d3ad22cc972a4",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterOrder/report.md",
+      "blob": "0578eb27de909c45ab5ef56d32262aa6f63fd4b4",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterOrder/sany.out",
+      "blob": "c0d4cd2165a1dcdfbb6d052d07facfb61c2e16af",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterOrder/verdict-1.exit",
+      "blob": "48082f72f087ce7e6fa75b9c41d7387daecd447b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterOrder/verdict-1.out",
+      "blob": "981ed353203ceb9fda0b86c11ddc389906b89c49",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterOrder/verdict-2.exit",
+      "blob": "b4de3947675361a7770d29b8982c407b0ec6b2a0",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterOrder/verdict-2.out",
+      "blob": "8cc5e2d4f92272c7910bc77807cb340591d0ef92",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterRules/ChartRun.out",
+      "blob": "1de92f9b10debbc6ed638dd01db1de427e4ee2fe",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterRules/CounterRules.cfg",
+      "blob": "e446955693a3dfb5bcb950548396c1afc46b4241",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterRules/CounterRules.tla",
+      "blob": "5cc3ba1f1cab9531b39d144574e7ae30cfb8a663",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterRules/Moves.tla",
+      "blob": "697939d4b33ffbbab7c02b4ccc858a96e2f13c6f",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterRules/chart.mmd",
+      "blob": "83f65fd1be26e55bbaf479db4a36608012e239c2",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterRules/graph.dot",
+      "blob": "b9fbd8c57ce94daa6a09a964bfdad9420d0e54ba",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterRules/report.md",
+      "blob": "2c6b305701506ec6ed7cfd7bbaa6ebe8f282d323",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterRules/sany.out",
+      "blob": "2fa0dadff235ddb7b52eddc31d5ed37c4afde198",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterRules/verdict-1.exit",
+      "blob": "48082f72f087ce7e6fa75b9c41d7387daecd447b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterRules/verdict-1.out",
+      "blob": "af93dd028ac57a23027b9970647b92bbddd9bbf4",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterRules/verdict-2.exit",
+      "blob": "48082f72f087ce7e6fa75b9c41d7387daecd447b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterRules/verdict-2.out",
+      "blob": "5eb734bdabb5fdf59183e1edd29c7c40cad823dc",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterRules/verdict-3.exit",
+      "blob": "48082f72f087ce7e6fa75b9c41d7387daecd447b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterRules/verdict-3.out",
+      "blob": "b1649422a90755680f382b2e3b42b96613d3b4a4",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterRules/verdict-4.out",
+      "blob": "6421d1d8fc380bc021135e68dac995ac1a303f9a",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterStart/ChartRun.out",
+      "blob": "ccb7ba9df755eddc62505f4ce73528f575106783",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterStart/CounterStart.cfg",
+      "blob": "76c3fb0615201e903353213b74b5f8c5f65647bb",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterStart/CounterStart.tla",
+      "blob": "e701a8b64009098553aa32f5ff82e2f12a07b403",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterStart/chart.mmd",
+      "blob": "ead9269e2405193a20c160011a24c15940c156ef",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterStart/graph.dot",
+      "blob": "00d34c42a93d088a1d67e48bbba8a7d1c9976123",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterStart/report.md",
+      "blob": "d565f6c8fac4d4c44c0894989e0ed01ef01ef3b1",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterStart/sany.out",
+      "blob": "e3322a3edd39e50c1b075dcffbfef599cb0b84cd",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterStart/verdict-1.exit",
+      "blob": "48082f72f087ce7e6fa75b9c41d7387daecd447b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterStart/verdict-1.out",
+      "blob": "273f6a9a53fe86b3441393e9565958420c535c38",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterStart/verdict-2.out",
+      "blob": "8589bfb06807667f63069cf247c43fc8df72ffaa",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterStop/ChartRun.out",
+      "blob": "27d7d2da037fe2aa038ab9b33752c24407786a63",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterStop/CounterStop.cfg",
+      "blob": "76c3fb0615201e903353213b74b5f8c5f65647bb",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterStop/CounterStop.tla",
+      "blob": "15b1224b32f256b49bfd6a9fe099d3bcef746e6f",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterStop/chart.mmd",
+      "blob": "5b17bea12010ae2e3c2073a2cb424bc6c262ef74",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterStop/graph.dot",
+      "blob": "00d34c42a93d088a1d67e48bbba8a7d1c9976123",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterStop/report.md",
+      "blob": "3dd1d7e35d2a08892aeabe556260f984333e4123",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterStop/sany.out",
+      "blob": "70180967286510ba8ac18f497c3285e270435b38",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterStop/verdict-1.out",
+      "blob": "fd43d16c353849bb15a9126c95f8e9f2ebc5d49b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterTie/ChartRun.out",
+      "blob": "c5c8e5729b01b33a32f32f664c02f3c3ab226258",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterTie/CounterTie.cfg",
+      "blob": "e05d62cfb03aadd5d24632194775c224b7648eb1",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterTie/CounterTie.tla",
+      "blob": "48e2ebdf1ee8227606184adfdecbf13656ee7349",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterTie/chart.mmd",
+      "blob": "f5a339c11c84dc72eafe4892e263be64928792b8",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterTie/graph.dot",
+      "blob": "39f2651e18efcdf3da400eb5239175e340f2e6b7",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterTie/report.md",
+      "blob": "df2f7a667ae0700749b33217939d31216712ffd7",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterTie/sany.out",
+      "blob": "7f2ea094a143757bd4c4fa346a50009601fcd931",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterTie/verdict-1.exit",
+      "blob": "48082f72f087ce7e6fa75b9c41d7387daecd447b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterTie/verdict-1.out",
+      "blob": "d86c4b795ac1ffe16898f8fd90b46c2ea5234de8",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterTie/verdict-2.exit",
+      "blob": "48082f72f087ce7e6fa75b9c41d7387daecd447b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterTie/verdict-2.out",
+      "blob": "dfc61e8aa5e2b576bff3525b08a32d1187172a2d",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterTie/verdict-3.exit",
+      "blob": "48082f72f087ce7e6fa75b9c41d7387daecd447b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterTie/verdict-3.out",
+      "blob": "b3deb6fe0b890afa6d59c5e6851cb1fc8fa1957a",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterTie/verdict-4.out",
+      "blob": "a0e5fe809bc05a6fdf5e689744aae1002d912909",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterTieInGraph/ChartRun.out",
+      "blob": "4175494b4970e0c51203135e076403eeffa3d734",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterTieInGraph/CounterTieInGraph.cfg",
+      "blob": "98f97b00a14215d2002d71616b1e8e838d722743",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterTieInGraph/CounterTieInGraph.tla",
+      "blob": "7716ca0a88b8fc19fac918a8f123aa9efa76cd9b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterTieInGraph/chart.mmd",
+      "blob": "190ae24a1e79e427a87e050b51271588fc12cbf9",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterTieInGraph/graph.dot",
+      "blob": "931dce5aa18499ac19d824ee13834f3d54197807",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterTieInGraph/report.md",
+      "blob": "bb60e8ae714a4f2d65b89eba4483eb8a8fc1dc13",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterTieInGraph/sany.out",
+      "blob": "ec054808242db7d1746947f95050db2e672d6639",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterTieInGraph/verdict-1.exit",
+      "blob": "48082f72f087ce7e6fa75b9c41d7387daecd447b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterTieInGraph/verdict-1.out",
+      "blob": "1d977efee52a3bedbcb4873505e291a65830be4c",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterTieInGraph/verdict-2.out",
+      "blob": "a4cfefd2489f371b080eb905e83d1292869c5325",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterView/ChartRun.out",
+      "blob": "d9d16365e43bc2623a0fc99018e9592e1ca5bbf7",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterView/CounterView.cfg",
+      "blob": "14229fa59e582bab0f937afda511c5a4facd3533",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterView/CounterView.tla",
+      "blob": "7b3f3cf6543d9eb13dac49ad5f06e10152ad6279",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterView/chart.mmd",
+      "blob": "8b60a051c7a2672ab60607f4215d13dc9b690ad8",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterView/graph.dot",
+      "blob": "39f2651e18efcdf3da400eb5239175e340f2e6b7",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterView/report.md",
+      "blob": "06bc25fa1285b175be2987a91871f46c7e8e46ef",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterView/sany.out",
+      "blob": "922b7fd110fbb1ab5b4d741b0aec85f510f012eb",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterView/verdict-1.exit",
+      "blob": "48082f72f087ce7e6fa75b9c41d7387daecd447b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterView/verdict-1.out",
+      "blob": "7d9e8275a5dac9783086019d7eb7440ebb32b730",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterView/verdict-2.exit",
+      "blob": "48082f72f087ce7e6fa75b9c41d7387daecd447b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterView/verdict-2.out",
+      "blob": "db0dcde38843ccadc4fd3f4aa3d0ddf14da7bc74",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterView/verdict-3.exit",
+      "blob": "48082f72f087ce7e6fa75b9c41d7387daecd447b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterView/verdict-3.out",
+      "blob": "e5e174109dcc9a7784798fe82ba2fcf1f30af5cf",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterView/verdict-4.out",
+      "blob": "5531c01d2d039002e3822ca5534f8cb4df7ec6fc",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/CounterView/view.mjs",
+      "blob": "2f72ecea21a746d09407a6ed9b2c8f993d40c3b7",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/DieHard/ChartRun.out",
+      "blob": "acbd2bda2bdde08c1160fd87b6435cb8cb4dae6c",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/DieHard/DieHard.cfg",
+      "blob": "cefff25119959bbef1c313fcf771d1e79657d56d",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/DieHard/DieHard.tla",
+      "blob": "52dc76c2c9f91d5c7b1b4ef763bd61e2d3959c0f",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/DieHard/chart.mmd",
+      "blob": "7fe3c0ecc8a5d58b9201106de3ae425bf2a4a37f",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/DieHard/graph.dot",
+      "blob": "fafcf3fca9f42e3feeb9511ac22fa0911268a6e4",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/DieHard/report.md",
+      "blob": "c08be40faa37f8d7df92967538faa4d1779cebc1",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/DieHard/sany.out",
+      "blob": "0149b3d9df5df9832f82e44a47ac14cd98b08b7e",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/DieHard/verdict-1.exit",
+      "blob": "48082f72f087ce7e6fa75b9c41d7387daecd447b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/DieHard/verdict-1.out",
+      "blob": "20145d338d0f68089d31a288e3e93782ccf06893",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/DieHard/verdict-2.out",
+      "blob": "cd1b7f22e3d772635a1a7b01464c9578e0cc1091",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/FirstRule/ChartRun.out",
+      "blob": "f35d6c82c883997fec534d0095bff01d23e64cb8",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/FirstRule/FirstRule.cfg",
+      "blob": "5a874416408b99f75366a9c429d49c4acc73a86d",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/FirstRule/FirstRule.tla",
+      "blob": "a0e6353178bf9005d20d336821fe5a0aa1229998",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/FirstRule/chart.mmd",
+      "blob": "c364eff2917b4b5703bfa2cdc15c7d4663af55a3",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/FirstRule/graph.dot",
+      "blob": "3b0721e409983954a3a2c8e5083b2d5868446f2e",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/FirstRule/report.md",
+      "blob": "412970238c167324dbc20f86a0fbdfec60ab6255",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/FirstRule/sany.out",
+      "blob": "2a648ff2b71d24e244d9405a4fce27bb8e77d556",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/FirstRule/verdict-1.exit",
+      "blob": "48082f72f087ce7e6fa75b9c41d7387daecd447b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/FirstRule/verdict-1.out",
+      "blob": "da83f3ad939d0384e671f34151ed0a15e957fbbd",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/FirstRule/verdict-2.exit",
+      "blob": "48082f72f087ce7e6fa75b9c41d7387daecd447b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/FirstRule/verdict-2.out",
+      "blob": "2520b3e5904c6325ffd7369d55d0a43875af5272",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/FirstRule/verdict-3.exit",
+      "blob": "48082f72f087ce7e6fa75b9c41d7387daecd447b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/FirstRule/verdict-3.out",
+      "blob": "c1514b60dc2b4dd33b8056d479f804a49f6e7d5c",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/FirstRule/verdict-4.exit",
+      "blob": "b4de3947675361a7770d29b8982c407b0ec6b2a0",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/FirstRule/verdict-4.out",
+      "blob": "e19318748b58ba7712f88de6970f970509539019",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/HiddenClock/ChartRun.out",
+      "blob": "b0c640583ba1410c84c041905e2b72ec84d8cfab",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/HiddenClock/HiddenClock.cfg",
+      "blob": "7e58ae943d9526b4d453e84238c0f5002e80948e",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/HiddenClock/HiddenClock.tla",
+      "blob": "baf36377c680a958f88fbacdf56d39038125534b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/HiddenClock/chart.mmd",
+      "blob": "78e6754ae9fdb66697644b4c719e34bfe1fb31d8",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/HiddenClock/graph.dot",
+      "blob": "1087ac95e2ce296b7fa2bf3a74eaf214b340e11a",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/HiddenClock/report.md",
+      "blob": "061c73f5500abe8c3bf1bc6e51f8eedf0dcc44d8",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/HiddenClock/sany.out",
+      "blob": "db2f8f586a001e654a27e778b36be23ea02a75e7",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/HiddenClock/verdict-1.exit",
+      "blob": "b1bd38b62a0800a4f6a80c34e21c5acffae52c7e",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/HiddenClock/verdict-1.out",
+      "blob": "52d01fbc6c2f905a6364f588f631067dd009f689",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/Login/ChartRun.out",
+      "blob": "b5e7e98aba9efd52c818d70499a0b6ea31f4be7c",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/Login/Login.cfg",
+      "blob": "514c84e641fea64cce1cfeea28b805ee80514a33",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/Login/Login.tla",
+      "blob": "453215af9946e8de2747d57029a824d3f0537c65",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/Login/chart.mmd",
+      "blob": "9733b21cc2ad5f8c4c30ac74bb77b86a4426513f",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/Login/graph.dot",
+      "blob": "229abaf8f6440dc69d0e79fabc1746c9ebe21937",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/Login/report.md",
+      "blob": "096dd7cb67a68a516293c622f314a3e38ce994d4",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/Login/sany.out",
+      "blob": "af8bc6f7975591c1f67e7aaabc0496eb0f4f2b25",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/Login/verdict-1.out",
+      "blob": "f74a91c43d6565f1bfe4538806fb9d4b78482508",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/Login/view.mjs",
+      "blob": "61b5120da1a33bd21b87f1de2ba7a32250e3aa09",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/LoginGuarded/ChartRun.out",
+      "blob": "f6221e1efee943e4564ff0263418066812ab2e02",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/LoginGuarded/LoginGuarded.cfg",
+      "blob": "b8e4128c949c670da5254ebcb0309fa5910aa969",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/LoginGuarded/LoginGuarded.tla",
+      "blob": "4c6d4d4eb94b3fafe87b51ac65b1c79d98fc33a0",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/LoginGuarded/chart.mmd",
+      "blob": "afb69d00ba56faf57c520e7c5eb155eaf669ad45",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/LoginGuarded/graph.dot",
+      "blob": "68a7023bc5227504af03abe9e7339f50072d6619",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/LoginGuarded/report.md",
+      "blob": "1f2b2ebd98e9d5ee30f701e29070259f48df740e",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/LoginGuarded/sany.out",
+      "blob": "20d5e4a5a1d7b5c705e6d50bafd997d41585b33a",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/LoginGuarded/verdict-1.out",
+      "blob": "f1f2dd15632140870ed95dd2256f87c665241a92",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/LoginGuarded/view.mjs",
+      "blob": "f47da36a6ab53eea5c987f87ed0e6a226b94cbd7",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/LoginParallel/ChartRun.out",
+      "blob": "5072b1e8bfc2cf3e18e669c9a983d7beffa188e4",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/LoginParallel/LoginParallel.cfg",
+      "blob": "4d0bd3c81bdd6b9199294c055060100f6edd035b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/LoginParallel/LoginParallel.tla",
+      "blob": "1ad1667b835bed0b3fc89578eff48faee3691553",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/LoginParallel/chart.mmd",
+      "blob": "add577ee963f5bbfa0e966c65fd02fad3d31fb0c",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/LoginParallel/graph.dot",
+      "blob": "7e46e55eada3c043ba7b1ac64f84c50aa9e8d824",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/LoginParallel/report.md",
+      "blob": "1e8c75b1b5a836feb3523eb36d5a8864809b3032",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/LoginParallel/sany.out",
+      "blob": "38297c6ffeafdf4d909c172c9b4e4bdc0e3bc2c8",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/LoginParallel/verdict-1.exit",
+      "blob": "48082f72f087ce7e6fa75b9c41d7387daecd447b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/LoginParallel/verdict-1.out",
+      "blob": "c0f611bdd7ed6a99edc01f4f2acdcad3079be378",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/LoginParallel/verdict-2.out",
+      "blob": "0f5c98a6698a44ddde55a198b314a6e02ebdce7a",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/LoginParallel/view.mjs",
+      "blob": "f47da36a6ab53eea5c987f87ed0e6a226b94cbd7",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/MediaPlayer/ChartRun.out",
+      "blob": "21b790217edaabd9e7312162b02b6451929cb567",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/MediaPlayer/MediaPlayer.cfg",
+      "blob": "31322ca0f0a4e46cbe2d52f6a0ee8c1e9975cef9",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/MediaPlayer/MediaPlayer.tla",
+      "blob": "4e4b02d7117a0a48c336563b59eda5fbdfb16d03",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/MediaPlayer/chart.mmd",
+      "blob": "b75e94dd1e020a359458f3721f504147a47984b9",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/MediaPlayer/graph.dot",
+      "blob": "c183699297118b011e08f24f2fcb99aa526fe548",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/MediaPlayer/report.md",
+      "blob": "051f70750c6d96ccb9fb010ef225fd73dd0de77d",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/MediaPlayer/sany.out",
+      "blob": "f074d321e6d183444b3c5a1e8e58998ab8367268",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/MediaPlayer/verdict-1.exit",
+      "blob": "48082f72f087ce7e6fa75b9c41d7387daecd447b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/MediaPlayer/verdict-1.out",
+      "blob": "4312101cdf93b7408aca9b28c90f61bf39cce884",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/MediaPlayer/verdict-2.out",
+      "blob": "f87fac119bdde872dd0729590b2b2c65bb3b13ae",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/MediaPlayer/view.mjs",
+      "blob": "276e21fec5f54c760b9c70cc8fdbc836f3802b9c",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/MediaPlayerFixed/ChartRun.out",
+      "blob": "7385b348ad153091c96f4c99f24f91746344e355",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/MediaPlayerFixed/MediaPlayerFixed.cfg",
+      "blob": "d1743be9fda1b1d507580dc339820dc889e99e39",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/MediaPlayerFixed/MediaPlayerFixed.tla",
+      "blob": "27139f152c35f996eb59f37bc8d36bbd0443bc62",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/MediaPlayerFixed/chart.mmd",
+      "blob": "ab1e4ef168aa403dd24b96c50b1df3e46273335c",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/MediaPlayerFixed/graph.dot",
+      "blob": "a5ea519beee423c2ee44369598df913db82e392f",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/MediaPlayerFixed/report.md",
+      "blob": "3dad98dca298694d82fcdee58650e4c50e127640",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/MediaPlayerFixed/sany.out",
+      "blob": "23b0edaa34642fe8b30dce09ed55f887eac47fff",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/MediaPlayerFixed/verdict-1.out",
+      "blob": "a919ca8c22beb3169d7054a4db37b37cbe6ee3c7",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/MediaPlayerFixed/view.mjs",
+      "blob": "276e21fec5f54c760b9c70cc8fdbc836f3802b9c",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/MediaPlayerProps/ChartRun.out",
+      "blob": "632b6fa6b928bdfbde2116ca996c3b88aa13f4a9",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/MediaPlayerProps/MediaPlayer.tla",
+      "blob": "4e4b02d7117a0a48c336563b59eda5fbdfb16d03",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/MediaPlayerProps/MediaPlayerProps.cfg",
+      "blob": "a3aa6caf6cf143933e7aeac37f679c8bfc897883",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/MediaPlayerProps/MediaPlayerProps.tla",
+      "blob": "7291bce507eef12b129bfe9eb3f29fa3da6cd9ad",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/MediaPlayerProps/chart.mmd",
+      "blob": "008a152d52c80d7be8eb5facde9c5d96ac9f444a",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/MediaPlayerProps/graph.dot",
+      "blob": "c183699297118b011e08f24f2fcb99aa526fe548",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/MediaPlayerProps/report.md",
+      "blob": "98681ff8c279450cd493e52139a93d46710f97ab",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/MediaPlayerProps/sany.out",
+      "blob": "3dbc0429166f6e34096f04a6fd8a2ac450f6beb4",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/MediaPlayerProps/verdict-1.exit",
+      "blob": "48082f72f087ce7e6fa75b9c41d7387daecd447b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/MediaPlayerProps/verdict-1.out",
+      "blob": "b2be9190b4d72215291ab909c35d756f0d892398",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/MediaPlayerProps/verdict-2.out",
+      "blob": "71c88cdbabaffcf4e46d8739e5f7e5a98c90bc28",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/MediaPlayerProps/verdict-3.out",
+      "blob": "9add0fabc6a694d0f03c4a3c9b7af61dd98391f6",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/MediaPlayerProps/verdict-4.exit",
+      "blob": "b1bd38b62a0800a4f6a80c34e21c5acffae52c7e",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/MediaPlayerProps/verdict-4.out",
+      "blob": "4e24e1a21db8177eba11f0de96ae98db91e6861b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/MediaPlayerProps/verdict-5.exit",
+      "blob": "48082f72f087ce7e6fa75b9c41d7387daecd447b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/MediaPlayerProps/verdict-5.out",
+      "blob": "f318b72fc79d215c97fa77652a4f8baa1831a594",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/MediaPlayerProps/verdict-6.out",
+      "blob": "68ae9cf11e110c81e419133741dec229cbf9d507",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/MediaPlayerProps/view.mjs",
+      "blob": "276e21fec5f54c760b9c70cc8fdbc836f3802b9c",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/PickWorker/ChartRun.out",
+      "blob": "23c3f60bb4b9962b0b94b6c2052e27a6fe5c8e5d",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/PickWorker/PickWorker.cfg",
+      "blob": "ebfa53e9c21e7e2fad3b714290f42040190bc57d",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/PickWorker/PickWorker.tla",
+      "blob": "914dc2b6bb0e41d4d1f4df03b5bbaf23f72d237f",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/PickWorker/chart.mmd",
+      "blob": "1d044ad68cae5ed9b4ce596b03596db86546067a",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/PickWorker/graph.dot",
+      "blob": "72e7e24b8ba253ede0685395183828211c0848e9",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/PickWorker/report.md",
+      "blob": "505b488b189ed1d344d410eae4a998fb3cbcab2d",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/PickWorker/sany.out",
+      "blob": "454e2639b0c7e821db7928fe7e7254048a7b5b42",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/PickWorker/verdict-1.out",
+      "blob": "a524316408e37b31d509f36b4c93e1a4a8b7d61a",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/Shadow/ChartRun.out",
+      "blob": "f57a6ebb1f7049a46886574ba878a872c1bd6db8",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/Shadow/Shadow.cfg",
+      "blob": "d01d1b8c8738a9a80b016301bd231be2c9bff014",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/Shadow/Shadow.tla",
+      "blob": "16204f0662e5602600f79ffa15ab5752f1b6a416",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/Shadow/ShadowLib.tla",
+      "blob": "ecdaa11f60fed1233844a259d86c14a684f492c7",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/Shadow/ShadowSub.tla",
+      "blob": "36bc01662741ca8fc3a17c2ece47b66990a652ed",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/Shadow/chart.mmd",
+      "blob": "d84b4d7f217246ceffb12c4265833e9a240f5e20",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/Shadow/graph.dot",
+      "blob": "3b0721e409983954a3a2c8e5083b2d5868446f2e",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/Shadow/report.md",
+      "blob": "2a68d874d5edf410bbccf9e4004f9741e8e2f7a6",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/Shadow/sany.out",
+      "blob": "3326567a7ca4a6600507b6dddd9b671cca50e21d",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/Shadow/verdict-1.out",
+      "blob": "8f001abc6ffcd3b0ca9b86d67c0774de2fea7ecb",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/SpacedNames/ChartRun.out",
+      "blob": "0d420bcb48ce7536207f636835cc821d05d20ff1",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/SpacedNames/SpacedNames.cfg",
+      "blob": "a0df4743315913a449f5347236c7992d06f4d9c3",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/SpacedNames/SpacedNames.tla",
+      "blob": "d25f887b04afd74046c021096cf6ba78d4bbadb6",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/SpacedNames/chart.mmd",
+      "blob": "998ab69d9a58e7f327470c8b92dd3b7133af593b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/SpacedNames/graph.dot",
+      "blob": "9b447cde43848bde6ca52f8cdbb7aa4bc9aba71a",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/SpacedNames/report.md",
+      "blob": "88410eb6b4ab158b3b1c6053cd138f2bc55fa88b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/SpacedNames/sany.out",
+      "blob": "046371b2720c68a2d4531bfb67a71d89db5bfc62",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/SpacedNames/verdict-1.exit",
+      "blob": "48082f72f087ce7e6fa75b9c41d7387daecd447b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/SpacedNames/verdict-1.out",
+      "blob": "c0d2006acec6da3a54ac5af8535c94a2fd3e1aa0",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/SpacedNames/verdict-2.exit",
+      "blob": "b4de3947675361a7770d29b8982c407b0ec6b2a0",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/SpacedNames/verdict-2.out",
+      "blob": "13add5fd5e487dc64177b972bc5b36072fb305f9",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/TwoPhase/ChartRun.out",
+      "blob": "5211d3384f1d1f565ed6fdeea5619d85e1cb63d6",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/TwoPhase/TwoPhase.cfg",
+      "blob": "bbecf5002218920224d95830c738117990045ccf",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/TwoPhase/TwoPhase.tla",
+      "blob": "e7504b7bfe17a37b79f4af00d1d2f715ddc21899",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/TwoPhase/chart.mmd",
+      "blob": "0cb65843c51dd8aab620f8a5291ee74f20219880",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/TwoPhase/graph.dot",
+      "blob": "66cb1a2d55f88ac2f3ee32231a5a724b0c128e96",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/TwoPhase/report.md",
+      "blob": "5319d1a992f76c36161e2606ddd6e3c7c7263ef8",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/TwoPhase/sany.out",
+      "blob": "291ac638280d2fb145633f1fdd0acdf82846776d",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/TwoPhase/verdict-1.exit",
+      "blob": "48082f72f087ce7e6fa75b9c41d7387daecd447b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/TwoPhase/verdict-1.out",
+      "blob": "65bace05d6847bba05ebb0bd2056f664024a0f4c",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/TwoPhase/verdict-2.out",
+      "blob": "4536a30bb05e1b98a49194b123cbd2caec642f41",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/TwoPhase/view.mjs",
+      "blob": "c8c0cce069ad756075a46d67f6f2a90b8874113d",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/TwoPhaseFixed/ChartRun.out",
+      "blob": "52bd87a04b4afff4cc7c8f11b6b5100da87ba4bd",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/TwoPhaseFixed/TwoPhaseFixed.cfg",
+      "blob": "bbecf5002218920224d95830c738117990045ccf",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/TwoPhaseFixed/TwoPhaseFixed.tla",
+      "blob": "9cec1f87ca23424fea63685d010c729e3bb494da",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/TwoPhaseFixed/chart.mmd",
+      "blob": "78ae397f0115b2897616148c2675a1d40f77cc7e",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/TwoPhaseFixed/graph.dot",
+      "blob": "f79b82c8e815ec41128056e93c0517449fca3e2c",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/TwoPhaseFixed/report.md",
+      "blob": "5b007b5a6bbbb471ada6cbfe11ece1a7b4ddf258",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/TwoPhaseFixed/sany.out",
+      "blob": "3926f23e49a5e4a375a6c1af3e63eb185c3d56f1",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/TwoPhaseFixed/verdict-1.out",
+      "blob": "790d0918a63648d639a77e1b701e696c79c2db3d",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/TwoPhaseFixed/view.mjs",
+      "blob": "c8c0cce069ad756075a46d67f6f2a90b8874113d",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/TypeGuard/ChartRun.exit",
+      "blob": "dd475631baeff3ce652b97d921c1cc43c917b9e2",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/TypeGuard/ChartRun.out",
+      "blob": "51681e080fc79b3a5f47675082754ad3e2daa727",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/TypeGuard/TypeGuard.cfg",
+      "blob": "5c621b4371370780884e4fdef9d4a70266116b76",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/TypeGuard/TypeGuard.tla",
+      "blob": "efb5952f04091e0f6120da8853540baf90698ddb",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/TypeGuard/chart.mmd",
+      "blob": "68f61ab9012738d1ca7d6ee4bd7a13ef72f6c413",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/TypeGuard/graph.dot",
+      "blob": "1ef8e69e9d7164078e5ec8ef89f83d01b2902476",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/TypeGuard/report.md",
+      "blob": "014071988b3d273e6e80bc02ec4d981029c6f501",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/TypeGuard/sany.out",
+      "blob": "18f6d2a04af169ad1065b59e625df7275433fc2e",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/TypeGuard/verdict-1.exit",
+      "blob": "48082f72f087ce7e6fa75b9c41d7387daecd447b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/TypeGuard/verdict-1.out",
+      "blob": "1e9be9502f219b810c9b0e46c46dfa328e6bf6a0",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/TypeGuard/verdict-2.exit",
+      "blob": "dd475631baeff3ce652b97d921c1cc43c917b9e2",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/TypeGuard/verdict-2.out",
+      "blob": "0e682f17a7839bb0f16641e45a630b1a7615eccd",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/UserNoDeadlock/ChartRun.out",
+      "blob": "ea07460f3c120ec854186a51c2246719ec07a575",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/UserNoDeadlock/UserNoDeadlock.cfg",
+      "blob": "86617d00fb7f53ebc2eee4bd5f413bc2d1d2cf94",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/UserNoDeadlock/UserNoDeadlock.tla",
+      "blob": "e18662ad543ab0239cb6257fdde68955b45e8d9f",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/UserNoDeadlock/chart.mmd",
+      "blob": "539790a87bab5bd8ba8d1d150af613264fc516ae",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/UserNoDeadlock/graph.dot",
+      "blob": "3b0721e409983954a3a2c8e5083b2d5868446f2e",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/UserNoDeadlock/report.md",
+      "blob": "31274731ca2f0c34b505b9e77d22b8e7b94fae62",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/UserNoDeadlock/sany.out",
+      "blob": "a3c622cb4c7bba0d9994f290bc036e1da35220c2",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/UserNoDeadlock/verdict-1.exit",
+      "blob": "48082f72f087ce7e6fa75b9c41d7387daecd447b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/UserNoDeadlock/verdict-1.out",
+      "blob": "3f12e86b80f1c5f76374b3b445e758355987f22b",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/UserNoDeadlock/verdict-2.exit",
+      "blob": "b4de3947675361a7770d29b8982c407b0ec6b2a0",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/corpus/UserNoDeadlock/verdict-2.out",
+      "blob": "972408774099989024edb827f6a1b6f37d8ba385",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/differential.test.ts",
+      "blob": "c6aff9cadcc724202d7308a93fe2e17cc9aa64f4",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/grid/Grid.cfg",
+      "blob": "d0ee570affdd4f5c4a26cff74d7fcace15898db1",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/grid/Grid.tla",
+      "blob": "362afc474250b6d8892d7feb5b553bca3dc5d9ee",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/grid/sany.out",
+      "blob": "79e7f1243077292f954650ba757ca13f5565fee1",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/java.ts",
+      "blob": "b6634ad7ac998851cbce400bf5a52b37ee96ea80",
+      "mode": "100755",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/labels.ts",
+      "blob": "a3d149984e53558e8b6a59dd994cdbd28487aa2e",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/messages.test.ts",
+      "blob": "61af006968a6e9c2dc359c8b5859a1238b9e56cb",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/pipeline.test.ts",
+      "blob": "81a5056a37276e38bb4f68993378a82fb55036f5",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/plain-tlc.test.ts",
+      "blob": "434e25612db133034c5a9f7e04965906488ef01c",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/render.test.ts",
+      "blob": "5309a92648b950554381f5adecacac161bee3e28",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/tlc-out.test.ts",
+      "blob": "7f27d04ee195e05d0ccea6c9e024a7b2890fde45",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/test/tlc.ts",
+      "blob": "f659423d24c489616168096695ecfde1714bf45d",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/tsconfig.json",
+      "blob": "9b16905d0a049715f942bdbe4bf3a3a80be02bad",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/statechart/scripts/worker.ts",
+      "blob": "9559314668f6573e17db7c278d05f5776b235ebc",
+      "mode": "100644",
+      "adaptationSha256": null,
+      "output": null
+    },
+    {
+      "source": "skills/swarm/SKILL.md",
+      "blob": "9cd32247b4f381bb020cbbf0fc546ba71407d558",
+      "mode": "100644",
+      "adaptationSha256": "8f19b807dd8975439f3ac839343d4900f214116a3f30732ce80e7f862fec1b95",
       "output": {
         "destination": "skills/swarm/SKILL.md",
-        "sha256": "9dcf4b22f20e6f3289f8a461ff5af2c3d2e346d9ec2b84a08abeed4fa3bb5109",
+        "sha256": "bc1d83830c49293b51bd225b93b71f78bf970124536438016cd9d60987ec2122",
         "mode": "100644"
       }
     },
@@ -1339,78 +4219,78 @@
     },
     {
       "source": "skills/technical-writing/SKILL.md",
-      "blob": "5eef4fc494a059eb740cb621dadb4a7a81af23e4",
+      "blob": "3e6d26109376cd66439c87ed48b4033df8d78a3a",
       "mode": "100644",
       "adaptationSha256": "aab65c31e01fcbafae18a2f3fd3afc22b818bbc261e401da470313f5cbd50392",
       "output": {
         "destination": "skills/technical-writing/SKILL.md",
-        "sha256": "124e60944b054c840679598745b578ddd40953916964312ab19c03113e0bfe48",
+        "sha256": "56375eaa53ea48d589598942bb2b3ea9f490392029242ef9477720e14cdd1c37",
         "mode": "100644"
       }
     },
     {
       "source": "skills/typescript-best-practices/SKILL.md",
-      "blob": "2c0279d9a5f800192605e47b55cae4e75a17ec27",
+      "blob": "e1e5aa7c97ed39c425d60d933a96424a3f14539e",
       "mode": "100644",
       "adaptationSha256": "b521caea2a70adebd039d821d628a79cbce784e7bcf1cbf1aad27cce2b30a633",
       "output": {
         "destination": "skills/typescript-best-practices/SKILL.md",
-        "sha256": "a40da091ebac92080cf0ed142051d2bef35e56358084511d599f1097c58f5c73",
+        "sha256": "827145b1bd795b2b03ba0d1ca6087fe20c37aacd1b367e6a37c87ce4a2b4a6bf",
         "mode": "100644"
       }
     },
     {
       "source": "skills/typescript-best-practices/references/patterns.md",
-      "blob": "c21d876b71b9c7afa897f2f6d982ead07db8f104",
+      "blob": "f8dd99b63ecb469a090b8fa0a7e235d3239cb9ec",
       "mode": "100644",
       "adaptationSha256": null,
       "output": {
         "destination": "skills/typescript-best-practices/references/patterns.md",
-        "sha256": "faa1362055374452efccac1b629677c61acfb0bcc6c4e3311836b5715638ee18",
+        "sha256": "12e70c9419a8b3f5d6a1ab80e272c1f00a43ac0b3bbf72d68199033570e5de77",
         "mode": "100644"
       }
     },
     {
       "source": "skills/unslop/SKILL.md",
-      "blob": "229a090708710c36caa0017f8d33e90880dc6846",
+      "blob": "97f5b6412148fa5b2a2fe478836fe8923ffa5cbb",
       "mode": "100644",
       "adaptationSha256": "a8e58c07cc41a139e0db3a00a9b34c4437f9a4d788aa7542b25c2abc90992359",
       "output": {
         "destination": "skills/unslop/SKILL.md",
-        "sha256": "d9305bf6c5a61f9bd2939b8107a2ca3c014b9c537fac054cc7343f72dc189b3e",
+        "sha256": "126c142ed98f85ec5e9cd9884943c47baad1603774c444e56706609965b4ef6b",
         "mode": "100644"
       }
     },
     {
       "source": "skills/why/SKILL.md",
-      "blob": "daac2c734a8f8fe43d30663054d694066f2b41ec",
+      "blob": "b5fe93f8b78f58b06e0bf245a6b5b8faae4300e8",
       "mode": "100644",
-      "adaptationSha256": "777a1f7c256cdeae592bd83c3cee65a9d0082195e22bc284c8e96be793bf735c",
+      "adaptationSha256": "cf181d2f2a13a3076a8bb0fbfc5fb1bb337697d82442482a05e987f084da0fae",
       "output": {
         "destination": "skills/why/SKILL.md",
-        "sha256": "13e8e83294064474a5661953e3c0f2f4c72af6a4602d445c6469843be49ad7e4",
+        "sha256": "099d536b6e1879c8b2a579b364aab13634eab049f857e1c1ca264f89d020a587",
         "mode": "100644"
       }
     },
     {
       "source": "skills/why/references/epistemics.md",
-      "blob": "3732bf6881b60d1337fa3498574452a85d33ba30",
+      "blob": "b18abf41dfa245ee55e94f1b3a80c0b750eb10cf",
       "mode": "100644",
       "adaptationSha256": null,
       "output": {
         "destination": "skills/why/references/epistemics.md",
-        "sha256": "fcc0f559c072832c869a5ada72434b4849320a637ae63c09e8ee14f7ad787059",
+        "sha256": "d54a2361b2d5973bc3fe2edf62f446d87935974d4b40d47f23b9529f956ca758",
         "mode": "100644"
       }
     },
     {
       "source": "skills/why/references/investigator-prompt.md",
-      "blob": "3b56af44c589833508f4605cfdd4432b39a16739",
+      "blob": "e1c2bbf52197ff600ba6e4552439e630687b7ae2",
       "mode": "100644",
       "adaptationSha256": null,
       "output": {
         "destination": "skills/why/references/investigator-prompt.md",
-        "sha256": "6892956a7ab0b5ee6c4babaf4f793703abe89b350ea7cb9463b4a56eea1c8266",
+        "sha256": "c44afba186f899094f3694e6c9d6de5d14ff7c4ce28b787a9f50fc789c9a7fc3",
         "mode": "100644"
       }
     },
@@ -1427,12 +4307,12 @@
     },
     {
       "source": "skills/why/references/sources/code-archaeology.md",
-      "blob": "32d5f97f8d2d3974c668f5f0392737b7e8e25afd",
+      "blob": "e3555f809da0a5654ceefe7d2c20080397c03506",
       "mode": "100644",
       "adaptationSha256": null,
       "output": {
         "destination": "skills/why/references/sources/code-archaeology.md",
-        "sha256": "8c14aa382f0de40829b2668d43e3f54814480bb93a486c9282ada4003f6b9dbd",
+        "sha256": "a4a3970e9db448054aed676f3f7feeee667b4b69f0bd57c8fd72b751be687cc7",
         "mode": "100644"
       }
     },
@@ -1449,23 +4329,23 @@
     },
     {
       "source": "skills/why/references/sources/datadog.md",
-      "blob": "d8363b1c1d1c7eadb15d47abd83bf70537c39620",
+      "blob": "536466ddd8ae6543836abb84bdf1efd8e43089ba",
       "mode": "100644",
       "adaptationSha256": null,
       "output": {
         "destination": "skills/why/references/sources/datadog.md",
-        "sha256": "ebe9c07bac28e47757ee7f16fb93b0c01d427a08c501957d047f395a2f37b7e7",
+        "sha256": "b139faac5dc11b8f26c8255dce6033c1a6ac143b038d3dd103f2034c5dbec9cd",
         "mode": "100644"
       }
     },
     {
       "source": "skills/why/references/sources/incident-postmortem.md",
-      "blob": "450d6e52f25b1b41f741cb3e9c93e1c74ef858b4",
+      "blob": "e7397e7ef374bee3b7f0018ac8e5ddd4322bab12",
       "mode": "100644",
       "adaptationSha256": null,
       "output": {
         "destination": "skills/why/references/sources/incident-postmortem.md",
-        "sha256": "a899470f05f86029630a13a2696491cc708ca7b56a6e822a69ff6e954d6ff8cf",
+        "sha256": "bf2661f1a81c37700884a45b77d6289be0c802b065febced31990e6564510839",
         "mode": "100644"
       }
     },
@@ -1493,34 +4373,34 @@
     },
     {
       "source": "skills/why/references/sources/sentry.md",
-      "blob": "2b7cf6f3098ee868547dc4e69efacfe9c255246b",
+      "blob": "8200fd9f3abbb7fca76d0079663502b33524bd09",
       "mode": "100644",
       "adaptationSha256": null,
       "output": {
         "destination": "skills/why/references/sources/sentry.md",
-        "sha256": "6f292bc4fb1548e956f95e1900b9481abf5134254419f1cd9edec95428c82d73",
+        "sha256": "2d4f83048eac1df530b399e2aed75dd7c9c18577b7665420aaeb96d0ceb0b702",
         "mode": "100644"
       }
     },
     {
       "source": "skills/why/references/sources/slack.md",
-      "blob": "863a527d60e4e055e680834ef8098ea04273a1ae",
+      "blob": "cadd5618a349adc5eb1dce6fddde38e7221e00fd",
       "mode": "100644",
       "adaptationSha256": null,
       "output": {
         "destination": "skills/why/references/sources/slack.md",
-        "sha256": "58fee61d024b3700b407e7acbed367944720ff05adfddb6954d36c88368f3ba7",
+        "sha256": "3bc6309f5c7b26ace3b919dbd7f7b048861dd2020f910fe24f656cc74b3b661c",
         "mode": "100644"
       }
     },
     {
       "source": "skills/why/references/synthesizer-prompt.md",
-      "blob": "9707dfcc2fc57ea126484a433c5cd9ee4d400ef3",
+      "blob": "287a350c925c28b44f0e0dc687bb09a843e11100",
       "mode": "100644",
-      "adaptationSha256": "38c7bdef4523e3a729206aa5e1cacf00865240c76c9565caf94437fdf1d5fb76",
+      "adaptationSha256": "ecb57f341a3504d135ffae82bbbb398cc10ca83bda7e1a8ebc647a7c580d72c3",
       "output": {
         "destination": "skills/why/references/synthesizer-prompt.md",
-        "sha256": "5c169407fe382219c71d62df41dbb2c867f9c89290769133d033c97f028d6fe5",
+        "sha256": "20870d5bcc92f10e78f4bd2a3eaaff9e7182d9787e2df98576e4d7aca5f41ed2",
         "mode": "100644"
       }
     }

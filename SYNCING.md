@@ -1,6 +1,6 @@
 # Syncing Cursor pstack
 
-The generated skills and agents come from the pinned Cursor source recorded in `sync/upstream.lock.json`. The current pin is commit `e43c7ee26e0038c6c1fa8380dd34ce86ff94cb2a`, tree `54dfdd87fd191ddda7fce01dd354d220adaeeacc` under `pstack/`.
+The generated skills and agents come from the pinned Cursor source recorded in `sync/upstream.lock.json`. The current pin is commit `c742dd61706fbacc1b95f1a20b7b988cf096ce6c`, tree `4719e1c4b4c43bac85d4206a8b41dd2899769c1c` under `pstack/`.
 
 The repository keeps four layers separate:
 
@@ -32,7 +32,7 @@ Routine sync never calls an LLM. The importer applies reviewed bytes and exact l
 2. Use ordered `find` / `replace` / `count` transforms for commands, paths, unsupported frontmatter, or a bounded runtime block. Each rule requires the exact upstream blob and occurrence count. Unmatched or repeated anchors fail closed; there is no fuzzy matching.
 3. Change execution ownership in the affected runtime clauses, not the whole file. Parent-only external searches and local coordination now use this same transform path. Keep surrounding scope, reasoning, checkpoints, and output text upstream. If a feature cannot work without an absent service, state that limit instead of inventing a replacement workflow.
 
-Interrogate is the worked example in `sync/manifest.json`: only its reviewer-launch section and one verification clause change. Its other sections stay verbatim upstream. Do not turn a full rewrite into one giant transform; that hides the same loss under another name.
+Interrogate is the worked example in `sync/manifest.json`: only its panel line and its adversary agent change. Its other sections stay verbatim upstream. Do not turn a full rewrite into one giant transform; that hides the same loss under another name.
 
 Do not globally delete lines containing `Cursor`, `Task`, or `readonly`. Those words may name real services, protocol fields, review authors, or ordinary code. Renaming `Task` alone cannot make nested delegation or secret-request cards work in Pi. Review those runtime boundaries once, encode the narrow change, then let the deterministic importer repeat it.
 
@@ -68,7 +68,7 @@ node --test tests/content/fidelity.test.mjs
 
    ```sh
    git -C ../pstack-cursor-source diff --name-status \
-     e43c7ee26e0038c6c1fa8380dd34ce86ff94cb2a..<candidate-commit> -- pstack
+     c742dd61706fbacc1b95f1a20b7b988cf096ce6c..<candidate-commit> -- pstack
    ```
 
 3. Review every changed source file against its manifest disposition:

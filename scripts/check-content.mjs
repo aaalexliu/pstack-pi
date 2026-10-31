@@ -178,7 +178,9 @@ function dependencies(text, filename, inventory) {
     const decoded = decodeURIComponent(target.split(/[?#]/u)[0]);
     assert.ok(!/^(?:\/|~|[a-z]+:)/iu.test(decoded) && !decoded.includes('\\'), `Non-relative local link: ${target}`);
     const resolved = path.posix.normalize(path.posix.join(path.posix.dirname(filename), decoded));
-    assert.ok(inventory.byDestination.has(resolved) || ['LICENSE', 'README.md'].includes(resolved), `Missing local dependency: ${filename} -> ${target}`);
+    const template = new RegExp(`^${resolved.split(/<[^<>/]+>/u).map((part) => part.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')).join('[^/]+')}$`, 'u');
+    const shipped = [...inventory.byDestination.keys(), 'LICENSE', 'README.md'].some((name) => template.test(name));
+    assert.ok(shipped, `Missing local dependency: ${filename} -> ${target}`);
   }
   const agentPrompt = /^agents\/[^/]+\.md$/u.test(filename);
   assert.ok(agentPrompt || !text.includes('{{PSTACK_ROOT}}'), `Package root token outside an agent prompt: ${filename}`);

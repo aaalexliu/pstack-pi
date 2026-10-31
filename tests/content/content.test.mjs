@@ -109,6 +109,18 @@ test('protocol identifiers and ordinary prose are not Cursor mechanics', async (
   await checkContent(f);
 });
 
+test('a placeholder path passes when it matches a shipped file', async (t) => {
+  const f = await contentFixture(t);
+  await f.rewrite(entrypoint, skillText('copied', 'Read `references/<topic>.md` and `../<name>/SKILL.md`.'));
+  await checkContent(f);
+});
+
+test('a placeholder path fails when it matches no shipped file', async (t) => {
+  const f = await contentFixture(t);
+  await f.rewrite(entrypoint, skillText('copied', 'Read `playbooks/<title>.md`.'));
+  await assert.rejects(checkContent(f), /Missing local dependency: skills\/copied\/SKILL\.md -> playbooks\/<title>\.md/);
+});
+
 test('support files also require dependency closure', async (t) => {
   const f = await contentFixture(t);
   await f.rewrite('skills/copied/references/notes.md', 'Apply the **omitted** skill.');
