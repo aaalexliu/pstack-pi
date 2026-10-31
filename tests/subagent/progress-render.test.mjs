@@ -243,5 +243,5 @@ test('/subagents raw is public structured JSON, stays live, and RPC avoids custo
   rpc.view.publish(snapshot, rpc.ctx, 'request');
   await rpc.command.handler('raw', { ...rpc.ctx, mode: 'rpc' });
   assert.deepEqual(JSON.parse(rpc.notifications[0]), snapshot);
-  assert.doesNotMatch(rpc.notifications[0], /thinking|protocol|SECRET/);
+  assert.doesNotMatch(rpc.notifications[0], /"type":"thinking"|thinking_delta|protocol|SECRET/);
 });

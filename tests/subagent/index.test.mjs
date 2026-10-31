@@ -9,6 +9,8 @@ import { fileURLToPath } from 'node:url';
 import subagentExtension, { DEPTH_VARIABLE, MAX_CONCURRENCY, TERM_GRACE_MS, childEnvironment, observedModelId, parentDepth } from '../../extensions/subagent/index.ts';
 import { bundledAgents } from '../../extensions/subagent/agents.ts';
 import { roles } from '../../extensions/subagent/model-config.ts';
+import { Check } from 'typebox/value';
+import { progressCard, progressLines } from '../../extensions/subagent/progress.ts';
 
 const fakePi = fileURLToPath(new URL('./fake-pi.mjs', import.meta.url));
 
@@ -195,6 +197,75 @@ test('model routing: explicit beats role beats agent default beats parent, and p
   assert.deepEqual(await modelOf({ agent: 'general-purpose', task: 'x' }), { model: 'fixture/model', thinking: 'high', source: 'parent' });
   await writeFile(path.join(f.agentDir, 'pstack-pi', 'models.json'), '{"version":1,"roles":{"feature":"broken"}}');
   await assert.rejects(f.execute({ agent: 'general-purpose', task: 'x' }), /Invalid pstack-pi\/models.json/);
+});
+
+test('a role selector keeps its thinking suffix, and an explicit thinking level still wins', async (t) => {
+  const f = await fixture(t);
+  await mkdir(path.join(f.agentDir, 'pstack-pi'));
+  await writeFile(path.join(f.agentDir, 'pstack-pi', 'models.json'), JSON.stringify({ version: 1, roles: { feature: 'pinned/model:xhigh' } }));
+  /** @param {Record<string, unknown>} params */
+  const argsOf = async (params) => JSON.parse(childOutput((await f.execute(params)).content[0].text)).args;
+  const roleArgs = await argsOf({ agent: 'general-purpose', task: 'x', role: 'feature' });
+  assert.deepEqual(roleArgs.slice(4, 6), ['--model', 'pinned/model:xhigh']);
+  assert.ok(!roleArgs.includes('--thinking'));
+  assert.deepEqual((await argsOf({ agent: 'general-purpose', task: 'x', role: 'feature', thinking: 'low' })).slice(4, 8), ['--model', 'pinned/model:xhigh', '--thinking', 'low']);
+});
+
+test('thinking schema accepts only Pi levels at the call and task boundaries', () => {
+  const { tools } = registration();
+  for (const thinking of ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']) {
+    assert.equal(Check(tools[0].parameters, { agent: 'general-purpose', task: 'x', thinking }), true);
+    assert.equal(Check(tools[0].parameters, { tasks: [{ agent: 'general-purpose', task: 'x', thinking }] }), true);
+    assert.equal(Check(tools[0].parameters, { chain: [{ agent: 'general-purpose', task: 'x', thinking }] }), true);
+  }
+  for (const params of [
+    { agent: 'general-purpose', task: 'x', thinking: 'ultra' },
+    { tasks: [{ agent: 'general-purpose', task: 'x', thinking: 'ultra' }] },
+    { chain: [{ agent: 'general-purpose', task: 'x', thinking: 'ultra' }] },
+  ]) assert.equal(Check(tools[0].parameters, params), false);
+});
+
+test('single thinking overrides inherited parent level and pinned model defaults stay unchanged', async (t) => {
+  const f = await fixture(t);
+  /** @type {[Record<string, unknown>, string[]][]} */
+  const cases = [
+    [{ agent: 'general-purpose', task: 'x', thinking: 'off' }, ['--mode', 'json', '-p', '--no-session', '--model', 'fixture/model', '--thinking', 'off']],
+    [{ agent: 'general-purpose', task: 'x', model: 'pinned/model', thinking: 'high' }, ['--mode', 'json', '-p', '--no-session', '--model', 'pinned/model', '--thinking', 'high']],
+    [{ agent: 'general-purpose', task: 'x' }, ['--mode', 'json', '-p', '--no-session', '--model', 'fixture/model', '--thinking', 'high']],
+    [{ agent: 'general-purpose', task: 'x', model: 'pinned/model' }, ['--mode', 'json', '-p', '--no-session', '--model', 'pinned/model']],
+  ];
+  for (const [params, expected] of cases) {
+    const result = await f.execute(params);
+    const args = JSON.parse(childOutput(result.content[0].text)).args;
+    assert.deepEqual(args.slice(0, expected.length), expected);
+    assert.equal(args.includes('--thinking'), expected.includes('--thinking'));
+    assert.equal(result.details.results[0].thinking, expected.includes('--thinking') ? expected[expected.indexOf('--thinking') + 1] : undefined);
+    assert.ok(result.details.progress);
+    assert.equal(result.details.progress.tasks[0].thinking, result.details.results[0].thinking ?? null);
+    if (expected.includes('--thinking')) {
+      assert.match(progressCard(result.details.progress).lines.join('\n'), new RegExp(`thinking ${result.details.results[0].thinking}`));
+      assert.match(progressLines(result.details.progress).join('\n'), new RegExp(`thinking ${result.details.results[0].thinking}`));
+    }
+  }
+});
+
+test('parallel and chain thinking use per-item overrides over the call default', async (t) => {
+  const f = await fixture(t);
+  for (const mode of ['tasks', 'chain']) {
+    const result = await f.execute({ [mode]: [
+      { agent: 'general-purpose', task: 'first' },
+      { agent: 'general-purpose', task: 'second', thinking: 'high' },
+    ], thinking: 'low', model: 'pinned/model' });
+    assert.deepEqual(result.details.results.map((r) => r.thinking), ['low', 'high']);
+    assert.ok(result.details.progress);
+    assert.deepEqual(result.details.progress.tasks.map((r) => r.thinking), ['low', 'high']);
+    for (const [index, level] of ['low', 'high'].entries()) {
+      const content = result.details.results[index].messages.at(-1)?.content[0];
+      assert.ok(content && typeof content !== 'string' && content.type === 'text');
+      const args = JSON.parse(content.text).args;
+      assert.deepEqual(args.slice(0, 8), ['--mode', 'json', '-p', '--no-session', '--model', 'pinned/model', '--thinking', level]);
+    }
+  }
 });
 
 test('resolved-model comes from the child response, not the requested selector', async (t) => {

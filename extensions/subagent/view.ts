@@ -43,7 +43,7 @@ export class Sidebar {
           currentKeys.add(key);
           this.#keys.add(key);
           const next = row.todos?.find((item) => !item.startsWith('[done] '));
-          const status = plain(`${taskLine(row, snapshot.endedAt ?? snapshot.updatedAt)} | ${row.observedModel ?? row.model} | ${row.activity}${next ? ` | next: ${next}` : ''}`, 600);
+          const status = plain(`${taskLine(row, snapshot.endedAt ?? snapshot.updatedAt)} | ${row.observedModel ?? row.model}${row.thinking ? ` | thinking ${row.thinking}` : ''} | ${row.activity}${next ? ` | next: ${next}` : ''}`, 600);
           await this.#command(['set-status', key, status, '--workspace', this.#workspace!]);
         }
         if (this.#closed) break;
@@ -91,7 +91,7 @@ function isSnapshot(value: unknown): value is ProgressSnapshot {
       const usage = record(row.usage);
       return row.index === index && ['queued', 'running', 'stopping', 'succeeded', 'failed', 'aborted', 'skipped'].includes(String(row.state))
         && text(row.agent, 80) && text(row.role, 80) && text(row.task, 600) && text(row.model, 201)
-        && (row.observedModel === null || text(row.observedModel, 201)) && text(row.activity, 180) && text(row.message, 240)
+        && (row.observedModel === null || text(row.observedModel, 201)) && (row.thinking === undefined || row.thinking === null || ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(String(row.thinking))) && text(row.activity, 180) && text(row.message, 240)
         && (row.warning === null || text(row.warning, 180)) && time(row.startedAt) && time(row.lastEventAt) && time(row.endedAt)
         && ['input', 'output', 'cacheRead', 'cacheWrite', 'cost', 'contextTokens', 'turns'].every((key) => number(usage[key]))
         && (row.todos === null || Array.isArray(row.todos) && row.todos.length <= 128 && row.todos.every((item) => text(item, 180)))

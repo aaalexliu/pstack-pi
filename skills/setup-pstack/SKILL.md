@@ -1,6 +1,6 @@
 ---
 name: setup-pstack
-description: Configure which models pstack uses per role and at what reasoning budget. Detects your available models and writes the user-level Pi role map that overrides the skill defaults. It does not store a reasoning budget. Use for /skill:setup-pstack, "configure pstack models", "pstack budget", or changing pstack's model choices.
+description: Configure which models pstack uses per role and at what reasoning budget. Detects your available models and writes the user-level Pi role map that overrides the skill defaults. The budget becomes a `:<level>` thinking suffix on each real selector. Use for /skill:setup-pstack, "configure pstack models", "pstack budget", or changing pstack's model choices.
 disable-model-invocation: true
 ---
 
@@ -20,20 +20,20 @@ The default role-to-model mapping is the JSON shape shown in step 5 below. Call 
 
 ### 3. Budget, map, and confirm
 
-**(a) Ask for a budget.** Prefer an available structured choice tool or numbered chat choices over free text. Offer these four options with these exact labels, and ask every run, because models.json does not store a budget; name a prior choice only when the user states it in this chat.
+**(a) Ask for a budget.** Prefer an available structured choice tool or numbered chat choices over free text. Offer these four options with these exact labels, and name the current budget when every real selector in the role map carries the same `:<level>` suffix. With no role map, say that `large` matches the skill defaults.
 
-- `unlimited - keep max`
+- `unlimited - max reasoning`
 - `large - xhigh reasoning`
 - `medium - high reasoning`
 - `small - medium reasoning`
 
-**(b) Apply it.** Build the working table from the skill defaults (all roles `inherit-parent` until the user picks concrete selectors), and on a re-run keep any role the user already set to a real slug or `inherit-parent`. `unlimited` leaves every selector as in that table. `large`, `medium`, and `small` only apply when a role already uses a real `provider/model-id` whose id encodes an effort token. The effort token is the last path segment token, or the one before a trailing `fast`, on the ladder `max` > `xhigh` > `high` > `medium` > `low`. If the result is not in `list-models`, use the same family's detected selector with the highest effort at or below the target, else mark the role as needing a choice. `inherit-parent` does not change. Record the chosen budget label in the confirmation reply; `models.json` has no budget field.
+**(b) Apply it.** Build the working table from the skill defaults (all roles `inherit-parent` until the user picks concrete selectors), and on a re-run keep any role the user already set to a real slug or `inherit-parent`. `unlimited`, `large`, `medium`, and `small` set the thinking level of every real selector, panel entries included, to `max`, `xhigh`, `high`, or `medium`. Write the level as a `:<level>` suffix, such as `anthropic/claude-opus-5-5:xhigh`, replacing any suffix already there. The `subagent` tool passes the selector to the child's `--model`, and Pi clamps a level the model does not support. `inherit-parent` does not change; that role runs at the parent's level. The suffixes record the budget; `models.json` has no separate budget field.
 
-**(c) Show the roles and confirm.** Show every role from the current `subagent` schema with its model, marking any real slug not in the detected set as needing a choice. Ask whether to accept as-is or change specific roles, offering the detected models plus `inherit-parent` (this role runs on the parent chat model) as the options. Prefer an available structured choice tool or numbered chat choices over free text. Wait for explicit confirmation before writing, including on repeat runs. Role values may be a selector or a nonempty list. Lists rotate deterministically across requests to the role; preserve duplicate entries because they weight that rotation. A list does not itself spawn a panel. Panel workflows (arena runners, architect runners, interrogate reviewers) must select each configured entry explicitly, alias entries included, within bounded requests. For `arena-cross-judge`, Arena selects a value whose model family differs from the parent's when possible; the pool alone does not guarantee diversity. `swarm-worker` is the default model for every worker unless a race or comparison assigns another model per arm. Explicit task model selection takes precedence over the role map.
+**(c) Show the roles and confirm.** Show every role from the current `subagent` schema with its model, marking any real slug not in the detected set as needing a choice. Ask whether to accept as-is or change specific roles, offering the detected models plus `inherit-parent` (this role runs on the parent chat model) as the options. Prefer an available structured choice tool or numbered chat choices over free text. Wait for explicit confirmation before writing, including on repeat runs. Role values may be a selector or a nonempty list. Lists rotate deterministically across requests to the role; preserve duplicate entries because they weight that rotation. A list does not itself spawn a panel. Panel workflows (arena runners, architect runners, interrogate reviewers) must select each configured entry explicitly, alias entries included, within bounded requests. For `arena-cross-judge`, Arena runs one judge. It tries only values from a family other than the parent's, in list order, so order it by preference. An `inherit-parent` value never judges. `swarm-worker` is the default model for every worker unless a race or comparison assigns another model per arm. Explicit task model selection takes precedence over the role map.
 
 ### 4. Validate
 
-Every real slug written must be in the detected set. `inherit-parent` always passes. Reject unknown roles, empty lists, invalid selectors, extra fields, and versions other than 1. If a chosen real slug is not available, stop and ask again.
+Every real slug written must be in the detected set once its `:<level>` suffix is removed. A suffix must be `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`. `inherit-parent` always passes. Reject unknown roles, empty lists, invalid selectors, extra fields, and versions other than 1. If a chosen real slug is not available, stop and ask again.
 
 ### 5. Write the role map
 
@@ -80,3 +80,7 @@ Call `pstack_config` with `action: "get"` again and compare every assignment wit
 ### 7. Offer a verification skill (optional)
 
 Check whether the project has a way to drive the real app for proof (a `verify-*` skill, or an existing harness). If not, offer once: "want a project-local verification skill, so agents can drive the app the way a user does and prove changes work? I can generate one with /skill:create-verification-skill." On yes, invoke `/skill:create-verification-skill` (resolve its actual installed path: workspace, user, or Pi package). On no, move on without pushing.
+
+### 8. Offer a formal verification skill (optional)
+
+Check whether the project already has a formal verification skill (a project skill that runs a model checker, a proof, or another verifier against the code). If not, offer once: "want a formal verification skill, so agents can prove a key property of your code holds in every case in scope, not only the cases tests reach? I can generate one with /skill:create-formal-verification-skill." On yes, invoke `/skill:create-formal-verification-skill` (resolve its actual installed path: workspace, user, or Pi package). On no, move on without pushing.

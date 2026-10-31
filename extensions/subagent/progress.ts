@@ -5,9 +5,9 @@ import type { SingleResult } from './index.ts';
 
 // The runner owns usage and terminal results. This module owns only public display state.
 export type ProgressUsage = SingleResult['usage'];
-export type ProgressTask = { agent: string; task: string; role?: string; model?: string };
+export type ProgressTask = { agent: string; task: string; role?: string; model?: string; thinking?: SingleResult['thinking'] };
 export type TaskProgress = {
-  index: number; agent: string; role: string; task: string; model: string; observedModel: string | null;
+  index: number; agent: string; role: string; task: string; model: string; observedModel: string | null; thinking: SingleResult['thinking'] | null;
   state: 'queued' | 'running' | 'stopping' | 'succeeded' | 'failed' | 'aborted' | 'skipped';
   startedAt: number | null; lastEventAt: number | null; endedAt: number | null;
   activity: string; message: string; tools: { id: string; name: string }[];
@@ -46,7 +46,7 @@ function heading(snapshot: ProgressSnapshot): string {
   return `Subagents ${snapshot.tasks.filter((row) => row.endedAt !== null).length}/${snapshot.tasks.length} finished`;
 }
 function modelLine(row: TaskProgress): string {
-  return `  ${plain(row.agent)} | ${plain(row.observedModel ?? row.model, 201)}${row.observedModel ? '' : ' (selected)'}`;
+  return `  ${plain(row.agent)} | ${plain(row.observedModel ?? row.model, 201)}${row.observedModel ? '' : ' (selected)'}${row.thinking ? ` | thinking ${plain(row.thinking)}` : ''}`;
 }
 function usageSummary(usage: ProgressUsage): string {
   const tokens = usage.input + usage.output + usage.cacheRead + usage.cacheWrite;
@@ -114,7 +114,7 @@ export class RunProgress {
     const now = Date.now();
     this.#publish = publish;
     this.#snapshot = { version: 1, startedAt: now, updatedAt: now, endedAt: null, tasks: tasks.map((task, index) => ({
-      index, agent: plain(task.agent, 80), role: plain(task.role ?? 'default', 80), task: plain(task.task, 600), model: plain(task.model ?? 'parent model', 201), observedModel: null,
+      index, agent: plain(task.agent, 80), role: plain(task.role ?? 'default', 80), task: plain(task.task, 600), model: plain(task.model ?? 'parent model', 201), observedModel: null, thinking: task.thinking ?? null,
       state: 'queued', startedAt: null, lastEventAt: null, endedAt: null, activity: 'waiting to start', message: '', tools: [],
       todos: null, usage: copyUsage(), warning: null, events: [],
     })) };

@@ -1,6 +1,6 @@
 # pstack for Pi
 
-`@aaalexliu/pstack-pi` provides all 50 main skills from Lauren Tan's pstack, plus the Pi-owned `deeper` and `alex-show-me` skills.
+`@aaalexliu/pstack-pi` provides 55 of the 58 main skills from Lauren Tan's pstack, plus the Pi-owned `deeper` and `alex-show-me` skills.
 It copies compatible upstream content and applies exact, reviewed edits to Cursor-specific instructions. No full-file replacements remain. It also includes branch-aware task tracking, scoped session discovery, model-config readback, and a `subagent` tool built on Pi's bundled example with bundled agents, role-based model routing, a depth guard, and process-group cleanup. The three Benny Cursor Cloud Automation skills are outside this package's main-skill scope.
 
 ## Install
@@ -55,14 +55,16 @@ The package supports Pi `0.85.1` and Node.js `>=22.19.0` in this release.
 
 ## Supported scope
 
-Pi `0.85.1` exposes 52 manual commands:
+Pi `0.85.1` exposes 57 manual commands:
 
-- Workflows: `/skill:alex-show-me`, `/skill:architect`, `/skill:arena`, `/skill:automate-me`, `/skill:benchmark-checklist`, `/skill:blast-radius`, `/skill:bro`, `/skill:correct`, `/skill:create-verification-skill`, `/skill:deeper`, `/skill:figure-it-out`, `/skill:how`, `/skill:interrogate`, `/skill:maintain-verification-skill`, `/skill:make-bot-ui`, `/skill:no-comments`, `/skill:poteto-mode`, `/skill:recall`, `/skill:reflect`, `/skill:setup-pstack`, `/skill:show-me-your-work`, `/skill:swarm`, `/skill:tdd`, `/skill:teach`, `/skill:technical-writing`, `/skill:typescript-best-practices`, `/skill:unslop`, and `/skill:why`.
+- Workflows: `/skill:alex-show-me`, `/skill:architect`, `/skill:arena`, `/skill:automate-me`, `/skill:benchmark-checklist`, `/skill:blast-radius`, `/skill:bro`, `/skill:correct`, `/skill:create-formal-verification-skill`, `/skill:create-verification-skill`, `/skill:deeper`, `/skill:figure-it-out`, `/skill:how`, `/skill:in-your-own-words`, `/skill:interrogate`, `/skill:ketchup`, `/skill:maintain-formal-verification-skill`, `/skill:maintain-verification-skill`, `/skill:make-bot-ui`, `/skill:no-comments`, `/skill:poteto-mode`, `/skill:recall`, `/skill:reflect`, `/skill:setup-pstack`, `/skill:show-me-your-work`, `/skill:statechart`, `/skill:swarm`, `/skill:tdd`, `/skill:teach`, `/skill:technical-writing`, `/skill:typescript-best-practices`, `/skill:unslop`, and `/skill:why`.
 - Principles: `/skill:principle-attack-the-premise`, `/skill:principle-boundary-discipline`, `/skill:principle-build-the-lever`, `/skill:principle-encode-lessons-in-structure`, `/skill:principle-exhaust-the-design-space`, `/skill:principle-experience-first`, `/skill:principle-explain-the-number`, `/skill:principle-fix-root-causes`, `/skill:principle-foundational-thinking`, `/skill:principle-guard-the-context-window`, `/skill:principle-laziness-protocol`, `/skill:principle-make-operations-idempotent`, `/skill:principle-migrate-callers-then-delete-legacy-apis`, `/skill:principle-minimize-reader-load`, `/skill:principle-model-the-domain`, `/skill:principle-never-block-on-the-human`, `/skill:principle-outcome-oriented-execution`, `/skill:principle-prove-it-works`, `/skill:principle-redesign-from-first-principles`, `/skill:principle-separate-before-serializing-shared-state`, `/skill:principle-sequence-verifiable-units`, `/skill:principle-subtract-before-you-add`, `/skill:principle-test-behavior-not-implementation`, and `/skill:principle-type-system-discipline`.
 
 Each skill keeps `disable-model-invocation: true` so Pi expands it only through an explicit skill command.
 
-The package ships 99 generated skill and support files, three generated agents, fifteen extension modules, and the root package files.
+`/skill:statechart` runs its bundled `scripts/statechart` command. That command needs Node 22.18 to 22.x, Node 23.6 or later, Bun 1.1.5 or later, or Deno 2.0 or later, plus `mise`. Its first run downloads TLC and Java through mise. Rendering a chart to SVG uses the npm package `pele@1.9.0`, installed outside your repo. Node will not run the TypeScript scripts from a `node_modules` folder, so use the Git install above.
+
+The package ships 128 generated skill and support files, three generated agents, fifteen extension modules, and the root package files.
 It registers `pstack_config`, `pstack_papercut`, `pstack_sessions`, `pstack_todo`, and, at root depth, `subagent`.
 The delegation extension owns one `session_shutdown` hook that stops live children and a `tool_result` hook that marks its own failed calls. The papercut journal owns a `tool_execution_start` hook and a `tool_result` hook that append a one-line measurement to other tools' results.
 Todo and Poteto Mode state follow the active session branch through versioned custom entries. The package registers `/pstack`, `/pstack-export`, `/subagents`, `/pstack-cmux`, and `/papercuts`, but no prompts, themes, or blanket approval hooks.
@@ -145,7 +147,8 @@ Three modes, exactly one per call:
 - Parallel: `tasks`, an array of 1-8 `{agent, task}` entries. At most four children run at once; results keep input order.
 - Chain: `chain`, an array of `{agent, task}` steps run in order. `{previous}` in a task is replaced by the prior step's output. A failed step stops the chain.
 
-Every task entry, and the call itself, accepts optional `cwd`, `model`, and `role`. The call also accepts `timeoutMs`, `agentScope`, and `confirmProjectAgents`.
+Every task entry, and the call itself, accepts optional `cwd`, `model`, `role`, and `thinking`. The call also accepts `timeoutMs`, `agentScope`, and `confirmProjectAgents`.
+`thinking` is `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`. Set it per task to match the job. A task value overrides the call default; an explicit value overrides the parent's thinking level. Pi clamps the requested level to the child's model capabilities.
 `cwd` is any directory; a relative path resolves against the parent's working directory.
 `timeoutMs` kills any child still running after that many milliseconds and reports the task as failed with `Timed out after N ms`.
 
@@ -160,7 +163,7 @@ What this package adds to the example:
 - The child is launched through the same Node binary and Pi entrypoint as the parent, never through `pi` on `PATH`.
 
 A child is otherwise a normal Pi. It loads extensions, skills, and project context files by Pi's own rules, uses the parent's provider auth from `auth.json`, and runs with the builtin tools its agent lists.
-A child inheriting the parent model also inherits the parent thinking level; a pinned model uses Pi's default thinking level.
+Without `thinking`, a child inheriting the parent model also inherits the parent thinking level; a pinned model uses Pi's default thinking level.
 
 Agent files need a name and a description. `tools` accepts a YAML list or a comma-separated string. `model` is optional:
 
@@ -179,9 +182,9 @@ A file that fails to parse is skipped; the other agents in that directory still 
 ### Results
 
 The tool returns the child's final assistant text. Parallel results are joined as `### [agent] completed` or `### [agent] failed (reason)` sections, each capped at 50 KiB with the full text kept in `details`.
-`details` holds `mode`, `agentScope`, `projectAgentsDir`, and one entry per task with the agent, its source (`bundled`, `user`, `project`), the task, `exitCode`, every `message_end` message from the child, capped stderr, summed usage (`input`, `output`, `cacheRead`, `cacheWrite`, `cost`, `contextTokens`, `turns`), the resolved `model`, and `modelSource` (`explicit`, `role`, `agent`, `parent`).
+`details` holds `mode`, `agentScope`, `projectAgentsDir`, and one entry per task with the agent, its source (`bundled`, `user`, `project`), the task, `exitCode`, every `message_end` message from the child, capped stderr, summed usage (`input`, `output`, `cacheRead`, `cacheWrite`, `cost`, `contextTokens`, `turns`), the resolved `model`, `modelSource` (`explicit`, `role`, `agent`, `parent`), and the requested `thinking` level when passed to Pi.
 A task fails when the child exits nonzero, is killed by a signal, or ends with `stopReason` `error` or `aborted`.
-`details.progress` stores the public status snapshot with the result. Live cards show role, selected/observed model, state, elapsed time, last event, reported usage, todo counts, and current activity. Completed cards keep that metadata and preview the original result text. Ctrl+O expands the full result.
+`details.progress` stores the public status snapshot with the result. Live cards show role, selected/observed model, requested thinking level when set, state, elapsed time, last event, reported usage, todo counts, and current activity. Completed cards keep that metadata and preview the original result text. Ctrl+O expands the full result.
 
 ### Inspect subagents
 
@@ -228,7 +231,7 @@ A missing file means no configured roles. A malformed file fails the call with a
 {"version":1,"roles":{"feature":["inherit-parent","openai/gpt-4o"],"review":"inherit-parent"}}
 ```
 
-A choice is `inherit-parent` or `provider/model-id`; only the first slash separates provider and model.
+A choice is `inherit-parent` or `provider/model-id`; only the first slash separates provider and model. A choice may end in a Pi thinking suffix, such as `anthropic/claude-opus-5-5:xhigh`, which sets that role's starting reasoning level. `/skill:setup-pstack` writes the chosen budget this way, and a `thinking` field on the call overrides it.
 A role maps to one choice or to a pool of choices. Pools rotate round-robin per role for the life of the Pi session.
 
 The role IDs are:
@@ -256,24 +259,24 @@ The package starts at version `0.1.0` and follows independent SemVer, not Cursor
 
 ## Upstream provenance
 
-The sole source for shared content is [Lauren Tan's pstack in cursor/plugins](https://github.com/cursor/plugins/tree/e43c7ee26e0038c6c1fa8380dd34ce86ff94cb2a/pstack).
+The sole source for shared content is [Lauren Tan's pstack in cursor/plugins](https://github.com/cursor/plugins/tree/c742dd61706fbacc1b95f1a20b7b988cf096ce6c/pstack).
 The [MIT license](LICENSE) preserves Lauren Tan's notice unchanged.
 
-The pinned source commit is `e43c7ee26e0038c6c1fa8380dd34ce86ff94cb2a`.
-Its `pstack` tree is `54dfdd87fd191ddda7fce01dd354d220adaeeacc`.
+The pinned source commit is `c742dd61706fbacc1b95f1a20b7b988cf096ce6c`.
+Its `pstack` tree is `4719e1c4b4c43bac85d4206a8b41dd2899769c1c`.
 `vendor/cursor-pstack/` contains that immutable snapshot.
 `sync/upstream.lock.json` records source blobs, modes, and generated hashes.
 
-`sync/manifest.json` is the only authored classification of the 158 source files.
-It copies 49 files, transforms 36, and explicitly omits 73. No file uses `replace`.
+`sync/manifest.json` is the only authored classification of the 573 source files.
+It copies 74 files, transforms 53, and explicitly omits 446. No file uses `replace`.
 Transforms change only reviewed commands, frontmatter, paths, runtime sections, or proof steps, leaving all other source bytes intact.
 Each transformation requires its locked source blob and exact match count.
 Even execution-ownership changes use targeted transforms rather than rewritten copies. All 23 principle skills and the Investigation playbook remain byte-for-byte copies.
 
-`sync/additions/agents/general-purpose.md`, `sync/additions/skills/deeper/SKILL.md`, and the two files under `sync/additions/skills/alex-show-me/` are Pi-owned sources, separate from the 158 upstream paths. `alex-show-me` adapts the MIT-licensed `show-me` skill from [humanlayer/skills](https://github.com/humanlayer/skills) and ships its license notice in `skills/alex-show-me/references/humanlayer-license.md`. `SYNCING.md` describes how additions are declared and checked.
+`sync/additions/agents/general-purpose.md`, `sync/additions/skills/deeper/SKILL.md`, and the two files under `sync/additions/skills/alex-show-me/` are Pi-owned sources, separate from the 573 upstream paths. `alex-show-me` adapts the MIT-licensed `show-me` skill from [humanlayer/skills](https://github.com/humanlayer/skills) and ships its license notice in `skills/alex-show-me/references/humanlayer-license.md`. `SYNCING.md` describes how additions are declared and checked.
 
 Cursor distribution metadata, guides, branding assets, Cloud Automations, unbundled playbooks, and unsupported scripts remain omitted.
-All 50 upstream main skill entrypoints are present, including the webhook-backed `make-bot-ui`, plus the Pi-owned `deeper` and `alex-show-me` skills. Missing external service capabilities remain explicit limits, not silently changed tasks.
+55 of the 58 upstream main skill entrypoints are present, including the webhook-backed `make-bot-ui`, plus the Pi-owned `deeper` and `alex-show-me` skills. `ADAPTATIONS.md` lists the three omitted skills and why. Missing external service capabilities remain explicit limits, not silently changed tasks.
 Two upstream agents have targeted Pi transforms; the third agent is a Pi-owned addition.
 
 [0xrsydn/pstack-pi](https://github.com/0xrsydn/pstack-pi) and [kkgogogo17/pi-pstack](https://github.com/kkgogogo17/pi-pstack) are implementation references, not sources for shared content.

@@ -153,6 +153,7 @@ export interface SingleResult {
   /** Set only from an assistant response. Never the requested selector. */
   observedModel?: string;
   modelSource?: 'explicit' | 'role' | 'agent' | 'parent';
+  thinking?: ExtensionContext['thinkingLevel'];
   stopReason?: string;
   errorMessage?: string;
   step?: number;
@@ -317,16 +318,15 @@ export interface ResolvedTask {
   cwd: string;
   model: string | undefined;
   modelSource: SingleResult['modelSource'];
-  inheritsThinking: boolean;
+  thinking?: ExtensionContext['thinkingLevel'];
   role?: string;
   step?: number;
 }
 
 type OnUpdateCallback = (partial: AgentToolResult<SubagentDetails>) => void;
 
-export async function runSingleAgent({ resolved, defaults, depth, signal, timeoutMs, onUpdate, onEvent, makeDetails, spawnChild = spawnDetachedChild, registry, termGraceMs = TERM_GRACE_MS }: {
+export async function runSingleAgent({ resolved, depth, signal, timeoutMs, onUpdate, onEvent, makeDetails, spawnChild = spawnDetachedChild, registry, termGraceMs = TERM_GRACE_MS }: {
   resolved: ResolvedTask;
-  defaults: DispatchDefaults;
   depth: number;
   signal: AbortSignal | undefined;
   timeoutMs: number | undefined;
@@ -340,12 +340,12 @@ export async function runSingleAgent({ resolved, defaults, depth, signal, timeou
   const { agent, task, cwd, step } = resolved;
   const args: string[] = ['--mode', 'json', '-p', '--no-session'];
   if (resolved.model) args.push('--model', resolved.model);
-  if (resolved.inheritsThinking && defaults.thinkingLevel) args.push('--thinking', defaults.thinkingLevel);
+  if (resolved.thinking) args.push('--thinking', resolved.thinking);
   if (agent.tools && agent.tools.length > 0) args.push('--tools', [...new Set([...agent.tools, 'pstack_todo'])].join(','));
 
   const result: SingleResult = {
     agent: agent.name, agentSource: agent.source, task, exitCode: -1, messages: [], stderr: '',
-    usage: zeroUsage(), model: resolved.model, modelSource: resolved.modelSource, step,
+    usage: zeroUsage(), model: resolved.model, modelSource: resolved.modelSource, thinking: resolved.thinking, step,
   };
   const observe = (event: unknown) => {
     try { onEvent?.(event, result); } catch { /* Display failures must not stop the child. */ }
@@ -476,12 +476,18 @@ export async function runSingleAgent({ resolved, defaults, depth, signal, timeou
 // Tool
 // ---------------------------------------------------------------------------
 
+const thinkingSchema = Type.Union([
+  Type.Literal('off'), Type.Literal('minimal'), Type.Literal('low'), Type.Literal('medium'),
+  Type.Literal('high'), Type.Literal('xhigh'), Type.Literal('max'),
+], { description: 'Child reasoning level. Set for the job; overrides the inherited parent level. An item value overrides the call default.' });
+
 const taskFields = {
   agent: Type.String({ description: 'Name of the agent to invoke' }),
   task: Type.String({ description: 'Task to delegate to the agent' }),
   cwd: Type.Optional(Type.String({ description: 'Working directory for the agent process' })),
   model: Type.Optional(modelChoiceSchema),
   role: Type.Optional(roleSchema),
+  thinking: Type.Optional(thinkingSchema),
 };
 const TaskItem = Type.Object(taskFields);
 const ChainItem = Type.Object({ ...taskFields, task: Type.String({ description: 'Task with optional {previous} placeholder for prior output' }) });
@@ -493,6 +499,7 @@ const SubagentParams = Type.Object({
   chain: Type.Optional(Type.Array(ChainItem, { description: 'Array of {agent, task} for sequential execution' })),
   model: Type.Optional(modelChoiceSchema),
   role: Type.Optional(roleSchema),
+  thinking: Type.Optional(thinkingSchema),
   cwd: Type.Optional(Type.String({ description: 'Working directory for the agent process (single mode)' })),
   timeoutMs: Type.Optional(Type.Integer({ minimum: 1, description: 'Kill any child still running after this many milliseconds' })),
   agentScope: Type.Optional(Type.Union([Type.Literal('user'), Type.Literal('project'), Type.Literal('both')], {
@@ -515,7 +522,7 @@ export function toolDescription(bundled: Pick<AgentConfig, 'name' | 'description
     `User and project agents override bundled ones by name. User agents live in ${path.join(getAgentDir(), 'agents')}.`,
     `To enable project-local agents in ${CONFIG_DIR_NAME}/agents, set agentScope: "both".`,
     `model accepts inherit-parent or provider/model-id. role selects a configured model from ${modelConfigPath(getAgentDir())}; roles: ${roles.join(', ')}.`,
-    'Explicit model overrides role, then the agent default, then the parent model. Children cannot delegate.',
+    'Explicit model overrides role, then the agent default, then the parent model. thinking sets the child reasoning level per call or task; a task value overrides the call default. Children cannot delegate.',
     'Single and chain result text starts with `resolved-model: provider/model-id` from the child response, or `resolved-model: unknown`. Parallel results include that line in each task block. That line is the resolved identity. The requested selector is not.',
   ].join(' ');
 }
@@ -595,7 +602,7 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
           return { content: [{ type: 'text', text: `Too many parallel tasks (${params.tasks.length}). Max is ${MAX_PARALLEL_TASKS}.` }], details: makeDetails('parallel')([]) };
         }
 
-        const requested = params.chain ?? params.tasks ?? [{ agent: params.agent!, task: params.task!, cwd: params.cwd, model: params.model, role: params.role }];
+        const requested = params.chain ?? params.tasks ?? [{ agent: params.agent!, task: params.task!, cwd: params.cwd, model: params.model, role: params.role, thinking: params.thinking }];
         const config = await loadModelConfig(getAgentDir());
         const resolvedTasks: ResolvedTask[] = [];
         for (const [index, item] of requested.entries()) {
@@ -608,7 +615,7 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
           resolvedTasks.push({
             agent, task: item.task, cwd: item.cwd ?? params.cwd ?? ctx.cwd,
             model: inherits ? defaults.model : formatModelChoice(selection.choice),
-            modelSource: selection.source, inheritsThinking: inherits, role: item.role ?? params.role,
+            modelSource: selection.source, thinking: item.thinking ?? params.thinking ?? (inherits ? defaults.thinkingLevel : undefined), role: item.role ?? params.role,
             step: hasChain ? index + 1 : undefined,
           });
         }
@@ -624,7 +631,7 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
 
         partial = { content: [{ type: 'text', text: '(starting...)' }], details: makeDetails(mode)([]) };
         view.begin(toolCallId);
-        progress = new RunProgress(resolvedTasks.map((task) => ({ agent: task.agent.name, task: task.task, role: task.role, model: task.model })), (value) => {
+        progress = new RunProgress(resolvedTasks.map((task) => ({ agent: task.agent.name, task: task.task, role: task.role, model: task.model, thinking: task.thinking })), (value) => {
           snapshot = value;
           view.publish(value, ctx, toolCallId);
           publish();
@@ -642,7 +649,7 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
           }
           if (signal?.aborted) throw new Error('Subagent was aborted');
           const pane = enabled ? transcripts.create({ env: cmuxEnv, exec: cmuxExec, label: resolved.agent.name }) : undefined;
-          return runSingleAgent({ resolved, defaults, depth, signal, timeoutMs: params.timeoutMs, onUpdate: update, makeDetails: makeDetails(mode), spawnChild, registry, termGraceMs,
+          return runSingleAgent({ resolved, depth, signal, timeoutMs: params.timeoutMs, onUpdate: update, makeDetails: makeDetails(mode), spawnChild, registry, termGraceMs,
             onEvent: (event, result) => {
               pane?.event(event);
               const type = (event as { type?: string } | null)?.type;
@@ -686,7 +693,7 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
 
         if (mode === 'parallel') {
           const allResults: SingleResult[] = resolvedTasks.map((t) => ({
-            agent: t.agent.name, agentSource: t.agent.source, task: t.task, exitCode: -1, messages: [], stderr: '', usage: zeroUsage(), model: t.model, modelSource: t.modelSource,
+            agent: t.agent.name, agentSource: t.agent.source, task: t.task, exitCode: -1, messages: [], stderr: '', usage: zeroUsage(), model: t.model, modelSource: t.modelSource, thinking: t.thinking,
           }));
           const emitParallelUpdate = () => {
             if (!onUpdate) return;

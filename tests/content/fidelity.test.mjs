@@ -23,7 +23,7 @@ test('production uses no full-file replacements and covers every converted workf
   const converted = manifest.files.filter((file) =>
     (file.kind === 'transform' && !earlierTransforms.includes(file.source)) ||
     file.source === 'skills/poteto-mode/playbooks/investigation.md');
-  assert.equal(converted.length, 42);
+  assert.equal(converted.length, 47);
   assert.deepEqual(Object.keys(contracts).sort(), converted.map(({ source }) => source).sort());
 });
 
@@ -70,56 +70,38 @@ function section(text, from, to) {
   return text.slice(start, end);
 }
 
-test('interrogate preserves upstream bytes outside Step 3 and claim verification', async () => {
+test('interrogate changes only the panel and adversary agent in Fan out', async () => {
   const destination = 'skills/interrogate/SKILL.md';
   const upstream = await read(`vendor/cursor-pstack/${destination}`);
   const actual = await read(destination);
   const entry = manifest.files.find((file) => file.kind !== 'omit' && file.destination === destination);
   assert.ok(entry?.kind === 'transform');
-  assert.equal(entry.transforms.length, 2);
-  const step3 = '## Step 3, Spawn Reviewers';
-  const step4 = '## Step 4, Synthesize';
-  const step5 = '## Step 5, Lead Judgment';
-  const output = '## Output Format';
-  const [panel, verification] = entry.transforms;
-  assert.equal(panel.find, section(upstream, step3, step4));
-  assert.ok(panel.replace.startsWith(`${step3}\n\n`));
-  assert.equal(verification.find, '1. **Parse all findings** from the reviewers');
-  assert.equal(verification.replace, '1. **Parse all findings** from the reviewers. Verify each claim against the code and reachable call paths; include exact files and lines. State any test or evidence gaps. Model agreement is a signal, not proof.');
+  assert.deepEqual(entry.transforms.map(({ find }) => find), [
+    'Read the `interrogate reviewers` line in place of `arena runners`.',
+    'Spawn each adversary as `generalPurpose`.',
+  ]);
   let expected = upstream;
   for (const transform of entry.transforms) {
     assert.equal(transform.count, 1);
     assert.equal(expected.split(transform.find).length - 1, 1);
     expected = expected.replace(transform.find, transform.replace);
   }
-  assert.equal(actual, expected, 'only the two reviewed transform regions change');
-  for (const [from, to] of [
-    ['---\n', '## Step 1, Determine Scope'],
-    ['## Step 1, Determine Scope', '## Step 2, State the Intent'],
-    ['## Step 2, State the Intent', step3],
-    [step5, output],
-    [output, undefined],
-  ]) {
+  assert.equal(actual, expected, 'only the two reviewed clauses change');
+  for (const [from, to] of [['---\n', '## Fan out'], ['## Verify', '## Output'], ['## Output', undefined]]) {
     assert.ok(from);
     assert.equal(section(actual, from, to), section(upstream, from, to), from);
   }
-  assert.equal(section(actual, step4, step5).replace(verification.replace, verification.find), section(upstream, step4, step5));
-  assert.deepEqual([...section(actual, step5, output).matchAll(/^- \*\*([^*]+)\*\*/gmu)].map((match) => match[1]), ['Act on', 'Consider', 'Noted', 'Dismissed']);
-  assert.deepEqual([...section(actual, output).matchAll(/^### (.+)$/gmu)].map((match) => match[1]), ['Intent', 'Reviewers', 'Act On', 'Consider', 'Noted', 'Dismissed', 'Agreement Map']);
   for (const clause of [
-    "Use the `interrogate-reviewer` role's configured model pool, one reviewer per entry.",
-    'the exact configured entry, including `inherit-parent`',
-    'do not substitute assigned personas or different prompts',
-    'do not silently substitute a model or edit configuration',
-    'If the line is missing or `unknown`, label the identity unknown. Do not guess from the requested selector',
-    'Without a configured role, use one `inherit-parent` reviewer and disclose that model diversity is unavailable',
+    'Use the configured `interrogate-reviewer` panel in place of the `arena-runner` panel.',
+    'Spawn each adversary as `poteto-agent` with role `interrogate-reviewer` and its own worktree as `cwd`.',
+    '> Break this change. Prove each finding with a run against the real code',
   ]) assert.ok(actual.includes(clause), clause);
 });
 
 test('small reference repairs leave every other upstream byte intact', async () => {
   for (const [destination, before, after] of [
     ['skills/architect/references/runner-prompt.md',
-      'You are one of several runners, each on a different model.',
+      'You are one of the parallel runners, each on a different model.',
       'You are one of several independent runners. The parent selects configured models and reports any limits on model diversity.'],
     ['skills/create-verification-skill/references/feature-map-example/search.md',
       '- **Proof.** Capture the populated result state.',

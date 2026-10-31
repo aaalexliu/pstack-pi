@@ -117,7 +117,8 @@ async function packOnce({ sourceRoot, files, content, hold }) {
       const filename = join(extracted, name);
       const stat = await lstat(filename);
       assert.ok(stat.isFile() && !stat.isSymbolicLink());
-      assert.equal(stat.mode & 0o7777, 0o644);
+      const executable = content?.byDestination.get(name)?.locked.output?.mode === "100755";
+      assert.equal(stat.mode & 0o7777, executable ? 0o755 : 0o644, `Packed mode differs: ${name}`);
       assert.deepEqual(await readFile(filename), await readFile(join(sourceRoot, name)), `Packed bytes differ: ${name}`);
     }
     const manifest = JSON.parse(await readFile(join(extracted, "package.json"), "utf8"));
