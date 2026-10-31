@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { chmod, lstat, readFile, rename, rm, symlink } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
-import { assertPackageExposure, assertPackInventory, checkContent, checkPackedContent, contentInventory, expectedPackFiles, parseSkill } from '../../scripts/check-content.mjs';
+import { assertPackageExposure, assertPackInventory, checkContent, checkPackedContent, contentInventory, expectedPackFiles, parseSkill, recordOutput } from '../../scripts/check-content.mjs';
 import { sha256 } from '../../scripts/sync-upstream.mjs';
 import { contentFixture, skillText } from './fixture.mjs';
 
@@ -170,7 +170,8 @@ async function withScripts(t) {
 test('skill scripts ship as code with their executable mode, not as instruction prose', async (t) => {
   const f = await withScripts(t);
   const inventory = await checkContent(f);
-  assert.equal(inventory.byDestination.get('skills/copied/scripts/run')?.locked.output?.mode, '100755');
+  const script = inventory.byDestination.get('skills/copied/scripts/run');
+  assert.equal(script && recordOutput(script)?.mode, '100755');
   await checkPackedContent(f.root, inventory);
   await chmod(path.join(f.root, 'skills/copied/scripts/run'), 0o644);
   await assert.rejects(checkContent(f), /Unexpected file mode: skills\/copied\/scripts\/run/);

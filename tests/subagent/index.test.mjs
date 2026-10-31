@@ -167,7 +167,7 @@ test('single mode runs the bundled agent in a detached child with prompt file, s
   assert.equal(capture.depth, '1');
   assert.equal(capture.cwd, f.cwd);
   assert.equal(capture.promptMode, 0o600);
-  assert.equal(capture.prompt, (await readFile(new URL('../../agents/general-purpose.md', import.meta.url), 'utf8')).split('---\n')[2].trim());
+  assert.equal(capture.prompt, (await readFile(new URL('../../additions/agents/general-purpose.md', import.meta.url), 'utf8')).split('---\n')[2].trim());
   assert.deepEqual(capture.args.slice(0, 4), ['--mode', 'json', '-p', '--no-session']);
   assert.ok(capture.args.includes('--model') && capture.args[capture.args.indexOf('--model') + 1] === 'fixture/model');
   assert.equal(capture.args[capture.args.indexOf('--thinking') + 1], 'high');

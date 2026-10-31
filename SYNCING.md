@@ -2,14 +2,23 @@
 
 The generated skills and agents come from the pinned Cursor source recorded in `sync/upstream.lock.json`. The current pin is commit `c742dd61706fbacc1b95f1a20b7b988cf096ce6c`, tree `4719e1c4b4c43bac85d4206a8b41dd2899769c1c` under `pstack/`.
 
-The repository keeps four layers separate:
+Sync works on three layers:
 
 - `vendor/cursor-pstack/` is the exact offline source snapshot.
-- `sync/manifest.json` classifies every upstream file as `copy`, `transform`, or `omit`. The importer still supports `replace`, but production uses none.
-- `sync/additions/` contains Pi-owned content with no upstream counterpart. `ADAPTATIONS.md` lists every upstream transform and its reason.
+- `sync/manifest.json` classifies every upstream file as `copy`, `transform`, or `omit`. The importer still supports `replace`, but production uses none. `ADAPTATIONS.md` lists every upstream transform and its reason.
 - `skills/` and `agents/` are generated outputs. Do not edit them directly.
 
-The manifest and lock use strict version 2 with required `additions` arrays. An addition's manifest entry records `source`, `destination`, `mode`, and `reason`. Its lock entry records `source` and `output` with `destination`, `sha256`, and `mode`. Additions copy raw bytes from strictly below `sync/additions/` into managed roots. The same evaluator checks all output collisions and stages both upstream and authored content. Missing, extra, symlinked, special, and native-colliding addition inputs stop sync. The additions today are `sync/additions/agents/general-purpose.md`, `sync/additions/skills/deeper/SKILL.md`, `sync/additions/skills/alex-show-me/SKILL.md`, `sync/additions/skills/alex-show-me/references/humanlayer-license.md`, and `sync/additions/skills/list-writing/SKILL.md`.
+Pi-owned agents and skills live in `additions/` and ship as written. Sync never reads or writes that folder, and the manifest and lock do not list it. Edit those files in place and list each one in `package.json`.
+
+The manifest and lock use strict version 3. Version 2 also copied Pi-owned files from `sync/additions/` into the generated folders, which kept two copies of each file and a lock hash that had to be relocked after every edit.
+
+`npm run check:content` scans `additions/` with the generated folders. It fails on any of these:
+
+- A path other than `additions/agents/<name>.md`, `additions/skills/<name>/SKILL.md`, or `additions/skills/<name>/references/<file>.md`.
+- An executable, symlinked, or special file.
+- A skill or agent name that another shipped skill or agent already uses.
+- A support file with no `SKILL.md` beside it.
+- A file missing from `package.json`, or a skill missing from its `pi.skills` list.
 
 ## Check or regenerate the current pin
 

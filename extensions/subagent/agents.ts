@@ -18,8 +18,10 @@ export type AgentConfig = AgentDefinition & { source: AgentSource; filePath: str
 
 export type AgentDiscoveryResult = { agents: AgentConfig[]; projectAgentsDir: string | null };
 
-export const bundledAgentsDirectory = fileURLToPath(new URL('../../agents/', import.meta.url));
-const packageRoot = path.resolve(bundledAgentsDirectory, '..');
+const packageRoot = path.resolve(fileURLToPath(new URL('../..', import.meta.url)));
+
+// `agents/` holds agents generated from upstream pstack. `additions/agents/` holds Pi-owned agents.
+export const bundledAgentsDirectories = [path.join(packageRoot, 'agents'), path.join(packageRoot, 'additions', 'agents')];
 
 type AgentFrontmatter = { name?: unknown; description?: unknown; tools?: unknown; model?: unknown };
 
@@ -76,15 +78,15 @@ function findNearestProjectAgentsDir(cwd: string): string | null {
   }
 }
 
-export function bundledAgents(bundledDir = bundledAgentsDirectory): AgentConfig[] {
-  return loadAgentsFromDir(bundledDir, 'bundled');
+export function bundledAgents(bundledDirs = bundledAgentsDirectories): AgentConfig[] {
+  return bundledDirs.flatMap((dir) => loadAgentsFromDir(dir, 'bundled'));
 }
 
 // Later sources override earlier ones by name: bundled < user < project.
-export function discoverAgents(cwd: string, scope: AgentScope, { bundledDir = bundledAgentsDirectory, userDir = path.join(getAgentDir(), 'agents') } = {}): AgentDiscoveryResult {
+export function discoverAgents(cwd: string, scope: AgentScope, { bundledDirs = bundledAgentsDirectories, userDir = path.join(getAgentDir(), 'agents') } = {}): AgentDiscoveryResult {
   const projectAgentsDir = findNearestProjectAgentsDir(cwd);
   const layers: AgentConfig[][] = [];
-  if (scope !== 'project') layers.push(loadAgentsFromDir(bundledDir, 'bundled'), loadAgentsFromDir(userDir, 'user'));
+  if (scope !== 'project') layers.push(bundledAgents(bundledDirs), loadAgentsFromDir(userDir, 'user'));
   if (scope !== 'user' && projectAgentsDir) layers.push(loadAgentsFromDir(projectAgentsDir, 'project'));
   const agentMap = new Map<string, AgentConfig>();
   for (const layer of layers) for (const agent of layer) agentMap.set(agent.name, agent);

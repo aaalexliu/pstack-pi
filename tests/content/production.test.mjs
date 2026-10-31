@@ -21,13 +21,14 @@ test('production contains exactly the reviewed copied and adapted workflow set',
   assert.deepEqual(inventory.byAgentName.get('general-purpose')?.tools, ['read', 'grep', 'find', 'ls']);
   assert.deepEqual(inventory.byAgentName.get('poteto-agent')?.tools, ['read', 'grep', 'find', 'ls', 'bash', 'edit', 'write']);
   assert.equal(inventory.bySkillName.size, 58);
-  assert.equal(manifest.additions.length, 5);
-  assert.ok(inventory.bySkillName.has('deeper'));
-  assert.equal(inventory.byDestination.get('skills/deeper/SKILL.md')?.disposition.kind, 'addition');
-  assert.ok(inventory.bySkillName.has('alex-show-me'));
-  assert.equal(inventory.byDestination.get('skills/alex-show-me/SKILL.md')?.disposition.kind, 'addition');
-  assert.equal(inventory.byDestination.get('skills/alex-show-me/references/humanlayer-license.md')?.disposition.kind, 'addition');
-  assert.equal(inventory.byDestination.get('skills/list-writing/SKILL.md')?.disposition.kind, 'addition');
+  assert.deepEqual([...inventory.byDestination].filter(([, record]) => record.disposition.kind === 'addition').map(([destination]) => destination).sort(), [
+    'additions/agents/general-purpose.md',
+    'additions/skills/alex-show-me/SKILL.md',
+    'additions/skills/alex-show-me/references/humanlayer-license.md',
+    'additions/skills/deeper/SKILL.md',
+    'additions/skills/list-writing/SKILL.md',
+  ]);
+  for (const name of ['alex-show-me', 'deeper', 'list-writing']) assert.equal(inventory.bySkillName.get(name)?.destination, `additions/skills/${name}/SKILL.md`);
   const upstreamEntrypoints = manifest.files.filter((file) => /^skills\/[^/]+\/SKILL\.md$/u.test(file.source));
   assert.equal(upstreamEntrypoints.length, 58);
   const omittedSkills = ['skills/ketchup-video/SKILL.md', 'skills/poteto-help/SKILL.md', 'skills/sharpen/SKILL.md'];
@@ -56,12 +57,9 @@ test('production contains exactly the reviewed copied and adapted workflow set',
       { find: 'check it by reading the codebase or calling MCP tools.', replace: 'check it by reading the codebase, or return it to the parent to check with external tools.', count: 1 },
     ] },
   ]);
-  for (const [destination, { disposition, locked }] of inventory.byDestination) {
-    if (disposition.kind === 'addition') {
-      assert.deepEqual(await readFile(path.join(root, destination)), await readFile(path.join(root, disposition.source)));
-      continue;
-    }
-    assert.ok('blob' in locked);
+  for (const [destination, record] of inventory.byDestination) {
+    if (!('locked' in record)) continue;
+    const { disposition, locked } = record;
     const original = await readFile(path.join(root, 'vendor/cursor-pstack', disposition.source));
     const actual = await readFile(path.join(root, destination));
     assert.equal(createHash('sha1').update(`blob ${original.length}\0`).update(original).digest('hex'), locked.blob, `Source blob: ${destination}`);

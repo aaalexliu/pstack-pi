@@ -8,13 +8,11 @@ import { pathToFileURL } from 'node:url';
 
 /** @typedef {{find: string, replace: string, count: number}} Transform */
 /** @typedef {{kind: 'copy', source: string, destination: string} | {kind: 'transform', source: string, destination: string, expectedBlob: string, transforms: Transform[], reason: string} | {kind: 'replace', source: string, destination: string, expectedBlob: string, replacement: string, reason: string} | {kind: 'omit', source: string, reason: string}} Disposition */
-/** @typedef {{source: string, destination: string, mode: FileMode, reason: string}} Addition */
-/** @typedef {{version: 2, repository: string, sourceRoot: string, managedRoots: string[], files: Disposition[], additions: Addition[]}} Manifest */
+/** @typedef {{version: 3, repository: string, sourceRoot: string, managedRoots: string[], files: Disposition[]}} Manifest */
 /** @typedef {'100644' | '100755'} FileMode */
 /** @typedef {{destination: string, sha256: string, mode: FileMode}} LockedOutput */
 /** @typedef {{source: string, blob: string, mode: FileMode, adaptationSha256: string | null, output: LockedOutput | null}} LockedFile */
-/** @typedef {{source: string, output: LockedOutput}} LockedAddition */
-/** @typedef {{version: 2, repository: string, commit: string, sourceRoot: string, sourceTree: string, files: LockedFile[], additions: LockedAddition[]}} Lock */
+/** @typedef {{version: 3, repository: string, commit: string, sourceRoot: string, sourceTree: string, files: LockedFile[]}} Lock */
 /** @typedef {{bytes: Buffer, mode: number}} Output */
 /** @typedef {{path: string, kind: 'missing' | 'changed' | 'extra' | 'mode-mismatched'}} Difference */
 /** @typedef {{kind: 'git', repositoryPath: string} | {kind: 'snapshot', snapshotRoot: string}} Source */
@@ -81,8 +79,8 @@ function uniquePaths(paths, label) {
 
 /** @param {unknown} value @returns {Manifest} */
 export function parseManifest(value) {
-  fields(value, ['version', 'repository', 'sourceRoot', 'managedRoots', 'files', 'additions']);
-  requireValue(value.version === 2, 'Unsupported manifest version');
+  fields(value, ['version', 'repository', 'sourceRoot', 'managedRoots', 'files']);
+  requireValue(value.version === 3, 'Unsupported manifest version');
   repositoryIdentity(value.repository);
   relativePath(value.sourceRoot);
   requireValue(Array.isArray(value.managedRoots) && value.managedRoots.length > 0, 'Expected managed roots');
@@ -123,26 +121,16 @@ export function parseManifest(value) {
       requireValue(value.managedRoots.some((root) => String(file.destination).startsWith(`${root}/`)), `Destination outside managed roots: ${file.destination}`);
     }
   }
-  requireValue(Array.isArray(value.additions), 'Expected additions array');
-  for (const addition of value.additions) {
-    fields(addition, ['source', 'destination', 'mode', 'reason']);
-    additionSource(addition.source);
-    relativePath(addition.destination);
-    requireValue(value.managedRoots.some((root) => String(addition.destination).startsWith(`${root}/`)), `Destination outside managed roots: ${addition.destination}`);
-    fileMode(addition.mode);
-    requireValue(typeof addition.reason === 'string' && addition.reason.trim().length > 0, 'Expected a nonempty review reason');
-  }
   const manifest = /** @type {Manifest} */ (value);
   uniquePaths(manifest.files.map((file) => file.source), 'sources');
-  uniquePaths(manifest.additions.map((file) => file.source), 'addition sources');
-  uniquePaths([...manifest.files.flatMap((file) => file.kind === 'omit' ? [] : [file.destination]), ...manifest.additions.map((file) => file.destination)], 'destinations');
+  uniquePaths(manifest.files.flatMap((file) => file.kind === 'omit' ? [] : [file.destination]), 'destinations');
   return manifest;
 }
 
 /** @param {unknown} value @returns {Lock} */
 export function parseLock(value) {
-  fields(value, ['version', 'repository', 'commit', 'sourceRoot', 'sourceTree', 'files', 'additions']);
-  requireValue(value.version === 2, 'Unsupported lock version');
+  fields(value, ['version', 'repository', 'commit', 'sourceRoot', 'sourceTree', 'files']);
+  requireValue(value.version === 3, 'Unsupported lock version');
   repositoryIdentity(value.repository);
   objectId(value.commit);
   objectId(value.sourceTree);
@@ -161,20 +149,9 @@ export function parseLock(value) {
       fileMode(file.output.mode);
     }
   }
-  requireValue(Array.isArray(value.additions), 'Expected locked additions array');
-  for (const addition of value.additions) {
-    fields(addition, ['source', 'output']);
-    additionSource(addition.source);
-    fields(addition.output, ['destination', 'sha256', 'mode']);
-    relativePath(addition.output.destination);
-    requireValue(/^(skills|agents)\//u.test(addition.output.destination), 'Unmanaged addition output');
-    digest(addition.output.sha256);
-    fileMode(addition.output.mode);
-  }
   const lock = /** @type {Lock} */ (value);
   uniquePaths(lock.files.map((file) => file.source), 'locked sources');
-  uniquePaths(lock.additions.map((file) => file.source), 'locked addition sources');
-  uniquePaths([...lock.files.flatMap((file) => file.output ? [file.output.destination] : []), ...lock.additions.map((file) => file.output.destination)], 'locked destinations');
+  uniquePaths(lock.files.flatMap((file) => file.output ? [file.output.destination] : []), 'locked destinations');
   return lock;
 }
 
@@ -336,26 +313,8 @@ function verifySource(sources, lock) {
   }
 }
 
-/** @param {unknown} value @returns {asserts value is string} */
-function additionSource(value) {
-  relativePath(value);
-  requireValue(value.startsWith('sync/additions/'), 'Addition source must be below sync/additions/');
-}
-
-/** @param {string} root @param {Addition[]} additions */
-export async function readAdditions(root, additions) {
-  const inputs = await scan(root, ['sync/additions'], true);
-  requireValue(inputs.size === additions.length, 'Addition input membership differs');
-  for (const addition of additions) {
-    const input = inputs.get(addition.source);
-    requireValue(input, `Missing addition source: ${addition.source}`);
-    requireValue(input.mode === (addition.mode === '100755' ? 0o755 : 0o644), `Addition input mode differs: ${addition.source}`);
-  }
-  return inputs;
-}
-
-/** @param {SourceInventory} sources @param {Manifest} manifest @param {string} replacementRoot @param {string} projectRoot */
-async function evaluate(sources, manifest, replacementRoot, projectRoot) {
+/** @param {SourceInventory} sources @param {Manifest} manifest @param {string} replacementRoot */
+async function evaluate(sources, manifest, replacementRoot) {
   coverage(sources, manifest);
   /** @type {Map<string, Output>} */
   const outputs = new Map();
@@ -393,14 +352,7 @@ async function evaluate(sources, manifest, replacementRoot, projectRoot) {
     files.push({ ...entry, adaptationSha256: adaptation, output: { destination: file.destination, sha256: sha256(bytes), mode: source.mode } });
     outputs.set(file.destination, { bytes, mode: source.mode === '100755' ? 0o755 : 0o644 });
   }
-  const inputs = await readAdditions(projectRoot, manifest.additions);
-  const additions = [...manifest.additions].sort((a, b) => byteOrder(a.source, b.source)).map((addition) => {
-    const input = inputs.get(addition.source);
-    requireValue(input, `Missing addition source: ${addition.source}`);
-    outputs.set(addition.destination, input);
-    return { source: addition.source, output: { destination: addition.destination, sha256: sha256(input.bytes), mode: addition.mode } };
-  });
-  return { files, additions, outputs };
+  return { files, outputs };
 }
 
 /** @param {Manifest} manifest @param {Lock} lock */
@@ -434,14 +386,11 @@ export function serializeLock(lock) {
       source: file.source, blob: file.blob, mode: file.mode, adaptationSha256: file.adaptationSha256,
       output: file.output === null ? null : { destination: file.output.destination, sha256: file.output.sha256, mode: file.output.mode },
     })),
-    additions: [...lock.additions].sort((a, b) => byteOrder(a.source, b.source)).map(({ source, output }) => ({
-      source, output: { destination: output.destination, sha256: output.sha256, mode: output.mode },
-    })),
   }, null, 2)}\n`;
 }
 
-/** @param {string} root @param {string[]} managedRoots @param {boolean} [strictDirectories] */
-async function scan(root, managedRoots, strictDirectories = false) {
+/** @param {string} root @param {string[]} managedRoots */
+async function scan(root, managedRoots) {
   /** @type {Map<string, Output>} */
   const files = new Map();
   /** @param {string} relative */
@@ -450,12 +399,7 @@ async function scan(root, managedRoots, strictDirectories = false) {
     const stat = await statOrMissing(filename);
     if (!stat) return;
     if (stat.isDirectory()) {
-      const children = await readdir(filename);
-      if (strictDirectories) {
-        uniquePaths(children, 'addition directory');
-        requireValue(children.length > 0 || managedRoots.includes(relative), `Empty addition directory: ${relative}`);
-      }
-      for (const child of children.sort()) await walk(`${relative}/${child}`);
+      for (const child of (await readdir(filename)).sort()) await walk(`${relative}/${child}`);
     } else {
       requireValue(stat.isFile(), `Non-regular managed file: ${relative}`);
       requireValue(!managedRoots.includes(relative), `Managed root is not a directory: ${relative}`);
@@ -544,9 +488,8 @@ async function syncProject(options) {
   const sources = await inventory(options.source, lock);
   coverage(sources, manifest);
   verifySource(sources, lock);
-  const { files, additions, outputs } = await evaluate(sources, manifest, options.replacementRoot ?? outputRoot, outputRoot);
+  const { files, outputs } = await evaluate(sources, manifest, options.replacementRoot ?? outputRoot);
   verifyAdaptations(files, lock);
-  requireValue(serializeLock({ ...lock, additions }) === serializeLock(lock), 'Locked addition drift');
   const actual = await scan(outputRoot, manifest.managedRoots);
   const differences = compare(outputs, actual);
   if (options.mode === 'check') return { clean: differences.length === 0, differences };
@@ -649,10 +592,10 @@ async function importProject(options) {
   const manifest = parseManifest(options.manifest);
   const projectRoot = path.resolve(options.projectRoot);
   options.signal?.throwIfAborted();
-  const identity = { version: /** @type {const} */ (2), repository: manifest.repository, commit: options.commit, sourceRoot: manifest.sourceRoot };
+  const identity = { version: /** @type {const} */ (3), repository: manifest.repository, commit: options.commit, sourceRoot: manifest.sourceRoot };
   const sources = await inventory(options.source, identity);
-  const { files, additions } = await evaluate(sources, manifest, options.replacementRoot ?? projectRoot, projectRoot);
-  const lock = parseLock({ ...identity, sourceTree: sources.sourceTree, files, additions });
+  const { files } = await evaluate(sources, manifest, options.replacementRoot ?? projectRoot);
+  const lock = parseLock({ ...identity, sourceTree: sources.sourceTree, files });
   await stagedPromotion(projectRoot, async (content) => {
     const snapshotRoot = path.join(content, 'vendor/cursor-pstack');
     await mkdir(snapshotRoot, { recursive: true });
@@ -681,8 +624,8 @@ async function relockProject(options) {
   const snapshotRoot = await safePath(projectRoot, 'vendor/cursor-pstack');
   const sources = await inventory({ kind: 'snapshot', snapshotRoot }, previous);
   verifySource(sources, previous);
-  const { files, additions } = await evaluate(sources, manifest, options.replacementRoot ?? projectRoot, projectRoot);
-  const lock = { ...previous, files, additions };
+  const { files } = await evaluate(sources, manifest, options.replacementRoot ?? projectRoot);
+  const lock = { ...previous, files };
   await stagedPromotion(projectRoot, async (content) => {
     await stageLock(content, lock);
     return ['sync/upstream.lock.json'];
