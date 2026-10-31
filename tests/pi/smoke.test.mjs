@@ -12,7 +12,7 @@ const repository = fileURLToPath(new URL('../../', import.meta.url));
 const productionSkills = [
   'alex-show-me', 'architect', 'arena', 'automate-me', 'benchmark-checklist', 'blast-radius',
   'bro', 'correct', 'create-formal-verification-skill', 'create-verification-skill', 'deeper', 'figure-it-out', 'how',
-  'in-your-own-words', 'interrogate', 'ketchup', 'maintain-formal-verification-skill', 'maintain-verification-skill', 'make-bot-ui', 'no-comments',
+  'in-your-own-words', 'interrogate', 'ketchup', 'list-writing', 'maintain-formal-verification-skill', 'maintain-verification-skill', 'make-bot-ui', 'no-comments',
   'poteto-mode', 'principle-attack-the-premise', 'principle-boundary-discipline', 'principle-build-the-lever',
   'principle-encode-lessons-in-structure', 'principle-exhaust-the-design-space', 'principle-experience-first', 'principle-explain-the-number', 'principle-fix-root-causes',
   'principle-foundational-thinking', 'principle-guard-the-context-window', 'principle-laziness-protocol', 'principle-make-operations-idempotent',
@@ -24,6 +24,7 @@ const productionSkills = [
   'typescript-best-practices', 'unslop', 'why',
 ];
 const exactExpansionSkills = ['bro', 'poteto-mode', 'principle-model-the-domain'];
+const modelInvocableSkills = ['list-writing'];
 
 async function productionInventory() {
   return checkContent({ root: repository,
@@ -64,7 +65,7 @@ test("real Pi loads the packed package and settles with fixture text and usage",
   assertClean(run);
   assert.deepEqual(run.cleanup.signals, []);
   assert.deepEqual(run.pack.files, expectedPackFiles(await productionInventory()));
-  assert.equal(run.pack.files.length, 154);
+  assert.equal(run.pack.files.length, 155);
   assertOnlyDeclaredTools(run);
   context.diagnostic(JSON.stringify({
     pi: run.process.version, revision: run.process.revision, pid: run.process.pid,
@@ -138,11 +139,14 @@ for (const name of exactExpansionSkills) {
     const discovered = run.resources?.skills;
     assert.ok(Array.isArray(discovered));
     assert.deepEqual(discovered.map((entry) => entry.name).sort(), productionSkills);
-    assert.ok(discovered.every((entry) => entry.disableModelInvocation === true && entry.baseDir.startsWith(run.paths.package + '/')));
+    assert.ok(discovered.every((entry) => entry.disableModelInvocation === !modelInvocableSkills.includes(entry.name) && entry.baseDir.startsWith(run.paths.package + '/')));
     const messages = run.provider?.decodedRequests[0]?.messages;
     assert.ok(Array.isArray(messages));
     const system = JSON.stringify(messages.filter((message) => message.role === 'system'));
-    for (const selected of inventory.bySkillName.values()) assert.ok(!system.includes(selected.description), 'Manual skill leaked into model discovery');
+    for (const selected of inventory.bySkillName.values()) {
+      if (modelInvocableSkills.includes(selected.name)) assert.ok(system.includes(selected.description), 'Model-invocable skill missing from model discovery');
+      else assert.ok(!system.includes(selected.description), 'Manual skill leaked into model discovery');
+    }
     if (name === 'poteto-mode') {
       assert.ok(system.includes('Pstack Poteto Mode is active'));
       assert.ok(system.includes(join(run.paths.package, 'skills/poteto-mode/SKILL.md')));

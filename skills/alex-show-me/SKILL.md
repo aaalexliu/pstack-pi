@@ -125,6 +125,8 @@ Bash(open path/to/show-me-{description}.html)
 
 Place each visual next to the short text it supports. Keep only the calls, files, props, states, and boundaries needed to answer the user's current question or the options to resolve the current discussion point.
 
+Write box labels, card text, legends, and any list in a view with the **list-writing** skill.
+
 For a diagram of rules, when many inputs feed one rule, draw a set with an "any" or "none" rule instead of one edge per input. Group outputs only when their rules and results match.
 
 You may use one of these, you may use several, it is unlikely you will use all of them. Use your judgement and don't overwhelm the user.

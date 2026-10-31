@@ -15,18 +15,19 @@ test('production contains exactly the reviewed copied and adapted workflow set',
   const inventory = await checkContent({ root, manifest, lock });
   assert.equal(lock.commit, 'c742dd61706fbacc1b95f1a20b7b988cf096ce6c');
   assert.equal(inventory.bySource.size, 573);
-  assert.equal(inventory.byDestination.size, 131);
+  assert.equal(inventory.byDestination.size, 132);
   assert.equal(inventory.byAgentName.size, 3);
   assert.deepEqual(inventory.byAgentName.get('comment-sicko')?.tools, ['read', 'grep', 'find', 'ls']);
   assert.deepEqual(inventory.byAgentName.get('general-purpose')?.tools, ['read', 'grep', 'find', 'ls']);
   assert.deepEqual(inventory.byAgentName.get('poteto-agent')?.tools, ['read', 'grep', 'find', 'ls', 'bash', 'edit', 'write']);
-  assert.equal(inventory.bySkillName.size, 57);
-  assert.equal(manifest.additions.length, 4);
+  assert.equal(inventory.bySkillName.size, 58);
+  assert.equal(manifest.additions.length, 5);
   assert.ok(inventory.bySkillName.has('deeper'));
   assert.equal(inventory.byDestination.get('skills/deeper/SKILL.md')?.disposition.kind, 'addition');
   assert.ok(inventory.bySkillName.has('alex-show-me'));
   assert.equal(inventory.byDestination.get('skills/alex-show-me/SKILL.md')?.disposition.kind, 'addition');
   assert.equal(inventory.byDestination.get('skills/alex-show-me/references/humanlayer-license.md')?.disposition.kind, 'addition');
+  assert.equal(inventory.byDestination.get('skills/list-writing/SKILL.md')?.disposition.kind, 'addition');
   const upstreamEntrypoints = manifest.files.filter((file) => /^skills\/[^/]+\/SKILL\.md$/u.test(file.source));
   assert.equal(upstreamEntrypoints.length, 58);
   const omittedSkills = ['skills/ketchup-video/SKILL.md', 'skills/poteto-help/SKILL.md', 'skills/sharpen/SKILL.md'];
@@ -80,5 +81,5 @@ test('production contains exactly the reviewed copied and adapted workflow set',
       assert.match(actual.toString('utf8'), /^disable-model-invocation: true$/mu);
     }
   }
-  assert.ok([...inventory.bySkillName.values()].every((skill) => skill.disabled));
+  assert.deepEqual([...inventory.bySkillName.values()].filter((skill) => !skill.disabled).map((skill) => skill.name), ['list-writing']);
 });
