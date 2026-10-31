@@ -24,7 +24,7 @@ export function git(cwd, args) {
 /** @param {(source: string) => string} [blob] @param {Transform[]} [transforms] @returns {Manifest} */
 export function validManifest(blob = () => OBJECT_ID, transforms = fixtureTransforms()) {
   return {
-    version: 2, additions: [], repository: 'https://example.invalid/upstream.git', sourceRoot: 'plugin', managedRoots: ['skills/shared', 'agents/shared'],
+    version: 3, repository: 'https://example.invalid/upstream.git', sourceRoot: 'plugin', managedRoots: ['skills/shared', 'agents/shared'],
     files: [
       { kind: 'copy', source: 'copy.bin', destination: 'skills/shared/copy.bin' },
       { kind: 'transform', source: 'transform.md', destination: 'skills/shared/transform.md', expectedBlob: blob('transform.md'), transforms, reason: 'Use Pi host names instead of Cursor names.' },
@@ -45,21 +45,13 @@ export function validLock(ids = {}) {
   const adaptation = ids.adaptation ?? ((source) => source === 'transform.md' || source === 'replace.md' ? DIGEST : null);
   const manifest = validManifest(blob);
   return {
-    version: 2, additions: [], repository: manifest.repository, commit: ids.commit ?? OBJECT_ID, sourceRoot: manifest.sourceRoot, sourceTree: ids.sourceTree ?? OBJECT_ID,
+    version: 3, repository: manifest.repository, commit: ids.commit ?? OBJECT_ID, sourceRoot: manifest.sourceRoot, sourceTree: ids.sourceTree ?? OBJECT_ID,
     files: manifest.files.map((file) => ({
       source: file.source, blob: blob(file.source), mode: file.source === 'run.sh' ? '100755' : '100644',
       adaptationSha256: adaptation(file.source),
       output: file.kind === 'omit' ? null : { destination: file.destination, sha256: digestFor(file.destination), mode: file.source === 'run.sh' ? '100755' : '100644' },
     })),
   };
-}
-
-export function validAddition() {
-  return { source: 'sync/additions/owned.bin', destination: 'skills/shared/owned.bin', mode: /** @type {const} */ ('100644'), reason: 'Pi-owned fixture.' };
-}
-
-export function validLockedAddition() {
-  return { source: 'sync/additions/owned.bin', output: { destination: 'skills/shared/owned.bin', mode: /** @type {const} */ ('100644'), sha256: DIGEST } };
 }
 
 /** @param {import('node:test').TestContext} t @param {'sha1' | 'sha256'} [objectFormat] */

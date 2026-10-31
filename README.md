@@ -64,7 +64,7 @@ Every skill except `list-writing` keeps `disable-model-invocation: true` so Pi e
 
 `/skill:statechart` runs its bundled `scripts/statechart` command. That command needs Node 22.18 to 22.x, Node 23.6 or later, Bun 1.1.5 or later, or Deno 2.0 or later, plus `mise`. Its first run downloads TLC and Java through mise. Rendering a chart to SVG uses the npm package `pele@1.9.0`, installed outside your repo. Node will not run the TypeScript scripts from a `node_modules` folder, so use the Git install above.
 
-The package ships 129 generated skill and support files, three generated agents, fifteen extension modules, and the root package files.
+The package ships 125 generated skill and support files, two generated agents, five Pi-owned files under `additions/`, fifteen extension modules, and the root package files.
 It registers `pstack_config`, `pstack_papercut`, `pstack_sessions`, `pstack_todo`, and, at root depth, `subagent`.
 The delegation extension owns one `session_shutdown` hook that stops live children and a `tool_result` hook that marks its own failed calls. The papercut journal owns a `tool_execution_start` hook and a `tool_result` hook that append a one-line measurement to other tools' results.
 Todo and Poteto Mode state follow the active session branch through versioned custom entries. The package registers `/pstack`, `/pstack-export`, `/subagents`, `/pstack-cmux`, and `/papercuts`, but no prompts, themes, or blanket approval hooks.
@@ -273,11 +273,18 @@ Transforms change only reviewed commands, frontmatter, paths, runtime sections, 
 Each transformation requires its locked source blob and exact match count.
 Even execution-ownership changes use targeted transforms rather than rewritten copies. All 23 principle skills and the Investigation playbook remain byte-for-byte copies.
 
-`sync/additions/agents/general-purpose.md`, `sync/additions/skills/deeper/SKILL.md`, `sync/additions/skills/list-writing/SKILL.md`, and the two files under `sync/additions/skills/alex-show-me/` are Pi-owned sources, separate from the 573 upstream paths. `alex-show-me` adapts the MIT-licensed `show-me` skill from [humanlayer/skills](https://github.com/humanlayer/skills) and ships its license notice in `skills/alex-show-me/references/humanlayer-license.md`. `list-writing` turns the checklist in [Agent text at scale](https://fsdatalab.github.io/blog/agent-text-at-scale/) into rules for lists and breakdowns. `SYNCING.md` describes how additions are declared and checked.
+Pi-owned files live in `additions/`, apart from the 573 upstream paths, and ship as written. `SYNCING.md` describes how `npm run check:content` checks them.
+
+| File | Why it exists |
+| --- | --- |
+| `additions/agents/general-purpose.md` | Gives `subagent` one read-only delegate without turning on deferred upstream agents. |
+| `additions/skills/deeper/SKILL.md` | Turns a task into a deeper prompt. It predates upstream `sharpen`, which the manifest omits in its favor. |
+| `additions/skills/alex-show-me/` | Adapts the MIT-licensed `show-me` skill from [humanlayer/skills](https://github.com/humanlayer/skills) with bug views and set nodes. Ships the license notice in `references/humanlayer-license.md`. |
+| `additions/skills/list-writing/SKILL.md` | Turns the checklist in [Agent text at scale](https://fsdatalab.github.io/blog/agent-text-at-scale/) into rules for lists and breakdowns. |
 
 Cursor distribution metadata, guides, branding assets, Cloud Automations, unbundled playbooks, and unsupported scripts remain omitted.
 55 of the 58 upstream main skill entrypoints are present, including the webhook-backed `make-bot-ui`, plus the Pi-owned `deeper`, `alex-show-me`, and `list-writing` skills. `ADAPTATIONS.md` lists the three omitted skills and why. Missing external service capabilities remain explicit limits, not silently changed tasks.
-Two upstream agents have targeted Pi transforms; the third agent is a Pi-owned addition.
+Two upstream agents have targeted Pi transforms. The third agent, `general-purpose`, ships from `additions/agents/`.
 
 [0xrsydn/pstack-pi](https://github.com/0xrsydn/pstack-pi) and [kkgogogo17/pi-pstack](https://github.com/kkgogogo17/pi-pstack) are implementation references, not sources for shared content.
 The [aaalexliu/pstack-pi project](https://github.com/aaalexliu/pstack-pi) owns the Pi adaptations and package code.
@@ -285,7 +292,7 @@ The [aaalexliu/pstack-pi project](https://github.com/aaalexliu/pstack-pi) owns t
 ## Regeneration and checks
 
 Never edit generated `skills/`, generated `agents/`, or the pinned snapshot by hand.
-Edit Pi-owned agent and skill sources under `sync/additions/`.
+Edit Pi-owned agents and skills in place under `additions/`, and list each file in `package.json`.
 For a reviewed manifest change against the existing snapshot that also affects runtime or package loading, the full-check path is:
 
 ```sh
@@ -295,7 +302,7 @@ npm run sync
 npm run check
 ```
 
-Relock verifies the existing snapshot before updating adaptation and addition hashes.
+Relock verifies the existing snapshot before updating adaptation hashes.
 Sync writes only managed content.
 Neither command changes package metadata or documentation.
 

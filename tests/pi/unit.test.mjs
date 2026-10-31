@@ -7,7 +7,7 @@ import { FIXTURE_KEY, FIXTURE_MODEL, FIXTURE_TEXT, startProvider } from "./provi
 import { mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { jsonlParser, PiTestError, disposePreparedPackage, extractPreparedPackage, preparePackedPackage, repositoryRevision, runPiSmoke } from "./runner.mjs";
-import { expectedPackFiles, contentInventory } from "../../scripts/check-content.mjs";
+import { checkContent, expectedPackFiles } from "../../scripts/check-content.mjs";
 import { classifyTestFiles, listTestFiles, PI_UNIT_TESTS } from "../../scripts/run-tests.mjs";
 import { fileURLToPath } from "node:url";
 
@@ -87,10 +87,11 @@ test("run-tests classifies packed Pi files apart from the unified nonpacked set"
 });
 
 test("prepared production pack is reused and extracts stay isolated", async () => {
-  const content = contentInventory(
-    JSON.parse(await readFile(join(repository, "sync/manifest.json"), "utf8")),
-    JSON.parse(await readFile(join(repository, "sync/upstream.lock.json"), "utf8")),
-  );
+  const content = await checkContent({
+    root: repository,
+    manifest: JSON.parse(await readFile(join(repository, "sync/manifest.json"), "utf8")),
+    lock: JSON.parse(await readFile(join(repository, "sync/upstream.lock.json"), "utf8")),
+  });
   const files = expectedPackFiles(content);
   const [first, second] = await Promise.all([
     preparePackedPackage({ sourceRoot: repository, files, content }),
@@ -129,10 +130,11 @@ test("failed production pack and extract remove their temporary dirs", async () 
     if (previousTmp === undefined) delete process.env.TMPDIR; else process.env.TMPDIR = previousTmp;
     await rm(tmp, { recursive: true, force: true });
   }
-  const content = contentInventory(
-    JSON.parse(await readFile(join(repository, "sync/manifest.json"), "utf8")),
-    JSON.parse(await readFile(join(repository, "sync/upstream.lock.json"), "utf8")),
-  );
+  const content = await checkContent({
+    root: repository,
+    manifest: JSON.parse(await readFile(join(repository, "sync/manifest.json"), "utf8")),
+    lock: JSON.parse(await readFile(join(repository, "sync/upstream.lock.json"), "utf8")),
+  });
   const pack = await preparePackedPackage({
     sourceRoot: repository,
     files: expectedPackFiles(content),

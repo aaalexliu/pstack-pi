@@ -10,6 +10,13 @@ test('manifest and lock accept strict versioned fixture data', () => {
   assert.deepEqual(parseLock(JSON.parse(JSON.stringify(lock))), lock);
 });
 
+test('version 3 rejects older versions and the retired additions arrays', () => {
+  for (const { parse, value } of [{ parse: parseManifest, value: validManifest() }, { parse: parseLock, value: validLock() }]) {
+    for (const version of [1, 2, '3']) assert.throws(() => parse({ ...value, version }), /version/u);
+    assert.throws(() => parse({ ...value, additions: [] }), /fields/u);
+  }
+});
+
 test('manifest rejects unknown fields and illegal dispositions', () => {
   const manifest = validManifest();
   for (const file of [

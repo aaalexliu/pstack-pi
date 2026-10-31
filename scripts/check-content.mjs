@@ -5,15 +5,21 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseDocument } from 'yaml';
 import { parseAgent } from '../extensions/subagent/agents.ts';
-import { parseLock, parseManifest, readAdditions, sha256, transformDigest } from './sync-upstream.mjs';
+import { parseLock, parseManifest, sha256, transformDigest } from './sync-upstream.mjs';
 
 /** @typedef {{disposition: import('./sync-upstream.mjs').Disposition, locked: import('./sync-upstream.mjs').LockedFile}} ContentRecord */
-/** @typedef {{disposition: import('./sync-upstream.mjs').Addition & {kind: 'addition'}, locked: import('./sync-upstream.mjs').LockedAddition}} AdditionRecord */
+/** @typedef {{disposition: {kind: 'addition'}, output: {sha256: string, mode: '100644'}}} AdditionRecord */
 /** @typedef {{name: string, description: string, disabled: boolean, body: string, text: string, destination: string}} Skill */
 /** @typedef {{bySource: Map<string, ContentRecord>, byDestination: Map<string, ContentRecord | AdditionRecord>, bySkillName: Map<string, Skill>, byAgentName: Map<string, import('../extensions/subagent/agents.ts').AgentDefinition>}} ContentInventory */
 
 /** Skill scripts are code: they may be executable, and the instruction-prose checks do not read them. @param {string} destination */
 const isScript = (destination) => /^skills\/[^/]+\/scripts\//u.test(destination);
+
+/** Pi-owned files ship from `additions/` as written, and sync never touches them. Strip that prefix so they follow the same rules as generated files. @param {string} destination */
+const withinRoot = (destination) => destination.replace(/^additions\//u, '');
+
+/** @param {ContentRecord | AdditionRecord} record */
+export const recordOutput = (record) => 'output' in record ? record.output : record.locked.output;
 
 /** @param {unknown} value @returns {Record<string, unknown>} */
 function object(value) {
@@ -79,18 +85,17 @@ export function contentInventory(rawManifest, rawLock) {
     } else assert.equal(entry.adaptationSha256, null, 'Copy has adaptation');
     inventory.byDestination.set(disposition.destination, record);
   }
-  const additions = new Map(lock.additions.map((entry) => [entry.source, entry]));
-  assert.equal(additions.size, manifest.additions.length, 'Addition lock membership differs');
-  for (const addition of manifest.additions) {
-    const entry = additions.get(addition.source);
-    assert.ok(entry, `Missing locked addition: ${addition.source}`);
-    assert.equal(entry.output.destination, addition.destination, 'Locked addition destination differs');
-    assert.equal(entry.output.mode, addition.mode, 'Locked addition mode differs');
-    assert.equal(addition.mode, '100644', 'Content must not be executable');
-    assert.ok(addition.destination === 'agents/general-purpose.md' || /^skills\/[^/]+\/(?:SKILL\.md|references\/[^/]+\.md)$/u.test(addition.destination), `Unsupported addition destination: ${addition.destination}`);
-    inventory.byDestination.set(addition.destination, { disposition: { ...addition, kind: 'addition' }, locked: entry });
-  }
   return inventory;
+}
+
+/** @param {string} root @param {ContentInventory} inventory */
+async function addAdditions(root, inventory) {
+  const files = await fileInventory(root, ['additions'], inventory);
+  for (const [destination, bytes] of files) {
+    assert.ok(/^additions\/(?:agents\/[^/]+\.md|skills\/[^/]+\/(?:SKILL\.md|references\/[^/]+\.md))$/u.test(destination), `Unsupported addition path: ${destination}`);
+    inventory.byDestination.set(destination, { disposition: { kind: 'addition' }, output: { sha256: sha256(bytes), mode: '100644' } });
+  }
+  return files;
 }
 
 /** @param {string} root @param {string[]} roots @param {ContentInventory} inventory */
@@ -112,7 +117,8 @@ async function fileInventory(root, roots, inventory) {
       for (const child of await readdir(filename)) await walk(`${relative}/${child}`);
     } else {
       assert.ok(stat.isFile(), `Special file: ${relative}`);
-      const executable = inventory.byDestination.get(relative)?.locked.output?.mode === '100755';
+      const record = inventory.byDestination.get(relative);
+      const executable = record !== undefined && recordOutput(record)?.mode === '100755';
       assert.equal(stat.mode & 0o7777, executable ? 0o755 : 0o644, `Unexpected file mode: ${relative}`);
       files.set(relative, await readFile(filename));
     }
@@ -123,7 +129,7 @@ async function fileInventory(root, roots, inventory) {
 
 /** @param {ContentInventory} inventory */
 export function extensionFiles(inventory) {
-  return inventory.byDestination.has('agents/general-purpose.md')
+  return inventory.byDestination.has('additions/agents/general-purpose.md')
     ? ['extensions/pstack/export-session.ts', 'extensions/pstack/index.ts', 'extensions/pstack/mode.ts', 'extensions/pstack/papercut-aggregation.ts', 'extensions/pstack/papercut-journal.ts', 'extensions/pstack/papercut-model.ts', 'extensions/pstack/papercut-observer.ts', 'extensions/pstack/papercuts.ts', 'extensions/pstack/todo.ts', 'extensions/subagent/agents.ts', 'extensions/subagent/cmux.ts', 'extensions/subagent/cmux-settings.ts', 'extensions/subagent/index.ts', 'extensions/subagent/model-config.ts', 'extensions/subagent/progress.ts', 'extensions/subagent/view.ts'] : [];
 }
 
@@ -186,7 +192,7 @@ function dependencies(text, filename, inventory) {
     const shipped = [...inventory.byDestination.keys(), 'LICENSE', 'README.md'].some((name) => template.test(name));
     assert.ok(shipped, `Missing local dependency: ${filename} -> ${target}`);
   }
-  const agentPrompt = /^agents\/[^/]+\.md$/u.test(filename);
+  const agentPrompt = /^agents\/[^/]+\.md$/u.test(withinRoot(filename));
   assert.ok(agentPrompt || !text.includes('{{PSTACK_ROOT}}'), `Package root token outside an agent prompt: ${filename}`);
   for (const match of text.matchAll(/\{\{PSTACK_ROOT\}\}\/([^\s`)'"]+)/gu)) {
     const ref = match[1].replace(/[.,;:]+$/u, '');
@@ -198,20 +204,17 @@ function dependencies(text, filename, inventory) {
 /** @param {{root: string, manifest: unknown, lock: unknown}} options */
 export async function checkContent({ root, manifest, lock }) {
   const inventory = contentInventory(manifest, lock);
-  const inputs = await readAdditions(root, parseManifest(manifest).additions);
-  for (const entry of parseLock(lock).additions) {
-    assert.equal(sha256(inputs.get(entry.source)?.bytes ?? Buffer.alloc(0)), entry.output.sha256, `Addition bytes differ: ${entry.source}`);
-  }
-  const files = await fileInventory(root, ['skills', 'agents'], inventory);
-  assert.deepEqual([...files.keys()].sort(), [...inventory.byDestination.keys()].sort(), 'Generated file membership differs');
+  const generated = await fileInventory(root, ['skills', 'agents'], inventory);
+  assert.deepEqual([...generated.keys()].sort(), [...inventory.byDestination.keys()].sort(), 'Generated file membership differs');
+  const files = new Map([...generated, ...await addAdditions(root, inventory)]);
   const descriptions = new Set();
   for (const [destination, record] of inventory.byDestination) {
     const bytes = files.get(destination);
-    assert.ok(bytes && record.locked.output);
-    assert.equal(sha256(bytes), record.locked.output.sha256, `Generated hash differs: ${destination}`);
-    if (destination.startsWith('agents/')) {
+    assert.ok(bytes);
+    if ('locked' in record) assert.equal(sha256(bytes), record.locked.output?.sha256, `Generated hash differs: ${destination}`);
+    if (withinRoot(destination).startsWith('agents/')) {
       const agent = parseAgent(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
-      assert.equal(destination, `agents/${agent.name}.md`, 'Agent name differs from destination');
+      assert.equal(withinRoot(destination), `agents/${agent.name}.md`, 'Agent name differs from destination');
       assert.ok(!inventory.byAgentName.has(agent.name), `Duplicate agent name: ${agent.name}`);
       inventory.byAgentName.set(agent.name, agent);
     }
@@ -224,8 +227,9 @@ export async function checkContent({ root, manifest, lock }) {
     }
   }
   for (const [filename, bytes] of files) {
-    if (filename.startsWith('skills/')) {
-      const owner = `skills/${filename.split('/')[1]}/SKILL.md`;
+    const skillDirectory = /^(?:additions\/)?skills\/[^/]+\//u.exec(filename)?.[0];
+    if (skillDirectory) {
+      const owner = `${skillDirectory}SKILL.md`;
       assert.ok([...inventory.bySkillName.values()].some((skill) => skill.destination === owner), `Support file has no skill: ${filename}`);
     }
     if (!isScript(filename)) dependencies(new TextDecoder('utf-8', { fatal: true }).decode(bytes), filename, inventory);
@@ -240,7 +244,7 @@ export async function checkPackedContent(root, inventory) {
   assertPackInventory([...files.keys()], inventory);
   assertPackageExposure(JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8')), inventory);
   for (const [name, record] of inventory.byDestination) {
-    assert.equal(sha256(files.get(name) ?? Buffer.alloc(0)), record.locked.output?.sha256, `Packed bytes differ: ${name}`);
+    assert.equal(sha256(files.get(name) ?? Buffer.alloc(0)), recordOutput(record)?.sha256, `Packed bytes differ: ${name}`);
   }
 }
 

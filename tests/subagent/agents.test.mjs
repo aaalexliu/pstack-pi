@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { bundledAgents, bundledAgentsDirectory, discoverAgents, parseAgent } from '../../extensions/subagent/agents.ts';
+import { bundledAgents, bundledAgentsDirectories, discoverAgents, parseAgent } from '../../extensions/subagent/agents.ts';
 
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
 const installedSkill = path.join(repoRoot, 'skills/poteto-mode/SKILL.md');
@@ -15,8 +15,9 @@ const agentFile = (name, extra = '', body = `Prompt for ${name}.`) => `---\nname
 test('bundled agents parse with their tool lists and prompts', () => {
   const agents = bundledAgents();
   assert.deepEqual(agents.map((a) => a.name).sort(), ['comment-sicko', 'general-purpose', 'poteto-agent']);
-  assert.ok(agents.every((a) => a.source === 'bundled' && a.filePath.startsWith(bundledAgentsDirectory) && a.systemPrompt.trim()));
+  assert.ok(agents.every((a) => a.source === 'bundled' && bundledAgentsDirectories.some((dir) => a.filePath.startsWith(dir + path.sep)) && a.systemPrompt.trim()));
   assert.deepEqual(agents.find((a) => a.name === 'poteto-agent')?.tools, ['read', 'grep', 'find', 'ls', 'bash', 'edit', 'write']);
+  assert.equal(agents.find((a) => a.name === 'general-purpose')?.filePath, path.join(repoRoot, 'additions/agents/general-purpose.md'));
 });
 
 test('bundled poteto-agent names the installed poteto-mode skill', async () => {

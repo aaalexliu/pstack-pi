@@ -10,7 +10,7 @@ export { jsonlParser } from './jsonl.mjs';
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { FIXTURE_KEY, FIXTURE_MODEL, FIXTURE_TEXT, FIXTURE_USAGE, startProvider } from "./provider.mjs";
-import { contentInventory, expectedPackFiles, checkPackedContent } from '../../scripts/check-content.mjs';
+import { checkContent, checkPackedContent, expectedPackFiles, recordOutput } from '../../scripts/check-content.mjs';
 
 /** @typedef {Record<string, unknown> & { type: string }} PiEvent */
 /** @typedef {{ text: string, bytes: number, truncated: boolean }} Diagnostics */
@@ -96,7 +96,7 @@ after(async () => {
 });
 
 /**
- * @param {{ sourceRoot: string, files: string[], content?: ReturnType<typeof contentInventory>, hold?: string }} options
+ * @param {{ sourceRoot: string, files: string[], content?: import('../../scripts/check-content.mjs').ContentInventory, hold?: string }} options
  * @returns {Promise<PreparedPackage>}
  */
 async function packOnce({ sourceRoot, files, content, hold }) {
@@ -117,7 +117,8 @@ async function packOnce({ sourceRoot, files, content, hold }) {
       const filename = join(extracted, name);
       const stat = await lstat(filename);
       assert.ok(stat.isFile() && !stat.isSymbolicLink());
-      const executable = content?.byDestination.get(name)?.locked.output?.mode === "100755";
+      const record = content?.byDestination.get(name);
+      const executable = record !== undefined && recordOutput(record)?.mode === "100755";
       assert.equal(stat.mode & 0o7777, executable ? 0o755 : 0o644, `Packed mode differs: ${name}`);
       assert.deepEqual(await readFile(filename), await readFile(join(sourceRoot, name)), `Packed bytes differ: ${name}`);
     }
@@ -132,7 +133,7 @@ async function packOnce({ sourceRoot, files, content, hold }) {
 }
 
 /**
- * @param {{ sourceRoot: string, files: string[], content?: ReturnType<typeof contentInventory> }} options
+ * @param {{ sourceRoot: string, files: string[], content?: import('../../scripts/check-content.mjs').ContentInventory }} options
  * @returns {Promise<PreparedPackage>}
  */
 export async function preparePackedPackage({ sourceRoot, files, content }) {
@@ -299,10 +300,11 @@ export async function runPiSmoke({ startFixture = startProvider, thinkingLevel =
     }
     run.process.revision = repositoryRevision(repository);
     const packageRoot = packageFixture?.root ?? repository;
-    const inventory = packageFixture ? undefined : contentInventory(
-      JSON.parse(await readFile(join(repository, 'sync/manifest.json'), 'utf8')),
-      JSON.parse(await readFile(join(repository, 'sync/upstream.lock.json'), 'utf8')),
-    );
+    const inventory = packageFixture ? undefined : await checkContent({
+      root: repository,
+      manifest: JSON.parse(await readFile(join(repository, 'sync/manifest.json'), 'utf8')),
+      lock: JSON.parse(await readFile(join(repository, 'sync/upstream.lock.json'), 'utf8')),
+    });
     const expectedFiles = packageFixture?.files ?? (inventory ? expectedPackFiles(inventory) : []);
     const prepared = packageFixture
       ? await packOnce({ sourceRoot: packageRoot, files: expectedFiles, hold: root })

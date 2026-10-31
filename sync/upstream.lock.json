@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "repository": "https://github.com/cursor/plugins.git",
   "commit": "c742dd61706fbacc1b95f1a20b7b988cf096ce6c",
   "sourceRoot": "pstack",
@@ -4521,48 +4521,6 @@
       "output": {
         "destination": "skills/why/references/synthesizer-prompt.md",
         "sha256": "20870d5bcc92f10e78f4bd2a3eaaff9e7182d9787e2df98576e4d7aca5f41ed2",
-        "mode": "100644"
-      }
-    }
-  ],
-  "additions": [
-    {
-      "source": "sync/additions/agents/general-purpose.md",
-      "output": {
-        "destination": "agents/general-purpose.md",
-        "sha256": "38a30fbf8ee06f5c4fdd0f68111af1d5fdaa09f821f11a13d4b7fd8e12375044",
-        "mode": "100644"
-      }
-    },
-    {
-      "source": "sync/additions/skills/alex-show-me/SKILL.md",
-      "output": {
-        "destination": "skills/alex-show-me/SKILL.md",
-        "sha256": "d5a30c5d888443bfa1aab343293415eab6426a3454b946d0ddda321b02717479",
-        "mode": "100644"
-      }
-    },
-    {
-      "source": "sync/additions/skills/alex-show-me/references/humanlayer-license.md",
-      "output": {
-        "destination": "skills/alex-show-me/references/humanlayer-license.md",
-        "sha256": "aac3d3264cc96e75f328c3d5a967cf7502285f0fb13642a0ce540a9d3fcd1ca1",
-        "mode": "100644"
-      }
-    },
-    {
-      "source": "sync/additions/skills/deeper/SKILL.md",
-      "output": {
-        "destination": "skills/deeper/SKILL.md",
-        "sha256": "b0c8601dd579edd2f9449444077acec35b44afba3382e92e32dd91df1e35d362",
-        "mode": "100644"
-      }
-    },
-    {
-      "source": "sync/additions/skills/list-writing/SKILL.md",
-      "output": {
-        "destination": "skills/list-writing/SKILL.md",
-        "sha256": "c82239305e6c1d96a7e3f17e9f598d0fa20bceba18fd0949647179970f02b84c",
         "mode": "100644"
       }
     }

@@ -34,7 +34,7 @@ Grant delegation only to agents meant to coordinate. Research workers need not b
 
 Agent prompts and adapted skills forbid delegation or assume leaf workers. Those instructions must match the new runtime contract.
 
-Update the source inputs in `sync/manifest.json` or `sync/additions/`, as appropriate, then regenerate. Do not edit generated `agents/` or `skills/` files by hand.
+Update upstream-derived files through `sync/manifest.json` and regenerate, or edit Pi-owned files under `additions/` in place. Do not edit generated `agents/` or `skills/` files by hand.
 
 ## Blockers to reliable depth 2
 
