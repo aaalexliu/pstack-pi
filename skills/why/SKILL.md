@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 Investigate the motivation and intent behind code. The companion `how` skill answers what the code does and how it works. `why` answers what forces led to its shape.
 
-Pick each subagent's role and configured model for the job, per the Subagents section of the **poteto-mode** skill.
+Pick each subagent's reasoning level for the job, per the Subagents section of the **poteto-mode** skill.
 
 Every spawn is a `general-purpose` `subagent` task. Children have `read`, `grep`, `find`, `ls`, and child-local `pstack_todo`; no bash, writes, external tools, or delegation. The parent executes each source playbook's live searches and supplies complete evidence with queries and citations inline or in local files. Child prompts replace live calls with reading that evidence and requesting missing searches from the parent. The parent follows up before synthesis. If delegation is unavailable, retain the same source lanes and templates locally and disclose the lost independence.
 

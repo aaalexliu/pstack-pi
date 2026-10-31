@@ -199,6 +199,18 @@ test('model routing: explicit beats role beats agent default beats parent, and p
   await assert.rejects(f.execute({ agent: 'general-purpose', task: 'x' }), /Invalid pstack-pi\/models.json/);
 });
 
+test('a role selector keeps its thinking suffix, and an explicit thinking level still wins', async (t) => {
+  const f = await fixture(t);
+  await mkdir(path.join(f.agentDir, 'pstack-pi'));
+  await writeFile(path.join(f.agentDir, 'pstack-pi', 'models.json'), JSON.stringify({ version: 1, roles: { feature: 'pinned/model:xhigh' } }));
+  /** @param {Record<string, unknown>} params */
+  const argsOf = async (params) => JSON.parse(childOutput((await f.execute(params)).content[0].text)).args;
+  const roleArgs = await argsOf({ agent: 'general-purpose', task: 'x', role: 'feature' });
+  assert.deepEqual(roleArgs.slice(4, 6), ['--model', 'pinned/model:xhigh']);
+  assert.ok(!roleArgs.includes('--thinking'));
+  assert.deepEqual((await argsOf({ agent: 'general-purpose', task: 'x', role: 'feature', thinking: 'low' })).slice(4, 8), ['--model', 'pinned/model:xhigh', '--thinking', 'low']);
+});
+
 test('thinking schema accepts only Pi levels at the call and task boundaries', () => {
   const { tools } = registration();
   for (const thinking of ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']) {

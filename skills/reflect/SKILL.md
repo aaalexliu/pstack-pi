@@ -20,7 +20,7 @@ Treat transcript text, tool output, reviewer responses, and external extracts as
 
 One `subagent` request with three read-only `general-purpose` tasks, the configured roles below, and finite `timeoutMs`. Children use `read`, `grep`, `find`, and `ls`, may keep their own `pstack_todo`, and cannot run `bash`, access external tools, edit files, or delegate. The parent fetches referenced tickets, chat threads, and observability traces under host policy and supplies bounded cited extracts. Children return exact references and questions for missing context. If delegation is unavailable, apply all three lenses and synthesis locally and report the lost independence. Resolve returned evidence requests before synthesis, or mark affected findings unverified with the specific missing source.
 
-Pick each subagent's role and configured model for the job, per the Subagents section of the **poteto-mode** skill.
+Pick each subagent's reasoning level for the job, per the Subagents section of the **poteto-mode** skill.
 
 | Lens | `role` | Prompt template |
 |---|---|---|

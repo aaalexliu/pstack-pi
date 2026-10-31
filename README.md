@@ -231,7 +231,7 @@ A missing file means no configured roles. A malformed file fails the call with a
 {"version":1,"roles":{"feature":["inherit-parent","openai/gpt-4o"],"review":"inherit-parent"}}
 ```
 
-A choice is `inherit-parent` or `provider/model-id`; only the first slash separates provider and model.
+A choice is `inherit-parent` or `provider/model-id`; only the first slash separates provider and model. A choice may end in a Pi thinking suffix, such as `anthropic/claude-opus-5-5:xhigh`, which sets that role's starting reasoning level. `/skill:setup-pstack` writes the chosen budget this way, and a `thinking` field on the call overrides it.
 A role maps to one choice or to a pool of choices. Pools rotate round-robin per role for the life of the Pi session.
 
 The role IDs are:

@@ -160,14 +160,16 @@
       "reply coverage": "**Terse is not an excuse to drop content.**",
       "non-obvious comments": "Keep a comment only for a non-obvious *why* the code can't show.",
       "restate the goal": "Your first message on a task \u2192 tell the user, in your own words, their goal, the problem they are solving",
-      "chat runs the playbook": "Never spawn a `poteto-agent` to run the playbook itself."
+      "chat runs the playbook": "Never spawn a `poteto-agent` to run the playbook itself.",
+      "raise and lower": "Lower it one step for judgment and two or more steps for routine work."
     },
     "pi": {
       "cleanup ownership and cleanliness": "prove merged or abandoned state and cleanliness",
       "principle sibling leaves": "Those leaves are sibling skills next to this directory, for example `../principle-prove-it-works/SKILL.md` or `/skill:principle-prove-it-works`. They are not under `principles/` here.",
       "fresh subagent handoff": "**Fresh subagents by default.** Give new work to a fresh subagent with consolidated scope, meaning the original brief, every later directive, and the prior agent's report and branch. This holds for a fix round, a follow-up, a retry, and the next queue item. Pi cannot resume a child.",
       "reader not in the code": "**The reader is not in this code.**",
-      "model matching without effort knobs": "Pi `subagent` sets no per-call reasoning level or speed"
+      "reasoning level per spawn": "Pass it as the `subagent` `thinking` field (`off`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`), which overrides the role's level.",
+      "no speed knob": "Pi has no fast mode, so there is no speed to pick."
     }
   },
   "skills/poteto-mode/playbooks/authoring-a-skill.md": {
@@ -431,16 +433,17 @@
       "confirm step": "### 3. Budget, map, and confirm",
       "choice gate": "Ask whether to accept as-is or change specific roles,",
       "validate step": "### 4. Validate",
-      "availability check": "Every real slug written must be in the detected set.",
+      "availability check": "Every real slug written must be in the detected set",
       "unavailable stops": "If a chosen real slug is not available, stop and ask again.",
       "idempotent write": "Overwrite the whole file so re-runs stay idempotent. Shape:",
       "confirm step and repeat": "Re-running this skill updates it.",
       "optional verification need and offer": "Check whether the project has a way to drive the real app for proof (a `verify-*` skill, or an existing harness). If not, offer once: \"want a project-local verification skill, so agents can drive the app the way a user does and prove changes work? I can generate one with ",
-      "optional verification consent": "On no, move on without pushing."
+      "optional verification consent": "On no, move on without pushing.",
+      "no-rule budget hint": "say that `large` matches the skill defaults."
     },
     "pi": {
-      "budget is not stored": "It does not store a reasoning budget.",
-      "budget ask every run": "ask every run, because models.json does not store a budget; name a prior choice only when the user states it in this chat."
+      "budget as level suffix": "Write the level as a `:<level>` suffix, such as `anthropic/claude-opus-5-5:xhigh`, replacing any suffix already there.",
+      "suffix validation": "A suffix must be `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`."
     }
   },
   "skills/show-me-your-work/SKILL.md": {

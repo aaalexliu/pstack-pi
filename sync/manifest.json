@@ -383,7 +383,7 @@
         },
         {
           "find": "reasoning level and fast or standard speed",
-          "replace": "role and configured model",
+          "replace": "reasoning level",
           "count": 1
         }
       ]
@@ -502,7 +502,7 @@
         },
         {
           "find": "reasoning level and fast or standard speed",
-          "replace": "role and configured model",
+          "replace": "reasoning level",
           "count": 1
         }
       ]
@@ -652,7 +652,7 @@
         },
         {
           "find": "reasoning level and fast or standard speed",
-          "replace": "role and configured model",
+          "replace": "reasoning level",
           "count": 1
         }
       ]
@@ -691,7 +691,7 @@
         },
         {
           "find": "reasoning level and fast or standard speed",
-          "replace": "role and configured model",
+          "replace": "reasoning level",
           "count": 1
         }
       ]
@@ -988,7 +988,7 @@
         },
         {
           "find": "reasoning level and fast or standard speed",
-          "replace": "role and configured model",
+          "replace": "reasoning level",
           "count": 1
         }
       ]
@@ -1087,7 +1087,7 @@
         },
         {
           "find": "**Match the model to the job.** Before each spawn, start from the role's line or default and pick the reasoning level and speed the job needs. The `/setup-pstack` budget sets each role's starting level, xhigh by default. Raise it one step, up to max, for the hardest or subtlest work. Lower it one step for judgment and two or more steps for routine work. Use fast mode only when the job is urgent, meaning CI or trunk is red or a person is blocked on the result right now. Otherwise use standard speed, the same slug without `-fast`. Verification is the exception and stays on the `swarm workers` model and speed (`grok-4.7-xhigh-fast` by default). Change only the effort level and whether the slug is fast, and keep the family the role names, so a diverse panel stays diverse. If the family has no slug at that level and speed, use its nearest slug. A role on `auto` or `inherit-parent` stays on the parent model. If the Task tool rejects the adjusted slug, do not try another adjusted slug. Use the role's line or default and say so. If the Task tool rejects that too, continue with the calling skill's fallback. A slug counts as rejected once a Task error says that the model is not valid, or leaves the slug out of its list of valid slugs. Never pass a rejected slug, and skip any fallback whose slug is already rejected. When the calling skill has no fallback, use the closest valid slug of the role's family from the error's list of valid slugs, or omit `model` so the subagent runs on the parent model when the list has none. When the calling skill's fallback runs out of slugs without saying what to do next, omit `model` too. Say so in both cases.",
-          "replace": "**Match the model to the job.** Pi `subagent` sets no per-call reasoning level or speed; a child inherits the parent's thinking level only on `inherit-parent`. Match the job by role and configured model instead. Start from the role the calling skill names. Use `hardest` for the hardest or subtlest work and a code role for routine edits. Verification stays on the `swarm-worker` or `verify` role. Keep the family the role names, so a diverse panel stays diverse. A role on `inherit-parent` stays on the parent model. If a configured model is unavailable, check `pstack_config` `list-models`, say so, and continue with the calling skill's fallback. When the calling skill has no fallback, omit `model` so the subagent runs on the parent model, and say so. Never invent a model identifier.",
+          "replace": "**Match the model to the job.** Before each spawn, start from the role's configured model and pick the reasoning level the job needs. Pass it as the `subagent` `thinking` field (`off`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`), which overrides the role's level. The `/skill:setup-pstack` budget sets each real selector's starting level as a `:<level>` suffix, `xhigh` when there is none, and an `inherit-parent` role starts at the parent's level. Raise it one step, up to `max`, for the hardest or subtlest work. Lower it one step for judgment and two or more steps for routine work. Pi has no fast mode, so there is no speed to pick. Verification is the exception and stays on the `swarm-worker` role at its starting level. Change only the level, and keep the model the role names, so a diverse panel stays diverse. Pi clamps a level the model does not support. A role on `inherit-parent` stays on the parent model. If a configured model is unavailable, check `pstack_config` `list-models`, say so, and continue with the calling skill's fallback. When the calling skill has no fallback, omit `model` so the subagent runs on the parent model, and say so. Never invent a model identifier.",
           "count": 1
         },
         {
@@ -1225,7 +1225,7 @@
         },
         {
           "find": "reasoning level and fast or standard speed",
-          "replace": "role and configured model",
+          "replace": "reasoning level",
           "count": 1
         }
       ]
@@ -1244,7 +1244,7 @@
         },
         {
           "find": "reasoning level and fast or standard speed",
-          "replace": "role and configured model",
+          "replace": "reasoning level",
           "count": 1
         }
       ]
@@ -1268,7 +1268,7 @@
         },
         {
           "find": "reasoning level and fast or standard speed",
-          "replace": "role and configured model",
+          "replace": "reasoning level",
           "count": 1
         }
       ]
@@ -1297,7 +1297,7 @@
         },
         {
           "find": "reasoning level and fast or standard speed",
-          "replace": "role and configured model",
+          "replace": "reasoning level",
           "count": 1
         }
       ]
@@ -1535,7 +1535,7 @@
         },
         {
           "find": "reasoning level and fast or standard speed",
-          "replace": "role and configured model",
+          "replace": "reasoning level",
           "count": 1
         }
       ]
@@ -1618,7 +1618,7 @@
         },
         {
           "find": "reasoning level and fast or standard speed",
-          "replace": "role and configured model",
+          "replace": "reasoning level",
           "count": 1
         }
       ]
@@ -1652,7 +1652,7 @@
         },
         {
           "find": "reasoning level and fast or standard speed",
-          "replace": "role and configured model",
+          "replace": "reasoning level",
           "count": 1
         }
       ]
@@ -1695,7 +1695,7 @@
         },
         {
           "find": "reasoning level and fast or standard speed",
-          "replace": "role and configured model",
+          "replace": "reasoning level",
           "count": 1
         }
       ]
@@ -1719,7 +1719,7 @@
         },
         {
           "find": "reasoning level and fast or standard speed",
-          "replace": "role and configured model",
+          "replace": "reasoning level",
           "count": 1
         }
       ]
@@ -1748,7 +1748,7 @@
         },
         {
           "find": "reasoning level and fast or standard speed",
-          "replace": "role and configured model",
+          "replace": "reasoning level",
           "count": 1
         }
       ]
@@ -2021,7 +2021,7 @@
         },
         {
           "find": "reasoning level and fast or standard speed",
-          "replace": "role and configured model",
+          "replace": "reasoning level",
           "count": 1
         }
       ]
@@ -2100,7 +2100,7 @@
         },
         {
           "find": "reasoning level and fast or standard speed",
-          "replace": "role and configured model",
+          "replace": "reasoning level",
           "count": 1
         }
       ]
@@ -2255,7 +2255,7 @@
       "transforms": [
         {
           "find": "writes an always-applied rule that overrides the skill defaults.",
-          "replace": "writes the user-level Pi role map that overrides the skill defaults. It does not store a reasoning budget.",
+          "replace": "writes the user-level Pi role map that overrides the skill defaults. The budget becomes a `:<level>` thinking suffix on each real selector.",
           "count": 1
         },
         {
@@ -2290,7 +2290,7 @@
         },
         {
           "find": "### 3. Budget, map, and confirm\n\n**(a) Ask for a budget.** Prefer AskQuestion over free text. Offer these four options with these exact labels, and name the current budget when the rule records one. With no rule, say that `large` matches the skill defaults.\n\n- `unlimited — max reasoning`\n- `large — xhigh reasoning`\n- `medium — high reasoning`\n- `small — medium reasoning`\n\n**(b) Apply it.** Build the working table from the skill defaults, and on a re-run keep any role you changed by family, list, or alias (`inherit-parent`, `auto`). `unlimited`, `large`, `medium`, and `small` set the effort token of every real slug, panel entries included, to `max`, `xhigh`, `high`, or `medium`. The effort token is the last token, or the one before a trailing `fast`, on the ladder `max` > `xhigh` > `high` > `medium` > `low`. If the result is not a detected slug, use the same family's detected slug with the highest effort at or below the target, else mark the role as needing a choice. `inherit-parent` and `auto` do not change. So `unlimited` turns `claude-opus-5-5-xhigh` into `claude-opus-5-5-max`. Grok slugs top out at `xhigh`, so under `unlimited` the fallback puts Grok at `xhigh` and keeps `grok-4.7-xhigh-fast` as it is. `large` keeps both defaults. `small` turns them into `claude-opus-5-5-medium` and `grok-4.7-medium-fast`.\n\n**(c) Show the roles and confirm.** Show every role with its model, marking any real slug not in the detected set as needing a choice. Also list each line step 2 dropped. Ask whether to accept as-is or change specific roles, offering the detected models plus `inherit-parent` and `auto` (both mean: this role runs on the parent chat model, which is how Auto users stay on Auto) as the options. Prefer AskQuestion over free text. For panel roles (arena runners, architect runners, interrogate reviewers) the value is a list, and one subagent runs per entry, alias entries included, so the list length sets the count. `arena cross-judge pool` is also a list, but Arena runs one judge. It tries only values from a family other than the parent's, in list order, so order it by preference. An `inherit-parent` or `auto` value never judges. `swarm workers` is the default model for every worker unless a race or comparison assigns another model per arm.\n",
-          "replace": "### 3. Budget, map, and confirm\n\n**(a) Ask for a budget.** Prefer an available structured choice tool or numbered chat choices over free text. Offer these four options with these exact labels, and ask every run, because models.json does not store a budget; name a prior choice only when the user states it in this chat.\n\n- `unlimited - max reasoning`\n- `large - xhigh reasoning`\n- `medium - high reasoning`\n- `small - medium reasoning`\n\n**(b) Apply it.** Build the working table from the skill defaults (all roles `inherit-parent` until the user picks concrete selectors), and on a re-run keep any role the user already set to a real slug or `inherit-parent`. `unlimited`, `large`, `medium`, and `small` set the effort token to `max`, `xhigh`, `high`, or `medium`, but only when a role already uses a real `provider/model-id` whose id encodes an effort token. The effort token is the last path segment token, or the one before a trailing `fast`, on the ladder `max` > `xhigh` > `high` > `medium` > `low`. If the result is not in `list-models`, use the same family's detected selector with the highest effort at or below the target, else mark the role as needing a choice. `inherit-parent` does not change. Record the chosen budget label in the confirmation reply; `models.json` has no budget field.\n\n**(c) Show the roles and confirm.** Show every role from the current `subagent` schema with its model, marking any real slug not in the detected set as needing a choice. Ask whether to accept as-is or change specific roles, offering the detected models plus `inherit-parent` (this role runs on the parent chat model) as the options. Prefer an available structured choice tool or numbered chat choices over free text. Wait for explicit confirmation before writing, including on repeat runs. Role values may be a selector or a nonempty list. Lists rotate deterministically across requests to the role; preserve duplicate entries because they weight that rotation. A list does not itself spawn a panel. Panel workflows (arena runners, architect runners, interrogate reviewers) must select each configured entry explicitly, alias entries included, within bounded requests. For `arena-cross-judge`, Arena runs one judge. It tries only values from a family other than the parent's, in list order, so order it by preference. An `inherit-parent` value never judges. `swarm-worker` is the default model for every worker unless a race or comparison assigns another model per arm. Explicit task model selection takes precedence over the role map.\n",
+          "replace": "### 3. Budget, map, and confirm\n\n**(a) Ask for a budget.** Prefer an available structured choice tool or numbered chat choices over free text. Offer these four options with these exact labels, and name the current budget when every real selector in the role map carries the same `:<level>` suffix. With no role map, say that `large` matches the skill defaults.\n\n- `unlimited - max reasoning`\n- `large - xhigh reasoning`\n- `medium - high reasoning`\n- `small - medium reasoning`\n\n**(b) Apply it.** Build the working table from the skill defaults (all roles `inherit-parent` until the user picks concrete selectors), and on a re-run keep any role the user already set to a real slug or `inherit-parent`. `unlimited`, `large`, `medium`, and `small` set the thinking level of every real selector, panel entries included, to `max`, `xhigh`, `high`, or `medium`. Write the level as a `:<level>` suffix, such as `anthropic/claude-opus-5-5:xhigh`, replacing any suffix already there. The `subagent` tool passes the selector to the child's `--model`, and Pi clamps a level the model does not support. `inherit-parent` does not change; that role runs at the parent's level. The suffixes record the budget; `models.json` has no separate budget field.\n\n**(c) Show the roles and confirm.** Show every role from the current `subagent` schema with its model, marking any real slug not in the detected set as needing a choice. Ask whether to accept as-is or change specific roles, offering the detected models plus `inherit-parent` (this role runs on the parent chat model) as the options. Prefer an available structured choice tool or numbered chat choices over free text. Wait for explicit confirmation before writing, including on repeat runs. Role values may be a selector or a nonempty list. Lists rotate deterministically across requests to the role; preserve duplicate entries because they weight that rotation. A list does not itself spawn a panel. Panel workflows (arena runners, architect runners, interrogate reviewers) must select each configured entry explicitly, alias entries included, within bounded requests. For `arena-cross-judge`, Arena runs one judge. It tries only values from a family other than the parent's, in list order, so order it by preference. An `inherit-parent` value never judges. `swarm-worker` is the default model for every worker unless a race or comparison assigns another model per arm. Explicit task model selection takes precedence over the role map.\n",
           "count": 1
         },
         {
@@ -2332,6 +2332,11 @@
           "find": "/create-formal-verification-skill",
           "replace": "/skill:create-formal-verification-skill",
           "count": 2
+        },
+        {
+          "find": "Every real slug written must be in the detected set.",
+          "replace": "Every real slug written must be in the detected set once its `:<level>` suffix is removed. A suffix must be `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`.",
+          "count": 1
         }
       ]
     },
@@ -2374,7 +2379,7 @@
         },
         {
           "find": "reasoning level and fast or standard speed",
-          "replace": "role and configured model",
+          "replace": "reasoning level",
           "count": 1
         }
       ]
@@ -4486,7 +4491,7 @@
         },
         {
           "find": "reasoning level and fast or standard speed",
-          "replace": "role and configured model",
+          "replace": "reasoning level",
           "count": 1
         }
       ]
@@ -4626,7 +4631,7 @@
         },
         {
           "find": "reasoning level and fast or standard speed",
-          "replace": "role and configured model",
+          "replace": "reasoning level",
           "count": 1
         }
       ]
