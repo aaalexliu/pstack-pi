@@ -145,7 +145,8 @@ Three modes, exactly one per call:
 - Parallel: `tasks`, an array of 1-8 `{agent, task}` entries. At most four children run at once; results keep input order.
 - Chain: `chain`, an array of `{agent, task}` steps run in order. `{previous}` in a task is replaced by the prior step's output. A failed step stops the chain.
 
-Every task entry, and the call itself, accepts optional `cwd`, `model`, and `role`. The call also accepts `timeoutMs`, `agentScope`, and `confirmProjectAgents`.
+Every task entry, and the call itself, accepts optional `cwd`, `model`, `role`, and `thinking`. The call also accepts `timeoutMs`, `agentScope`, and `confirmProjectAgents`.
+`thinking` is `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`. Set it per task to match the job. A task value overrides the call default; an explicit value overrides the parent's thinking level. Pi clamps the requested level to the child's model capabilities.
 `cwd` is any directory; a relative path resolves against the parent's working directory.
 `timeoutMs` kills any child still running after that many milliseconds and reports the task as failed with `Timed out after N ms`.
 
@@ -160,7 +161,7 @@ What this package adds to the example:
 - The child is launched through the same Node binary and Pi entrypoint as the parent, never through `pi` on `PATH`.
 
 A child is otherwise a normal Pi. It loads extensions, skills, and project context files by Pi's own rules, uses the parent's provider auth from `auth.json`, and runs with the builtin tools its agent lists.
-A child inheriting the parent model also inherits the parent thinking level; a pinned model uses Pi's default thinking level.
+Without `thinking`, a child inheriting the parent model also inherits the parent thinking level; a pinned model uses Pi's default thinking level.
 
 Agent files need a name and a description. `tools` accepts a YAML list or a comma-separated string. `model` is optional:
 
@@ -179,9 +180,9 @@ A file that fails to parse is skipped; the other agents in that directory still 
 ### Results
 
 The tool returns the child's final assistant text. Parallel results are joined as `### [agent] completed` or `### [agent] failed (reason)` sections, each capped at 50 KiB with the full text kept in `details`.
-`details` holds `mode`, `agentScope`, `projectAgentsDir`, and one entry per task with the agent, its source (`bundled`, `user`, `project`), the task, `exitCode`, every `message_end` message from the child, capped stderr, summed usage (`input`, `output`, `cacheRead`, `cacheWrite`, `cost`, `contextTokens`, `turns`), the resolved `model`, and `modelSource` (`explicit`, `role`, `agent`, `parent`).
+`details` holds `mode`, `agentScope`, `projectAgentsDir`, and one entry per task with the agent, its source (`bundled`, `user`, `project`), the task, `exitCode`, every `message_end` message from the child, capped stderr, summed usage (`input`, `output`, `cacheRead`, `cacheWrite`, `cost`, `contextTokens`, `turns`), the resolved `model`, `modelSource` (`explicit`, `role`, `agent`, `parent`), and the requested `thinking` level when passed to Pi.
 A task fails when the child exits nonzero, is killed by a signal, or ends with `stopReason` `error` or `aborted`.
-`details.progress` stores the public status snapshot with the result. Live cards show role, selected/observed model, state, elapsed time, last event, reported usage, todo counts, and current activity. Completed cards keep that metadata and preview the original result text. Ctrl+O expands the full result.
+`details.progress` stores the public status snapshot with the result. Live cards show role, selected/observed model, requested thinking level when set, state, elapsed time, last event, reported usage, todo counts, and current activity. Completed cards keep that metadata and preview the original result text. Ctrl+O expands the full result.
 
 ### Inspect subagents
 
