@@ -539,7 +539,7 @@
     {
       "kind": "transform",
       "source": "skills/create-formal-verification-skill/SKILL.md",
-      "reason": "Use Pi skill commands; drop the pointer to the upstream /statechart skill, which pstack-pi does not bundle.",
+      "reason": "Use Pi skill commands, including for the bundled statechart skill.",
       "destination": "skills/create-formal-verification-skill/SKILL.md",
       "expectedBlob": "92f7aa4fa966b857dd7fcc994b3c59650767c878",
       "transforms": [
@@ -554,9 +554,9 @@
           "count": 1
         },
         {
-          "find": "If the check is a TLA+ model, tell the next agent to read every result with the pstack [`/statechart`](../statechart/SKILL.md) skill. It shows each invariant violation the checker finds as its shortest path in plain words. When the check passes, `/statechart` draws a chart of how the system moves between states. Refer to `/statechart` by name. Its commands, options, and file paths change between releases and machines, so copy none of them into the generated skill or its scripts.",
-          "replace": "pstack-pi does not bundle the upstream statechart skill, so do not point the generated skill at it. Have the next agent read each TLC counterexample as a short sequence of steps in the code's words.",
-          "count": 1
+          "find": "`/statechart`",
+          "replace": "`/skill:statechart`",
+          "count": 3
         }
       ]
     },
@@ -2356,2039 +2356,2048 @@
       "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
     },
     {
-      "kind": "omit",
+      "kind": "transform",
       "source": "skills/statechart/SKILL.md",
-      "reason": "Statechart runs its upstream scripts, which wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Use the Pi skill command in the invocation hint.",
+      "destination": "skills/statechart/SKILL.md",
+      "expectedBlob": "f5a64a8db4b8a5957ac5e76e051b1823cecd4d5e",
+      "transforms": [
+        {
+          "find": "Use for /statechart,",
+          "replace": "Use for /skill:statechart,",
+          "count": 1
+        }
+      ]
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/statechart/references/render.md",
-      "reason": "Statechart runs its upstream scripts, which wait for reviewed Pi execution contracts and matching tests."
+      "destination": "skills/statechart/references/render.md"
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/statechart/scripts/backends/cfg.ts",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "destination": "skills/statechart/scripts/backends/cfg.ts"
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/statechart/scripts/backends/mermaid.ts",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "destination": "skills/statechart/scripts/backends/mermaid.ts"
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/statechart/scripts/backends/plain-text.ts",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "destination": "skills/statechart/scripts/backends/plain-text.ts"
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/statechart/scripts/backends/report.ts",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "destination": "skills/statechart/scripts/backends/report.ts"
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/statechart/scripts/frontends/config.ts",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "destination": "skills/statechart/scripts/frontends/config.ts"
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/statechart/scripts/frontends/dot.ts",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "destination": "skills/statechart/scripts/frontends/dot.ts"
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/statechart/scripts/frontends/marks.ts",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "destination": "skills/statechart/scripts/frontends/marks.ts"
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/statechart/scripts/frontends/messages.ts",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "destination": "skills/statechart/scripts/frontends/messages.ts"
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/statechart/scripts/frontends/spec.ts",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "destination": "skills/statechart/scripts/frontends/spec.ts"
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/statechart/scripts/frontends/trace.ts",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "destination": "skills/statechart/scripts/frontends/trace.ts"
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/statechart/scripts/frontends/value.ts",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "destination": "skills/statechart/scripts/frontends/value.ts"
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/statechart/scripts/frontends/verdict.ts",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "destination": "skills/statechart/scripts/frontends/verdict.ts"
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/statechart/scripts/frontends/view.ts",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "destination": "skills/statechart/scripts/frontends/view.ts"
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/statechart/scripts/ir.ts",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "destination": "skills/statechart/scripts/ir.ts"
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/package.json",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Statechart dev config for its omitted tests and type check. The runtime runs without it."
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/statechart/scripts/passes/annotate.ts",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "destination": "skills/statechart/scripts/passes/annotate.ts"
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/statechart/scripts/passes/label.ts",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "destination": "skills/statechart/scripts/passes/label.ts"
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/statechart/scripts/passes/lift.ts",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "destination": "skills/statechart/scripts/passes/lift.ts"
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/statechart/scripts/passes/loop-check.ts",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "destination": "skills/statechart/scripts/passes/loop-check.ts"
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/statechart/scripts/passes/paths.ts",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "destination": "skills/statechart/scripts/passes/paths.ts"
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/statechart/scripts/passes/reach.ts",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "destination": "skills/statechart/scripts/passes/reach.ts"
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/statechart/scripts/passes/region-check.ts",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "destination": "skills/statechart/scripts/passes/region-check.ts"
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/statechart/scripts/passes/regions.ts",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "destination": "skills/statechart/scripts/passes/regions.ts"
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/statechart/scripts/pipeline.ts",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "destination": "skills/statechart/scripts/pipeline.ts"
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/statechart/scripts/run.ts",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "destination": "skills/statechart/scripts/run.ts"
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/statechart/scripts/statechart",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "destination": "skills/statechart/scripts/statechart"
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/statechart/scripts/statechart.ts",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "destination": "skills/statechart/scripts/statechart.ts"
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/ConfigOracle.java",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/chart.test.ts",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/charts/Braces.mmd",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/charts/Escapes.mmd",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/charts/Phases.mmd",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/cli.test.ts",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/config-fuzz.test.ts",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus.test.ts",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/Counter/ChartRun.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/Counter/Counter.cfg",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/Counter/Counter.tla",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/Counter/chart.mmd",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/Counter/graph.dot",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/Counter/report.md",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/Counter/sany.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/Counter/verdict-1.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterAction/ChartRun.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterAction/CounterAction.cfg",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterAction/CounterAction.tla",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterAction/chart.mmd",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterAction/graph.dot",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterAction/report.md",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterAction/sany.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterAction/verdict-1.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterAction/verdict-1.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterAction/verdict-2.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterAction/verdict-2.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterAction/verdict-3.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterDeadlock/ChartRun.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterDeadlock/CounterDeadlock.cfg",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterDeadlock/CounterDeadlock.tla",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterDeadlock/chart.mmd",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterDeadlock/graph.dot",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterDeadlock/report.md",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterDeadlock/sany.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterDeadlock/verdict-1.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterDeadlock/verdict-1.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterDeadlock/verdict-2.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterDeadlock/verdict-2.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterFan/ChartRun.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterFan/CounterFan.cfg",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterFan/CounterFan.tla",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterFan/chart.mmd",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterFan/graph.dot",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterFan/report.md",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterFan/sany.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterFan/verdict-1.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterFan/verdict-1.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterFan/verdict-2.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterGuard/ChartRun.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterGuard/ChartRun.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterGuard/CounterGuard.cfg",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterGuard/CounterGuard.tla",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterGuard/chart.mmd",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterGuard/graph.dot",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterGuard/report.md",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterGuard/sany.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterGuard/verdict-1.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterGuard/verdict-1.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterGuard/verdict-2.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterGuard/verdict-2.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterInitPast/ChartRun.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterInitPast/CounterInitPast.cfg",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterInitPast/CounterInitPast.tla",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterInitPast/chart.mmd",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterInitPast/graph.dot",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterInitPast/report.md",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterInitPast/sany.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterInitPast/verdict-1.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterInitPast/verdict-1.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterInitPast/verdict-2.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterInitPastHolds/ChartRun.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterInitPastHolds/CounterInitPastHolds.cfg",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterInitPastHolds/CounterInitPastHolds.tla",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterInitPastHolds/chart.mmd",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterInitPastHolds/graph.dot",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterInitPastHolds/report.md",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterInitPastHolds/sany.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterInitPastHolds/verdict-1.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterInstance/ChartRun.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterInstance/CounterInstance.cfg",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterInstance/CounterInstance.tla",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterInstance/CounterSteps.tla",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterInstance/chart.mmd",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterInstance/graph.dot",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterInstance/report.md",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterInstance/sany.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterInstance/verdict-1.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterInstance/verdict-1.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterJump/ChartRun.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterJump/CounterJump.cfg",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterJump/CounterJump.tla",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterJump/chart.mmd",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterJump/graph.dot",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterJump/report.md",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterJump/sany.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterJump/verdict-1.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterJump/verdict-1.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterJump/verdict-2.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterLoop/ChartRun.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterLoop/CounterLoop.cfg",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterLoop/CounterLoop.tla",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterLoop/chart.mmd",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterLoop/graph.dot",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterLoop/report.md",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterLoop/sany.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterLoop/verdict-1.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterLoop/verdict-1.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterOrder/ChartRun.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterOrder/CounterOrder.cfg",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterOrder/CounterOrder.tla",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterOrder/chart.mmd",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterOrder/graph.dot",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterOrder/report.md",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterOrder/sany.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterOrder/verdict-1.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterOrder/verdict-1.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterOrder/verdict-2.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterOrder/verdict-2.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterRules/ChartRun.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterRules/CounterRules.cfg",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterRules/CounterRules.tla",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterRules/Moves.tla",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterRules/chart.mmd",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterRules/graph.dot",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterRules/report.md",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterRules/sany.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterRules/verdict-1.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterRules/verdict-1.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterRules/verdict-2.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterRules/verdict-2.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterRules/verdict-3.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterRules/verdict-3.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterRules/verdict-4.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterStart/ChartRun.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterStart/CounterStart.cfg",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterStart/CounterStart.tla",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterStart/chart.mmd",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterStart/graph.dot",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterStart/report.md",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterStart/sany.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterStart/verdict-1.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterStart/verdict-1.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterStart/verdict-2.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterStop/ChartRun.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterStop/CounterStop.cfg",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterStop/CounterStop.tla",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterStop/chart.mmd",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterStop/graph.dot",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterStop/report.md",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterStop/sany.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterStop/verdict-1.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterTie/ChartRun.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterTie/CounterTie.cfg",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterTie/CounterTie.tla",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterTie/chart.mmd",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterTie/graph.dot",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterTie/report.md",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterTie/sany.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterTie/verdict-1.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterTie/verdict-1.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterTie/verdict-2.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterTie/verdict-2.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterTie/verdict-3.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterTie/verdict-3.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterTie/verdict-4.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterTieInGraph/ChartRun.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterTieInGraph/CounterTieInGraph.cfg",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterTieInGraph/CounterTieInGraph.tla",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterTieInGraph/chart.mmd",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterTieInGraph/graph.dot",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterTieInGraph/report.md",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterTieInGraph/sany.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterTieInGraph/verdict-1.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterTieInGraph/verdict-1.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterTieInGraph/verdict-2.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterView/ChartRun.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterView/CounterView.cfg",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterView/CounterView.tla",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterView/chart.mmd",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterView/graph.dot",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterView/report.md",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterView/sany.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterView/verdict-1.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterView/verdict-1.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterView/verdict-2.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterView/verdict-2.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterView/verdict-3.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterView/verdict-3.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterView/verdict-4.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/CounterView/view.mjs",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/DieHard/ChartRun.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/DieHard/DieHard.cfg",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/DieHard/DieHard.tla",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/DieHard/chart.mmd",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/DieHard/graph.dot",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/DieHard/report.md",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/DieHard/sany.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/DieHard/verdict-1.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/DieHard/verdict-1.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/DieHard/verdict-2.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/FirstRule/ChartRun.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/FirstRule/FirstRule.cfg",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/FirstRule/FirstRule.tla",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/FirstRule/chart.mmd",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/FirstRule/graph.dot",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/FirstRule/report.md",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/FirstRule/sany.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/FirstRule/verdict-1.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/FirstRule/verdict-1.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/FirstRule/verdict-2.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/FirstRule/verdict-2.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/FirstRule/verdict-3.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/FirstRule/verdict-3.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/FirstRule/verdict-4.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/FirstRule/verdict-4.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/HiddenClock/ChartRun.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/HiddenClock/HiddenClock.cfg",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/HiddenClock/HiddenClock.tla",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/HiddenClock/chart.mmd",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/HiddenClock/graph.dot",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/HiddenClock/report.md",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/HiddenClock/sany.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/HiddenClock/verdict-1.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/HiddenClock/verdict-1.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/Login/ChartRun.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/Login/Login.cfg",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/Login/Login.tla",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/Login/chart.mmd",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/Login/graph.dot",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/Login/report.md",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/Login/sany.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/Login/verdict-1.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/Login/view.mjs",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/LoginGuarded/ChartRun.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/LoginGuarded/LoginGuarded.cfg",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/LoginGuarded/LoginGuarded.tla",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/LoginGuarded/chart.mmd",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/LoginGuarded/graph.dot",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/LoginGuarded/report.md",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/LoginGuarded/sany.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/LoginGuarded/verdict-1.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/LoginGuarded/view.mjs",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/LoginParallel/ChartRun.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/LoginParallel/LoginParallel.cfg",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/LoginParallel/LoginParallel.tla",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/LoginParallel/chart.mmd",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/LoginParallel/graph.dot",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/LoginParallel/report.md",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/LoginParallel/sany.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/LoginParallel/verdict-1.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/LoginParallel/verdict-1.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/LoginParallel/verdict-2.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/LoginParallel/view.mjs",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/MediaPlayer/ChartRun.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/MediaPlayer/MediaPlayer.cfg",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/MediaPlayer/MediaPlayer.tla",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/MediaPlayer/chart.mmd",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/MediaPlayer/graph.dot",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/MediaPlayer/report.md",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/MediaPlayer/sany.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/MediaPlayer/verdict-1.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/MediaPlayer/verdict-1.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/MediaPlayer/verdict-2.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/MediaPlayer/view.mjs",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/MediaPlayerFixed/ChartRun.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/MediaPlayerFixed/MediaPlayerFixed.cfg",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/MediaPlayerFixed/MediaPlayerFixed.tla",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/MediaPlayerFixed/chart.mmd",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/MediaPlayerFixed/graph.dot",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/MediaPlayerFixed/report.md",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/MediaPlayerFixed/sany.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/MediaPlayerFixed/verdict-1.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/MediaPlayerFixed/view.mjs",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/MediaPlayerProps/ChartRun.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/MediaPlayerProps/MediaPlayer.tla",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/MediaPlayerProps/MediaPlayerProps.cfg",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/MediaPlayerProps/MediaPlayerProps.tla",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/MediaPlayerProps/chart.mmd",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/MediaPlayerProps/graph.dot",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/MediaPlayerProps/report.md",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/MediaPlayerProps/sany.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/MediaPlayerProps/verdict-1.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/MediaPlayerProps/verdict-1.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/MediaPlayerProps/verdict-2.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/MediaPlayerProps/verdict-3.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/MediaPlayerProps/verdict-4.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/MediaPlayerProps/verdict-4.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/MediaPlayerProps/verdict-5.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/MediaPlayerProps/verdict-5.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/MediaPlayerProps/verdict-6.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/MediaPlayerProps/view.mjs",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/PickWorker/ChartRun.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/PickWorker/PickWorker.cfg",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/PickWorker/PickWorker.tla",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/PickWorker/chart.mmd",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/PickWorker/graph.dot",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/PickWorker/report.md",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/PickWorker/sany.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/PickWorker/verdict-1.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/Shadow/ChartRun.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/Shadow/Shadow.cfg",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/Shadow/Shadow.tla",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/Shadow/ShadowLib.tla",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/Shadow/ShadowSub.tla",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/Shadow/chart.mmd",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/Shadow/graph.dot",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/Shadow/report.md",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/Shadow/sany.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/Shadow/verdict-1.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/SpacedNames/ChartRun.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/SpacedNames/SpacedNames.cfg",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/SpacedNames/SpacedNames.tla",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/SpacedNames/chart.mmd",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/SpacedNames/graph.dot",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/SpacedNames/report.md",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/SpacedNames/sany.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/SpacedNames/verdict-1.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/SpacedNames/verdict-1.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/SpacedNames/verdict-2.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/SpacedNames/verdict-2.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/TwoPhase/ChartRun.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/TwoPhase/TwoPhase.cfg",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/TwoPhase/TwoPhase.tla",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/TwoPhase/chart.mmd",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/TwoPhase/graph.dot",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/TwoPhase/report.md",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/TwoPhase/sany.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/TwoPhase/verdict-1.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/TwoPhase/verdict-1.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/TwoPhase/verdict-2.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/TwoPhase/view.mjs",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/TwoPhaseFixed/ChartRun.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/TwoPhaseFixed/TwoPhaseFixed.cfg",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/TwoPhaseFixed/TwoPhaseFixed.tla",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/TwoPhaseFixed/chart.mmd",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/TwoPhaseFixed/graph.dot",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/TwoPhaseFixed/report.md",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/TwoPhaseFixed/sany.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/TwoPhaseFixed/verdict-1.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/TwoPhaseFixed/view.mjs",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/TypeGuard/ChartRun.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/TypeGuard/ChartRun.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/TypeGuard/TypeGuard.cfg",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/TypeGuard/TypeGuard.tla",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/TypeGuard/chart.mmd",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/TypeGuard/graph.dot",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/TypeGuard/report.md",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/TypeGuard/sany.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/TypeGuard/verdict-1.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/TypeGuard/verdict-1.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/TypeGuard/verdict-2.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/TypeGuard/verdict-2.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/UserNoDeadlock/ChartRun.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/UserNoDeadlock/UserNoDeadlock.cfg",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/UserNoDeadlock/UserNoDeadlock.tla",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/UserNoDeadlock/chart.mmd",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/UserNoDeadlock/graph.dot",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/UserNoDeadlock/report.md",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/UserNoDeadlock/sany.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/UserNoDeadlock/verdict-1.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/UserNoDeadlock/verdict-1.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/UserNoDeadlock/verdict-2.exit",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/corpus/UserNoDeadlock/verdict-2.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/differential.test.ts",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/grid/Grid.cfg",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/grid/Grid.tla",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/grid/sany.out",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/java.ts",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/labels.ts",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/messages.test.ts",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/pipeline.test.ts",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/plain-tlc.test.ts",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/render.test.ts",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/tlc-out.test.ts",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/test/tlc.ts",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
     {
       "kind": "omit",
       "source": "skills/statechart/scripts/tsconfig.json",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "reason": "Statechart dev config for its omitted tests and type check. The runtime runs without it."
     },
     {
-      "kind": "omit",
+      "kind": "copy",
       "source": "skills/statechart/scripts/worker.ts",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+      "destination": "skills/statechart/scripts/worker.ts"
     },
     {
       "kind": "transform",

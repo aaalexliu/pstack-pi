@@ -456,6 +456,18 @@
     },
     "pi": {}
   },
+  "skills/statechart/SKILL.md": {
+    "upstream": {
+      "scratch folder": "Work in a scratch folder outside the repo.",
+      "first run": "The first run installs TLC and Java with mise and needs the network.",
+      "rules stay rules": "Never weaken a rule to make it hold.",
+      "renderer": "Render charts with Pele.",
+      "replay bug paths": "When the model describes code, replay each bug path against the real code, as a test or a live repro, one step for each action."
+    },
+    "pi": {
+      "skill command": "Use for /skill:statechart,"
+    }
+  },
   "skills/swarm/SKILL.md": {
     "upstream": {
       "predicate": "State the done predicate and the artifact or report the swarm must return.",
@@ -517,10 +529,11 @@
       "able to fail": "A check that you have never seen fail proves nothing.",
       "findings stay findings": "Do not weaken the property or the model until it passes, and do not change product code unless the user asks.",
       "honest scope": "A pass covers the model or the bound, not the whole system.",
-      "run before hand-off": "A verify skill that was never run is a draft."
+      "run before hand-off": "A verify skill that was never run is a draft.",
+      "statechart by name only": "Its commands, options, and file paths change between releases and machines, so copy none of them into the generated skill or its scripts."
     },
     "pi": {
-      "no bundled statechart": "pstack-pi does not bundle the upstream statechart skill",
+      "statechart command": "read every result with the pstack [`/skill:statechart`](../statechart/SKILL.md) skill",
       "maintenance command": "`/skill:maintain-formal-verification-skill`"
     }
   },

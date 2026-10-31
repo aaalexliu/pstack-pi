@@ -12,6 +12,9 @@ import { parseLock, parseManifest, readAdditions, sha256, transformDigest } from
 /** @typedef {{name: string, description: string, disabled: boolean, body: string, text: string, destination: string}} Skill */
 /** @typedef {{bySource: Map<string, ContentRecord>, byDestination: Map<string, ContentRecord | AdditionRecord>, bySkillName: Map<string, Skill>, byAgentName: Map<string, import('../extensions/subagent/agents.ts').AgentDefinition>}} ContentInventory */
 
+/** Skill scripts are code: they may be executable, and the instruction-prose checks do not read them. @param {string} destination */
+const isScript = (destination) => /^skills\/[^/]+\/scripts\//u.test(destination);
+
 /** @param {unknown} value @returns {Record<string, unknown>} */
 function object(value) {
   assert.ok(value !== null && typeof value === 'object' && !Array.isArray(value), 'Expected an object');
@@ -62,10 +65,10 @@ export function contentInventory(rawManifest, rawLock) {
       continue;
     }
     assert.ok(disposition.kind === 'copy' || disposition.kind === 'transform' || disposition.kind === 'replace', 'Content supports only copy, transform, replace, and omit');
-    assert.ok(/^skills\/[^/]+\/(?:SKILL\.md|(?:references|playbooks)\/.+)$/u.test(disposition.destination) || /^agents\/(?:comment-sicko|poteto-agent)\.md$/u.test(disposition.destination), `Unsupported content destination: ${disposition.destination}`);
+    assert.ok(/^skills\/[^/]+\/(?:SKILL\.md|(?:references|playbooks|scripts)\/.+)$/u.test(disposition.destination) || /^agents\/(?:comment-sicko|poteto-agent)\.md$/u.test(disposition.destination), `Unsupported content destination: ${disposition.destination}`);
     assert.ok(entry.output, `Missing locked output: ${disposition.source}`);
     assert.equal(entry.output.destination, disposition.destination, 'Locked destination differs');
-    assert.equal(entry.output.mode, '100644', 'Content must not be executable');
+    assert.ok(entry.output.mode === '100644' || isScript(disposition.destination), 'Content must not be executable');
     assert.equal(entry.mode, entry.output.mode, 'Source and output modes differ');
     if (disposition.kind === 'transform') {
       assert.equal(disposition.expectedBlob, entry.blob, 'Transform preimage differs');
@@ -90,8 +93,8 @@ export function contentInventory(rawManifest, rawLock) {
   return inventory;
 }
 
-/** @param {string} root @param {string[]} roots */
-async function fileInventory(root, roots) {
+/** @param {string} root @param {string[]} roots @param {ContentInventory} inventory */
+async function fileInventory(root, roots, inventory) {
   assert.ok((await lstat(root)).isDirectory() && !(await lstat(root)).isSymbolicLink(), 'Root must be a real directory');
   /** @type {Map<string, Buffer>} */
   const files = new Map();
@@ -109,7 +112,8 @@ async function fileInventory(root, roots) {
       for (const child of await readdir(filename)) await walk(`${relative}/${child}`);
     } else {
       assert.ok(stat.isFile(), `Special file: ${relative}`);
-      assert.equal(stat.mode & 0o7777, 0o644, `Unexpected file mode: ${relative}`);
+      const executable = inventory.byDestination.get(relative)?.locked.output?.mode === '100755';
+      assert.equal(stat.mode & 0o7777, executable ? 0o755 : 0o644, `Unexpected file mode: ${relative}`);
       files.set(relative, await readFile(filename));
     }
   }
@@ -198,7 +202,7 @@ export async function checkContent({ root, manifest, lock }) {
   for (const entry of parseLock(lock).additions) {
     assert.equal(sha256(inputs.get(entry.source)?.bytes ?? Buffer.alloc(0)), entry.output.sha256, `Addition bytes differ: ${entry.source}`);
   }
-  const files = await fileInventory(root, ['skills', 'agents']);
+  const files = await fileInventory(root, ['skills', 'agents'], inventory);
   assert.deepEqual([...files.keys()].sort(), [...inventory.byDestination.keys()].sort(), 'Generated file membership differs');
   const descriptions = new Set();
   for (const [destination, record] of inventory.byDestination) {
@@ -224,7 +228,7 @@ export async function checkContent({ root, manifest, lock }) {
       const owner = `skills/${filename.split('/')[1]}/SKILL.md`;
       assert.ok([...inventory.bySkillName.values()].some((skill) => skill.destination === owner), `Support file has no skill: ${filename}`);
     }
-    dependencies(new TextDecoder('utf-8', { fatal: true }).decode(bytes), filename, inventory);
+    if (!isScript(filename)) dependencies(new TextDecoder('utf-8', { fatal: true }).decode(bytes), filename, inventory);
   }
   assertPackageExposure(JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8')), inventory);
   return inventory;
@@ -232,7 +236,7 @@ export async function checkContent({ root, manifest, lock }) {
 
 /** @param {string} root @param {ContentInventory} inventory */
 export async function checkPackedContent(root, inventory) {
-  const files = await fileInventory(root, await readdir(root));
+  const files = await fileInventory(root, await readdir(root), inventory);
   assertPackInventory([...files.keys()], inventory);
   assertPackageExposure(JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8')), inventory);
   for (const [name, record] of inventory.byDestination) {

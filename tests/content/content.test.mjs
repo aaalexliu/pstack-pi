@@ -144,6 +144,47 @@ async function withAgentPrompt(t, body) {
   return f;
 }
 
+/** @param {import('node:test').TestContext} t */
+async function withScripts(t) {
+  const f = await contentFixture(t);
+  /** @type {[string, import('../../scripts/sync-upstream.mjs').FileMode, string][]} */
+  const scripts = [
+    ['skills/copied/scripts/run', '100755', '#!/bin/sh\nexec node "$(dirname "$0")/run.ts" "$@"\n'],
+    ['skills/copied/scripts/run.ts', '100644', 'const PREFIX = {\n  [LEVEL.ERROR]: "Error:",\n};\nconst checked = { [state]: true };\n'],
+  ];
+  for (const [destination, mode, text] of scripts) {
+    f.manifest.files.push({ kind: 'copy', source: destination, destination });
+    f.lock.files.push({
+      source: destination, blob: 'a'.repeat(40), mode, adaptationSha256: null,
+      output: { destination, sha256: sha256(text), mode },
+    });
+    await f.put(destination, text);
+    if (mode === '100755') await chmod(path.join(f.root, destination), 0o755);
+    f.pkg.files.push(destination);
+  }
+  f.pkg.files.sort();
+  await f.put('package.json', JSON.stringify(f.pkg));
+  return f;
+}
+
+test('skill scripts ship as code with their executable mode, not as instruction prose', async (t) => {
+  const f = await withScripts(t);
+  const inventory = await checkContent(f);
+  assert.equal(inventory.byDestination.get('skills/copied/scripts/run')?.locked.output?.mode, '100755');
+  await checkPackedContent(f.root, inventory);
+  await chmod(path.join(f.root, 'skills/copied/scripts/run'), 0o644);
+  await assert.rejects(checkContent(f), /Unexpected file mode: skills\/copied\/scripts\/run/);
+  await chmod(path.join(f.root, 'skills/copied/scripts/run'), 0o755);
+  await chmod(path.join(f.root, 'skills/copied/scripts/run.ts'), 0o755);
+  await assert.rejects(checkContent(f), /Unexpected file mode: skills\/copied\/scripts\/run\.ts/);
+});
+
+test('instruction prose still treats a reference definition as a local link', async (t) => {
+  const f = await contentFixture(t);
+  await f.rewrite('skills/copied/references/notes.md', 'const PREFIX = {\n  [LEVEL.ERROR]: "Error:",\n};\n');
+  await assert.rejects(checkContent(f), /Missing local dependency: skills\/copied\/references\/notes\.md -> "Error:/);
+});
+
 test('rejects a package-root path that is not in the package', async (t) => {
   const f = await withAgentPrompt(t, 'Read `{{PSTACK_ROOT}}/skills/missing/SKILL.md`.');
   await assert.rejects(checkContent(f), /Missing local dependency: agents\/poteto-agent\.md -> \{\{PSTACK_ROOT\}\}\/skills\/missing\/SKILL\.md/);

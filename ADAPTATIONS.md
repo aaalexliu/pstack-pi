@@ -1,17 +1,18 @@
 # Reviewed Pi adaptations
 
-**No full-file replacements remain.** The production manifest classifies 573 upstream files as 47 copies, 50 exact transforms, and 476 omissions. The statechart scripts and their tests account for 397 of the omissions. Pi-owned additions are separate from upstream: the `general-purpose` agent and the `deeper` and `alex-show-me` skills. None is an upstream replacement.
+**No full-file replacements remain.** The production manifest classifies 573 upstream files as 75 copies, 51 exact transforms, and 447 omissions. The statechart test suite and its two dev configs account for 378 of the omissions. Pi-owned additions are separate from upstream: the `general-purpose` agent and the `deeper` and `alex-show-me` skills. None is an upstream replacement.
 
 Every transform starts from the pinned upstream file. It changes exact literal regions with checked occurrence counts; everything else stays verbatim. The importer requires the expected Git blob and locks the transform digest and output hash. Routine sync runs no LLM and performs no fuzzy matching.
 
 The 31 former replacements were rebuilt from upstream, not encoded as whole-file patches of the rewrites. Thirty became targeted transforms. `skills/poteto-mode/playbooks/investigation.md` is a narrow reader-explanation transform, not a copy. Principle skills remain byte-for-byte copies, including the new `principle-explain-the-number` leaf. `benchmark-checklist` is a copy. `correct` only rewrites the Pi skill command. `deeper` is authored under `sync/additions/` and has no upstream file. `alex-show-me` is also authored there. It adapts HumanLayer's MIT `show-me` skill, not a pstack file, and ships that license notice under `references/`.
 
-The `c742dd6` pin added eight upstream skills. Three ship as narrow transforms: `in-your-own-words`, `create-formal-verification-skill`, and `maintain-formal-verification-skill`. Five upstream skills are omitted:
+The `c742dd6` pin added eight upstream skills. Four ship as narrow transforms: `in-your-own-words`, `create-formal-verification-skill`, `maintain-formal-verification-skill`, and `statechart`. Four upstream skills are omitted:
 
-- `statechart` runs its upstream scripts, which wait for reviewed Pi execution contracts like every other upstream script. `create-formal-verification-skill` says so instead of pointing at it.
 - `poteto-help` is a Cursor setup guide that links to the omitted guide pages.
 - `ketchup` and `ketchup-video` embed screenshots, videos, and Cursor `/visualize` charts in the reply. A Pi reply contract for those visuals needs its own review.
 - `sharpen` asks the same four questions as the Pi-owned `deeper` addition, which predates the pin.
+
+`statechart` ships its 27 runtime scripts as byte-for-byte copies. The `scripts/statechart` wrapper keeps its executable mode and runs `statechart.ts` with Node 22.18 to 22.x, Node 23.6 or later, Bun 1.1.5 or later, or Deno 2.0 or later. Its first run installs TLC and Java with mise and needs the network. The upstream suite under `scripts/test/` and the `scripts/package.json` and `scripts/tsconfig.json` that serve it stay omitted. The runtime never reads them, and the suite needs fast-check, Pele, Java, and TLC. Node refuses to strip types under `node_modules`, so the skill runs from a Git or local-path install, not an npm install. The content checker treats `skills/<name>/scripts/` as code: it checks bytes and mode, not instruction prose.
 
 ## Transformed files
 
@@ -26,7 +27,7 @@ The manifest contains the exact ordered `find`, `replace`, and `count` values fo
 | `skills/arena/SKILL.md` | Pi command, todos, full configured panel, isolated writers, bounded requests, file receipts, and a read-only cross-judge from another model family, tried in configured order and then from `list-models`. |
 | `skills/automate-me/SKILL.md` | Pi skill/session paths, chat choices, bounded history readers, and native skill authoring. |
 | `skills/create-verification-skill/SKILL.md` | Pi output paths and command names; use available control tools and a file-relative example link. |
-| `skills/create-formal-verification-skill/SKILL.md` | Pi skill commands; replace the pointer to the unbundled statechart skill with a note to read TLC counterexamples as steps in the code's words. |
+| `skills/create-formal-verification-skill/SKILL.md` | Pi skill commands, including the three `/skill:statechart` references. The link to `../statechart/SKILL.md` and the rest of the statechart paragraph stay upstream. |
 | `skills/create-verification-skill/references/feature-map-example/search.md` | Restore the query and results before recording proof after the clear-query step. |
 | `skills/figure-it-out/SKILL.md` | Pi command and todos; bounded readers/writers, parent-owned services, and isolated scratch outputs. |
 | `skills/how/SKILL.md` | Replace Cursor task fields and models with Pi roles and bounded leaf readers. Keep the senior-engineer bar. Explanations still lead with the surrounding workflow, one concrete example, and no coined phase name. When the answer depends on an outside product, the parent reads the vendor's docs and keeps documented guarantees apart from assumptions. |
@@ -62,6 +63,7 @@ The manifest contains the exact ordered `find`, `replace`, and `count` values fo
 | `skills/correct/SKILL.md` | Pi skill command only. |
 | `skills/setup-pstack/SKILL.md` | Pi model discovery and version-1 role JSON instead of Cursor rules; keep the budget ask in chat, confirmation, validation, and the verification and formal verification skill offers. `models.json` does not store the budget. |
 | `skills/show-me-your-work/SKILL.md` | Scoped Pi sessions, a manual TSV appender, append-only corrections, and explicit independent reviewer selection. |
+| `skills/statechart/SKILL.md` | Pi skill command in the invocation hint only. Pi renders `mermaid` code blocks in interactive transcripts, so the chart and Pele rules stay upstream. |
 | `skills/swarm/SKILL.md` | Local leaf workers and Pi model roles instead of cloud fields; retain logical coverage across bounded requests. |
 | `skills/teach/SKILL.md` | Parent-owned research and available visual tools; keep teaching and progressive-diagram rules. The person is not in this code: workflow and one example first, then file and function names. |
 | `skills/technical-writing/SKILL.md` | Change one skill command to Pi syntax. |
@@ -76,7 +78,7 @@ Upstream tells each delegating skill to pick a subagent's reasoning level and fa
 
 Removing a tool reference must not remove the work it supported. Pi readers return evidence requests when only the parent can run Git or external tools. The parent owns orchestration and integration. Logical panels and coverage may span several bounded requests; the eight-task limit does not shrink the planned work. Missing service access remains an explicit gap, not a successful step.
 
-Tier A poteto-mode playbooks ship as copies or narrow transforms: `opening-a-pr`, `refactoring`, `pause-safely`, `hillclimb`, `perf-issue`, `authoring-a-skill`, `eval`, `runtime-forensics`, `trace-forensics`, and `visual-parity`. `pause-safely` needed no host edits and is a byte-for-byte copy. `trace-forensics` only rewrites the `subagent (` phrasing that the content gate rejects. Babysit, Shipping, bugbot-triage, Tier B (`autonomous-run`, `session-pickup`, `worktree-cleanup`), Tier C autopilot playbooks, and upstream scripts, including statechart, remain omissions. References to still-omitted workflows name the absent file and a local fallback instead of promising an unavailable path.
+Tier A poteto-mode playbooks ship as copies or narrow transforms: `opening-a-pr`, `refactoring`, `pause-safely`, `hillclimb`, `perf-issue`, `authoring-a-skill`, `eval`, `runtime-forensics`, `trace-forensics`, and `visual-parity`. `pause-safely` needed no host edits and is a byte-for-byte copy. `trace-forensics` only rewrites the `subagent (` phrasing that the content gate rejects. Babysit, Shipping, bugbot-triage, Tier B (`autonomous-run`, `session-pickup`, `worktree-cleanup`), Tier C autopilot playbooks, and the other upstream scripts remain omissions. References to still-omitted workflows name the absent file and a local fallback instead of promising an unavailable path.
 
 `tests/content/workflow-contracts.json` records reviewed upstream passages separately from Pi boundary clauses. `tests/content/fidelity.test.mjs` checks both against the package-loaded files, rejects full replacements, and checks that command edits do not alter scratch paths. Production tests replay every transform and verify all copied bytes. These tests check instructions and loading, not model compliance.
 

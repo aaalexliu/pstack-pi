@@ -393,10 +393,10 @@
       "source": "skills/create-formal-verification-skill/SKILL.md",
       "blob": "92f7aa4fa966b857dd7fcc994b3c59650767c878",
       "mode": "100644",
-      "adaptationSha256": "b7caf975a1a2f75912139982177089d3a5193e118d9c60b000b1ee04fc282dc3",
+      "adaptationSha256": "60341392ddda210e0b39aa0870785024e42403cb74271e6b31974e222dc4315d",
       "output": {
         "destination": "skills/create-formal-verification-skill/SKILL.md",
-        "sha256": "e35ab592426bfb816238ce5541feefd57ebb4e1bf364ed050a97c264381f8ad1",
+        "sha256": "9ef874e893436069ceab1471ce7732f6761a0cb22e6797d6fba2b5a3ede31ec6",
         "mode": "100644"
       }
     },
@@ -1339,113 +1339,177 @@
       "source": "skills/statechart/SKILL.md",
       "blob": "f5a64a8db4b8a5957ac5e76e051b1823cecd4d5e",
       "mode": "100644",
-      "adaptationSha256": null,
-      "output": null
+      "adaptationSha256": "1a2831e609507f0d4e947fb6954edb5977ab40c7e681c2ac4c927cd694581c1e",
+      "output": {
+        "destination": "skills/statechart/SKILL.md",
+        "sha256": "cb3dea0aa64af00f5c8861c49dda9befea056e3f63e7e018c62a5ba4a4be0164",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/statechart/references/render.md",
       "blob": "5ef0519d6f7ae97ef7befceaf174f94f52dd42f5",
       "mode": "100644",
       "adaptationSha256": null,
-      "output": null
+      "output": {
+        "destination": "skills/statechart/references/render.md",
+        "sha256": "8cca446eb0c8f87f2ef7b97c4b149f59aacdc153134b4217c4bcde09b10ac3c4",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/statechart/scripts/backends/cfg.ts",
       "blob": "dec8b2f6671f2d110cd880f7af8d2c714cdf23a3",
       "mode": "100644",
       "adaptationSha256": null,
-      "output": null
+      "output": {
+        "destination": "skills/statechart/scripts/backends/cfg.ts",
+        "sha256": "aea4d8766d214e7fa08f4881f1037319655e75eb56652e1b6d5d4f13a162e3e1",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/statechart/scripts/backends/mermaid.ts",
       "blob": "327220cad69baa1d4fa5aa1cfe03f3cf9e13c133",
       "mode": "100644",
       "adaptationSha256": null,
-      "output": null
+      "output": {
+        "destination": "skills/statechart/scripts/backends/mermaid.ts",
+        "sha256": "75704b2704a9399a39479ff704a580d5b9a1d0fede01fe771df28bf799b434b6",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/statechart/scripts/backends/plain-text.ts",
       "blob": "1ece33e8c45995493e84bc948ad613fce15481ab",
       "mode": "100644",
       "adaptationSha256": null,
-      "output": null
+      "output": {
+        "destination": "skills/statechart/scripts/backends/plain-text.ts",
+        "sha256": "e2bedb855eb3806ec3fe7a7bfa49baa309fb4cf0da425b5fe1e0686268ce255a",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/statechart/scripts/backends/report.ts",
       "blob": "62e2a853375a1141491ef54fed8fd0d81a1bcd3c",
       "mode": "100644",
       "adaptationSha256": null,
-      "output": null
+      "output": {
+        "destination": "skills/statechart/scripts/backends/report.ts",
+        "sha256": "730b4048578ab0468e1581f16fec60b246e321161effb68e481efb373f0f2501",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/statechart/scripts/frontends/config.ts",
       "blob": "4f6ade5a9a74c8e74a58125dc7a5d035ea2ca36b",
       "mode": "100644",
       "adaptationSha256": null,
-      "output": null
+      "output": {
+        "destination": "skills/statechart/scripts/frontends/config.ts",
+        "sha256": "5eeab1e755f20a2c83b408c6503fdc9c6b10c971d8dedad3f912bd15f9763daf",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/statechart/scripts/frontends/dot.ts",
       "blob": "003dfc89d4925c6aed3e59073b6a9414da78117b",
       "mode": "100644",
       "adaptationSha256": null,
-      "output": null
+      "output": {
+        "destination": "skills/statechart/scripts/frontends/dot.ts",
+        "sha256": "4eef9ec848557dcd01ca8dbbec75b71c0653c1b73583108bafbb6f559f6d677b",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/statechart/scripts/frontends/marks.ts",
       "blob": "9b1eda59f12861b8fb981d6046741417cd1be667",
       "mode": "100644",
       "adaptationSha256": null,
-      "output": null
+      "output": {
+        "destination": "skills/statechart/scripts/frontends/marks.ts",
+        "sha256": "eb0120e61a4004a435c7b7c46916da9dc8b2fa8696ed0d3eb64dc953fed3ab11",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/statechart/scripts/frontends/messages.ts",
       "blob": "e835b065e775a1b822eede5b1515d0401ce8356b",
       "mode": "100644",
       "adaptationSha256": null,
-      "output": null
+      "output": {
+        "destination": "skills/statechart/scripts/frontends/messages.ts",
+        "sha256": "36bfc6fb3ffa86897661efb2aa67bd95b55a4da9a3e952831f6e0668826b4b92",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/statechart/scripts/frontends/spec.ts",
       "blob": "3fbe34f1a6b344c56cfd5afba3b90fe9a397c405",
       "mode": "100644",
       "adaptationSha256": null,
-      "output": null
+      "output": {
+        "destination": "skills/statechart/scripts/frontends/spec.ts",
+        "sha256": "450cdfc8d0577a96818ca3697efebbbf70b530a4ba7e3eee03cf1ba8d3f1a0fd",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/statechart/scripts/frontends/trace.ts",
       "blob": "43387c12b314c343d7a046de2fd095a3950b0026",
       "mode": "100644",
       "adaptationSha256": null,
-      "output": null
+      "output": {
+        "destination": "skills/statechart/scripts/frontends/trace.ts",
+        "sha256": "7d083cf89b81c41556fc3fd5f07019886e0f6783c632475e7181ac4b81887367",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/statechart/scripts/frontends/value.ts",
       "blob": "d73ddec9ee3fa6077c644625002707a96d0938a1",
       "mode": "100644",
       "adaptationSha256": null,
-      "output": null
+      "output": {
+        "destination": "skills/statechart/scripts/frontends/value.ts",
+        "sha256": "7c54be394b7a10f60591858a0f08fb1e8dc0941df1f38ede07fbe7719ff56da0",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/statechart/scripts/frontends/verdict.ts",
       "blob": "4f2ddd925332773b68918c40e62fc79a3a32571b",
       "mode": "100644",
       "adaptationSha256": null,
-      "output": null
+      "output": {
+        "destination": "skills/statechart/scripts/frontends/verdict.ts",
+        "sha256": "0d0a9d6b6d6da5a7c48851b86d9d041f22982404dda6288795a1715138d7008b",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/statechart/scripts/frontends/view.ts",
       "blob": "ed8a1b5f9f0b4104a901a966bdfd66f13102d5ce",
       "mode": "100644",
       "adaptationSha256": null,
-      "output": null
+      "output": {
+        "destination": "skills/statechart/scripts/frontends/view.ts",
+        "sha256": "2c0af8939321c5aaed4b6ecac8ce6a98d0e6774d8bd15d4b02fe4f406b8c9620",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/statechart/scripts/ir.ts",
       "blob": "80fd403fe3c231b0986f239ba8c74a60b52c05f7",
       "mode": "100644",
       "adaptationSha256": null,
-      "output": null
+      "output": {
+        "destination": "skills/statechart/scripts/ir.ts",
+        "sha256": "5602beca4e4ac08421cfa07e4da989f0e75439f1d136cc923226909e771dc7ff",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/statechart/scripts/package.json",
@@ -1459,84 +1523,132 @@
       "blob": "7d95d4fb57311c26bbbaca42eb283421f56140e0",
       "mode": "100644",
       "adaptationSha256": null,
-      "output": null
+      "output": {
+        "destination": "skills/statechart/scripts/passes/annotate.ts",
+        "sha256": "dc8eeee09c3a9a0c060f32fb1d554e01bd80e5265751cdeb041ef3e19561b92a",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/statechart/scripts/passes/label.ts",
       "blob": "cc8c197726137a0875462702e39cd07cbf55d547",
       "mode": "100644",
       "adaptationSha256": null,
-      "output": null
+      "output": {
+        "destination": "skills/statechart/scripts/passes/label.ts",
+        "sha256": "b5ef402369c5e7846be1fd39165e95cbfe715fc36eb9331a0401b26523c539c9",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/statechart/scripts/passes/lift.ts",
       "blob": "15db7deda016faee9c0da33c2c419be51e528ed6",
       "mode": "100644",
       "adaptationSha256": null,
-      "output": null
+      "output": {
+        "destination": "skills/statechart/scripts/passes/lift.ts",
+        "sha256": "8977dddc6c93bb2e3914d5b50760eb66876107ba51e2b8cf9e18611b4c40c89c",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/statechart/scripts/passes/loop-check.ts",
       "blob": "7e5a3825adde46e8a625ad9e167cb0ce6b712174",
       "mode": "100644",
       "adaptationSha256": null,
-      "output": null
+      "output": {
+        "destination": "skills/statechart/scripts/passes/loop-check.ts",
+        "sha256": "07d459385849aa35834040bf34e279c39baba68244ec9da17c57703a6ee8e2d4",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/statechart/scripts/passes/paths.ts",
       "blob": "632a5c4ae6d6101c89f46803605c09b6a96f9b6f",
       "mode": "100644",
       "adaptationSha256": null,
-      "output": null
+      "output": {
+        "destination": "skills/statechart/scripts/passes/paths.ts",
+        "sha256": "9af1066b007ef86cb05c5e278eef09f090f1e46eb91d356e5146edbd4fee4ec7",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/statechart/scripts/passes/reach.ts",
       "blob": "d5b6a521dc970f888d615d41caf692d0f7bcb2ec",
       "mode": "100644",
       "adaptationSha256": null,
-      "output": null
+      "output": {
+        "destination": "skills/statechart/scripts/passes/reach.ts",
+        "sha256": "b52b38f926814937b733221b40bd31075a69a2fb91ecbce2164752a8684bc5d6",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/statechart/scripts/passes/region-check.ts",
       "blob": "ae499230f5ba441d704386bd24df73cad3c92af7",
       "mode": "100644",
       "adaptationSha256": null,
-      "output": null
+      "output": {
+        "destination": "skills/statechart/scripts/passes/region-check.ts",
+        "sha256": "8a6e0618740a14bb7048f6563b4324958177f4685d4d6d90364cc6245b1498b4",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/statechart/scripts/passes/regions.ts",
       "blob": "bb7aea062410be42c25c779ca748c2b52c3e5a82",
       "mode": "100644",
       "adaptationSha256": null,
-      "output": null
+      "output": {
+        "destination": "skills/statechart/scripts/passes/regions.ts",
+        "sha256": "d740ebfdbb5ec7b4984412a635a596b43af7a77b8bcb49a1463c8afa75299f72",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/statechart/scripts/pipeline.ts",
       "blob": "f12a2e07f6e4fe283cfd1b2fc0d3f83dd3d75758",
       "mode": "100644",
       "adaptationSha256": null,
-      "output": null
+      "output": {
+        "destination": "skills/statechart/scripts/pipeline.ts",
+        "sha256": "8aa8d9295ab6762f7f2ffae91a0aee98b1a1314747c875edba4598fdab8ed543",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/statechart/scripts/run.ts",
       "blob": "4efd368e5bcd0b4ef7cf8d8cfd1e511483c720aa",
       "mode": "100644",
       "adaptationSha256": null,
-      "output": null
+      "output": {
+        "destination": "skills/statechart/scripts/run.ts",
+        "sha256": "f330e0a3b0a9f8181c2e52252c4a47db3f0a64f79a7cca5490263e33a5f13c72",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/statechart/scripts/statechart",
       "blob": "7d3aeb8c219bf20aea4cbc321892fca9cbd582f1",
       "mode": "100755",
       "adaptationSha256": null,
-      "output": null
+      "output": {
+        "destination": "skills/statechart/scripts/statechart",
+        "sha256": "aeffb7077850fd4c225e3d18049ca6ed7b988cf48e88cd8463526a7feaa74d13",
+        "mode": "100755"
+      }
     },
     {
       "source": "skills/statechart/scripts/statechart.ts",
       "blob": "4e2967e680895875d7d5352bfe997a4c08c2d1fc",
       "mode": "100644",
       "adaptationSha256": null,
-      "output": null
+      "output": {
+        "destination": "skills/statechart/scripts/statechart.ts",
+        "sha256": "1c653f05d0cd0f3298455701f36e3d7d1f837f93e6e642f7c20afb5d613c2d12",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/statechart/scripts/test/ConfigOracle.java",
@@ -4182,7 +4294,11 @@
       "blob": "9559314668f6573e17db7c278d05f5776b235ebc",
       "mode": "100644",
       "adaptationSha256": null,
-      "output": null
+      "output": {
+        "destination": "skills/statechart/scripts/worker.ts",
+        "sha256": "1f18ed5ef806982e05e8a40fc217e88257700b28b63cb4acbd647872f85f782b",
+        "mode": "100644"
+      }
     },
     {
       "source": "skills/swarm/SKILL.md",
