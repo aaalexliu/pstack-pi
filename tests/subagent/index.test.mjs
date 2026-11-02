@@ -125,6 +125,7 @@ test('depth guard: a child Pi registers nothing, the root registers the tool and
   assert.equal(parentDepth({ [DEPTH_VARIABLE]: '1' }), 1);
   assert.ok(parentDepth({ [DEPTH_VARIABLE]: 'garbage' }) >= 1, 'Unreadable depth disables delegation');
   assert.equal(childEnvironment(0, { PATH: '/bin' })[DEPTH_VARIABLE], '1');
+  assert.equal(childEnvironment(0, { PI_MEMORY_EXIT_SUMMARY: '1' }).PI_MEMORY_EXIT_SUMMARY, '0', 'Children never write pi-memory exit summaries');
   for (const depth of ['1', '01', '7', 'x']) assert.deepEqual(registration({ env: { [DEPTH_VARIABLE]: depth } }).tools, []);
   const { tools, handlers } = registration({ env: {} });
   assert.equal(tools[0].name, 'subagent');
@@ -165,6 +166,7 @@ test('single mode runs the bundled agent in a detached child with prompt file, s
   const capture = JSON.parse(childOutput(result.content[0].text));
   assert.equal(capture.task, task);
   assert.equal(capture.depth, '1');
+  assert.equal(capture.memoryExitSummary, '0');
   assert.equal(capture.cwd, f.cwd);
   assert.equal(capture.promptMode, 0o600);
   assert.equal(capture.prompt, (await readFile(new URL('../../additions/agents/general-purpose.md', import.meta.url), 'utf8')).split('---\n')[2].trim());

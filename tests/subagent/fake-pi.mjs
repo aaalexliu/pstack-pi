@@ -26,7 +26,7 @@ function assistant(text, extra = {}) {
   process.stdout.write(`${JSON.stringify({ type: 'message_start', message })}\n${JSON.stringify({ type: 'message_end', message })}\n`);
 }
 
-const capture = () => JSON.stringify({ args, task, prompt, promptMode, cwd: process.cwd(), depth: process.env.PSTACK_SUBAGENT_DEPTH ?? null, pid: process.pid });
+const capture = () => JSON.stringify({ args, task, prompt, promptMode, cwd: process.cwd(), depth: process.env.PSTACK_SUBAGENT_DEPTH ?? null, memoryExitSummary: process.env.PI_MEMORY_EXIT_SUMMARY ?? null, pid: process.pid });
 const parentPid = process.ppid;
 const loopMs = Number(process.env.FAKE_PI_LOOP_MS) || 15_000;
 const parentGone = () => { try { process.kill(parentPid, 0); return false; } catch { return true; } };

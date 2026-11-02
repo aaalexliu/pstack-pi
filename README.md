@@ -162,6 +162,8 @@ What this package adds to the example:
 - Error results. Pi 0.85.1 ignores `isError` returned from `execute`, so a `tool_result` hook marks the result as an error when a single task fails, a chain stops, or every parallel task fails. A parallel call with some failures stays a normal result that names each failure.
 - The child is launched through the same Node binary and Pi entrypoint as the parent, never through `pi` on `PATH`.
 
+The child also receives `PI_MEMORY_EXIT_SUMMARY=0`, so [pi-memory](https://github.com/jayzeng/pi-memory) does not summarize each child transcript into the shared daily log when the child exits.
+
 A child is otherwise a normal Pi. It loads extensions, skills, and project context files by Pi's own rules, uses the parent's provider auth from `auth.json`, and runs with the builtin tools its agent lists.
 Without `thinking`, a child inheriting the parent model also inherits the parent thinking level; a pinned model uses Pi's default thinking level.
 
