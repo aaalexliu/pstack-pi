@@ -57,8 +57,11 @@ export function parentDepth(env: NodeJS.ProcessEnv = process.env): number {
   return Number.isSafeInteger(value) && value >= 0 ? value : Number.MAX_SAFE_INTEGER;
 }
 
+// A child's transcript belongs to the parent's turn. Without PI_MEMORY_EXIT_SUMMARY=0,
+// pi-memory spends a model call on every child exit and writes the summary into the
+// daily log that each new session loads.
 export function childEnvironment(depth: number, inherited: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
-  return { ...inherited, [DEPTH_VARIABLE]: String(depth + 1) };
+  return { ...inherited, PI_MEMORY_EXIT_SUMMARY: '0', [DEPTH_VARIABLE]: String(depth + 1) };
 }
 
 // ---------------------------------------------------------------------------
