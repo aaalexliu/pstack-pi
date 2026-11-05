@@ -459,10 +459,10 @@
       "source": "skills/how/SKILL.md",
       "blob": "67edc340d4d8a9c7ab0b9e08c663e0e63b8d9125",
       "mode": "100644",
-      "adaptationSha256": "b0f7845aa252a6e9c0b318ff87613cc1da9980ce0a497445e980f49ad240c51e",
+      "adaptationSha256": "e2bbb20e440307dc0f13f00495b7301be9c8d9bf7b370215dad0c71bbf911c32",
       "output": {
         "destination": "skills/how/SKILL.md",
-        "sha256": "6504f94bfa6cce057df249bc4034ca8773002add9f7def97b575bdc891aa3c50",
+        "sha256": "910240127e01324c425deca824fa2f3ca2fe456f2bc8906818eca8999cee845c",
         "mode": "100644"
       }
     },
