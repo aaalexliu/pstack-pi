@@ -16,7 +16,7 @@ If the scope is ambiguous, state your interpretation and explore. The user can r
 
 When the answer depends on how an outside product behaves, such as a vendor's record lifecycle or which identifiers it lets admins edit, the parent reads that vendor's docs alongside the code and hands readers bounded extracts. Report what the docs guarantee apart from what you assume.
 
-- **Simple** (a single module, a small utility, a narrow question such as "how does function X work"): no explorers. Spawn one explainer that explores and explains in one pass, built from `references/explainer-prompt.md` without the explorer-findings section. Go to step 4.
+- **Simple** (a single module, a small utility, a narrow question such as "how does function X work"): no explorers and no subagent. Answer in this session. Start from what the session already knows, then read only the files still needed. Follow `references/explainer-prompt.md` for shape and depth, without the explorer-findings section. Go to step 4.
 - **Complex** (a subsystem spanning multiple files or services, a cross-cutting feature, a full architectural overview): go to step 2.
 
 When in doubt, take the simple path.
@@ -33,7 +33,7 @@ Once all explorers have returned, spawn one explainer with `references/explainer
 
 ## 4. Present
 
-Present the explainer's output. Light edits for clarity or context from the conversation are fine. Do not substantially rewrite it.
+Present the explanation. For a complex question, that is the explainer's output. Light edits for clarity or context from the conversation are fine. Do not substantially rewrite it.
 
 ## Output format
 
