@@ -1,30 +1,20 @@
-import type { Api, AssistantMessage, Context, Model } from '@earendil-works/pi-ai';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import {
   lastAssistantText,
   nextTitle,
   parseReply,
-  replyText,
   restoreAutoTitle,
   systemPrompt,
   terminalTitle,
   titleEntryType,
-  titleModel,
   userPrompt,
 } from './naming.ts';
+import { completer, replyText, smallModel } from '../shared/model.ts';
 
 const requestTimeoutMs = 30_000;
 // Pi writes its own title after every session_start handler has finished, and other
 // extensions can make that take a while. Write ours again until Pi is surely done.
 const startTitleDelaysMs = [0, 500, 2000, 5000];
-
-type Complete = (model: Model<Api>, context: Context, options: { maxTokens: number; signal: AbortSignal }) => Promise<AssistantMessage>;
-
-/** `ModelRegistry.complete` arrived after Pi 0.85.1. Without it the extension does nothing. */
-function completer(ctx: ExtensionContext): Complete | undefined {
-  const complete = (ctx.modelRegistry as unknown as { complete?: Complete }).complete;
-  return typeof complete === 'function' ? complete.bind(ctx.modelRegistry) : undefined;
-}
 
 export default function title(pi: ExtensionAPI): void {
   let autoTitle: string | undefined;
@@ -77,7 +67,7 @@ export default function title(pi: ExtensionAPI): void {
     const current = pi.getSessionName();
     if (current !== undefined && current !== autoTitle) return;
     const complete = completer(ctx);
-    const model = titleModel(ctx.modelRegistry, ctx.model);
+    const model = smallModel(ctx.modelRegistry, ctx.model);
     if (!complete || !model) return;
 
     cancel();
