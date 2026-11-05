@@ -37,7 +37,7 @@ async function productionInventory() {
 function assertOnlyDeclaredTools(run) {
   assert.deepEqual(run.diagnostics, []);
   const runtime = run.pack.files.includes('extensions/subagent/index.ts');
-  assert.deepEqual(run.resources?.extensions, runtime ? [join(run.paths.package, 'extensions/pstack/index.ts'), join(run.paths.package, 'extensions/subagent/index.ts')] : []);
+  assert.deepEqual(run.resources?.extensions, runtime ? [join(run.paths.package, 'extensions/pstack/index.ts'), join(run.paths.package, 'extensions/subagent/index.ts'), join(run.paths.package, 'extensions/profiles/index.ts')] : []);
   const tools = run.provider?.decodedRequests[0]?.tools;
   assert.ok(Array.isArray(tools));
   assert.deepEqual(tools.map((tool) => tool.function.name).sort(), ['bash', 'edit', ...(runtime ? ['pstack_config', 'pstack_papercut', 'pstack_sessions', 'pstack_todo'] : []), 'read', ...(runtime ? ['subagent'] : []), 'write']);
@@ -65,7 +65,7 @@ test("real Pi loads the packed package and settles with fixture text and usage",
   assertClean(run);
   assert.deepEqual(run.cleanup.signals, []);
   assert.deepEqual(run.pack.files, expectedPackFiles(await productionInventory()));
-  assert.equal(run.pack.files.length, 155);
+  assert.equal(run.pack.files.length, 157);
   assertOnlyDeclaredTools(run);
   context.diagnostic(JSON.stringify({
     pi: run.process.version, revision: run.process.revision, pid: run.process.pid,
