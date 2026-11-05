@@ -1,3 +1,4 @@
+import path from 'node:path';
 import type { Api, AssistantMessage, Model } from '@earendil-works/pi-ai';
 import { Type } from 'typebox';
 import { Check } from 'typebox/value';
@@ -65,6 +66,12 @@ export function parseReply(text: string): TitleReply | undefined {
   catch { return undefined; }
   if (!Check(replySchema, value)) return undefined;
   return { newTask: value.newTask, title: value.title === null ? undefined : sanitizeTitle(value.title) };
+}
+
+/** Pi's own title is `π - <name> - <folder>`. This drops the `π - `. */
+export function terminalTitle(name: string | undefined, cwd: string): string {
+  const folder = path.basename(cwd);
+  return name ? `${name} - ${folder}` : folder;
 }
 
 /** The name to apply, or undefined to keep the current one. */
