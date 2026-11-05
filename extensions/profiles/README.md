@@ -29,7 +29,7 @@ Without this file both prototypes do nothing. A malformed file disables every pr
 
 Each session start, including `/new`, `/resume`, `/fork` and `/reload`, picks again and writes the result to `PI_AUTH_PROFILE`. The bash tool, `!` commands and pstack subagents inherit it, wherever they run.
 
-A profile without its own login uses the default login, and the footer says so: `profile: radiance (default login: anthropic)`.
+A profile without its own login uses the default login. The footer describes the current model's provider: `profile: radiance` when the profile login serves it, `profile: radiance (openai: default login)` when the default login does.
 
 ## store-swap.ts
 

@@ -117,6 +117,7 @@ test('session_start swaps the store inside the profile, exports it, and shutdown
   const statuses = [];
   const ctx = (/** @type {string} */ cwd) => ({
     cwd,
+    model: { provider: 'anthropic', id: 'claude-opus-5-5' },
     hasUI: true,
     ui: { notify() {}, setStatus: (/** @type {string} */ _key, /** @type {string | undefined} */ text) => statuses.push(text) },
     modelRegistry: { runtime: { credentials }, refresh: async (/** @type {any} */ options) => { refreshed.push(options); } },
@@ -127,13 +128,15 @@ test('session_start swaps the store inside the profile, exports it, and shutdown
   assert.equal(baseStore(credentials.store), original);
   assert.equal(process.env[profileVariable], 'radiance');
   assert.deepEqual(refreshed, [{ allowNetwork: false, providers: ['anthropic'] }]);
-  assert.equal(statuses.at(-1), 'profile: radiance (default login: anthropic)');
+  assert.equal(statuses.at(-1), 'profile: radiance (anthropic: default login)');
   assert.equal(existsSync(join(agentDir, 'pstack-pi/profiles/radiance/auth.json')), false);
 
   await credentials.store.modify('anthropic', async () => radiance);
   assert.equal(original.data.anthropic, personal);
   await handlers.get('turn_start')({}, ctx(join(work, 'radiance/repo')));
   assert.equal(statuses.at(-1), 'profile: radiance');
+  await handlers.get('model_select')({ model: { provider: 'openai', id: 'gpt-6-astra' } }, ctx(join(work, 'radiance/repo')));
+  assert.equal(statuses.at(-1), 'profile: radiance (openai: default login)');
 
   handlers.get('session_shutdown')();
   assert.equal(credentials.store, original);

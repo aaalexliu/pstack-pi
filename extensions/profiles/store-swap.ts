@@ -5,6 +5,7 @@ import {
   launchProfile,
   loadProfileConfig,
   profileAuthPath,
+  profileStatus,
   profileStatusKey,
   selectProfile,
   type Profile,
@@ -98,21 +99,16 @@ function storeFactory(store: CredentialStore): StoreFactory | undefined {
   return typeof factory?.create === 'function' ? (factory as StoreFactory) : undefined;
 }
 
-async function statusText(profile: Profile, file: ProfileFile): Promise<string> {
-  const store = file.existing();
-  const borrowed = [];
-  for (const provider of profile.providers) {
-    if (!(await store?.read(provider))) borrowed.push(provider);
-  }
-  return borrowed.length ? `profile: ${profile.name} (default login: ${borrowed.join(', ')})` : `profile: ${profile.name}`;
-}
 
 export default function storeSwapProfiles(pi: ExtensionAPI): void {
   const inherited = launchProfile();
   let installed: { credentials: RuntimeCredentials; base: CredentialStore; profile: Profile; file: ProfileFile } | undefined;
 
-  const showStatus = async (ctx: ExtensionContext) => {
-    if (installed && ctx.hasUI) ctx.ui.setStatus(profileStatusKey, await statusText(installed.profile, installed.file));
+  const showStatus = async (ctx: ExtensionContext, provider = ctx.model?.provider) => {
+    if (!installed || !ctx.hasUI) return;
+    const { profile, file } = installed;
+    const ownLogin = provider !== undefined && profile.providers.includes(provider) && (await file.existing()?.read(provider)) !== undefined;
+    ctx.ui.setStatus(profileStatusKey, profileStatus(profile, provider, ownLogin));
   };
 
   pi.on('session_start', async (_event, ctx) => {
@@ -147,6 +143,7 @@ export default function storeSwapProfiles(pi: ExtensionAPI): void {
   });
 
   pi.on('turn_start', (_event, ctx) => showStatus(ctx));
+  pi.on('model_select', (event, ctx) => showStatus(ctx, event.model.provider));
 
   pi.on('session_shutdown', () => {
     if (installed) installed.credentials.store = installed.base;

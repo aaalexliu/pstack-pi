@@ -6,6 +6,7 @@ import {
   exportProfile,
   launchProfile,
   loadProfileConfig,
+  profileStatus,
   profileStatusKey,
   selectProfile,
   type Profile,
@@ -110,11 +111,17 @@ export default function virtualProfiles(pi: ExtensionAPI): void {
   const aliases: string[] = [];
   const routed = virtualModels(config);
 
-  const showStatus = (ctx: ExtensionContext) => {
+  const showStatus = (ctx: ExtensionContext, model: { provider: string; id: string } | undefined = ctx.model) => {
     if (!ctx.hasUI || config.profiles.length === 0) return;
-    const borrowed = profile?.providers.filter((base) => !ctx.modelRegistry.getProviderAuthStatus(aliasProviderId(base, profile!.name)).configured) ?? [];
-    const text = profile && (borrowed.length ? `profile: ${profile.name} (default login: ${borrowed.join(', ')})` : `profile: ${profile.name}`);
-    ctx.ui.setStatus(profileStatusKey, text);
+    const provider = model?.provider === virtualProvider ? routed.get(model.id)?.base : model?.provider;
+    const ownAlias = profile && provider !== undefined && profile.providers.includes(provider) ? aliasProviderId(provider, profile.name) : undefined;
+    if (profile && provider !== undefined && aliases.includes(provider)) {
+      const own = profile.providers.some((base) => aliasProviderId(base, profile!.name) === provider);
+      ctx.ui.setStatus(profileStatusKey, own ? `profile: ${profile.name}` : `profile: ${profile.name} (${provider} selected)`);
+      return;
+    }
+    const ownLogin = model?.provider === virtualProvider && ownAlias !== undefined && ctx.modelRegistry.getProviderAuthStatus(ownAlias).configured;
+    ctx.ui.setStatus(profileStatusKey, profileStatus(profile, provider, ownLogin));
   };
 
   if (typeof api.registerVirtualModel === 'function') {
@@ -157,6 +164,7 @@ export default function virtualProfiles(pi: ExtensionAPI): void {
   });
 
   pi.on('turn_start', (_event, ctx) => showStatus(ctx));
+  pi.on('model_select', (event, ctx) => showStatus(ctx, event.model));
 
   pi.on('session_shutdown', () => {
     for (const id of aliases.splice(0)) pi.unregisterProvider(id);
