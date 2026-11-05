@@ -7,12 +7,16 @@ import {
   replyText,
   restoreAutoTitle,
   systemPrompt,
+  terminalTitle,
   titleEntryType,
   titleModel,
   userPrompt,
 } from './naming.ts';
 
 const requestTimeoutMs = 30_000;
+// Pi writes its own title after every session_start handler has finished, and other
+// extensions can make that take a while. Write ours again until Pi is surely done.
+const startTitleDelaysMs = [0, 500, 2000, 5000];
 
 type Complete = (model: Model<Api>, context: Context, options: { maxTokens: number; signal: AbortSignal }) => Promise<AssistantMessage>;
 
@@ -26,23 +30,47 @@ export default function title(pi: ExtensionAPI): void {
   let autoTitle: string | undefined;
   let job: AbortController | undefined;
   let warned = false;
+  let titleTimers: ReturnType<typeof setTimeout>[] = [];
 
   const cancel = () => {
     job?.abort();
     job = undefined;
   };
 
+  const clearTitleTimers = () => {
+    for (const timer of titleTimers) clearTimeout(timer);
+    titleTimers = [];
+  };
+
+  const showTitle = (ctx: ExtensionContext) => {
+    if (ctx.mode === 'tui') ctx.ui.setTitle(terminalTitle(pi.getSessionName(), ctx.sessionManager.getCwd()));
+  };
+
   pi.on('session_start', (_event, ctx) => {
     cancel();
+    clearTitleTimers();
     autoTitle = restoreAutoTitle(ctx.sessionManager.getEntries());
     warned = false;
+    if (ctx.mode !== 'tui') return;
+    titleTimers = startTitleDelaysMs.map((delay) => {
+      const timer = setTimeout(() => showTitle(ctx), delay);
+      timer.unref?.();
+      return timer;
+    });
   });
 
-  pi.on('session_info_changed', (event) => {
+  // Pi rewrites its title on this event before extensions see it.
+  pi.on('session_info_changed', (event, ctx) => {
     if (event.name !== autoTitle) cancel();
+    showTitle(ctx);
   });
 
-  pi.on('session_shutdown', () => cancel());
+  pi.on('agent_start', (_event, ctx) => showTitle(ctx));
+
+  pi.on('session_shutdown', () => {
+    cancel();
+    clearTitleTimers();
+  });
 
   pi.on('input', (event, ctx) => {
     if (event.source !== 'interactive' || !ctx.hasUI || !event.text.trim()) return;
