@@ -1,15 +1,13 @@
 import path from 'node:path';
-import type { Api, AssistantMessage, Model } from '@earendil-works/pi-ai';
+import type { AssistantMessage } from '@earendil-works/pi-ai';
 import { Type } from 'typebox';
 import { Check } from 'typebox/value';
+import { replyText, stripControls } from '../shared/model.ts';
 
 export const titleEntryType = 'pstack-title';
 export const maxTitleLength = 60;
 const maxUserChars = 1500;
 const maxAssistantChars = 800;
-
-/** The small model to name with on each provider. Other providers use the session model. */
-export const smallModels: Readonly<Record<string, string>> = { anthropic: 'claude-haiku-5-5' };
 
 export const systemPrompt = `You name a terminal tab after the task a coding agent is working on.
 
@@ -19,18 +17,6 @@ Reply with one JSON object and nothing else: {"newTask": boolean, "title": strin
 - When newTask is true, title names the task in 2 to 5 words, in sentence case, starting with a verb ending in -ing, such as "Fixing login redirect" or "Committing current changes". Otherwise title is null.
 - No quotes, emoji, or trailing period in the title.`;
 
-type Registry = {
-  find(provider: string, modelId: string): Model<Api> | undefined;
-  hasConfiguredAuth(model: Model<Api>): boolean;
-};
-
-export function titleModel(registry: Registry, session: Model<Api> | undefined): Model<Api> | undefined {
-  if (!session) return undefined;
-  const id = smallModels[session.provider];
-  const small = id === undefined ? undefined : registry.find(session.provider, id);
-  return small && registry.hasConfiguredAuth(small) ? small : session;
-}
-
 export function userPrompt({ current, assistant, user }: { current: string | undefined; assistant: string | undefined; user: string }): string {
   const parts = [`Current title: ${current ?? 'none'}`];
   if (assistant) parts.push(`End of the previous assistant reply:\n${assistant.slice(-maxAssistantChars)}`);
@@ -38,14 +24,8 @@ export function userPrompt({ current, assistant, user }: { current: string | und
   return parts.join('\n\n');
 }
 
-export function replyText(message: Pick<AssistantMessage, 'content'>): string {
-  return message.content.flatMap((block) => (block.type === 'text' ? [block.text] : [])).join('\n');
-}
-
 export function sanitizeTitle(raw: string): string | undefined {
-  const title = raw
-    .replace(/\x1b(?:\][^\x07]*(?:\x07|\x1b\\)|\[[0-?]*[ -/]*[@-~])/gu, '')
-    .replace(/[\u0000-\u001f\u007f-\u009f]/gu, ' ')
+  const title = stripControls(raw)
     .replace(/\s+/gu, ' ')
     .trim()
     .replace(/^["'`]+|["'`.]+$/gu, '')

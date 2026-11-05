@@ -115,6 +115,7 @@
     "extensions/pstack/papercut-observer.ts",
     "extensions/pstack/papercuts.ts",
     "extensions/pstack/todo.ts",
+    "extensions/shared/model.ts",
     "extensions/subagent/agents.ts",
     "extensions/subagent/cmux-settings.ts",
     "extensions/subagent/cmux.ts",
