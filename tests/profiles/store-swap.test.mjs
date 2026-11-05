@@ -130,6 +130,11 @@ test('session_start swaps the store inside the profile, exports it, and shutdown
   assert.equal(statuses.at(-1), 'profile: client-a (default login: anthropic)');
   assert.equal(existsSync(join(agentDir, 'pstack-pi/profiles/client-a/auth.json')), false);
 
+  await credentials.store.modify('anthropic', async () => clientA);
+  assert.equal(original.data.anthropic, personal);
+  await handlers.get('turn_start')({}, ctx(join(work, 'client-a/repo')));
+  assert.equal(statuses.at(-1), 'profile: client-a');
+
   handlers.get('session_shutdown')();
   assert.equal(credentials.store, original);
   await handlers.get('session_start')({}, ctx(work));
