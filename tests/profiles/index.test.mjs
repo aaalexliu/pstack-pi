@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { profileVariable } from '../../extensions/profiles/config.ts';
-import storeSwapProfiles, { baseStore, profileFile, routeCredentials } from '../../extensions/profiles/store-swap.ts';
+import profiles, { baseStore, profileFile, routeCredentials } from '../../extensions/profiles/index.ts';
 
 class MemoryStore {
   /** @type {string[]} */
@@ -108,7 +108,7 @@ test('session_start swaps the store inside the profile, exports it, and shutdown
 
   /** @type {Map<string, any>} */
   const handlers = new Map();
-  storeSwapProfiles(/** @type {any} */ ({ on: (/** @type {string} */ name, /** @type {any} */ handler) => handlers.set(name, handler) }));
+  profiles(/** @type {any} */ ({ on: (/** @type {string} */ name, /** @type {any} */ handler) => handlers.set(name, handler) }));
   const original = new MemoryStore({ anthropic: personal });
   const credentials = { store: /** @type {any} */ (original) };
   /** @type {any[]} */

@@ -23,7 +23,8 @@
   "pi": {
     "extensions": [
       "extensions/pstack/index.ts",
-      "extensions/subagent/index.ts"
+      "extensions/subagent/index.ts",
+      "extensions/profiles/index.ts"
     ],
     "skills": [
       "additions/skills/alex-show-me/SKILL.md",
@@ -102,6 +103,8 @@
     "additions/skills/list-writing/SKILL.md",
     "agents/comment-sicko.md",
     "agents/poteto-agent.md",
+    "extensions/profiles/config.ts",
+    "extensions/profiles/index.ts",
     "extensions/pstack/export-session.ts",
     "extensions/pstack/index.ts",
     "extensions/pstack/mode.ts",
