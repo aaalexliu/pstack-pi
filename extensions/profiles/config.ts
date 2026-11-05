@@ -132,3 +132,10 @@ export function exportProfile(selection: ProfileSelection, env: NodeJS.ProcessEn
 export function aliasProviderId(base: string, profile: string): string {
   return `${base}-${profile}`;
 }
+
+/** Footer text for the login that serves the current model's provider. */
+export function profileStatus(profile: Profile | undefined, provider: string | undefined, ownLogin: boolean): string | undefined {
+  if (!profile) return undefined;
+  if (provider === undefined || ownLogin) return `profile: ${profile.name}`;
+  return `profile: ${profile.name} (${provider}: default login)`;
+}

@@ -96,6 +96,7 @@ test('session_start registers an alias for every profile and routes by the selec
   let aliasLoggedIn = false;
   const ctx = {
     cwd: join(work, 'client-a/repo'),
+    model: { provider: 'virtual', id: virtual[0].id },
     hasUI: true,
     ui: { notify() {}, setStatus: (/** @type {string} */ _key, /** @type {string | undefined} */ text) => statuses.push(text) },
     modelRegistry: {
@@ -107,11 +108,15 @@ test('session_start registers an alias for every profile and routes by the selec
   await handlers.get('session_start')({}, ctx);
   assert.deepEqual(registered.map((provider) => provider.id), ['anthropic-client-a']);
   assert.equal(process.env[profileVariable], 'client-a');
-  assert.equal(statuses.at(-1), 'profile: client-a (default login: anthropic)');
+  assert.equal(statuses.at(-1), 'profile: client-a (anthropic: default login)');
   const [first] = virtual;
   assert.equal(first.route({ model: first, thinkingLevel: 'high' }, ctx).model.provider, 'anthropic-client-a');
   aliasLoggedIn = true;
   handlers.get('turn_start')({}, ctx);
+  assert.equal(statuses.at(-1), 'profile: client-a');
+  handlers.get('model_select')({ model: { provider: 'openai', id: 'gpt-6-astra' } }, ctx);
+  assert.equal(statuses.at(-1), 'profile: client-a (openai: default login)');
+  handlers.get('model_select')({ model: { provider: 'anthropic-client-a', id: 'claude-opus-5-5' } }, ctx);
   assert.equal(statuses.at(-1), 'profile: client-a');
 
   handlers.get('session_shutdown')();
