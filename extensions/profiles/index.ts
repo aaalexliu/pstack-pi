@@ -100,7 +100,7 @@ function storeFactory(store: CredentialStore): StoreFactory | undefined {
 }
 
 
-export default function storeSwapProfiles(pi: ExtensionAPI): void {
+export default function profiles(pi: ExtensionAPI): void {
   const inherited = launchProfile();
   let installed: { credentials: RuntimeCredentials; base: CredentialStore; profile: Profile; file: ProfileFile } | undefined;
 
