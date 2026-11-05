@@ -105,6 +105,7 @@ test('session_start swaps the store inside the profile, exports it, and shutdown
   await mkdir(join(agentDir, 'pstack-pi'));
   await writeFile(join(agentDir, 'pstack-pi/profiles.json'), JSON.stringify({ profiles: { 'client-a': { dirs: [join(work, 'client-a')], providers: ['anthropic'] } } }));
   process.env.PI_CODING_AGENT_DIR = agentDir;
+  delete process.env[profileVariable];
 
   /** @type {Map<string, any>} */
   const handlers = new Map();
