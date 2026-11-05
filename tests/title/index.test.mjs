@@ -16,9 +16,9 @@ function reply(text, stopReason = 'stop') {
 
 /**
  * A fake Pi with one session. `answer(call)` returns the model's reply for a request.
- * @param {{ name?: string, entries?: any[], branch?: any[], model?: any, hasUI?: boolean, withComplete?: boolean, haikuAuth?: boolean, answer?: (call: any) => any }} options
+ * @param {{ name?: string, entries?: any[], branch?: any[], model?: any, mode?: string, hasUI?: boolean, withComplete?: boolean, haikuAuth?: boolean, answer?: (call: any) => any }} options
  */
-function harness({ name, entries = [], branch = [], model = opus, hasUI = true, withComplete = true, haikuAuth = true, answer = () => reply('{"newTask":true,"title":"Fixing login redirect"}') } = {}) {
+function harness({ name, entries = [], branch = [], model = opus, mode = 'tui', hasUI = true, withComplete = true, haikuAuth = true, answer = () => reply('{"newTask":true,"title":"Fixing login redirect"}') } = {}) {
   /** @type {Map<string, Function[]>} */
   const handlers = new Map();
   /** @type {any[]} */
@@ -27,6 +27,8 @@ function harness({ name, entries = [], branch = [], model = opus, hasUI = true, 
   const appended = [];
   /** @type {string[]} */
   const notes = [];
+  /** @type {string[]} */
+  const titles = [];
   let sessionName = name;
   const emit = (/** @type {string} */ type, /** @type {any} */ event) => {
     for (const handler of handlers.get(type) ?? []) handler({ type, ...event }, ctx);
@@ -47,16 +49,17 @@ function harness({ name, entries = [], branch = [], model = opus, hasUI = true, 
     } } : {}),
   };
   const ctx = {
+    mode,
     hasUI,
     model,
     modelRegistry: registry,
-    sessionManager: { getEntries: () => entries, getBranch: () => branch },
-    ui: { notify: (/** @type {string} */ message) => notes.push(message) },
+    sessionManager: { getEntries: () => entries, getBranch: () => branch, getCwd: () => '/Users/alex/dev/client-a' },
+    ui: { notify: (/** @type {string} */ message) => notes.push(message), setTitle: (/** @type {string} */ value) => titles.push(value) },
   };
   title(/** @type {any} */ (pi));
   emit('session_start', { reason: 'startup' });
   return {
-    calls, appended, notes,
+    calls, appended, notes, titles,
     name: () => sessionName,
     rename(/** @type {string | undefined} */ value) { sessionName = value; emit('session_info_changed', { name: value }); },
     async type(/** @type {string} */ text) {
@@ -173,6 +176,41 @@ test('warns once per session when naming fails and keeps the old name', async ()
   await garbled.type('one');
   assert.equal(garbled.name(), undefined);
   assert.deepEqual(garbled.notes, []);
+});
+
+test('the terminal title drops Pi\'s π prefix and follows the session name', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const pi = harness();
+  t.mock.timers.tick(0);
+  assert.deepEqual(pi.titles, ['client-a']);
+  await pi.type('the login page redirects to /404');
+  assert.equal(pi.titles.at(-1), 'Fixing login redirect - client-a');
+  pi.rename('Release prep');
+  assert.equal(pi.titles.at(-1), 'Release prep - client-a');
+  pi.rename(undefined);
+  assert.equal(pi.titles.at(-1), 'client-a');
+  pi.emit('agent_start', {});
+  assert.equal(pi.titles.length, 5);
+});
+
+test('the title is written again after Pi\'s own startup title, until shutdown', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const pi = harness({ name: 'Release prep' });
+  t.mock.timers.tick(2000);
+  assert.deepEqual(pi.titles, ['Release prep - client-a', 'Release prep - client-a', 'Release prep - client-a']);
+  pi.emit('session_shutdown', {});
+  t.mock.timers.tick(10_000);
+  assert.equal(pi.titles.length, 3);
+});
+
+test('leaves the terminal title alone outside the TUI', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const pi = harness({ mode: 'rpc' });
+  t.mock.timers.tick(10_000);
+  await pi.type('fix it');
+  pi.emit('agent_start', {});
+  assert.equal(pi.name(), 'Fixing login redirect');
+  assert.deepEqual(pi.titles, []);
 });
 
 test('parseReply reads JSON inside prose or fences and rejects other shapes', () => {
