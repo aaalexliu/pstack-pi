@@ -130,6 +130,11 @@ test('session_start swaps the store inside the profile, exports it, and shutdown
   assert.equal(statuses.at(-1), 'profile: radiance (default login: anthropic)');
   assert.equal(existsSync(join(agentDir, 'pstack-pi/profiles/radiance/auth.json')), false);
 
+  await credentials.store.modify('anthropic', async () => radiance);
+  assert.equal(original.data.anthropic, personal);
+  await handlers.get('turn_start')({}, ctx(join(work, 'radiance/repo')));
+  assert.equal(statuses.at(-1), 'profile: radiance');
+
   handlers.get('session_shutdown')();
   assert.equal(credentials.store, original);
   await handlers.get('session_start')({}, ctx(work));

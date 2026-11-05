@@ -109,7 +109,11 @@ async function statusText(profile: Profile, file: ProfileFile): Promise<string> 
 
 export default function storeSwapProfiles(pi: ExtensionAPI): void {
   const inherited = launchProfile();
-  let installed: { credentials: RuntimeCredentials; base: CredentialStore } | undefined;
+  let installed: { credentials: RuntimeCredentials; base: CredentialStore; profile: Profile; file: ProfileFile } | undefined;
+
+  const showStatus = async (ctx: ExtensionContext) => {
+    if (installed && ctx.hasUI) ctx.ui.setStatus(profileStatusKey, await statusText(installed.profile, installed.file));
+  };
 
   pi.on('session_start', async (_event, ctx) => {
     const agentDir = getAgentDir();
@@ -137,10 +141,12 @@ export default function storeSwapProfiles(pi: ExtensionAPI): void {
     }
     const file = profileFile(profileAuthPath(agentDir, profile.name), factory);
     credentials.store = routeCredentials(base, file, new Set(profile.providers));
-    installed = { credentials, base };
+    installed = { credentials, base, profile, file };
     await ctx.modelRegistry.refresh({ allowNetwork: false, providers: profile.providers } as Parameters<typeof ctx.modelRegistry.refresh>[0]);
-    if (ctx.hasUI) ctx.ui.setStatus(profileStatusKey, await statusText(profile, file));
+    await showStatus(ctx);
   });
+
+  pi.on('turn_start', (_event, ctx) => showStatus(ctx));
 
   pi.on('session_shutdown', () => {
     if (installed) installed.credentials.store = installed.base;

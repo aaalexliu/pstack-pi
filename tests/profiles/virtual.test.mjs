@@ -93,6 +93,7 @@ test('session_start registers an alias for every profile and routes by the selec
   const signedIn = registry({ anthropic: true, 'anthropic-radiance': true });
   /** @type {Array<string | undefined>} */
   const statuses = [];
+  let aliasLoggedIn = false;
   const ctx = {
     cwd: join(work, 'radiance/repo'),
     hasUI: true,
@@ -100,7 +101,7 @@ test('session_start registers an alias for every profile and routes by the selec
     modelRegistry: {
       ...signedIn,
       getProvider: (/** @type {string} */ id) => (id === 'anthropic' ? { id, name: 'Anthropic', auth: {}, getModels: () => [] } : undefined),
-      getProviderAuthStatus: () => ({ configured: false }),
+      getProviderAuthStatus: () => ({ configured: aliasLoggedIn }),
     },
   };
   await handlers.get('session_start')({}, ctx);
@@ -109,6 +110,9 @@ test('session_start registers an alias for every profile and routes by the selec
   assert.equal(statuses.at(-1), 'profile: radiance (default login: anthropic)');
   const [first] = virtual;
   assert.equal(first.route({ model: first, thinkingLevel: 'high' }, ctx).model.provider, 'anthropic-radiance');
+  aliasLoggedIn = true;
+  handlers.get('turn_start')({}, ctx);
+  assert.equal(statuses.at(-1), 'profile: radiance');
 
   handlers.get('session_shutdown')();
   assert.ok(removed.includes('anthropic-radiance'));

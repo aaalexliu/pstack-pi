@@ -110,6 +110,13 @@ export default function virtualProfiles(pi: ExtensionAPI): void {
   const aliases: string[] = [];
   const routed = virtualModels(config);
 
+  const showStatus = (ctx: ExtensionContext) => {
+    if (!ctx.hasUI || config.profiles.length === 0) return;
+    const borrowed = profile?.providers.filter((base) => !ctx.modelRegistry.getProviderAuthStatus(aliasProviderId(base, profile!.name)).configured) ?? [];
+    const text = profile && (borrowed.length ? `profile: ${profile.name} (default login: ${borrowed.join(', ')})` : `profile: ${profile.name}`);
+    ctx.ui.setStatus(profileStatusKey, text);
+  };
+
   if (typeof api.registerVirtualModel === 'function') {
     for (const [id, { base, model }] of routed) {
       api.registerVirtualModel({
@@ -146,11 +153,10 @@ export default function virtualProfiles(pi: ExtensionAPI): void {
       }
     }
 
-    if (!ctx.hasUI) return;
-    const borrowed = profile?.providers.filter((base) => !ctx.modelRegistry.getProviderAuthStatus(aliasProviderId(base, profile!.name)).configured) ?? [];
-    const text = profile && (borrowed.length ? `profile: ${profile.name} (default login: ${borrowed.join(', ')})` : `profile: ${profile.name}`);
-    ctx.ui.setStatus(profileStatusKey, text);
+    showStatus(ctx);
   });
+
+  pi.on('turn_start', (_event, ctx) => showStatus(ctx));
 
   pi.on('session_shutdown', () => {
     for (const id of aliases.splice(0)) pi.unregisterProvider(id);
