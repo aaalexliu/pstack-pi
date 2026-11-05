@@ -64,9 +64,9 @@ Every skill except `list-writing` keeps `disable-model-invocation: true` so Pi e
 
 `/skill:statechart` runs its bundled `scripts/statechart` command. That command needs Node 22.18 to 22.x, Node 23.6 or later, Bun 1.1.5 or later, or Deno 2.0 or later, plus `mise`. Its first run downloads TLC and Java through mise. Rendering a chart to SVG uses the npm package `pele@1.9.0`, installed outside your repo. Node will not run the TypeScript scripts from a `node_modules` folder, so use the Git install above.
 
-The package ships 125 generated skill and support files, two generated agents, five Pi-owned files under `additions/`, fifteen extension modules, and the root package files.
+The package ships 125 generated skill and support files, two generated agents, five Pi-owned files under `additions/`, twenty extension modules, and the root package files.
 It registers `pstack_config`, `pstack_papercut`, `pstack_sessions`, `pstack_todo`, and, at root depth, `subagent`.
-The delegation extension owns one `session_shutdown` hook that stops live children and a `tool_result` hook that marks its own failed calls. The papercut journal owns a `tool_execution_start` hook and a `tool_result` hook that append a one-line measurement to other tools' results.
+The delegation extension owns one `session_shutdown` hook that stops live children and a `tool_result` hook that marks its own failed calls. The papercut journal owns a `tool_execution_start` hook and a `tool_result` hook that append a one-line measurement to other tools' results. The title extension owns an `input` hook that names the session in the background.
 Todo and Poteto Mode state follow the active session branch through versioned custom entries. The package registers `/pstack`, `/pstack-export`, `/subagents`, `/pstack-cmux`, and `/papercuts`, but no prompts, themes, or blanket approval hooks.
 
 `/pstack-export [path.html]` runs stock Pi HTML export (`pi --export`) for the current session, then injects a sticky token time series for the active branch. Bars jump to the first entry in that local-time minute. Scroll on the transcript updates the current bucket. Without a path it writes `pi-session-<session>.html` in the cwd.
@@ -267,6 +267,16 @@ Pi then sets `PI_AUTH_PROFILE` to that choice, so the bash tool, `!` commands an
 Inside a profile, its providers read `~/.pi/agent/pstack-pi/profiles/<name>/auth.json` first. `/login` saves there, refreshes write back to the file the login came from, and `/logout` removes only the profile login. A provider with no profile login falls back to the normal `auth.json`. The footer names the login behind the current model, for example `profile: radiance` or `profile: radiance (openai: default login)`.
 
 The extension swaps the credential store on Pi's private `modelRegistry.runtime.credentials.store` and restores it on `session_shutdown`. If a Pi release changes that field, it warns and leaves the normal logins in place. `tests/profiles/e2e/run.sh` checks it against real Pi with a loopback Anthropic stand-in and fake keys.
+
+## Session titles
+
+In the interactive TUI, each prompt you type asks a small model, in the background, whether it starts a new task. If it does, the extension names the session after the task, such as "Counting markdown files". A follow-up such as "yes, do it" keeps the name. Pi puts the session name in the terminal title as `π - <name> - <folder>`, so cmux and other terminals show it on the tab, and `/resume` lists it.
+
+- The model is Claude Haiku 5.5 when the session model is Anthropic and Haiku has a login. Otherwise it is the session model. The request holds the current name, the last 800 characters of the previous assistant reply, and the first 1,500 characters of your message.
+- Each typed prompt costs one extra model call. Pi warns that Anthropic bills third-party use of a Claude subscription as extra usage, per token.
+- A name you set with `/name` stays until it is cleared. A resumed session keeps renaming only if this extension set its name.
+- Print, JSON, and RPC runs and subagent children never call the model. Pi releases without `ModelRegistry.complete`, such as `0.85.1`, skip naming.
+- A failed request warns once per session and keeps the old name.
 
 ## Develop locally
 

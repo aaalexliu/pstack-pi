@@ -9,7 +9,7 @@
 | `npm run test:pi` | Pi harness tests and packed real-Pi tests |
 | `npm run test:pi:unit` | Pi harness tests without launching Pi |
 
-`test:fast` runs the sync, content, pstack, subagent, profiles, and Pi harness test files in one Node test invocation. Files keep separate processes and run concurrently. It skips packed real-Pi tests. `npm test` runs that same set, then the packed tests without repeating the harness tests.
+`test:fast` runs the sync, content, pstack, subagent, profiles, title, and Pi harness test files in one Node test invocation. Files keep separate processes and run concurrently. It skips packed real-Pi tests. `npm test` runs that same set, then the packed tests without repeating the harness tests.
 
 `scripts/run-tests.mjs` discovers test files. New files under `tests/pi/` default to the packed suite unless listed in `PI_UNIT_TESTS`.
 
@@ -66,6 +66,8 @@ These are observations, not timeout limits. CPU load and cold starts affect them
 `test:subagent` drives the `subagent` tool with a fake `pi` that speaks the JSON protocol: routing precedence and pool rotation, stdin task and `0600` prompt delivery, parallel order and concurrency, chain substitution, abort and timeout killing a `SIGTERM`-ignoring grandchild, and shutdown. Renderer tests cover narrow terminals, long chains, output expansion, and both inspector views.
 
 `tests/profiles` checks the auth profiles extension against fake credential stores: folder and inherited profile selection, the launch profile read once per process, logins and refreshes landing in the right file, and store restore on shutdown. `tests/profiles/e2e/run.sh` is a manual check against real Pi 1.x and a loopback Anthropic stand-in with fake keys; CI does not run it.
+
+`tests/title` checks the session title extension against a fake Pi and model: the first prompt names the session, follow-ups keep the name and new tasks replace it, a `/name` wins, a resumed session keeps renaming, a newer prompt cancels an older request, the Haiku and session-model choice, failures, and reply parsing.
 
 `test:pi` packs the package, moves it into an isolated profile, and runs real Pi `0.85.1` against a loopback provider with no credentials. It checks discovery of all 57 commands, exact expansion of three sampled skills, arguments, relocated paths, and the declared extension tools. A scripted parent delegates a fixture read to a real bundled child, receives the result, and runs harmless bash containing literal `git push` and `gh pr edit` text. Other runs hide project agents by default, run a user override in a subdirectory `cwd`, and let `poteto-agent` edit through its tool set. Child requests carry the agent's tools plus `pstack_todo`, never `subagent`. The child leads its own process group, and prompt temp files are gone after return. Execution-safety tests cover `timeoutMs`, two simultaneous single calls, eight parallel tasks with a four-child ceiling and one failing sibling, depth rejection, a fake `pi` in `PATH`, and parent `SIGTERM` and `SIGHUP` cleanup. Progress tests check live tools, child-owned todos, model and usage before completion, saved snapshots, and timeout cards. Duplicate-name diagnostics go through Pi's resource-loader SDK because print-mode JSONL does not emit those warnings. `tests/pi/README.md` lists the harness files and bounds.
 

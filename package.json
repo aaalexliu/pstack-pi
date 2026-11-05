@@ -24,7 +24,8 @@
     "extensions": [
       "extensions/pstack/index.ts",
       "extensions/subagent/index.ts",
-      "extensions/profiles/index.ts"
+      "extensions/profiles/index.ts",
+      "extensions/title/index.ts"
     ],
     "skills": [
       "additions/skills/alex-show-me/SKILL.md",
@@ -121,6 +122,8 @@
     "extensions/subagent/model-config.ts",
     "extensions/subagent/progress.ts",
     "extensions/subagent/view.ts",
+    "extensions/title/index.ts",
+    "extensions/title/naming.ts",
     "package.json",
     "skills/architect/SKILL.md",
     "skills/architect/references/design-red-flags.md",
