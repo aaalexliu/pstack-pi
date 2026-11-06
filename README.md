@@ -290,9 +290,9 @@ When a run ends in the interactive TUI and you then do nothing for three minutes
 
 ## Cited media
 
-In the interactive TUI, cite an image, video, or PDF in your final reply as a Markdown image or link, for example `![before](/tmp/before.png)`. The media extension also finds bare paths outside fenced code. It groups existing files from one reply in citation order under that reply. Inline images appear as up to four thumbnails on terminals with image support. Inside tmux, the entry shows a text header only. Videos and PDFs appear in the header.
+In the interactive TUI, cite an image, video, or PDF in your final reply as a Markdown image or link, for example `![before](/tmp/before.png)`. The media extension also finds bare paths outside fenced code. It groups existing files from one reply in citation order under that reply. Terminals with image support show up to four thumbnails. Press the expand key (`ctrl+o` by default) to show all of them. Inside tmux, the entry shows a text header only. Videos and PDFs appear in the header.
 
-The extension keeps copies under `<Pi agent dir>/pstack-pi/media/`, so later edits to the source do not change the saved media. It skips files over 1 GiB and non-regular files. It does not add an entry when no cited file can be saved. Images over 16 MiB stay in the header rather than loading into the terminal renderer.
+The extension keeps copies under `<Pi agent dir>/pstack-pi/media/`, so later edits to the source do not change the saved media. It skips files over 1 GiB, non-regular files, and files it cannot read, and names them in the header. An image over 16 MiB shows its caption without a thumbnail.
 
 ## Develop locally
 

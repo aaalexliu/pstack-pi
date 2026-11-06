@@ -131,7 +131,7 @@ test('snapshot objects retain old bytes after overwrite and share identical cont
   assert.deepEqual(await readFile(join(store, one.object)), png);
 });
 
-test('size limit and non-regular files are skipped; an empty turn is not appended', async (t) => {
+test('size limit and non-regular files are skipped and named', async (t) => {
   const { cwd, store } = await fixture(t);
   await writeFile(join(cwd, 'large.png'), Buffer.alloc(200));
   await writeFile(join(cwd, 'small.png'), png);
@@ -145,7 +145,7 @@ test('size limit and non-regular files are skipped; an empty turn is not appende
   assert.deepEqual(pi.turns()[0].items.map((/** @type {any} */ item) => item.name), ['small.png']);
   pi.branch.push(reply('./large.png', 'reply-2'));
   await pi.settle();
-  assert.equal(pi.turns().length, 1);
+  assert.deepEqual(pi.turns()[1].skipped, ['large.png']);
 });
 
 test('aborted, non-TUI and repeat settles do not append another entry', async (t) => {
@@ -193,6 +193,9 @@ test('renderer shows only the header without images and bounded thumbnails with 
   const on = render(entry, { expanded: false }, plain);
   assert.equal(on.children.filter((/** @type {any} */ child) => child instanceof Image).length, 4);
   assert.match(on.render(80).join('\n'), /\+1 more/u);
+  const all = render(entry, { expanded: true }, plain);
+  assert.equal(all.children.filter((/** @type {any} */ child) => child instanceof Image).length, 5);
+  assert.doesNotMatch(all.render(80).join('\n'), /more/u);
   assert.ok(on.children.filter((/** @type {any} */ child) => child instanceof Image).every((/** @type {Image} */ image) => image.render(80).length <= 14));
   await rm(join(store, pi.turns()[0].items[0].object));
   const missing = render(entry, { expanded: false }, plain);
@@ -213,4 +216,36 @@ test('a symlinked file is saved and an unreadable file is skipped without droppi
   const [turn] = pi.turns();
   assert.deepEqual(turn.items.map((/** @type {any} */ item) => item.name), ['link.png']);
   assert.deepEqual(turn.skipped, ['locked.png']);
+});
+
+test('Markdown destinations keep parentheses and a longer extension is not cut to a media one', async (t) => {
+  const { cwd, store } = await fixture(t);
+  await writeFile(join(cwd, 'plot(1).png'), png);
+  await writeFile(join(cwd, 'a.png'), png);
+  await writeFile(join(cwd, 'a.png.bak'), png);
+  const pi = harness(store, cwd, { branch: [reply(`![plot](${join(cwd, 'plot(1).png')}) and ${join(cwd, 'a.png.bak')}, then ${join(cwd, 'a.png')}.`)] });
+  await pi.settle();
+  assert.deepEqual(pi.turns()[0].items.map((/** @type {any} */ item) => [item.caption, item.name]), [['plot', 'plot(1).png'], ['a.png', 'a.png']]);
+});
+
+test('a reply whose only file is skipped still says so under the reply', async (t) => {
+  const { cwd, store } = await fixture(t);
+  await writeFile(join(cwd, 'huge.mov'), Buffer.alloc(64));
+  const pi = harness(store, cwd, { branch: [reply('[clip](./huge.mov)')], limit: 8 });
+  await pi.settle();
+  assert.deepEqual(pi.turns(), [{ replyId: 'reply-1', at: pi.turns()[0].at, items: [], skipped: ['huge.mov'] }]);
+  const render = pi.renderers.get(mediaEntryType);
+  assert.ok(render);
+  assert.match(render(pi.branch.at(-1), {}, plain).render(80)[0], /▣ skipped: huge\.mov/u);
+});
+
+test('media is not attached when the user moves to another branch while files copy', async (t) => {
+  const { cwd, store } = await fixture(t);
+  await writeFile(join(cwd, 'a.png'), png);
+  const branch = [reply('./a.png')];
+  const pi = harness(store, cwd, { branch });
+  const settling = pi.settle();
+  branch.splice(0, branch.length, reply('other branch', 'reply-2'));
+  await settling;
+  assert.equal(pi.turns().length, 0);
 });

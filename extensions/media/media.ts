@@ -25,12 +25,12 @@ export const mediaFormats = {
 
 type Extension = keyof typeof mediaFormats;
 export type MediaItem = { kind: 'image' | 'video' | 'pdf'; mime: string; caption: string; name: string; object: string; bytes: number };
-export type MediaTurn = { replyId: string; at: string; items: [MediaItem, ...MediaItem[]]; skipped?: string[] };
+export type MediaTurn = { replyId: string; at: string } & ({ items: [MediaItem, ...MediaItem[]]; skipped?: string[] } | { items: []; skipped: [string, ...string[]] });
 type Citation = { path: string; caption: string };
 
 const extensions = Object.keys(mediaFormats).map((ext) => ext.slice(1)).join('|');
-const barePath = new RegExp(`(?:^|[\\s("'\x60])((?:file:\\/\\/)?(?:\\/|~\\/|\\.{1,2}\\/|[\\w.-]+\\/)[^\\s<>"'\x60\\[\\](){}]+?\\.(?:${extensions}))(?=$|[\\s"'\x60)\\].,;:!?])`, 'giu');
-const markdownLink = /!?\[([^\]\n]*)\]\(\s*(<[^>\n]+>|[^\s)]+)(?:\s+(?:"[^"\n]*"|'[^'\n]*'|\([^\n)]*\)))?\s*\)/gu;
+const barePath = new RegExp(`(?:^|[\\s("'\x60])((?:file:\\/\\/)?(?:\\/|~\\/|\\.{1,2}\\/|[\\w.-]+\\/)[^\\s<>"'\x60\\[\\](){}]+?\\.(?:${extensions}))(?=$|[\\s"'\x60)\\]]|[.,;:!?](?:$|[\\s"'\x60)\\]]))`, 'giu');
+const markdownLink = /!?\[([^\]\n]*)\]\(\s*(<[^>\n]+>|(?:[^\s()]|\([^\s()]*\))+)(?:\s+(?:"[^"\n]*"|'[^'\n]*'|\([^\n)]*\)))?\s*\)/gu;
 
 function withoutFences(text: string): string {
   let fence: { mark: string; size: number } | undefined;
@@ -80,8 +80,9 @@ export function citations(text: string, cwd: string): Citation[] {
 export function decodeMediaTurn(data: unknown): MediaTurn | undefined {
   if (!data || typeof data !== 'object') return undefined;
   const turn = data as Partial<MediaTurn>;
-  if (typeof turn.replyId !== 'string' || !turn.replyId || typeof turn.at !== 'string' || !Array.isArray(turn.items) || !turn.items.length) return undefined;
+  if (typeof turn.replyId !== 'string' || !turn.replyId || typeof turn.at !== 'string' || !Array.isArray(turn.items)) return undefined;
   if (turn.skipped !== undefined && (!Array.isArray(turn.skipped) || !turn.skipped.every((name) => typeof name === 'string'))) return undefined;
+  if (!turn.items.length && !turn.skipped?.length) return undefined;
   for (const item of turn.items) {
     if (!item || typeof item !== 'object' || typeof item.name !== 'string' || typeof item.caption !== 'string' || typeof item.object !== 'string' || !Number.isSafeInteger(item.bytes) || item.bytes < 0) return undefined;
     const ext = extname(item.object).toLowerCase() as Extension;
@@ -138,8 +139,8 @@ export async function collectMediaTurn(replyId: string, text: string, cwd: strin
     if (result === 'skipped') skipped.push(basename(citation.path));
     else if (result) items.push({ ...mediaFormats[ext], caption: citation.caption, name: basename(citation.path), ...result });
   }
-  if (!items.length) return undefined;
-  return { replyId, at: new Date().toISOString(), items: items as MediaTurn['items'], ...(skipped.length ? { skipped } : {}) };
+  if (!items.length && !skipped.length) return undefined;
+  return { replyId, at: new Date().toISOString(), items, ...(skipped.length ? { skipped } : {}) } as MediaTurn;
 }
 
 export function mediaTurns(branch: SessionEntry[]): MediaTurn[] {
