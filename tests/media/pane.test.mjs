@@ -60,11 +60,15 @@ async function setup(t, socket, exec) {
 test('resume rebuilds the feed, tree navigation replaces it, and shutdown closes the server', async (t) => {
   const session = await setup(t, undefined, async () => { throw Error('not in cmux'); });
   const turn = { replyId: 'old', at: '2026-01-01T00:00:00Z', items: [], skipped: ['oversize.pdf'] };
-  session.seed(session.entry('old', '\nOld\u0007 reply ![before](/tmp/before.png) and [clip](./c.mp4)\nsecond line', turn));
+  const entries = session.entry('old', '\nOld\u0007 reply\u001b[31m ![before](/tmp/before.png) and [clip](./c.mp4)\nsecond line', turn);
+  (/** @type {any} */ (entries[0])).message.content.push({ type: 'text', text: 'Third line\n\n\nFourth line\tend' });
+  session.seed(entries);
   await session.start();
   const { url, response } = await session.feed();
   assert.equal(response.status, 200);
-  assert.equal((/** @type {any} */ (await response.json())).turns[0].excerpt, 'Old reply before and clip');
+  const published = (/** @type {any} */ (await response.json())).turns[0];
+  assert.equal(published.reply, 'Old reply before and clip\nsecond line\n\nThird line\n\nFourth line\tend');
+  assert.equal('excerpt' in published, false);
   assert.match(session.header(), /#turn-old/u);
   setCapabilities({ images: null, trueColor: false, hyperlinks: true });
   assert.match(session.header(), /\u001b\]8;;http:\/\/127\.0\.0\.1:/u);
@@ -75,6 +79,14 @@ test('resume rebuilds the feed, tree navigation replaces it, and shutdown closes
   await session.shutdown();
   assert.ok(url);
   await assert.rejects(fetch(url));
+});
+
+test('a new reply caps the published text at 20,000 characters', async (t) => {
+  const session = await setup(t, undefined, async () => { throw Error('not in cmux'); });
+  await session.add('long', `${'x'.repeat(20_050)} ![a](./a.png)`);
+  const published = (/** @type {any} */ (await (await session.feed()).response.json())).turns[0];
+  assert.equal(published.reply, `${'x'.repeat(19_999)}…`);
+  assert.equal(published.reply.length, 20_000);
 });
 
 test('tree navigation to media starts the server from an empty session', async (t) => {

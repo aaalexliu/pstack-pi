@@ -16,9 +16,10 @@
   button.on { border-color:var(--accent); background:#25304a; color:#fff; }
   .turn { margin:0 0 18px; scroll-margin-top:50px; }
   h2 { font-size:13px; margin:0 0 2px; font-weight:600; display:flex; gap:8px; align-items:baseline; }
-  h2 .number { color:var(--accent); }
   h2 time, .reply, .skipped { color:var(--muted); font-weight:400; }
-  .reply { margin:0 0 8px; }
+  .reply { margin:0 0 8px; white-space:pre-wrap; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+  .reply.expanded { display:block; }
+  .reply-toggle { display:block; margin:-6px 0 8px; padding:0; border:0; background:none; color:var(--accent); font-size:12px; }
   .skipped { margin:6px 0; }
   figure { margin:0; background:var(--panel); border:1px solid var(--line); border-radius:8px; overflow:hidden; }
   figure img, figure video { display:block; width:100%; height:auto; background:#0c0d10; }
@@ -185,14 +186,23 @@ function layout(turn) {
   return wrap;
 }
 
-function makeTurn(turn, newest, number) {
+function makeTurn(turn, newest) {
   const section = el('section', 'turn');
   section.id = `turn-${turn.replyId}`;
   const heading = el('h2');
-  const count = el('span', 'number', `Turn ${number}`);
-  const date = el('time', '', `${new Date(turn.at).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })} · ${turn.items.length} file${turn.items.length === 1 ? '' : 's'}`);
-  heading.append(count, date);
-  const reply = el('p', 'reply', turn.excerpt);
+  const date = new Date(turn.at);
+  const time = date.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', hourCycle:'h23' });
+  const day = date.toDateString() === new Date().toDateString() ? '' : `${date.toLocaleDateString([], { month:'short', day:'numeric' })}, `;
+  const count = turn.items.length ? `${turn.items.length} file${turn.items.length === 1 ? '' : 's'}` : `${turn.skipped.length} skipped`;
+  const label = el('time', '', `${day}${time} · ${count}`);
+  label.dateTime = turn.at;
+  heading.append(label);
+  const reply = el('p', 'reply', turn.reply);
+  const toggle = el('button', 'reply-toggle', 'Show more');
+  toggle.onclick = () => {
+    const expanded = reply.classList.toggle('expanded');
+    toggle.textContent = expanded ? 'Show less' : 'Show more';
+  };
   const body = el('div');
   const expand = () => { if (!body.classList.contains('expanded')) { body.className = 'expanded'; body.replaceChildren(layout(turn)); } };
   if (newest) expand();
@@ -210,6 +220,9 @@ function makeTurn(turn, newest, number) {
   heading.style.cursor = 'pointer';
   heading.onclick = expand;
   section.append(heading, reply, body);
+  requestAnimationFrame(() => {
+    if (reply.scrollHeight > reply.clientHeight + 1) reply.after(toggle);
+  });
   if (turn.skipped.length) section.append(el('p', 'skipped', `Skipped: ${turn.skipped.join(', ')}`));
   return { section, expand };
 }
@@ -232,7 +245,7 @@ async function poll() {
       const ids = new Set(feed.turns.map((turn) => turn.replyId));
       for (const [id, node] of nodes) if (!ids.has(id)) { node.section.remove(); nodes.delete(id); }
       feed.turns.forEach((turn, index) => {
-        if (!nodes.has(turn.replyId)) nodes.set(turn.replyId, makeTurn(turn, index === 0, feed.turns.length - index));
+        if (!nodes.has(turn.replyId)) nodes.set(turn.replyId, makeTurn(turn, index === 0));
       });
       feed.turns.forEach((turn, index) => {
         const section = nodes.get(turn.replyId).section;
