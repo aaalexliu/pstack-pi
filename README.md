@@ -64,10 +64,10 @@ Every skill except `list-writing` keeps `disable-model-invocation: true` so Pi e
 
 `/skill:statechart` runs its bundled `scripts/statechart` command. That command needs Node 22.18 to 22.x, Node 23.6 or later, Bun 1.1.5 or later, or Deno 2.0 or later, plus `mise`. Its first run downloads TLC and Java through mise. Rendering a chart to SVG uses the npm package `pele@1.9.0`, installed outside your repo. Node will not run the TypeScript scripts from a `node_modules` folder, so use the Git install above.
 
-The package ships 125 generated skill and support files, two generated agents, five Pi-owned files under `additions/`, twenty-one extension modules, and the root package files.
+The package ships 125 generated skill and support files, two generated agents, five Pi-owned files under `additions/`, twenty-three extension modules, and the root package files.
 It registers `pstack_config`, `pstack_papercut`, `pstack_sessions`, `pstack_todo`, and, at root depth, `subagent`.
-The delegation extension owns one `session_shutdown` hook that stops live children and a `tool_result` hook that marks its own failed calls. The papercut journal owns a `tool_execution_start` hook and a `tool_result` hook that append a one-line measurement to other tools' results. The title extension owns an `input` hook that names the session in the background.
-Todo and Poteto Mode state follow the active session branch through versioned custom entries. The package registers `/pstack`, `/pstack-export`, `/subagents`, `/pstack-cmux`, and `/papercuts`, but no prompts, themes, or blanket approval hooks.
+The delegation extension owns one `session_shutdown` hook that stops live children and a `tool_result` hook that marks its own failed calls. The papercut journal owns a `tool_execution_start` hook and a `tool_result` hook that append a one-line measurement to other tools' results. The title extension owns an `input` hook that names the session in the background. The recap extension owns an `agent_settled` hook that starts its idle timer.
+Todo and Poteto Mode state follow the active session branch through versioned custom entries. The package registers `/pstack`, `/pstack-export`, `/subagents`, `/pstack-cmux`, `/papercuts`, and `/recap`, but no prompts, themes, or blanket approval hooks.
 
 `/pstack-export [path.html]` runs stock Pi HTML export (`pi --export`) for the current session, then injects a sticky token time series for the active branch. Bars jump to the first entry in that local-time minute. Scroll on the transcript updates the current bucket. Without a path it writes `pi-session-<session>.html` in the cwd.
 
@@ -277,6 +277,16 @@ In the interactive TUI, each prompt you type asks a small model, in the backgrou
 - A name you set with `/name` stays until it is cleared. A resumed session keeps renaming only if this extension set its name.
 - Print, JSON, and RPC runs and subagent children never call the model. Pi releases without `ModelRegistry.complete`, such as `0.85.1`, skip naming.
 - A failed request warns once per session and keeps the old name.
+
+## Recaps
+
+When a run ends in the interactive TUI and you then do nothing for three minutes, the same delay Claude Code uses, the recap extension adds a dim `※ recap:` line to the transcript. It says in under 40 words what the task was, where it stands, and the next step, if any. The line stays in the session file, but the model never sees it. Run `/recap` to write one now.
+
+- The model choice matches session titles: Claude Haiku 5.5 on Anthropic sessions with a Haiku login, otherwise the session model.
+- The request holds the session name and the newest 12,000 characters of the conversation: your prompts, the assistant's text, each tool call's name and input, and the output of failed tool calls. It leaves out thinking and other tool output.
+- Typing, a `!` command, or a new run cancels a pending recap, including one the model is still writing. A run with nothing new since the last recap gets none.
+- Print, JSON, and RPC runs and subagent children never start the timer. Pi releases without `ModelRegistry.complete`, such as `0.85.1`, skip recaps.
+- A failed automatic recap warns once per session.
 
 ## Develop locally
 
