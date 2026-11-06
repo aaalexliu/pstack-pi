@@ -50,7 +50,8 @@ export default function media(pi: ExtensionAPI, rootDirectory = join(getAgentDir
     const header = !turn.items.length ? ` skipped: ${skipped}`
       : ` ${turn.items.length} file${turn.items.length === 1 ? '' : 's'}: ${statuses.join(', ')}${skipped ? `; skipped: ${skipped}` : ''}`;
     const view = new Container();
-    view.addChild(new TruncatedText(`${theme.fg('dim', '▣')}${theme.fg('muted', header)}`, 1, 0));
+    const line = `${theme.fg('dim', '▣')}${theme.fg('muted', header)}`;
+    view.addChild(options.expanded ? new Text(line, 1, 0) : new TruncatedText(line, 1, 0));
     if (!getCapabilities().images) return view;
 
     const images = turn.items.filter((item) => item.kind === 'image');

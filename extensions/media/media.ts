@@ -30,7 +30,35 @@ type Citation = { path: string; caption: string };
 
 const extensions = Object.keys(mediaFormats).map((ext) => ext.slice(1)).join('|');
 const barePath = new RegExp(`(?:^|[\\s("'\x60])((?:file:\\/\\/)?(?:\\/|~\\/|\\.{1,2}\\/|[\\w.-]+\\/)[^\\s<>"'\x60\\[\\](){}]+?\\.(?:${extensions}))(?=$|[\\s"'\x60)\\]]|[.,;:!?](?:$|[\\s"'\x60)\\]]))`, 'giu');
-const markdownLink = /!?\[([^\]\n]*)\]\(\s*(<[^>\n]+>|(?:[^\s()]|\([^\s()]*\))+)(?:\s+(?:"[^"\n]*"|'[^'\n]*'|\([^\n)]*\)))?\s*\)/gu;
+const linkText = /!?\[([^\]\n]*)\]\(/gu;
+const linkTitle = /^\s+(?:"[^"\n]*"|'[^'\n]*'|\([^\n)]*\))/u;
+
+function markdownLinks(text: string): Array<{ index: number; end: number; caption: string; destination: string }> {
+  const links = [];
+  for (const match of text.matchAll(linkText)) {
+    let at = match.index + match[0].length;
+    while (text[at] === ' ' || text[at] === '\t') at++;
+    let destination = '';
+    if (text[at] === '<') {
+      const close = text.indexOf('>', at);
+      if (close < 0 || text.slice(at, close).includes('\n')) continue;
+      destination = text.slice(at + 1, close);
+      at = close + 1;
+    } else {
+      const start = at;
+      for (let depth = 0; at < text.length && !/\s/u.test(text[at]) && !(text[at] === ')' && depth === 0); at++) {
+        if (text[at] === '(') depth++;
+        else if (text[at] === ')') depth--;
+      }
+      destination = text.slice(start, at);
+    }
+    at += linkTitle.exec(text.slice(at))?.[0].length ?? 0;
+    while (text[at] === ' ' || text[at] === '\t') at++;
+    if (!destination || text[at] !== ')') continue;
+    links.push({ index: match.index, end: at + 1, caption: match[1], destination });
+  }
+  return links;
+}
 
 function withoutFences(text: string): string {
   let fence: { mark: string; size: number } | undefined;
@@ -60,10 +88,10 @@ export function citations(text: string, cwd: string): Citation[] {
   const visible = withoutFences(text);
   const matches: Array<Citation & { offset: number }> = [];
   const masked = visible.split('');
-  for (const match of visible.matchAll(markdownLink)) {
-    const path = resolveCitation(match[2].startsWith('<') ? match[2].slice(1, -1) : match[2], cwd);
-    if (path) matches.push({ path, caption: stripControls(match[1]).trim() || basename(path), offset: match.index });
-    for (let i = match.index; i < match.index + match[0].length; i++) masked[i] = ' ';
+  for (const link of markdownLinks(visible)) {
+    const path = resolveCitation(link.destination, cwd);
+    if (path) matches.push({ path, caption: stripControls(link.caption).trim() || basename(path), offset: link.index });
+    for (let i = link.index; i < link.end; i++) masked[i] = ' ';
   }
   for (const match of masked.join('').matchAll(barePath)) {
     const path = resolveCitation(match[1], cwd);

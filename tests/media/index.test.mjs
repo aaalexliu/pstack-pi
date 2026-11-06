@@ -196,6 +196,9 @@ test('renderer shows only the header without images and bounded thumbnails with 
   const all = render(entry, { expanded: true }, plain);
   assert.equal(all.children.filter((/** @type {any} */ child) => child instanceof Image).length, 5);
   assert.doesNotMatch(all.render(80).join('\n'), /more/u);
+  setCapabilities({ images: null, trueColor: false, hyperlinks: false });
+  assert.equal(render(entry, { expanded: false }, plain).render(30).length, 1);
+  assert.match(render(entry, { expanded: true }, plain).render(30).join(' '), /e\.png/u);
   assert.ok(on.children.filter((/** @type {any} */ child) => child instanceof Image).every((/** @type {Image} */ image) => image.render(80).length <= 14));
   await rm(join(store, pi.turns()[0].items[0].object));
   const missing = render(entry, { expanded: false }, plain);
@@ -221,11 +224,15 @@ test('a symlinked file is saved and an unreadable file is skipped without droppi
 test('Markdown destinations keep parentheses and a longer extension is not cut to a media one', async (t) => {
   const { cwd, store } = await fixture(t);
   await writeFile(join(cwd, 'plot(1).png'), png);
+  await writeFile(join(cwd, 'plot(outer(1)).png'), png);
   await writeFile(join(cwd, 'a.png'), png);
   await writeFile(join(cwd, 'a.png.bak'), png);
-  const pi = harness(store, cwd, { branch: [reply(`![plot](${join(cwd, 'plot(1).png')}) and ${join(cwd, 'a.png.bak')}, then ${join(cwd, 'a.png')}.`)] });
+  const pi = harness(store, cwd, { branch: [reply(`![plot](${join(cwd, 'plot(1).png')}) [nested](${join(cwd, 'plot(outer(1)).png')} "title") and ${join(cwd, 'a.png.bak')}, see.`)] });
   await pi.settle();
-  assert.deepEqual(pi.turns()[0].items.map((/** @type {any} */ item) => [item.caption, item.name]), [['plot', 'plot(1).png'], ['a.png', 'a.png']]);
+  assert.deepEqual(pi.turns()[0].items.map((/** @type {any} */ item) => [item.caption, item.name]), [['plot', 'plot(1).png'], ['nested', 'plot(outer(1)).png']]);
+  pi.branch.push(reply(`then ${join(cwd, 'a.png')}.`, 'reply-2'));
+  await pi.settle();
+  assert.deepEqual(pi.turns()[1].items.map((/** @type {any} */ item) => item.name), ['a.png']);
 });
 
 test('a reply whose only file is skipped still says so under the reply', async (t) => {
