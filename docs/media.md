@@ -15,11 +15,11 @@ Four page layouts were built and compared in a throwaway prototype:
 | Session feed: the newest reply in full, older replies as thumbnail strips | Chosen. Every file stays with its reply, and the page reads top to bottom. |
 | One large viewer with a strip of thumbnails | Rejected as the page. Its full-size viewer, with arrow keys, was kept. |
 
-Inside a group, two images captioned before and after get side-by-side, swipe, and flip views. Three or more images make a grid. Anything else stacks.
+Inside a group, a pair of images captioned exactly before and after, with no other files, gets side-by-side, swipe, and flip views. Three or more images make a grid. Anything else stacks.
 
 ## Each group is headed by its time and the reply text
 
-A turn number means nothing once several replies pile up. Each group shows the time the reply landed, adding the date for other days, then the file count. Below that comes the reply text, clamped to three lines. Show more appears only when the text overflows at the current pane width. The text leaves out the media citations, since the figures below already show those captions.
+A turn number means nothing once several replies pile up. Each group shows the time the reply landed, adding the date for other days, then the file count. Below that comes the reply text, clamped to three lines. Show more appears only when the text overflows at the current pane width. The text leaves out Markdown images and Markdown links to media, since the figures below already show those captions. A bare path such as `/tmp/shot.png` stays in the text.
 
 ## The agent cites files, and Pi copies them
 
