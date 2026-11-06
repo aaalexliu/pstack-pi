@@ -6,7 +6,7 @@ import { extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { mediaFormats, type MediaTurn } from './media.ts';
 
-export type Feed = Array<MediaTurn & { excerpt: string }>;
+export type Feed = Array<MediaTurn & { reply: string }>;
 
 /** cmux opens a remote machine's loopback links through `cmux-loopback.localtest.me`. */
 const loopbackHosts = ['127.0.0.1', 'localhost', 'cmux-loopback.localtest.me'];
@@ -44,8 +44,8 @@ export async function startMediaServer(feed: () => Feed, root: string): Promise<
     if (path === prefix) { send(200, page, { 'Content-Type': 'text/html; charset=utf-8' }); return; }
     const turns = feed();
     if (path === `${prefix}feed.json`) {
-      const published = { turns: turns.slice().reverse().map(({ replyId, at, excerpt, skipped, items }) => ({
-        replyId, at, excerpt, skipped: skipped ?? [], items: items.map(({ kind, mime, caption, name, object, bytes }) => ({ kind, mime, caption, name, bytes, url: `file/${object}` })),
+      const published = { turns: turns.slice().reverse().map(({ replyId, at, reply, skipped, items }) => ({
+        replyId, at, reply, skipped: skipped ?? [], items: items.map(({ kind, mime, caption, name, object, bytes }) => ({ kind, mime, caption, name, bytes, url: `file/${object}` })),
       })) };
       const revision = `"${createHash('sha256').update(JSON.stringify(published)).digest('hex')}"`;
       if (req.headers['if-none-match'] === revision) { res.writeHead(304, { ETag: revision }).end(); return; }
