@@ -8,6 +8,8 @@ import { mediaFormats, type MediaTurn } from './media.ts';
 
 export type Feed = Array<MediaTurn & { excerpt: string }>;
 
+/** cmux opens a remote machine's loopback links through `cmux-loopback.localtest.me`. */
+const loopbackHosts = ['127.0.0.1', 'localhost', 'cmux-loopback.localtest.me'];
 const pagePath = fileURLToPath(new URL('./page.html', import.meta.url));
 const headers = {
   'X-Content-Type-Options': 'nosniff',
@@ -31,7 +33,7 @@ export async function startMediaServer(feed: () => Feed, root: string): Promise<
     res.setHeader('Referrer-Policy', headers['Referrer-Policy']);
     res.setHeader('Cache-Control', headers['Cache-Control']);
     res.setHeader('Content-Security-Policy', csp);
-    if (req.headers.host !== `127.0.0.1:${port}` && req.headers.host !== `localhost:${port}`) { res.writeHead(421).end(); return; }
+    if (!loopbackHosts.some((host) => req.headers.host === `${host}:${port}`)) { res.writeHead(421).end(); return; }
     if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405, { Allow: 'GET, HEAD' }).end(); return; }
     const path = req.url?.split('?')[0];
     if (!path?.startsWith(prefix)) { res.writeHead(404).end(); return; }

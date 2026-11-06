@@ -29,7 +29,12 @@ function excerpt(branch: SessionEntry[], replyId: string): string {
   const reply = branch.find((entry) => entry.id === replyId);
   if (reply?.type !== 'message' || reply.message.role !== 'assistant') return '';
   const text = reply.message.content.find((block) => block.type === 'text');
-  return text?.type === 'text' ? stripControls(text.text.split(/\r?\n/u)[0]).replace(/\s+/gu, ' ').trim().slice(0, 140) : '';
+  if (text?.type !== 'text') return '';
+  const line = text.text.split(/\r?\n/u).find((candidate) => candidate.trim()) ?? '';
+  const plain = stripControls(line).replace(/!?\[([^\]]*)\]\([^)]*\)/gu, '$1').replace(/\s+/gu, ' ').trim();
+  if (plain.length <= 140) return plain;
+  const cut = plain.lastIndexOf(' ', 139);
+  return `${plain.slice(0, cut > 80 ? cut : 139)}…`;
 }
 
 export default function media(pi: ExtensionAPI, rootDirectory = join(getAgentDir(), 'pstack-pi', 'media'), sizeLimit = maxMediaBytes, exec: Exec = pi.exec.bind(pi)): void {
@@ -107,9 +112,10 @@ export default function media(pi: ExtensionAPI, rootDirectory = join(getAgentDir
     const turn = await collectMediaTurn(reply.id, text, ctx.cwd, rootDirectory, sizeLimit);
     const now = ctx.sessionManager.getBranch();
     if (turn && now.some((entry) => entry.id === reply.id) && !mediaTurns(now).some((existing) => existing.replyId === reply.id)) {
-      pi.appendEntry(mediaEntryType, turn);
       feed = [...feed, { ...turn, excerpt: excerpt(now, reply.id) }];
-      try { await start(); await open(); } catch { return; }
+      const live = await start().catch(() => undefined);
+      pi.appendEntry(mediaEntryType, turn);
+      if (live) await open();
     }
   });
 
@@ -125,10 +131,10 @@ export default function media(pi: ExtensionAPI, rootDirectory = join(getAgentDir
     const header = !turn.items.length ? ` skipped: ${skipped}`
       : ` ${turn.items.length} file${turn.items.length === 1 ? '' : 's'}: ${statuses.join(', ')}${skipped ? `; skipped: ${skipped}` : ''}`;
     const view = new Container();
-    const url = server && `${server.url}#turn-${encodeURIComponent(turn.replyId)}`;
-    const link = url ? ` ${getCapabilities().hyperlinks ? hyperlink('Open media page', url) : url}` : '';
-    const line = `${theme.fg('dim', '▣')}${link}${theme.fg('muted', header)}`;
+    const line = `${theme.fg('dim', '▣')}${theme.fg('muted', header)}`;
     view.addChild(options.expanded ? new Text(line, 1, 0) : new TruncatedText(line, 1, 0));
+    const url = server && `${server.url}#turn-${encodeURIComponent(turn.replyId)}`;
+    if (url) view.addChild(new Text(`${theme.fg('dim', '↗')} ${getCapabilities().hyperlinks ? hyperlink('Open media page', url) : url}`, 1, 0));
     if (!getCapabilities().images) return view;
 
     const images = turn.items.filter((item) => item.kind === 'image');

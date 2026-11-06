@@ -194,7 +194,8 @@ test('renderer shows only the header without images and bounded thumbnails with 
   t.after(() => setCapabilities(original));
   setCapabilities({ images: null, trueColor: false, hyperlinks: false });
   const off = render(entry, { expanded: false }, plain);
-  assert.equal(off.children.length, 1);
+  assert.equal(off.children.filter((/** @type {any} */ child) => child instanceof Image).length, 0);
+  assert.match(off.render(160).join('\n'), /↗ http:\/\/127\.0\.0\.1:\d+\/[\w-]+\/#turn-reply-1/u);
   assert.match(off.render(160)[0], /▣ .*5 files: A, b.png, c.png, d.png, e.png/u);
   setCapabilities({ images: 'kitty', trueColor: true, hyperlinks: true });
   const on = render(entry, { expanded: false }, plain);
@@ -204,7 +205,9 @@ test('renderer shows only the header without images and bounded thumbnails with 
   assert.equal(all.children.filter((/** @type {any} */ child) => child instanceof Image).length, 5);
   assert.doesNotMatch(all.render(80).join('\n'), /more/u);
   setCapabilities({ images: null, trueColor: false, hyperlinks: false });
-  assert.equal(render(entry, { expanded: false }, plain).render(30).length, 1);
+  const narrow = render(entry, { expanded: false }, plain).render(30);
+  assert.doesNotMatch(narrow[0], /e\.png/u);
+  assert.match(narrow[1], /^ ↗ /u);
   assert.match(render(entry, { expanded: true }, plain).render(30).join(' '), /e\.png/u);
   assert.ok(on.children.filter((/** @type {any} */ child) => child instanceof Image).every((/** @type {Image} */ image) => image.render(80).length <= 14));
   await rm(join(store, pi.turns()[0].items[0].object));

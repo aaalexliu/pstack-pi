@@ -66,5 +66,7 @@ test('the token page and feed expose only current files, with conditional pollin
     call.end();
   });
   assert.equal(await hostStatus(`localhost:${new URL(base).port}`), 200);
+  assert.equal(await hostStatus(`cmux-loopback.localtest.me:${new URL(base).port}`), 200);
+  assert.equal(await hostStatus(`evil.localtest.me:${new URL(base).port}`), 421);
   assert.equal(await hostStatus(`example.com:${new URL(base).port}`), 421);
 });

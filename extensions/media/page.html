@@ -55,6 +55,7 @@ const offline = document.getElementById('offline');
 const nodes = new Map();
 let revision;
 let busy = false;
+let hashShown = false;
 const el = (tag, cls, text) => {
   const node = document.createElement(tag);
   if (cls) node.className = cls;
@@ -234,7 +235,7 @@ async function poll() {
       });
       feed.turns.forEach((turn, index) => main.insertBefore(nodes.get(turn.replyId).section, main.children[index] || null));
       empty.hidden = feed.turns.length > 0;
-      showHash();
+      if (!hashShown && nodes.size) { hashShown = true; showHash(); }
     }
   } catch { offline.hidden = false; }
   finally { busy = false; }

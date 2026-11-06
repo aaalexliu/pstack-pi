@@ -50,7 +50,7 @@ async function setup(t, socket, exec) {
     async tree(/** @type {any[]} */ entries) { branch = entries; await hooks.get('session_tree')?.({}, ctx); },
     async add(/** @type {string} */ id, text = './a.png') { branch.push(reply(id, text)); await hooks.get('agent_settled')?.({}, ctx); },
     async command() { await commands.get('media').handler('', ctx); },
-    header() { return renders.get(mediaEntryType)(branch.at(-1), {}, plain).render(500)[0]; },
+    header() { return renders.get(mediaEntryType)(branch.at(-1), {}, plain).render(500).join('\n'); },
     async feed() { const url = /http:\/\/127\.0\.0\.1:\d+\/[\w-]+\//u.exec(this.header())?.[0] || notices.at(-1); return { url, response: await fetch(`${url}feed.json`) }; },
     shutdown: () => hooks.get('session_shutdown')?.({}, ctx),
     entry: (/** @type {string} */ id, /** @type {string} */ text, /** @type {any} */ data) => [reply(id, text), { type: 'custom', customType: mediaEntryType, data }],
@@ -60,11 +60,11 @@ async function setup(t, socket, exec) {
 test('resume rebuilds the feed, tree navigation replaces it, and shutdown closes the server', async (t) => {
   const session = await setup(t, undefined, async () => { throw Error('not in cmux'); });
   const turn = { replyId: 'old', at: '2026-01-01T00:00:00Z', items: [], skipped: ['oversize.pdf'] };
-  session.seed(session.entry('old', 'Old\u0007 reply\nsecond line', turn));
+  session.seed(session.entry('old', '\nOld\u0007 reply ![before](/tmp/before.png) and [clip](./c.mp4)\nsecond line', turn));
   await session.start();
   const { url, response } = await session.feed();
   assert.equal(response.status, 200);
-  assert.equal((/** @type {any} */ (await response.json())).turns[0].excerpt, 'Old reply');
+  assert.equal((/** @type {any} */ (await response.json())).turns[0].excerpt, 'Old reply before and clip');
   assert.match(session.header(), /#turn-old/u);
   setCapabilities({ images: null, trueColor: false, hyperlinks: true });
   assert.match(session.header(), /\u001b\]8;;http:\/\/127\.0\.0\.1:/u);
