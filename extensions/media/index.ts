@@ -1,9 +1,9 @@
 import { lstatSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { extname, join } from 'node:path';
 import { getAgentDir, type ExtensionAPI, type SessionEntry } from '@earendil-works/pi-coding-agent';
 import { Container, getCapabilities, hyperlink, Image, Text, TruncatedText } from '@earendil-works/pi-tui';
 import { stripControls } from '../shared/model.ts';
-import { collectMediaTurn, decodeMediaTurn, maxMediaBytes, mediaEntryType, mediaTurns } from './media.ts';
+import { collectMediaTurn, decodeMediaTurn, maxMediaBytes, mediaEntryType, mediaFormats, mediaTurns } from './media.ts';
 import { startMediaServer, type Feed } from './server.ts';
 
 const guideline = 'To show the user an image, video, or PDF, cite it in your final reply as a Markdown image with an absolute path, for example `![before](/tmp/before.png)`. Pi shows cited media under your reply.';
@@ -29,8 +29,11 @@ function replyText(branch: SessionEntry[], replyId: string): string {
   const entry = branch.find((item) => item.id === replyId);
   if (entry?.type !== 'message' || entry.message.role !== 'assistant') return '';
   const text = entry.message.content.flatMap((block) => block.type === 'text' ? [block.text] : []).join('\n\n');
-  const plain = text.split(/\r?\n/u).map((line) => line.split('\t').map((part) => stripControls(part.replace(/[\u0000-\u0008\u000b-\u001a\u001c-\u001f\u007f-\u009f]/gu, ''))).join('\t').replace(/!?\[([^\]]*)\]\([^)]*\)/gu, '$1')).join('\n')
-    .replace(/\n{3,}/gu, '\n\n').trim();
+  const plain = text.split(/\r?\n/u).flatMap((line) => {
+    const clean = line.split('\t').map((part) => stripControls(part.replace(/[\u0000-\u0008\u000b-\u001a\u001c-\u001f\u007f-\u009f]/gu, ''))).join('\t');
+    const prose = clean.replace(/( ?)(!?)\[([^\]]*)\]\(([^)\s]*)[^)]*\)/gu, (_link, space, image, caption, target) => image || Object.hasOwn(mediaFormats, extname(target).toLowerCase()) ? '' : `${space}${caption}`);
+    return prose.trim() || !clean.trim() ? [prose.trimEnd()] : [];
+  }).join('\n').replace(/\n{3,}/gu, '\n\n').trim();
   return plain.length > 20_000 ? `${plain.slice(0, 19_999)}…` : plain;
 }
 

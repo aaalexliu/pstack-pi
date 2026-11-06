@@ -60,14 +60,14 @@ async function setup(t, socket, exec) {
 test('resume rebuilds the feed, tree navigation replaces it, and shutdown closes the server', async (t) => {
   const session = await setup(t, undefined, async () => { throw Error('not in cmux'); });
   const turn = { replyId: 'old', at: '2026-01-01T00:00:00Z', items: [], skipped: ['oversize.pdf'] };
-  const entries = session.entry('old', '\nOld\u0007 reply\u001b[31m ![before](/tmp/before.png) and [clip](./c.mp4)\nsecond line', turn);
+  const entries = session.entry('old', '\nOld\u0007 reply\u001b[31m ![before](/tmp/before.png) and [clip](./c.mp4) per [the docs](https://example.com/a.png?x)\nsecond line\n![after](/tmp/after.png) [report](./r.pdf)', turn);
   (/** @type {any} */ (entries[0])).message.content.push({ type: 'text', text: 'Third line\n\n\nFourth line\tend' });
   session.seed(entries);
   await session.start();
   const { url, response } = await session.feed();
   assert.equal(response.status, 200);
   const published = (/** @type {any} */ (await response.json())).turns[0];
-  assert.equal(published.reply, 'Old reply before and clip\nsecond line\n\nThird line\n\nFourth line\tend');
+  assert.equal(published.reply, 'Old reply and per the docs\nsecond line\n\nThird line\n\nFourth line\tend');
   assert.equal('excerpt' in published, false);
   assert.match(session.header(), /#turn-old/u);
   setCapabilities({ images: null, trueColor: false, hyperlinks: true });

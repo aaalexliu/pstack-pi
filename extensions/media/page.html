@@ -16,7 +16,8 @@
   button.on { border-color:var(--accent); background:#25304a; color:#fff; }
   .turn { margin:0 0 18px; scroll-margin-top:50px; }
   h2 { font-size:13px; margin:0 0 2px; font-weight:600; display:flex; gap:8px; align-items:baseline; }
-  h2 time, .reply, .skipped { color:var(--muted); font-weight:400; }
+  h2 time { color:var(--text); font-weight:600; }
+  h2 .count, .reply, .skipped { color:var(--muted); font-weight:400; }
   .reply { margin:0 0 8px; white-space:pre-wrap; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
   .reply.expanded { display:block; }
   .reply-toggle { display:block; margin:-6px 0 8px; padding:0; border:0; background:none; color:var(--accent); font-size:12px; }
@@ -194,9 +195,9 @@ function makeTurn(turn, newest) {
   const time = date.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', hourCycle:'h23' });
   const day = date.toDateString() === new Date().toDateString() ? '' : `${date.toLocaleDateString([], { month:'short', day:'numeric' })}, `;
   const count = turn.items.length ? `${turn.items.length} file${turn.items.length === 1 ? '' : 's'}` : `${turn.skipped.length} skipped`;
-  const label = el('time', '', `${day}${time} · ${count}`);
+  const label = el('time', '', `${day}${time}`);
   label.dateTime = turn.at;
-  heading.append(label);
+  heading.append(label, el('span', 'count', count));
   const reply = el('p', 'reply', turn.reply);
   const toggle = el('button', 'reply-toggle', 'Show more');
   toggle.onclick = () => {
