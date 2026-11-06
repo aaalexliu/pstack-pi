@@ -71,7 +71,7 @@ test('resume rebuilds the feed, tree navigation replaces it, and shutdown closes
   setCapabilities({ images: null, trueColor: false, hyperlinks: false });
   await session.tree([]);
   assert.deepEqual((/** @type {any} */ (await (await fetch(`${url}feed.json`)).json())).turns, []);
-  await session.shutdown();
+  await Promise.all([session.shutdown(), session.shutdown()]);
   await session.shutdown();
   assert.ok(url);
   await assert.rejects(fetch(url));

@@ -82,9 +82,10 @@ export default function media(pi: ExtensionAPI, rootDirectory = join(getAgentDir
     if (ctx.mode === 'tui' && feed.length) await start();
   });
   pi.on('session_shutdown', async () => {
-    const live = await starting?.catch(() => undefined);
-    server = undefined;
+    const pending = starting;
     starting = undefined;
+    server = undefined;
+    const live = await pending?.catch(() => undefined);
     if (live) await live.close();
   });
   pi.registerCommand('media', {
