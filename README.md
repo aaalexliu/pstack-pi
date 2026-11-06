@@ -67,7 +67,7 @@ Every skill except `list-writing` keeps `disable-model-invocation: true` so Pi e
 The package ships 125 generated skill and support files, two generated agents, five Pi-owned files under `additions/`, twenty-five extension modules, and the root package files.
 It registers `pstack_config`, `pstack_papercut`, `pstack_sessions`, `pstack_todo`, and, at root depth, `subagent`.
 The delegation extension owns one `session_shutdown` hook that stops live children and a `tool_result` hook that marks its own failed calls. The papercut journal owns a `tool_execution_start` hook and a `tool_result` hook that append a one-line measurement to other tools' results. The title extension owns an `input` hook that names the session in the background. The recap extension owns an `agent_settled` hook that starts its idle timer. The media extension records cited files after a TUI reply and draws a media entry under it.
-Todo and Poteto Mode state follow the active session branch through versioned custom entries. The package registers `/pstack`, `/pstack-export`, `/subagents`, `/pstack-cmux`, `/papercuts`, and `/recap`, but no prompts, themes, or blanket approval hooks.
+Todo and Poteto Mode state follow the active session branch through versioned custom entries. The package registers `/pstack`, `/pstack-export`, `/subagents`, `/pstack-cmux`, `/papercuts`, `/recap`, and `/media`, but no prompts, themes, or blanket approval hooks.
 
 `/pstack-export [path.html]` runs stock Pi HTML export (`pi --export`) for the current session, then injects a sticky token time series for the active branch. Bars jump to the first entry in that local-time minute. Scroll on the transcript updates the current bucket. Without a path it writes `pi-session-<session>.html` in the cwd.
 
@@ -291,6 +291,10 @@ When a run ends in the interactive TUI and you then do nothing for three minutes
 ## Cited media
 
 In the interactive TUI, cite an image, video, or PDF in your final reply as a Markdown image or link, for example `![before](/tmp/before.png)`. The media extension also finds bare paths outside fenced code. It groups existing files from one reply in citation order under that reply. Terminals with image support show up to four thumbnails. Press the expand key (`ctrl+o` by default) to show all of them. Inside tmux, the entry shows a text header only. Videos and PDFs appear in the header.
+
+The header links to a live media page grouped by reply. The newest turn opens in full. Older turns show a thumbnail strip until you click them. Before and after images have side-by-side, swipe, and flip views. Images open at full size on click; videos play in the page, and PDFs have an embedded viewer and an open link. The page updates when the agent cites more files. Run `/media` to show the page URL and open or reuse its pane.
+
+Local cmux opens the page in a right-side browser split on the first new media turn. Over `cmux ssh`, Cmd-click the header link once to open the page in cmux. The remote relay does not allow a remote process to open a split without that click. The page then updates on its own. Without cmux, use the link in a browser that can reach the Pi host's loopback address. The server binds only to `127.0.0.1` and uses a random token in each process's URL. Treat the URL as access to that session's cited media.
 
 The extension keeps copies under `<Pi agent dir>/pstack-pi/media/`, so later edits to the source do not change the saved media. It skips files over 1 GiB, non-regular files, and files it cannot read, and names them in the header. An image over 16 MiB shows its caption without a thumbnail.
 

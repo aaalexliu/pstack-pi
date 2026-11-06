@@ -121,6 +121,8 @@
     "extensions/recap/summary.ts",
     "extensions/media/index.ts",
     "extensions/media/media.ts",
+    "extensions/media/page.html",
+    "extensions/media/server.ts",
     "extensions/shared/model.ts",
     "extensions/subagent/agents.ts",
     "extensions/subagent/cmux-settings.ts",

@@ -1,9 +1,10 @@
 import { lstatSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { getAgentDir, type ExtensionAPI } from '@earendil-works/pi-coding-agent';
-import { Container, getCapabilities, Image, Text, TruncatedText } from '@earendil-works/pi-tui';
+import { getAgentDir, type ExtensionAPI, type SessionEntry } from '@earendil-works/pi-coding-agent';
+import { Container, getCapabilities, hyperlink, Image, Text, TruncatedText } from '@earendil-works/pi-tui';
 import { stripControls } from '../shared/model.ts';
 import { collectMediaTurn, decodeMediaTurn, maxMediaBytes, mediaEntryType, mediaTurns } from './media.ts';
+import { startMediaServer, type Feed } from './server.ts';
 
 const guideline = 'To show the user an image, video, or PDF, cite it in your final reply as a Markdown image with an absolute path, for example `![before](/tmp/before.png)`. Pi shows cited media under your reply.';
 const maxThumbnailBytes = 16 * 1024 * 1024;
@@ -21,7 +22,77 @@ function thumbnail(file: string): string | undefined {
   return data;
 }
 
-export default function media(pi: ExtensionAPI, rootDirectory = join(getAgentDir(), 'pstack-pi', 'media'), sizeLimit = maxMediaBytes): void {
+type Exec = ExtensionAPI['exec'];
+type Pane = { kind: 'none' } | { kind: 'remote' } | { kind: 'local'; surface?: string };
+
+function excerpt(branch: SessionEntry[], replyId: string): string {
+  const reply = branch.find((entry) => entry.id === replyId);
+  if (reply?.type !== 'message' || reply.message.role !== 'assistant') return '';
+  const text = reply.message.content.find((block) => block.type === 'text');
+  return text?.type === 'text' ? stripControls(text.text.split(/\r?\n/u)[0]).replace(/\s+/gu, ' ').trim().slice(0, 140) : '';
+}
+
+export default function media(pi: ExtensionAPI, rootDirectory = join(getAgentDir(), 'pstack-pi', 'media'), sizeLimit = maxMediaBytes, exec: Exec = pi.exec.bind(pi)): void {
+  let feed: Feed = [];
+  let server: Awaited<ReturnType<typeof startMediaServer>> | undefined;
+  let starting: Promise<Awaited<ReturnType<typeof startMediaServer>>> | undefined;
+  let pane: Pane = !process.env.CMUX_SOCKET_PATH ? { kind: 'none' }
+    : /^127\.0\.0\.1:\d+$/u.test(process.env.CMUX_SOCKET_PATH) ? { kind: 'remote' } : { kind: 'local' };
+  const cli = process.env.CMUX_BUNDLED_CLI_PATH || 'cmux';
+  const rebuild = (branch: SessionEntry[]) => {
+    feed = mediaTurns(branch).map((turn) => ({ ...turn, excerpt: excerpt(branch, turn.replyId) }));
+  };
+  const start = async () => {
+    if (!starting) starting = startMediaServer(() => feed, rootDirectory);
+    try { server = await starting; return server; }
+    catch (error) { starting = undefined; throw error; }
+  };
+  const open = async () => {
+    if (!server || pane.kind !== 'local') return;
+    const current = pane.surface;
+    if (current) {
+      try {
+        const result = await exec(cli, ['--json', 'browser', current, 'get-url'], { timeout: 5000 });
+        if (result.code === 0) {
+          const currentUrl = JSON.parse(result.stdout).url;
+          if (typeof currentUrl === 'string' && currentUrl.split(/[?#]/u)[0] === server.url) return;
+        }
+      } catch { pane = { kind: 'local' }; }
+    }
+    try {
+      const args = ['--json', 'browser', 'open-split', server.url, ...(process.env.CMUX_WORKSPACE_ID ? ['--workspace', process.env.CMUX_WORKSPACE_ID] : []), '--focus', 'false'];
+      const result = await exec(cli, args, { timeout: 5000 });
+      if (result.stdout.includes('remote_relay_denied') || result.stderr.includes('remote_relay_denied')) { pane = { kind: 'remote' }; return; }
+      if (result.code !== 0) { pane = { kind: 'local' }; return; }
+      const ref = JSON.parse(result.stdout).surface_ref;
+      pane = typeof ref === 'string' && ref ? { kind: 'local', surface: ref } : { kind: 'local' };
+    } catch { pane = { kind: 'local' }; }
+  };
+  pi.on('session_start', async (_event, ctx) => {
+    rebuild(ctx.sessionManager.getBranch());
+    if (ctx.mode === 'tui' && feed.length) await start();
+  });
+  pi.on('session_tree', async (_event, ctx) => {
+    rebuild(ctx.sessionManager.getBranch());
+    if (ctx.mode === 'tui' && feed.length) await start();
+  });
+  pi.on('session_shutdown', async () => {
+    const live = await starting?.catch(() => undefined);
+    server = undefined;
+    starting = undefined;
+    if (live) await live.close();
+  });
+  pi.registerCommand('media', {
+    description: 'Open the live page of cited media',
+    handler: async (_args, ctx) => {
+      if (ctx.mode !== 'tui') return;
+      try {
+        const live = await start();
+        ctx.ui.notify(live.url, 'info');
+        await open();
+      } catch { ctx.ui.notify('Media page is unavailable', 'warning'); }
+    },
+  });
   pi.on('before_agent_start', (event) => {
     const rules = event.systemPromptOptions.promptGuidelines;
     if (Array.isArray(rules) && !rules.includes(guideline)) rules.push(guideline);
@@ -35,7 +106,11 @@ export default function media(pi: ExtensionAPI, rootDirectory = join(getAgentDir
     const text = reply.message.content.flatMap((block) => block.type === 'text' ? [block.text] : []).join('\n');
     const turn = await collectMediaTurn(reply.id, text, ctx.cwd, rootDirectory, sizeLimit);
     const now = ctx.sessionManager.getBranch();
-    if (turn && now.some((entry) => entry.id === reply.id) && !mediaTurns(now).some((existing) => existing.replyId === reply.id)) pi.appendEntry(mediaEntryType, turn);
+    if (turn && now.some((entry) => entry.id === reply.id) && !mediaTurns(now).some((existing) => existing.replyId === reply.id)) {
+      pi.appendEntry(mediaEntryType, turn);
+      feed = [...feed, { ...turn, excerpt: excerpt(now, reply.id) }];
+      try { await start(); await open(); } catch { return; }
+    }
   });
 
   if (typeof pi.registerEntryRenderer !== 'function') return;
@@ -50,7 +125,9 @@ export default function media(pi: ExtensionAPI, rootDirectory = join(getAgentDir
     const header = !turn.items.length ? ` skipped: ${skipped}`
       : ` ${turn.items.length} file${turn.items.length === 1 ? '' : 's'}: ${statuses.join(', ')}${skipped ? `; skipped: ${skipped}` : ''}`;
     const view = new Container();
-    const line = `${theme.fg('dim', '▣')}${theme.fg('muted', header)}`;
+    const url = server && `${server.url}#turn-${encodeURIComponent(turn.replyId)}`;
+    const link = url ? ` ${getCapabilities().hyperlinks ? hyperlink('Open media page', url) : url}` : '';
+    const line = `${theme.fg('dim', '▣')}${link}${theme.fg('muted', header)}`;
     view.addChild(options.expanded ? new Text(line, 1, 0) : new TruncatedText(line, 1, 0));
     if (!getCapabilities().images) return view;
 

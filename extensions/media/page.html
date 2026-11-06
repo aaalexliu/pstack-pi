@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pi media</title>
+<style>
+  :root { color-scheme:dark; --bg:#14161a; --panel:#1c1f25; --line:#2b2f37; --text:#d9dde4; --muted:#8b93a1; --accent:#7aa2f7; }
+  * { box-sizing:border-box; }
+  html, body { margin:0; background:var(--bg); color:var(--text); font:13px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; }
+  header { position:sticky; top:0; z-index:5; padding:9px 12px; background:#14161aef; border-bottom:1px solid var(--line); font-weight:600; }
+  #offline { float:right; color:#f0a0a0; font-weight:400; }
+  #offline[hidden], #empty[hidden] { display:none; }
+  main { padding:12px; }
+  button { font:inherit; color:var(--text); background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:3px 9px; cursor:pointer; }
+  button.on { border-color:var(--accent); background:#25304a; color:#fff; }
+  .turn { margin:0 0 18px; scroll-margin-top:50px; }
+  h2 { font-size:13px; margin:0 0 2px; font-weight:600; display:flex; gap:8px; align-items:baseline; }
+  h2 .number { color:var(--accent); }
+  h2 time, .reply, .skipped { color:var(--muted); font-weight:400; }
+  .reply { margin:0 0 8px; }
+  .skipped { margin:6px 0; }
+  figure { margin:0; background:var(--panel); border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  figure img, figure video { display:block; width:100%; height:auto; background:#0c0d10; }
+  figure img { cursor:zoom-in; }
+  figcaption { display:flex; justify-content:space-between; gap:8px; padding:5px 8px; color:var(--muted); font-size:12px; border-top:1px solid var(--line); }
+  figcaption b { color:var(--text); font-weight:500; }
+  a { color:var(--accent); }
+  .grid { display:grid; gap:8px; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); }
+  .stack { display:grid; gap:8px; }
+  .pdf { width:100%; height:75vh; border:0; display:block; background:#fff; }
+  .compare .modes { display:flex; gap:4px; margin-bottom:6px; }
+  .compare .side { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+  .swipe { position:relative; user-select:none; }
+  .swipe img { display:block; width:100%; }
+  .swipe .top { position:absolute; inset:0; overflow:hidden; border-right:2px solid var(--accent); }
+  .swipe .top img { width:auto; height:100%; max-width:none; }
+  .swipe input { position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:ew-resize; }
+  .tag { position:absolute; top:6px; padding:1px 6px; border-radius:4px; background:#000a; font-size:11px; }
+  .collapsed { display:flex; gap:6px; overflow-x:auto; padding-bottom:4px; }
+  .thumb { flex:0 0 auto; width:84px; height:60px; border-radius:6px; border:1px solid var(--line); background:#0c0d10 center/cover no-repeat; display:flex; align-items:flex-end; justify-content:center; font-size:10px; color:var(--muted); cursor:pointer; }
+  .box { position:fixed; inset:0; z-index:20; background:#08090bf5; display:flex; flex-direction:column; }
+  .box .top { display:flex; justify-content:space-between; padding:8px 12px; color:var(--muted); }
+  .box .view { flex:1; min-height:0; overflow:auto; display:flex; align-items:center; justify-content:center; }
+  .box img.fit { max-width:100%; max-height:100%; }
+</style>
+</head>
+<body>
+<header>Pi media <span id="offline" hidden>Pi is not reachable</span></header>
+<main id="main"><p id="empty">Cite files as ![caption](/abs/path.png) to see them here.</p></main>
+<script>
+const main = document.getElementById('main');
+const empty = document.getElementById('empty');
+const offline = document.getElementById('offline');
+const nodes = new Map();
+let revision;
+let busy = false;
+const el = (tag, cls, text) => {
+  const node = document.createElement(tag);
+  if (cls) node.className = cls;
+  if (text !== undefined) node.textContent = text;
+  return node;
+};
+const src = (item) => item.url;
+
+function lightbox(images, position) {
+  let fit = true;
+  const box = el('div', 'box');
+  const close = () => { box.remove(); removeEventListener('keydown', key, true); };
+  const draw = () => {
+    const item = images[position];
+    const label = el('span', '', `${item.caption} · ${item.name} · ${position + 1}/${images.length} · click for ${fit ? '100%' : 'fit'} · ← → · Esc`);
+    const button = el('button', '', 'Close');
+    button.onclick = close;
+    const image = el('img', fit ? 'fit' : '');
+    image.src = src(item);
+    image.alt = item.caption;
+    image.onclick = () => { fit = !fit; draw(); };
+    const top = el('div', 'top');
+    top.append(label, button);
+    const view = el('div', 'view');
+    view.append(image);
+    box.replaceChildren(top, view);
+  };
+  const key = (event) => {
+    if (event.key === 'Escape') close();
+    if (event.key === 'ArrowRight' && position < images.length - 1) { position++; draw(); }
+    if (event.key === 'ArrowLeft' && position > 0) { position--; draw(); }
+  };
+  addEventListener('keydown', key, true);
+  document.body.append(box);
+  draw();
+}
+
+function figure(item, images) {
+  const frame = el('figure');
+  if (item.kind === 'image') {
+    const image = el('img');
+    image.src = src(item);
+    image.alt = item.caption;
+    image.onclick = () => lightbox(images, images.indexOf(item));
+    frame.append(image);
+  } else if (item.kind === 'video') {
+    const video = el('video');
+    video.src = `${src(item)}#t=0.1`;
+    video.controls = true;
+    video.muted = true;
+    video.loop = true;
+    video.playsInline = true;
+    video.preload = 'metadata';
+    frame.append(video);
+  } else {
+    const pdf = el('iframe', 'pdf');
+    pdf.src = src(item);
+    pdf.title = item.caption;
+    frame.append(pdf);
+  }
+  const caption = el('figcaption');
+  caption.append(el('b', '', item.caption), el('span', '', item.name));
+  if (item.kind === 'pdf') {
+    const link = el('a', '', 'Open PDF');
+    link.href = src(item);
+    link.target = '_blank';
+    link.rel = 'noreferrer';
+    caption.append(link);
+  }
+  frame.append(caption);
+  return frame;
+}
+
+function compare([before, after], images) {
+  const wrap = el('div', 'compare');
+  const modes = el('div', 'modes');
+  const body = el('div');
+  const setMode = (mode) => {
+    for (const button of modes.children) button.classList.toggle('on', button.dataset.mode === mode);
+    if (mode === 'side') { body.replaceChildren(el('div', 'side')); body.firstChild.append(figure(before, images), figure(after, images)); return; }
+    const base = el('img'); base.src = src(after); base.alt = after.caption;
+    const topImage = el('img'); topImage.src = src(before); topImage.alt = before.caption;
+    const top = el('div', 'top'); top.append(topImage);
+    const swipe = el('div', 'swipe');
+    swipe.append(base, top, el('span', 'tag', before.caption), el('span', 'tag', after.caption));
+    swipe.querySelectorAll('.tag')[0].style.left = '6px';
+    swipe.querySelectorAll('.tag')[1].style.right = '6px';
+    base.onload = () => { topImage.style.height = `${base.clientHeight}px`; };
+    if (mode === 'swipe') {
+      top.style.width = '50%';
+      const range = el('input');
+      range.type = 'range'; range.min = 0; range.max = 100; range.value = 50;
+      range.oninput = () => { top.style.width = `${range.value}%`; };
+      swipe.append(range);
+    } else {
+      top.style.width = '100%'; top.style.borderRight = 'none';
+      swipe.title = 'Click to flip';
+      swipe.onclick = () => { top.style.display = top.style.display === 'none' ? '' : 'none'; };
+    }
+    const frame = el('figure');
+    const caption = el('figcaption');
+    caption.append(el('b', '', mode === 'flip' ? 'Click to flip' : 'Drag to compare'), el('span', '', `${before.name} / ${after.name}`));
+    frame.append(swipe, caption);
+    body.replaceChildren(frame);
+  };
+  for (const [mode, name] of [['side', 'Side by side'], ['swipe', 'Swipe'], ['flip', 'Flip']]) {
+    const button = el('button', '', name);
+    button.dataset.mode = mode;
+    button.onclick = () => setMode(mode);
+    modes.append(button);
+  }
+  wrap.append(modes, body);
+  setMode('side');
+  return wrap;
+}
+
+function layout(turn) {
+  const images = turn.items.filter((item) => item.kind === 'image');
+  if (turn.items.length === 2 && images.length === 2) {
+    const before = images.find((image) => image.caption.toLowerCase() === 'before');
+    const after = images.find((image) => image.caption.toLowerCase() === 'after');
+    if (before && after) return compare([before, after], images);
+  }
+  const wrap = el('div', images.length >= 3 ? 'grid' : 'stack');
+  wrap.append(...turn.items.map((item) => figure(item, images)));
+  return wrap;
+}
+
+function makeTurn(turn, newest, number) {
+  const section = el('section', 'turn');
+  section.id = `turn-${turn.replyId}`;
+  const heading = el('h2');
+  const count = el('span', 'number', `Turn ${number}`);
+  const date = el('time', '', `${new Date(turn.at).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })} · ${turn.items.length} file${turn.items.length === 1 ? '' : 's'}`);
+  heading.append(count, date);
+  const reply = el('p', 'reply', turn.excerpt);
+  const body = el('div');
+  const expand = () => { if (!body.classList.contains('expanded')) { body.className = 'expanded'; body.replaceChildren(layout(turn)); } };
+  if (newest) expand();
+  else {
+    const strip = el('div', 'collapsed');
+    for (const item of turn.items) {
+      const thumb = el('button', 'thumb', item.kind === 'image' ? item.caption : item.kind === 'pdf' ? 'PDF' : '▶');
+      thumb.title = item.caption;
+      if (item.kind === 'image') thumb.style.backgroundImage = `url("${src(item)}")`;
+      thumb.onclick = expand;
+      strip.append(thumb);
+    }
+    body.append(strip);
+  }
+  heading.style.cursor = 'pointer';
+  heading.onclick = expand;
+  section.append(heading, reply, body);
+  if (turn.skipped.length) section.append(el('p', 'skipped', `Skipped: ${turn.skipped.join(', ')}`));
+  return { section, expand };
+}
+
+function showHash() {
+  const target = nodes.get(decodeURIComponent(location.hash.slice(6)));
+  if (location.hash.startsWith('#turn-') && target) { target.expand(); target.section.scrollIntoView(); }
+}
+
+async function poll() {
+  if (busy || document.hidden) return;
+  busy = true;
+  try {
+    const response = await fetch('feed.json', { headers: revision ? { 'If-None-Match': revision } : {} });
+    if (!response.ok && response.status !== 304) throw Error('feed unavailable');
+    offline.hidden = true;
+    if (response.status !== 304) {
+      const feed = await response.json();
+      revision = response.headers.get('ETag') || feed.revision;
+      const ids = new Set(feed.turns.map((turn) => turn.replyId));
+      for (const [id, node] of nodes) if (!ids.has(id)) { node.section.remove(); nodes.delete(id); }
+      feed.turns.forEach((turn, index) => {
+        if (!nodes.has(turn.replyId)) nodes.set(turn.replyId, makeTurn(turn, index === 0, feed.turns.length - index));
+      });
+      feed.turns.forEach((turn, index) => main.insertBefore(nodes.get(turn.replyId).section, main.children[index] || null));
+      empty.hidden = feed.turns.length > 0;
+      showHash();
+    }
+  } catch { offline.hidden = false; }
+  finally { busy = false; }
+}
+addEventListener('hashchange', showHash);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
+setInterval(poll, 1500);
+poll();
+</script>
+</body>
+</html>

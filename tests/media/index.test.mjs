@@ -3,13 +3,15 @@ import { createHash } from 'node:crypto';
 import { chmod, mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import test from 'node:test';
+import test, { afterEach } from 'node:test';
 import { getCapabilities, Image, setCapabilities } from '@earendil-works/pi-tui';
 import media from '../../extensions/media/index.ts';
 import { mediaEntryType } from '../../extensions/media/media.ts';
 
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/vYQAAAAASUVORK5CYII=', 'base64');
 const plain = { fg: (/** @type {string} */ _color, /** @type {string} */ text) => text };
+const active = new Set();
+afterEach(async () => { for (const session of active) await session.shutdown(); active.clear(); });
 
 /** @param {string} text @param {string} [id] */
 function reply(text, id = 'reply-1') {
@@ -26,17 +28,22 @@ function harness(root, cwd, { mode = 'tui', branch = [], limit = 1024 ** 3, rend
   const rules = [];
   const pi = {
     on(/** @type {string} */ name, /** @type {Function} */ handler) { handlers.set(name, handler); },
+    exec: async () => ({ code: 1, stdout: '', stderr: '' }),
+    registerCommand(/** @type {string} */ _name, /** @type {any} */ _definition) {},
     appendEntry(/** @type {string} */ customType, /** @type {any} */ data) { branch.push({ type: 'custom', customType, data }); },
     ...(renderer ? { registerEntryRenderer(/** @type {string} */ name, /** @type {Function} */ render) { renderers.set(name, render); } } : {}),
   };
   media(/** @type {any} */ (pi), root, limit);
   const ctx = { mode, cwd, sessionManager: { getBranch: () => branch } };
-  return {
+  const session = {
     branch, rules, renderers,
     start() { handlers.get('before_agent_start')?.({ systemPromptOptions: { promptGuidelines: rules } }, ctx); },
     settle(/** @type {boolean} */ aborted = false) { return handlers.get('agent_settled')?.({ aborted }, ctx); },
+    shutdown() { return handlers.get('session_shutdown')?.({}, ctx); },
     turns() { return branch.filter((entry) => entry.customType === mediaEntryType).map((entry) => entry.data); },
   };
+  active.add(session);
+  return session;
 }
 
 /** @param {import('node:test').TestContext} t */
@@ -188,7 +195,7 @@ test('renderer shows only the header without images and bounded thumbnails with 
   setCapabilities({ images: null, trueColor: false, hyperlinks: false });
   const off = render(entry, { expanded: false }, plain);
   assert.equal(off.children.length, 1);
-  assert.match(off.render(80)[0], /▣ 5 files: A, b.png, c.png, d.png, e.png/u);
+  assert.match(off.render(160)[0], /▣ .*5 files: A, b.png, c.png, d.png, e.png/u);
   setCapabilities({ images: 'kitty', trueColor: true, hyperlinks: true });
   const on = render(entry, { expanded: false }, plain);
   assert.equal(on.children.filter((/** @type {any} */ child) => child instanceof Image).length, 4);
@@ -202,7 +209,7 @@ test('renderer shows only the header without images and bounded thumbnails with 
   assert.ok(on.children.filter((/** @type {any} */ child) => child instanceof Image).every((/** @type {Image} */ image) => image.render(80).length <= 14));
   await rm(join(store, pi.turns()[0].items[0].object));
   const missing = render(entry, { expanded: false }, plain);
-  assert.match(missing.render(80)[0], /A \(missing\)/u);
+  assert.match(missing.render(200)[0], /A \(missing\)/u);
   assert.doesNotMatch(missing.render(80)[0], new RegExp(cwd.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'), 'u'));
   assert.equal(render({ data: {} }, {}, plain), undefined);
   assert.equal(render({ data: { replyId: 'bad', at: 'now', items: [{ name: 'x', caption: 'x', bytes: 1, object: 3 }] } }, {}, plain), undefined);
@@ -243,7 +250,7 @@ test('a reply whose only file is skipped still says so under the reply', async (
   assert.deepEqual(pi.turns(), [{ replyId: 'reply-1', at: pi.turns()[0].at, items: [], skipped: ['huge.mov'] }]);
   const render = pi.renderers.get(mediaEntryType);
   assert.ok(render);
-  assert.match(render(pi.branch.at(-1), {}, plain).render(80)[0], /▣ skipped: huge\.mov/u);
+  assert.match(render(pi.branch.at(-1), {}, plain).render(160)[0], /▣ .*skipped: huge\.mov/u);
 });
 
 test('media is not attached when the user moves to another branch while files copy', async (t) => {
