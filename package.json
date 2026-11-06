@@ -26,7 +26,8 @@
       "extensions/subagent/index.ts",
       "extensions/profiles/index.ts",
       "extensions/title/index.ts",
-      "extensions/recap/index.ts"
+      "extensions/recap/index.ts",
+      "extensions/media/index.ts"
     ],
     "skills": [
       "additions/skills/alex-show-me/SKILL.md",
@@ -118,6 +119,8 @@
     "extensions/pstack/todo.ts",
     "extensions/recap/index.ts",
     "extensions/recap/summary.ts",
+    "extensions/media/index.ts",
+    "extensions/media/media.ts",
     "extensions/shared/model.ts",
     "extensions/subagent/agents.ts",
     "extensions/subagent/cmux-settings.ts",
@@ -264,6 +267,7 @@
     "test:full": "node scripts/run-tests.mjs full",
     "test:pstack": "node --experimental-strip-types --disable-warning=ExperimentalWarning --test tests/pstack/*.test.mjs",
     "test:subagent": "node --experimental-strip-types --disable-warning=ExperimentalWarning --test tests/subagent/*.test.mjs",
+    "test:media": "node --experimental-strip-types --disable-warning=ExperimentalWarning --test tests/media/*.test.mjs",
     "test:content": "node --test tests/content/*.test.mjs",
     "test:sync": "node --test tests/sync/*.test.mjs",
     "test:pi:unit": "node scripts/run-tests.mjs pi:unit",
