@@ -636,7 +636,7 @@
       "source": "skills/how/SKILL.md",
       "destination": "skills/how/SKILL.md",
       "expectedBlob": "67edc340d4d8a9c7ab0b9e08c663e0e63b8d9125",
-      "reason": "Pi roles and bounded leaf readers. Keep the senior-engineer bar. Explanations still lead with the surrounding workflow, one concrete example, and no coined phase name.",
+      "reason": "Pi roles and bounded leaf readers. Keep the senior-engineer bar. Explanations still lead with the surrounding workflow, one concrete example, and no coined phase name. Simple questions are answered in the session, without a subagent.",
       "transforms": [
         {
           "find": "When in doubt, take the simple path.",
@@ -666,6 +666,16 @@
         {
           "find": "reasoning level and fast or standard speed",
           "replace": "reasoning level",
+          "count": 1
+        },
+        {
+          "find": "- **Simple** (a single module, a small utility, a narrow question such as \"how does function X work\"): no explorers. Spawn one explainer that explores and explains in one pass, built from `references/explainer-prompt.md` without the explorer-findings section. Go to step 4.",
+          "replace": "- **Simple** (a single module, a small utility, a narrow question such as \"how does function X work\"): no explorers and no subagent. Answer in this session. Start from what the session already knows, then read only the files still needed. Follow `references/explainer-prompt.md` for shape and depth, without the explorer-findings section. Go to step 4.",
+          "count": 1
+        },
+        {
+          "find": "Present the explainer's output. Light edits",
+          "replace": "Present the explanation. For a complex question, that is the explainer's output. Light edits",
           "count": 1
         }
       ]
