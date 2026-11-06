@@ -24,7 +24,7 @@ The manifest contains the exact ordered `find`, `replace`, and `count` values fo
 | `agents/poteto-agent.md` | Remove background/resume fields; add Pi tools and a bounded implementation role. The skill-read sentence names `{{PSTACK_ROOT}}/skills/poteto-mode/SKILL.md`, so the Cursor plugin-cache search is gone, and principle leaves live under `{{PSTACK_ROOT}}/skills/`. |
 | `skills/architect/SKILL.md` | Pi command, todo, and model-panel routing; parent orchestrates isolated leaf design tasks. |
 | `skills/architect/references/runner-prompt.md` | Remove the promise that every candidate uses a different model. |
-| `skills/arena/SKILL.md` | Pi command, todos, full configured panel, isolated writers, bounded requests, file receipts, and a read-only cross-judge from another model family, tried in configured order and then from `list-models`. |
+| `skills/arena/SKILL.md` | Pi command, todos, full configured panel, isolated writers, bounded requests, file receipts, and a read-only cross-judge from another model family, tried in configured order and then from `list-models`. Models or reviewers the user names replace the panel; if one cannot run, the parent says so and asks before substituting. |
 | `skills/automate-me/SKILL.md` | Pi skill/session paths, chat choices, bounded history readers, and native skill authoring. |
 | `skills/create-verification-skill/SKILL.md` | Pi output paths and command names; use available control tools and a file-relative example link. |
 | `skills/create-formal-verification-skill/SKILL.md` | Pi skill commands, including the three `/skill:statechart` references. The link to `../statechart/SKILL.md` and the rest of the statechart paragraph stay upstream. |

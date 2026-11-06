@@ -327,10 +327,10 @@
       "source": "skills/arena/SKILL.md",
       "blob": "7580c3c9a7770d81b9dd7a537d9caa7362c04279",
       "mode": "100644",
-      "adaptationSha256": "3c3056e50e08127a0d1dc9f1767eae1917507773ed0115f9815bf34ad16c5ad5",
+      "adaptationSha256": "52de529de0d43b5da902592e6afa007c89e813beb16ff65c252f8ab37beba6b9",
       "output": {
         "destination": "skills/arena/SKILL.md",
-        "sha256": "bc2e2e318a538cd5e9f82dfeb2f85825ca9721dfcf64195f444a05013afd8e44",
+        "sha256": "48bbdd16dd97c052b233c973f8bc01e9c5082054a0811f24e5b65e63660105d0",
         "mode": "100644"
       }
     },
