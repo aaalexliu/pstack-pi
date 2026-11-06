@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import title from '../../extensions/title/index.ts';
+import title, { spinnerFrames, spinnerIntervalMs } from '../../extensions/title/index.ts';
 import { maxTitleLength, parseReply, sanitizeTitle, titleEntryType } from '../../extensions/title/naming.ts';
 
 const opus = { provider: 'anthropic', id: 'claude-opus-5-5' };
@@ -189,8 +189,30 @@ test('the terminal title drops Pi\'s π prefix and follows the session name', as
   assert.equal(pi.titles.at(-1), 'Release prep - client-a');
   pi.rename(undefined);
   assert.equal(pi.titles.at(-1), 'client-a');
+  assert.equal(pi.titles.length, 4);
+});
+
+test('a braille spinner leads the title while the agent works, then the plain title returns', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
+  const pi = harness({ name: 'Release prep' });
+  t.mock.timers.tick(5000);
+  pi.titles.length = 0;
   pi.emit('agent_start', {});
-  assert.equal(pi.titles.length, 5);
+  t.mock.timers.tick(spinnerIntervalMs * 2);
+  assert.deepEqual(pi.titles, [`${spinnerFrames[0]} Release prep - client-a`, `${spinnerFrames[1]} Release prep - client-a`, `${spinnerFrames[2]} Release prep - client-a`]);
+  pi.rename('Shipping');
+  assert.equal(pi.titles.at(-1), `${spinnerFrames[2]} Shipping - client-a`);
+  pi.emit('agent_settled', {});
+  assert.equal(pi.titles.at(-1), 'Shipping - client-a');
+  const count = pi.titles.length;
+  t.mock.timers.tick(spinnerIntervalMs * 10);
+  assert.equal(pi.titles.length, count, 'the spinner stops when the run settles');
+
+  pi.emit('agent_start', {});
+  pi.emit('session_shutdown', {});
+  const afterShutdown = pi.titles.length;
+  t.mock.timers.tick(spinnerIntervalMs * 10);
+  assert.equal(pi.titles.length, afterShutdown, 'the spinner stops on shutdown');
 });
 
 test('the title is written again after Pi\'s own startup title, until shutdown', (t) => {
@@ -204,11 +226,13 @@ test('the title is written again after Pi\'s own startup title, until shutdown',
 });
 
 test('leaves the terminal title alone outside the TUI', async (t) => {
-  t.mock.timers.enable({ apis: ['setTimeout'] });
+  t.mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
   const pi = harness({ mode: 'rpc' });
   t.mock.timers.tick(10_000);
   await pi.type('fix it');
   pi.emit('agent_start', {});
+  t.mock.timers.tick(spinnerIntervalMs * 5);
+  pi.emit('agent_settled', {});
   assert.equal(pi.name(), 'Fixing login redirect');
   assert.deepEqual(pi.titles, []);
 });

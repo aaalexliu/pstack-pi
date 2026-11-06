@@ -15,12 +15,16 @@ const requestTimeoutMs = 30_000;
 // Pi writes its own title after every session_start handler has finished, and other
 // extensions can make that take a while. Write ours again until Pi is surely done.
 const startTitleDelaysMs = [0, 500, 2000, 5000];
+export const spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+export const spinnerIntervalMs = 80;
 
 export default function title(pi: ExtensionAPI): void {
   let autoTitle: string | undefined;
   let job: AbortController | undefined;
   let warned = false;
   let titleTimers: ReturnType<typeof setTimeout>[] = [];
+  let spinner: ReturnType<typeof setInterval> | undefined;
+  let frame = 0;
 
   const cancel = () => {
     job?.abort();
@@ -33,12 +37,21 @@ export default function title(pi: ExtensionAPI): void {
   };
 
   const showTitle = (ctx: ExtensionContext) => {
-    if (ctx.mode === 'tui') ctx.ui.setTitle(terminalTitle(pi.getSessionName(), ctx.sessionManager.getCwd()));
+    if (ctx.mode !== 'tui') return;
+    const title = terminalTitle(pi.getSessionName(), ctx.sessionManager.getCwd());
+    ctx.ui.setTitle(spinner ? `${spinnerFrames[frame % spinnerFrames.length]} ${title}` : title);
+  };
+
+  const stopSpinner = () => {
+    if (spinner) clearInterval(spinner);
+    spinner = undefined;
+    frame = 0;
   };
 
   pi.on('session_start', (_event, ctx) => {
     cancel();
     clearTitleTimers();
+    stopSpinner();
     autoTitle = restoreAutoTitle(ctx.sessionManager.getEntries());
     warned = false;
     if (ctx.mode !== 'tui') return;
@@ -55,11 +68,28 @@ export default function title(pi: ExtensionAPI): void {
     showTitle(ctx);
   });
 
-  pi.on('agent_start', (_event, ctx) => showTitle(ctx));
+  // A braille spinner leads the title while the agent works.
+  pi.on('agent_start', (_event, ctx) => {
+    stopSpinner();
+    if (ctx.mode === 'tui') {
+      spinner = setInterval(() => {
+        frame++;
+        showTitle(ctx);
+      }, spinnerIntervalMs);
+      spinner.unref?.();
+    }
+    showTitle(ctx);
+  });
+
+  pi.on('agent_settled', (_event, ctx) => {
+    stopSpinner();
+    showTitle(ctx);
+  });
 
   pi.on('session_shutdown', () => {
     cancel();
     clearTitleTimers();
+    stopSpinner();
   });
 
   pi.on('input', (event, ctx) => {
