@@ -16,8 +16,8 @@ test('the token page and feed expose only current files, with conditional pollin
   const item = /** @type {const} */ ({ kind: 'image', mime: 'image/png', caption: 'before', name: 'first.png', object, bytes: bytes.length });
   /** @type {import('../../extensions/media/server.ts').Feed} */
   let feed = [
-    { replyId: 'first', at: '2026-01-01T00:00:00.000Z', excerpt: 'First reply', items: [item] },
-    { replyId: 'second', at: '2026-01-02T00:00:00.000Z', excerpt: 'Second reply', items: [item] },
+    { replyId: 'first', at: '2026-01-01T00:00:00.000Z', reply: 'First reply\n\nNext line', items: [item] },
+    { replyId: 'second', at: '2026-01-02T00:00:00.000Z', reply: 'Second reply', items: [item] },
   ];
   const server = await startMediaServer(() => feed, root);
   t.after(() => server.close());
@@ -25,7 +25,14 @@ test('the token page and feed expose only current files, with conditional pollin
   const request = (/** @type {string} */ path, /** @type {RequestInit} */ init = {}) => fetch(new URL(path, base), init);
   const page = await request('');
   assert.equal(page.status, 200);
-  assert.match(await page.text(), /Pi media/u);
+  const html = await page.text();
+  assert.match(html, /Pi media/u);
+  assert.doesNotMatch(html, /Turn \$\{/u);
+  assert.match(html, /-webkit-line-clamp:3/u);
+  assert.match(html, /scrollHeight > reply\.clientHeight \+ 1/u);
+  assert.match(html, /Show more/u);
+  assert.match(html, /Show less/u);
+  assert.match(html, /label\.dateTime = turn\.at/u);
   assert.match(page.headers.get('content-security-policy') ?? '', /frame-src 'self'/u);
   assert.equal(page.headers.get('x-content-type-options'), 'nosniff');
   assert.equal(page.headers.get('referrer-policy'), 'no-referrer');
@@ -38,7 +45,9 @@ test('the token page and feed expose only current files, with conditional pollin
   const first = await request('feed.json');
   const json = /** @type {any} */ (await first.json());
   assert.deepEqual(json.turns.map((/** @type {any} */ turn) => turn.replyId), ['second', 'first']);
-  assert.equal(json.turns[0].excerpt, 'Second reply');
+  assert.equal(json.turns[0].reply, 'Second reply');
+  assert.equal(json.turns[1].reply, 'First reply\n\nNext line');
+  assert.equal('excerpt' in json.turns[0], false);
   assert.deepEqual(json.turns[0].items[0], { kind: 'image', mime: 'image/png', caption: 'before', name: 'first.png', bytes: 10, url: `file/${object}` });
   const etag = first.headers.get('etag');
   assert.ok(etag);

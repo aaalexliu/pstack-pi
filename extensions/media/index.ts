@@ -1,9 +1,9 @@
 import { lstatSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { extname, join } from 'node:path';
 import { getAgentDir, type ExtensionAPI, type SessionEntry } from '@earendil-works/pi-coding-agent';
 import { Container, getCapabilities, hyperlink, Image, Text, TruncatedText } from '@earendil-works/pi-tui';
 import { stripControls } from '../shared/model.ts';
-import { collectMediaTurn, decodeMediaTurn, maxMediaBytes, mediaEntryType, mediaTurns } from './media.ts';
+import { collectMediaTurn, decodeMediaTurn, maxMediaBytes, mediaEntryType, mediaFormats, mediaTurns } from './media.ts';
 import { startMediaServer, type Feed } from './server.ts';
 
 const guideline = 'To show the user an image, video, or PDF, cite it in your final reply as a Markdown image with an absolute path, for example `![before](/tmp/before.png)`. Pi shows cited media under your reply.';
@@ -25,16 +25,16 @@ function thumbnail(file: string): string | undefined {
 type Exec = ExtensionAPI['exec'];
 type Pane = { kind: 'none' } | { kind: 'remote' } | { kind: 'local'; surface?: string };
 
-function excerpt(branch: SessionEntry[], replyId: string): string {
-  const reply = branch.find((entry) => entry.id === replyId);
-  if (reply?.type !== 'message' || reply.message.role !== 'assistant') return '';
-  const text = reply.message.content.find((block) => block.type === 'text');
-  if (text?.type !== 'text') return '';
-  const line = text.text.split(/\r?\n/u).find((candidate) => candidate.trim()) ?? '';
-  const plain = stripControls(line).replace(/!?\[([^\]]*)\]\([^)]*\)/gu, '$1').replace(/\s+/gu, ' ').trim();
-  if (plain.length <= 140) return plain;
-  const cut = plain.lastIndexOf(' ', 139);
-  return `${plain.slice(0, cut > 80 ? cut : 139)}…`;
+function replyText(branch: SessionEntry[], replyId: string): string {
+  const entry = branch.find((item) => item.id === replyId);
+  if (entry?.type !== 'message' || entry.message.role !== 'assistant') return '';
+  const text = entry.message.content.flatMap((block) => block.type === 'text' ? [block.text] : []).join('\n\n');
+  const plain = text.split(/\r?\n/u).flatMap((line) => {
+    const clean = line.split('\t').map((part) => stripControls(part.replace(/[\u0000-\u0008\u000b-\u001a\u001c-\u001f\u007f-\u009f]/gu, ''))).join('\t');
+    const prose = clean.replace(/( ?)(!?)\[([^\]]*)\]\(([^)\s]*)[^)]*\)/gu, (_link, space, image, caption, target) => image || Object.hasOwn(mediaFormats, extname(target).toLowerCase()) ? '' : `${space}${caption}`);
+    return prose.trim() || !clean.trim() ? [prose.trimEnd()] : [];
+  }).join('\n').replace(/\n{3,}/gu, '\n\n').trim();
+  return plain.length > 20_000 ? `${plain.slice(0, 19_999)}…` : plain;
 }
 
 export default function media(pi: ExtensionAPI, rootDirectory = join(getAgentDir(), 'pstack-pi', 'media'), sizeLimit = maxMediaBytes, exec: Exec = pi.exec.bind(pi)): void {
@@ -45,7 +45,7 @@ export default function media(pi: ExtensionAPI, rootDirectory = join(getAgentDir
     : /^127\.0\.0\.1:\d+$/u.test(process.env.CMUX_SOCKET_PATH) ? { kind: 'remote' } : { kind: 'local' };
   const cli = process.env.CMUX_BUNDLED_CLI_PATH || 'cmux';
   const rebuild = (branch: SessionEntry[]) => {
-    feed = mediaTurns(branch).map((turn) => ({ ...turn, excerpt: excerpt(branch, turn.replyId) }));
+    feed = mediaTurns(branch).map((turn) => ({ ...turn, reply: replyText(branch, turn.replyId) }));
   };
   const start = async () => {
     if (!starting) starting = startMediaServer(() => feed, rootDirectory);
@@ -113,7 +113,7 @@ export default function media(pi: ExtensionAPI, rootDirectory = join(getAgentDir
     const turn = await collectMediaTurn(reply.id, text, ctx.cwd, rootDirectory, sizeLimit);
     const now = ctx.sessionManager.getBranch();
     if (turn && now.some((entry) => entry.id === reply.id) && !mediaTurns(now).some((existing) => existing.replyId === reply.id)) {
-      feed = [...feed, { ...turn, excerpt: excerpt(now, reply.id) }];
+      feed = [...feed, { ...turn, reply: replyText(now, reply.id) }];
       const live = await start().catch(() => undefined);
       pi.appendEntry(mediaEntryType, turn);
       if (live) await open();
