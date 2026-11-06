@@ -67,7 +67,7 @@ These are observations, not timeout limits. CPU load and cold starts affect them
 
 `tests/profiles` checks the auth profiles extension against fake credential stores: folder and inherited profile selection, the launch profile read once per process, logins and refreshes landing in the right file, and store restore on shutdown. `tests/profiles/e2e/run.sh` is a manual check against real Pi 1.x and a loopback Anthropic stand-in with fake keys; CI does not run it.
 
-`tests/title` checks the session title extension against a fake Pi and model: the first prompt names the session, follow-ups keep the name and new tasks replace it, a `/name` wins, a resumed session keeps renaming, a newer prompt cancels an older request, the Haiku and session-model choice, failures, reply parsing, and the terminal title with no `π - ` prefix.
+`tests/title` checks the session title extension against a fake Pi and model: the first prompt names the session, follow-ups keep the name and new tasks replace it, a `/name` wins, a resumed session keeps renaming, a newer prompt cancels an older request, the Haiku and session-model choice, failures, reply parsing, and the terminal title with no `π - ` prefix and a spinner while the agent works.
 
 `tests/recap` checks the recap extension against a fake Pi, model, and clock: one recap three minutes after a run settles, cancellation by typing, `!` commands, a new run, or typing during the request, no repeat without new conversation, `/recap`, the TUI-only and Pi-version guards, the warning on failure, the renderer, and the transcript and reply cleanup.
 
