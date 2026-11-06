@@ -35,3 +35,4 @@ This repository packages Lauren Tan's Cursor pstack for Pi. Read this file befor
 | `TESTING.md` | Which test script to run, and what each suite proves |
 | `RELEASING.md` | The release gate and install-by-commit procedure |
 | `tests/pi/README.md` | The packed real-Pi harness and its bounds |
+| `docs/media.md` | Why the media extension groups, copies, serves, and opens cited media the way it does |
