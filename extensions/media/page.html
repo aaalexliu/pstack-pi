@@ -221,9 +221,12 @@ function makeTurn(turn, newest) {
   heading.style.cursor = 'pointer';
   heading.onclick = expand;
   section.append(heading, reply, body);
-  requestAnimationFrame(() => {
-    if (reply.scrollHeight > reply.clientHeight + 1) reply.after(toggle);
-  });
+  new ResizeObserver(() => {
+    if (reply.classList.contains('expanded')) return;
+    const clipped = reply.scrollHeight > reply.clientHeight + 1;
+    if (clipped && !toggle.isConnected) reply.after(toggle);
+    if (!clipped && toggle.isConnected) toggle.remove();
+  }).observe(reply);
   if (turn.skipped.length) section.append(el('p', 'skipped', `Skipped: ${turn.skipped.join(', ')}`));
   return { section, expand };
 }
