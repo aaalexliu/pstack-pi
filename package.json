@@ -27,7 +27,8 @@
       "extensions/profiles/index.ts",
       "extensions/title/index.ts",
       "extensions/recap/index.ts",
-      "extensions/media/index.ts"
+      "extensions/media/index.ts",
+      "extensions/idle-compaction/index.ts"
     ],
     "skills": [
       "additions/skills/alex-show-me/SKILL.md",
@@ -106,6 +107,10 @@
     "additions/skills/list-writing/SKILL.md",
     "agents/comment-sicko.md",
     "agents/poteto-agent.md",
+    "extensions/idle-compaction/index.ts",
+    "extensions/idle-compaction/plan.ts",
+    "extensions/idle-compaction/runtime.ts",
+    "extensions/idle-compaction/summary.ts",
     "extensions/profiles/config.ts",
     "extensions/profiles/index.ts",
     "extensions/pstack/export-session.ts",
@@ -124,6 +129,7 @@
     "extensions/media/page.html",
     "extensions/media/server.ts",
     "extensions/shared/model.ts",
+    "extensions/shared/settings.ts",
     "extensions/subagent/agents.ts",
     "extensions/subagent/cmux-settings.ts",
     "extensions/subagent/cmux.ts",
