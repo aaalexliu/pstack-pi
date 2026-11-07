@@ -9,7 +9,7 @@
 | `npm run test:pi` | Pi harness tests and packed real-Pi tests |
 | `npm run test:pi:unit` | Pi harness tests without launching Pi |
 
-`test:fast` runs the sync, content, pstack, subagent, profiles, title, recap, media, and Pi harness test files in one Node test invocation. Files keep separate processes and run concurrently. It skips packed real-Pi tests. `npm test` runs that same set, then the packed tests without repeating the harness tests.
+`test:fast` runs the sync, content, pstack, subagent, profiles, title, recap, idle-compaction, media, and Pi harness test files in one Node test invocation. Files keep separate processes and run concurrently. It skips packed real-Pi tests. `npm test` runs that same set, then the packed tests without repeating the harness tests.
 
 `scripts/run-tests.mjs` discovers test files. New files under `tests/pi/` default to the packed suite unless listed in `PI_UNIT_TESTS`.
 
@@ -70,6 +70,8 @@ These are observations, not timeout limits. CPU load and cold starts affect them
 `tests/title` checks the session title extension against a fake Pi and model: the first prompt names the session, follow-ups keep the name and new tasks replace it, a `/name` wins, a resumed session keeps renaming, a newer prompt cancels an older request, the Haiku and session-model choice, failures, reply parsing, and the terminal title with no `π - ` prefix and a spinner while the agent works.
 
 `tests/recap` checks the recap extension against a fake Pi, model, and clock: one recap three minutes after a run settles, cancellation by typing, `!` commands, a new run, or typing during the request, no repeat without new conversation, `/recap`, the TUI-only and Pi-version guards, the warning on failure, the renderer, and the transcript and reply cleanup.
+
+`tests/idle-compaction` checks the idle-compaction extension against a fake Pi, model, and clock. The fake `ctx.compact()` runs the registered `session_before_compact` handler the way Pi does. It covers the compaction 54 minutes after the last request started, the exact replay request and options, the kept last reply, file lists from the whole transcript including codemode calls, the notice and its renderer, every arming rule and the 100,000-token threshold floor, cancellation before and during the summary, entries that do and do not change the conversation, the late timer, replies that are not summaries, the timeout, foreign and stale compactions, `/idle-compaction on|off|status`, a broken settings file, and Pi `0.85.1`. `tests/subagent/cmux-settings.test.mjs` covers the shared settings file both extensions use.
 
 `tests/media` checks cited images, videos, and PDFs in reply order against a fake Pi. It covers fenced code, path resolution, skipped files, deduplication, snapshot bytes after a source changes, repeat settles, prompt guidance, and image-capable and text-only renderers. Real loopback HTTP tests cover the token, Host check, HEAD, Range, feed order, conditional polling, and page headers. Fake cmux tests cover pane reuse, reopening, remote denial, branch rebuilds, resume, shutdown, and header links. The full check does not inspect the page in cmux or test its remote proxy.
 
