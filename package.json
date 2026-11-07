@@ -124,6 +124,7 @@
     "extensions/media/page.html",
     "extensions/media/server.ts",
     "extensions/shared/model.ts",
+    "extensions/shared/settings.ts",
     "extensions/subagent/agents.ts",
     "extensions/subagent/cmux-settings.ts",
     "extensions/subagent/cmux.ts",
