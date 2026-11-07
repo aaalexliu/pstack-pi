@@ -130,7 +130,7 @@ async function fileInventory(root, roots, inventory) {
 /** @param {ContentInventory} inventory */
 export function extensionFiles(inventory) {
   return inventory.byDestination.has('additions/agents/general-purpose.md')
-    ? ['extensions/media/index.ts', 'extensions/media/media.ts', 'extensions/media/page.html', 'extensions/media/server.ts', 'extensions/profiles/config.ts', 'extensions/profiles/index.ts', 'extensions/pstack/export-session.ts', 'extensions/pstack/index.ts', 'extensions/pstack/mode.ts', 'extensions/pstack/papercut-aggregation.ts', 'extensions/pstack/papercut-journal.ts', 'extensions/pstack/papercut-model.ts', 'extensions/pstack/papercut-observer.ts', 'extensions/pstack/papercuts.ts', 'extensions/pstack/todo.ts', 'extensions/recap/index.ts', 'extensions/recap/summary.ts', 'extensions/shared/model.ts', 'extensions/shared/settings.ts', 'extensions/subagent/agents.ts', 'extensions/subagent/cmux.ts', 'extensions/subagent/cmux-settings.ts', 'extensions/subagent/index.ts', 'extensions/subagent/model-config.ts', 'extensions/subagent/progress.ts', 'extensions/subagent/view.ts', 'extensions/title/index.ts', 'extensions/title/naming.ts'] : [];
+    ? ['extensions/idle-compaction/index.ts', 'extensions/idle-compaction/plan.ts', 'extensions/idle-compaction/runtime.ts', 'extensions/idle-compaction/summary.ts', 'extensions/media/index.ts', 'extensions/media/media.ts', 'extensions/media/page.html', 'extensions/media/server.ts', 'extensions/profiles/config.ts', 'extensions/profiles/index.ts', 'extensions/pstack/export-session.ts', 'extensions/pstack/index.ts', 'extensions/pstack/mode.ts', 'extensions/pstack/papercut-aggregation.ts', 'extensions/pstack/papercut-journal.ts', 'extensions/pstack/papercut-model.ts', 'extensions/pstack/papercut-observer.ts', 'extensions/pstack/papercuts.ts', 'extensions/pstack/todo.ts', 'extensions/recap/index.ts', 'extensions/recap/summary.ts', 'extensions/shared/model.ts', 'extensions/shared/settings.ts', 'extensions/subagent/agents.ts', 'extensions/subagent/cmux.ts', 'extensions/subagent/cmux-settings.ts', 'extensions/subagent/index.ts', 'extensions/subagent/model-config.ts', 'extensions/subagent/progress.ts', 'extensions/subagent/view.ts', 'extensions/title/index.ts', 'extensions/title/naming.ts'] : [];
 }
 
 /** @param {ContentInventory} inventory */
@@ -150,7 +150,7 @@ export function assertPackageExposure(rawPackage, inventory) {
   const pi = object(pkg.pi);
   assert.deepEqual(Object.keys(pi).sort(), ['extensions', 'prompts', 'skills', 'themes'], 'Unexpected Pi registration');
   const runtime = extensionFiles(inventory).length > 0;
-  assert.deepEqual(pi.extensions, runtime ? ['extensions/pstack/index.ts', 'extensions/subagent/index.ts', 'extensions/profiles/index.ts', 'extensions/title/index.ts', 'extensions/recap/index.ts', 'extensions/media/index.ts'] : [], 'Only package-owned extensions may register');
+  assert.deepEqual(pi.extensions, runtime ? ['extensions/pstack/index.ts', 'extensions/subagent/index.ts', 'extensions/profiles/index.ts', 'extensions/title/index.ts', 'extensions/recap/index.ts', 'extensions/media/index.ts', 'extensions/idle-compaction/index.ts'] : [], 'Only package-owned extensions may register');
   for (const key of ['prompts', 'themes']) assert.deepEqual(pi[key], [], `No ${key} may register`);
   assert.equal(pkg.dependencies, undefined, 'No runtime dependencies: Pi supplies pi-coding-agent, pi-ai, pi-tui, and typebox');
   if (runtime) assert.deepEqual(pkg.peerDependencies, { '@earendil-works/pi-ai': '*', '@earendil-works/pi-coding-agent': '*', '@earendil-works/pi-tui': '*', typebox: '*' });
@@ -254,7 +254,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.ar
     const inventory = await checkContent({ root, manifest: JSON.parse(await readFile('sync/manifest.json', 'utf8')), lock: JSON.parse(await readFile('sync/upstream.lock.json', 'utf8')) });
     const packed = JSON.parse(execFileSync('npm', ['pack', '--dry-run', '--json', '--ignore-scripts'], { encoding: 'utf8', timeout: 15_000, maxBuffer: 1024 * 1024 }));
     assertPackInventory(packed[0].files.map(/** @param {{path: string}} file */ (file) => file.path), inventory);
-    console.log(`${inventory.bySource.size} records, ${inventory.byDestination.size} files, ${inventory.bySkillName.size} skills, ${inventory.byAgentName.size} agents, ${extensionFiles(inventory).length ? 6 : 0} extensions`);
+    console.log(`${inventory.bySource.size} records, ${inventory.byDestination.size} files, ${inventory.bySkillName.size} skills, ${inventory.byAgentName.size} agents, ${extensionFiles(inventory).length ? 7 : 0} extensions`);
   } catch (error) {
     console.error(String(error));
     process.exitCode = 1;
