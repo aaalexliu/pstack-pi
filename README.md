@@ -64,10 +64,10 @@ Every skill except `list-writing` keeps `disable-model-invocation: true` so Pi e
 
 `/skill:statechart` runs its bundled `scripts/statechart` command. That command needs Node 22.18 to 22.x, Node 23.6 or later, Bun 1.1.5 or later, or Deno 2.0 or later, plus `mise`. Its first run downloads TLC and Java through mise. Rendering a chart to SVG uses the npm package `pele@1.9.0`, installed outside your repo. Node will not run the TypeScript scripts from a `node_modules` folder, so use the Git install above.
 
-The package ships 125 generated skill and support files, two generated agents, five Pi-owned files under `additions/`, thirty-one extension modules, and the root package files.
+The package ships 125 generated skill and support files, two generated agents, five Pi-owned files under `additions/`, twenty-five extension modules, and the root package files.
 It registers `pstack_config`, `pstack_papercut`, `pstack_sessions`, `pstack_todo`, and, at root depth, `subagent`.
-The delegation extension owns one `session_shutdown` hook that stops live children and a `tool_result` hook that marks its own failed calls. The papercut journal owns a `tool_execution_start` hook and a `tool_result` hook that append a one-line measurement to other tools' results. The title extension owns an `input` hook that names the session in the background. The recap extension owns an `agent_settled` hook that starts its idle timer. The idle-compaction extension records each model request through `context_with_system` without changing it, arms its timer from `agent_settled`, and owns a `session_before_compact` hook that leaves every compaction but its own untouched. The media extension records cited files after a TUI reply and draws a media entry under it.
-Todo and Poteto Mode state follow the active session branch through versioned custom entries. The package registers `/pstack`, `/pstack-export`, `/subagents`, `/pstack-cmux`, `/papercuts`, `/recap`, `/idle-compaction`, and `/media`, but no prompts, themes, or blanket approval hooks.
+The delegation extension owns one `session_shutdown` hook that stops live children and a `tool_result` hook that marks its own failed calls. The papercut journal owns a `tool_execution_start` hook and a `tool_result` hook that append a one-line measurement to other tools' results. The title extension owns an `input` hook that names the session in the background. The recap extension owns an `agent_settled` hook that starts its idle timer. The media extension records cited files after a TUI reply and draws a media entry under it.
+Todo and Poteto Mode state follow the active session branch through versioned custom entries. The package registers `/pstack`, `/pstack-export`, `/subagents`, `/pstack-cmux`, `/papercuts`, `/recap`, and `/media`, but no prompts, themes, or blanket approval hooks.
 
 `/pstack-export [path.html]` runs stock Pi HTML export (`pi --export`) for the current session, then injects a sticky token time series for the active branch. Bars jump to the first entry in that local-time minute. Scroll on the transcript updates the current bucket. Without a path it writes `pi-session-<session>.html` in the cwd.
 
@@ -287,24 +287,6 @@ When a run ends in the interactive TUI and you then do nothing for three minutes
 - Typing, a `!` command, or a new run cancels a pending recap, including one the model is still writing. A run with nothing new since the last recap gets none.
 - Print, JSON, and RPC runs and subagent children never start the timer. Pi releases without `ModelRegistry.complete`, such as `0.85.1`, skip recaps.
 - A failed automatic recap warns once per session.
-
-## Idle compaction
-
-When a long session sits idle in the interactive TUI until just before its prompt cache expires, the idle-compaction extension compacts it, like Claude Code's `idleCompaction`. Your next message after the break then sends a short summary instead of the whole conversation at the full cache-write price.
-
-- It needs Pi's one-hour prompt cache. Start Pi with `PI_CACHE_RETENTION=long`, since Pi uses the 5-minute cache by default. The model must declare a one-hour cache, as Anthropic Claude models do.
-- It arms when a run ends on a plain answer with at least 200,000 tokens of context, Claude Code's default. Set `PSTACK_IDLE_COMPACT_MIN_TOKENS` to a positive integer to change the threshold. Values below 100,000 count as 100,000, as in Claude Code, because Pi refuses to compact a short session after the summary is already paid for.
-- It fires 54 minutes after the last model request started, Pi's cache-warming delay for a one-hour cache. It resends that request unchanged with one more message that asks for Pi's checkpoint summary, so the summary reads the conversation from cache. Pi then compacts with that summary and keeps your last reply verbatim after it. The summary covers everything before that reply, so nothing appears twice.
-- While the summary runs, a dim `※ compacting while idle…` shows in the footer. Typing, a `!` command, a new run, a model or thinking change, `/tree`, or `/compact` cancels it, and your message still finds the cache warm. After it finishes, Pi shows its compaction summary, then a dim line such as `※ Compacted while idle, before the prompt cache expired (54 min idle, 212,400 tokens, 98% read from cache)`.
-- A reply that is not a summary, a failed request, or no reply within five minutes skips the compaction and warns once per session. It never falls back to Pi's own summarizer, which does not read the cache.
-- A timer that runs late, for example because the computer slept, does nothing once the cache may have expired.
-
-Run `/idle-compaction` to see whether this session will compact, when, or which rule stops it. `/idle-compaction off` and `/idle-compaction on` save `idleCompaction` in `<Pi agent dir>/pstack-pi/settings.json`. Turning off Pi's auto-compaction (`compaction.enabled: false`) also turns it off.
-
-- Print, JSON, and RPC runs and subagent children never arm it.
-- It needs Pi 1.x. Pi `0.85.1` cannot replay a request from an extension, so the extension loads there and never arms.
-- Another extension that changes requests in `context_with_system` can lower the share read from cache.
-- A resumed or reloaded session arms only after its next run, because the extension has no recorded request to replay before then.
 
 ## Cited media
 

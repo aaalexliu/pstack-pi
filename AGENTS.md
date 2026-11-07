@@ -11,7 +11,7 @@ This repository packages Lauren Tan's Cursor pstack for Pi. Read this file befor
 | `sync/upstream.lock.json` | Source blobs and generated hashes | Only through `npm run sync:relock`. |
 | `skills/`, `agents/` | Generated from the snapshot, manifest, and lock | Never by hand. Run `npm run sync`. |
 | `additions/` | Pi-owned agents and skills with no upstream counterpart. They ship as written. | Yes. Sync never reads or writes it. |
-| `extensions/pstack/`, `extensions/subagent/`, `extensions/profiles/`, `extensions/title/`, `extensions/recap/`, `extensions/idle-compaction/`, `extensions/media/`, `extensions/shared/` | Pi extensions: todo, config, sessions, papercuts, delegation, auth profiles, session titles, recaps, idle compaction, cited media, and their shared model and settings helpers | Yes. |
+| `extensions/pstack/`, `extensions/subagent/`, `extensions/profiles/`, `extensions/title/`, `extensions/recap/`, `extensions/media/`, `extensions/shared/` | Pi extensions: todo, config, sessions, papercuts, delegation, auth profiles, session titles, recaps, cited media, and their shared model helpers | Yes. |
 | `scripts/` | Sync, content checks, demo | Yes. |
 | `tests/` | Content, sync, extension, and packed real-Pi tests | Yes. |
 
