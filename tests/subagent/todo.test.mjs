@@ -145,11 +145,19 @@ test('registered tool follows session branches and persists only mutations', asy
   assert.equal(Check(tools.get('pstack_sessions').parameters, { action: 'list', cwd: '/tmp' }), false);
   const tool = tools.get('pstack_todo');
   const ctx = { sessionManager: { getBranch: () => branch } };
+  /** @param {any} systemPromptOptions */
+  const startRun = (systemPromptOptions) => handlers.get('before_agent_start')({ systemPrompt: 'base', systemPromptOptions }, ctx);
   await handlers.get('session_start')({}, ctx);
-  assert.equal(await handlers.get('before_agent_start')({ systemPrompt: 'base' }, ctx), undefined);
+  /** @type {Record<string, string>} */
+  let sections = {};
+  assert.equal(await startRun({ sections }), undefined);
+  assert.deepEqual(sections, {});
   assert.deepEqual(await handlers.get('input')({ text: '/skill:other' }, ctx), { action: 'continue' });
   assert.deepEqual(await handlers.get('input')({ text: '/skill:poteto-mode task' }, ctx), { action: 'continue' });
-  assert.match((await handlers.get('before_agent_start')({ systemPrompt: 'base' }, ctx)).systemPrompt, /skills\/poteto-mode\/SKILL\.md/);
+  assert.equal(await startRun({ sections }), undefined);
+  assert.deepEqual(Object.keys(sections), ['pstack_poteto_mode']);
+  assert.match(sections.pstack_poteto_mode, /^Pstack Poteto Mode is active for this session branch\. .*skills\/poteto-mode\/SKILL\.md before applying the mode\.$/);
+  assert.equal((await startRun({})).systemPrompt, `base\n\n${sections.pstack_poteto_mode}`);
 
   await tool.execute('set', { action: 'set', items: ['root'] });
   assert.equal(appended.length, 2);
@@ -166,6 +174,9 @@ test('registered tool follows session branches and persists only mutations', asy
 
   branch = [];
   await handlers.get('session_tree')({}, ctx);
-  assert.equal(await handlers.get('before_agent_start')({ systemPrompt: 'base' }, ctx), undefined);
+  sections = {};
+  assert.equal(await startRun({ sections }), undefined);
+  assert.deepEqual(sections, {});
+  assert.equal(await startRun({}), undefined);
   assert.equal((await tool.execute('get', { action: 'get' })).content[0].text, 'No pstack todo items.');
 });

@@ -79,7 +79,7 @@ Its validation applies only to `subagent` requests.
 
 ## Core workflows
 
-Run `/skill:poteto-mode <task>` to load the mode and keep its short operating reminder active on the current session branch. The mode selects one of six bundled playbooks: feature, bug fix, investigation, prototype, multi-phase plan, or orchestration. Branching before the command restores the mode state from that earlier point.
+Run `/skill:poteto-mode <task>` to load the mode and keep its short operating reminder active on the current session branch. The reminder is a `pstack_poteto_mode` system prompt section. Pi records sections in the session, so a request rebuilt from the session, as `pi-cached-compaction` does, matches the one Pi sent. Pi 0.85.1 has no sections, so there the reminder is appended to the system prompt. The mode selects one of six bundled playbooks: feature, bug fix, investigation, prototype, multi-phase plan, or orchestration. Branching before the command restores the mode state from that earlier point.
 
 Poteto Mode uses `poteto-agent` for bounded implementation work and `general-purpose` for read-only exploration. `poteto-agent` has `read`, `grep`, `find`, `ls`, `bash`, `edit`, and `write`; it is a leaf process with no `subagent` tool. The parent still owns the design, diff review, and final checks.
 
