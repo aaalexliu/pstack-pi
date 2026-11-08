@@ -10,6 +10,8 @@ import { disabledModeState, enabledModeState, invokesPotetoMode, modeEntryType, 
 import { formatTodos, parseTodoAction, reduceTodos, restoreTodos, todoEntryType, todoParameters, emptyTodoState, type TodoState } from './todo.ts';
 
 const potetoSkill = fileURLToPath(new URL('../../skills/poteto-mode/SKILL.md', import.meta.url));
+const potetoSection = 'pstack_poteto_mode';
+const potetoReminder = `Pstack Poteto Mode is active for this session branch. Use pstack_todo for non-trivial work, read the matching playbook, delegate bounded work when it helps, review every change, and verify real behavior. Read ${potetoSkill} before applying the mode.`;
 
 function sessionDirectory(cwd: string): string {
   const resolvedCwd = resolve(cwd);
@@ -45,9 +47,13 @@ export default function pstack(pi: ExtensionAPI): void {
   });
   pi.on('before_agent_start', (event) => {
     if (!mode.enabled) return;
-    return {
-      systemPrompt: `${event.systemPrompt}\n\nPstack Poteto Mode is active for this session branch. Use pstack_todo for non-trivial work, read the matching playbook, delegate bounded work when it helps, review every change, and verify real behavior. Read ${potetoSkill} before applying the mode.`,
-    };
+    const { sections } = event.systemPromptOptions as { sections?: Record<string, string> };
+    if (sections) {
+      sections[potetoSection] = potetoReminder;
+      return;
+    }
+    // Pi 0.85.1 has no prompt sections.
+    return { systemPrompt: `${event.systemPrompt}\n\n${potetoReminder}` };
   });
 
   pi.registerCommand('pstack', {
