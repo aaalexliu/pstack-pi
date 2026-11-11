@@ -1,14 +1,25 @@
+import { hostname } from 'node:os';
 import { join } from 'node:path';
 import { getAgentDir, type AgentToolResult, type ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import { Text } from '@earendil-works/pi-tui';
 import { createAggregationFilename, formatRecentPapercuts, parsePapercutsCommand, renderPapercutAggregation } from './papercut-aggregation.ts';
 import { PapercutJournal } from './papercut-journal.ts';
-import { normalizePapercutNote, papercutParameters, papercutRecordVersion, type PapercutRecord, type ToolEvidence } from './papercut-model.ts';
+import { normalizePapercutNote, papercutKey, papercutParameters, papercutRecordVersion, type CurrentPapercutRecord, type ToolEvidence } from './papercut-model.ts';
 import { PapercutObserver } from './papercut-observer.ts';
 
 export const papercutToolName = 'pstack_papercut';
 
-type PapercutToolDetails = Readonly<{ record: PapercutRecord; file: string }>;
+export const maxPapercutsPerTurn = 5;
+
+type PapercutToolDetails = Readonly<
+  | { status: 'recorded'; record: CurrentPapercutRecord; file: string }
+  | { status: 'duplicate' | 'turn-limit' }
+>;
+
+const refusals = {
+  duplicate: 'Not recorded: this session already recorded the same papercut. Do not record it again.',
+  'turn-limit': `Not recorded: reached the limit of ${maxPapercutsPerTurn} papercuts per turn. Record only distinct problems.`,
+} as const;
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -17,6 +28,13 @@ function errorMessage(error: unknown): string {
 export function registerPapercuts(pi: ExtensionAPI, rootDirectory = join(getAgentDir(), 'pstack-pi')): void {
   const journal = new PapercutJournal(rootDirectory);
   const observer = new PapercutObserver();
+  const host = hostname().replace(/\.local$/u, '');
+  const recordedKeys = new Set<string>();
+  let recordedThisTurn = 0;
+
+  pi.on('turn_start', () => {
+    recordedThisTurn = 0;
+  });
 
   pi.on('tool_execution_start', (event) => {
     if (event.toolName === papercutToolName) return;
@@ -49,6 +67,16 @@ export function registerPapercuts(pi: ExtensionAPI, rootDirectory = join(getAgen
     ],
     parameters: papercutParameters,
     async execute(_toolCallId, params, _signal, _onUpdate, ctx): Promise<AgentToolResult<PapercutToolDetails>> {
+      const sessionId = ctx.sessionManager.getSessionId();
+      const kind = params.kind ?? 'other';
+      const note = normalizePapercutNote(params.note);
+      // Pi runs one turn's tool calls concurrently, so the claim must happen before the first await.
+      const key = papercutKey({ sessionId, kind, note });
+      const refusal = recordedKeys.has(key) ? 'duplicate' : recordedThisTurn >= maxPapercutsPerTurn ? 'turn-limit' : null;
+      if (refusal) return { content: [{ type: 'text' as const, text: refusals[refusal] }], details: { status: refusal } };
+      recordedKeys.add(key);
+      recordedThisTurn += 1;
+
       const evidence: ToolEvidence | undefined = params.evidence
         ? {
             tool: params.evidence.tool.trim(),
@@ -57,20 +85,28 @@ export function registerPapercuts(pi: ExtensionAPI, rootDirectory = join(getAgen
             isError: params.evidence.isError ?? false,
           }
         : undefined;
-      const record: PapercutRecord = {
+      const record: CurrentPapercutRecord = {
         version: papercutRecordVersion,
         source: 'agent',
         at: new Date().toISOString(),
         cwd: ctx.cwd,
-        sessionId: ctx.sessionManager.getSessionId(),
-        kind: params.kind ?? 'other',
-        note: normalizePapercutNote(params.note),
+        sessionId,
+        kind,
+        note,
         ...(evidence ? { evidence } : {}),
+        ...(host ? { host } : {}),
+        ...(ctx.model ? { model: `${ctx.model.provider}/${ctx.model.id}` } : {}),
       };
-      const file = await journal.append(record);
+      let file: string;
+      try {
+        file = await journal.append(record);
+      } catch (error) {
+        recordedKeys.delete(key);
+        throw error;
+      }
       return {
         content: [{ type: 'text' as const, text: `Recorded papercut [${record.kind}]` }],
-        details: { record, file },
+        details: { status: 'recorded', record, file },
       };
     },
     renderCall(args, theme) {

@@ -122,7 +122,9 @@ The tool accepts a free-form lowercase `kind`, a concise `note` describing what 
 
 pstack-pi appends a one-line trailer to every other tool result, for example `[pstack: bash 22ms 80B failed]`. The measurement sits next to the output it describes, so the agent can judge a slow call or a large dump in context and copy the numbers into `evidence`. pstack-pi never decides on its own which call a note is about. Tool inputs and outputs are never copied into the journal.
 
-Records stay local in private per-session, per-process JSONL files under `<Pi agent dir>/pstack-pi/papercuts/`. The reader ignores malformed lines and records from newer versions.
+A Pi process records each papercut once per session. A second call with the same session, `kind`, and note writes nothing, even in a later turn. Notes match after trimming and collapsing whitespace. A turn records at most 5 papercuts, including calls made from codemode scripts. Calls past the cap write nothing and tell the agent to record only distinct problems. Neither refusal is an error, so the agent has no reason to retry.
+
+Records stay local in private per-session, per-process JSONL files under `<Pi agent dir>/pstack-pi/papercuts/`. Version 2 records add `host`, the machine name without a trailing `.local`, and `model`, the session's `provider/id` when the call ran. Both fields are optional. The reader accepts version 1 and version 2 records and ignores malformed lines and records from newer versions. It also keeps only the earliest record for each session, `kind`, and note, so a burst in an older journal counts once.
 
 | Command | Result |
 | --- | --- |

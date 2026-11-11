@@ -5,15 +5,17 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { PapercutJournal } from '../../extensions/pstack/papercut-journal.ts';
 
-/** @type {import('../../extensions/pstack/papercut-model.ts').PapercutRecord} */
+/** @type {import('../../extensions/pstack/papercut-model.ts').CurrentPapercutRecord} */
 const record = {
-  version: 1,
+  version: 2,
   source: 'agent',
   at: '2026-09-14T20:00:00.000Z',
   cwd: '/work/project',
   sessionId: 'session-1',
   kind: 'other',
   note: 'A small but persistent annoyance.',
+  host: 'test-mac',
+  model: 'test-provider/test-model',
 };
 
 test('stores private per-process journals and reads valid records', async () => {
@@ -42,6 +44,23 @@ test('ignores malformed lines and reports an empty journal before the first writ
   await journal.append(record);
   await writeFile(join(root, 'papercuts', 'broken.jsonl'), 'not-json\n{}\n', { mode: 0o600 });
   assert.deepEqual(await journal.readAll(), [record]);
+});
+
+test('reads a burst of repeated lines back as one record per session, kind, and note', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'pstack-papercuts-'));
+  const journal = new PapercutJournal(root, 4321);
+  const burst = { version: 1, source: 'agent', cwd: '/work/project', sessionId: 'session-1', kind: 'other', note: 'Same note' };
+  const lines = Array.from({ length: 3000 }, (_, index) => ({ ...burst, at: new Date(Date.UTC(2026, 10, 10, 12, 0, 0, 3000 - index)).toISOString() }));
+  const distinct = [
+    { ...burst, at: '2026-11-10T13:00:00.000Z', sessionId: 'session-2' },
+    { ...burst, at: '2026-11-10T13:00:00.000Z', kind: 'tool.slow' },
+    { ...burst, at: '2026-11-10T13:00:00.000Z', note: 'Another note' },
+  ];
+  await journal.append(record);
+  await writeFile(join(root, 'papercuts', 'session-1.99.jsonl'), [...lines, ...distinct].map((line) => `${JSON.stringify(line)}\n`).join(''), { mode: 0o600 });
+  const records = await journal.readAll();
+  assert.equal(records.length, 5);
+  assert.deepEqual(records.filter((entry) => entry.note === 'Same note' && entry.sessionId === 'session-1' && entry.kind === 'other'), [{ ...burst, at: '2026-11-10T12:00:00.001Z' }]);
 });
 
 test('writes immutable timestamped aggregation snapshots', async () => {
