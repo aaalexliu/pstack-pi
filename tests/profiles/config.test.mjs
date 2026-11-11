@@ -15,7 +15,7 @@ import {
 
 async function tree() {
   const root = await mkdtemp(join(tmpdir(), 'pstack-profiles-'));
-  for (const dir of ['jxp/radiance/repo', 'jxp/radiance-old', 'jxp/tetra', 'elsewhere']) await mkdir(join(root, dir), { recursive: true });
+  for (const dir of ['clients/client-a/repo', 'clients/client-a-old', 'clients/client-b', 'elsewhere']) await mkdir(join(root, dir), { recursive: true });
   return root;
 }
 
@@ -23,8 +23,8 @@ async function tree() {
 function config(root) {
   return parseProfileConfig(JSON.stringify({
     profiles: {
-      jxp: { dirs: [join(root, 'jxp')], providers: ['openai'] },
-      radiance: { dirs: [join(root, 'jxp/radiance')], providers: ['anthropic', 'anthropic'] },
+      clients: { dirs: [join(root, 'clients')], providers: ['openai'] },
+      'client-a': { dirs: [join(root, 'clients/client-a')], providers: ['anthropic', 'anthropic'] },
     },
   }));
 }
@@ -33,22 +33,22 @@ test('the deepest configured folder wins, matched on real paths and whole segmen
   const root = await tree();
   const profiles = config(root);
   assert.equal(profiles.error, undefined);
-  assert.deepEqual(profiles.profiles.find((profile) => profile.name === 'radiance')?.providers, ['anthropic']);
+  assert.deepEqual(profiles.profiles.find((profile) => profile.name === 'client-a')?.providers, ['anthropic']);
   const canonicalRoot = await realpath(root);
   const pick = (/** @type {string} */ cwd) => selectProfile(profiles, cwd, undefined);
-  assert.equal(pick(join(canonicalRoot, 'jxp/radiance/repo')).profile?.name, 'radiance');
-  assert.equal(pick(join(root, 'jxp/radiance')).source, 'directory');
-  assert.equal(pick(join(root, 'jxp/radiance-old')).profile?.name, 'jxp');
-  assert.equal(pick(join(root, 'jxp/tetra')).profile?.name, 'jxp');
+  assert.equal(pick(join(canonicalRoot, 'clients/client-a/repo')).profile?.name, 'client-a');
+  assert.equal(pick(join(root, 'clients/client-a')).source, 'directory');
+  assert.equal(pick(join(root, 'clients/client-a-old')).profile?.name, 'clients');
+  assert.equal(pick(join(root, 'clients/client-b')).profile?.name, 'clients');
   assert.deepEqual(pick(join(root, 'elsewhere')), { profile: undefined, source: 'none' });
 });
 
 test('a profile inherited from a parent Pi beats the folder', async () => {
   const root = await tree();
   const profiles = config(root);
-  assert.equal(selectProfile(profiles, join(root, 'elsewhere'), 'radiance').profile?.name, 'radiance');
-  assert.deepEqual(selectProfile(profiles, join(root, 'jxp/radiance/repo'), 'default'), { profile: undefined, source: 'inherited' });
-  const unknown = selectProfile(profiles, join(root, 'jxp/radiance/repo'), 'ghost');
+  assert.equal(selectProfile(profiles, join(root, 'elsewhere'), 'client-a').profile?.name, 'client-a');
+  assert.deepEqual(selectProfile(profiles, join(root, 'clients/client-a/repo'), 'default'), { profile: undefined, source: 'inherited' });
+  const unknown = selectProfile(profiles, join(root, 'clients/client-a/repo'), 'ghost');
   assert.equal(unknown.profile, undefined);
   assert.match(unknown.warning ?? '', /PI_AUTH_PROFILE=ghost/u);
 });
@@ -70,21 +70,21 @@ test('bad config disables every profile and says why', () => {
 
 test('home-relative dirs expand and a missing file means no profiles', async () => {
   const home = await tree();
-  const parsed = parseProfileConfig('{"profiles": {"radiance": {"dirs": ["~/jxp/radiance"], "providers": ["anthropic"]}}}', home);
-  assert.equal(selectProfile(parsed, join(home, 'jxp/radiance/repo'), undefined).profile?.name, 'radiance');
+  const parsed = parseProfileConfig('{"profiles": {"client-a": {"dirs": ["~/clients/client-a"], "providers": ["anthropic"]}}}', home);
+  assert.equal(selectProfile(parsed, join(home, 'clients/client-a/repo'), undefined).profile?.name, 'client-a');
   const agentDir = await mkdtemp(join(tmpdir(), 'pstack-profiles-agent-'));
   assert.deepEqual(loadProfileConfig(agentDir), { profiles: [] });
   await mkdir(join(agentDir, 'pstack-pi'));
-  await writeFile(profileConfigPath(agentDir), '{"profiles": {"radiance": {"dirs": ["~/jxp/radiance"], "providers": ["anthropic"]}}}');
-  assert.equal(loadProfileConfig(agentDir, home).profiles[0]?.name, 'radiance');
+  await writeFile(profileConfigPath(agentDir), '{"profiles": {"client-a": {"dirs": ["~/clients/client-a"], "providers": ["anthropic"]}}}');
+  assert.equal(loadProfileConfig(agentDir, home).profiles[0]?.name, 'client-a');
 });
 
 test('the launch profile is read once, before this process exports its own', () => {
   const holder = {};
-  const env = { [profileVariable]: 'radiance' };
-  assert.equal(launchProfile(env, holder), 'radiance');
+  const env = { [profileVariable]: 'client-a' };
+  assert.equal(launchProfile(env, holder), 'client-a');
   exportProfile({ profile: undefined, source: 'none' }, env);
   assert.equal(env[profileVariable], 'default');
-  assert.equal(launchProfile(env, holder), 'radiance');
+  assert.equal(launchProfile(env, holder), 'client-a');
   assert.equal(launchProfile({}, {}), undefined);
 });

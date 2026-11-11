@@ -34,7 +34,7 @@ class MemoryStore {
 }
 
 const personal = { type: 'oauth', access: 'personal', refresh: 'r1', expires: 1 };
-const radiance = { type: 'oauth', access: 'radiance', refresh: 'r2', expires: 1 };
+const clientA = { type: 'oauth', access: 'client-a', refresh: 'r2', expires: 1 };
 const owned = new Set(['anthropic']);
 
 /** @param {MemoryStore | undefined} existing */
@@ -48,8 +48,8 @@ const refresh = async (/** @type {any} */ current) => (current?.type === 'oauth'
 
 test('owned providers read the profile file, others and missing logins read the default file', async () => {
   const base = new MemoryStore({ anthropic: personal, xai: { type: 'oauth', access: 'grok' } });
-  const routed = routeCredentials(base, file(new MemoryStore({ anthropic: radiance, xai: { type: 'oauth', access: 'ignored' } })), owned);
-  assert.equal((await routed.read('anthropic'))?.access, 'radiance');
+  const routed = routeCredentials(base, file(new MemoryStore({ anthropic: clientA, xai: { type: 'oauth', access: 'ignored' } })), owned);
+  assert.equal((await routed.read('anthropic'))?.access, 'client-a');
   assert.equal((await routed.read('xai'))?.access, 'grok');
   const borrowed = routeCredentials(base, file(undefined), owned);
   assert.equal((await borrowed.read('anthropic'))?.access, 'personal');
@@ -60,8 +60,8 @@ test('a login inside the profile lands in the profile file and leaves the defaul
   const base = new MemoryStore({ anthropic: personal });
   const profile = file(undefined);
   const routed = routeCredentials(base, profile, owned);
-  await routed.modify('anthropic', async () => radiance);
-  assert.equal(profile.get()?.data.anthropic, radiance);
+  await routed.modify('anthropic', async () => clientA);
+  assert.equal(profile.get()?.data.anthropic, clientA);
   assert.equal(base.data.anthropic, personal);
 });
 
@@ -72,15 +72,15 @@ test('refreshes go back to the file the credential came from', async () => {
   assert.equal(base.data.anthropic.access, 'personal+');
   assert.equal(empty.get()?.data.anthropic, undefined);
 
-  const own = new MemoryStore({ anthropic: radiance });
+  const own = new MemoryStore({ anthropic: clientA });
   await routeCredentials(base, file(own), owned).modify('anthropic', refresh);
-  assert.equal(own.data.anthropic.access, 'radiance+');
+  assert.equal(own.data.anthropic.access, 'client-a+');
   assert.equal(base.data.anthropic.access, 'personal+');
 });
 
 test('logout inside the profile removes only the profile login', async () => {
   const base = new MemoryStore({ anthropic: personal });
-  const own = new MemoryStore({ anthropic: radiance });
+  const own = new MemoryStore({ anthropic: clientA });
   await routeCredentials(base, file(own), owned).delete('anthropic');
   assert.equal(own.data.anthropic, undefined);
   assert.equal(base.data.anthropic, personal);
@@ -101,9 +101,9 @@ test('reading never creates the profile file; logging in does', async () => {
 test('session_start swaps the store inside the profile, exports it, and shutdown restores the original', async () => {
   const agentDir = await mkdtemp(join(tmpdir(), 'pstack-profiles-agent-'));
   const work = join(agentDir, 'work');
-  await mkdir(join(work, 'radiance/repo'), { recursive: true });
+  await mkdir(join(work, 'client-a/repo'), { recursive: true });
   await mkdir(join(agentDir, 'pstack-pi'));
-  await writeFile(join(agentDir, 'pstack-pi/profiles.json'), JSON.stringify({ profiles: { radiance: { dirs: [join(work, 'radiance')], providers: ['anthropic'] } } }));
+  await writeFile(join(agentDir, 'pstack-pi/profiles.json'), JSON.stringify({ profiles: { 'client-a': { dirs: [join(work, 'client-a')], providers: ['anthropic'] } } }));
   process.env.PI_CODING_AGENT_DIR = agentDir;
   delete process.env[profileVariable];
 
@@ -124,20 +124,20 @@ test('session_start swaps the store inside the profile, exports it, and shutdown
     modelRegistry: { runtime: { credentials }, refresh: async (/** @type {any} */ options) => { refreshed.push(options); } },
   });
 
-  await handlers.get('session_start')({}, ctx(join(work, 'radiance/repo')));
+  await handlers.get('session_start')({}, ctx(join(work, 'client-a/repo')));
   assert.notEqual(credentials.store, original);
   assert.equal(baseStore(credentials.store), original);
-  assert.equal(process.env[profileVariable], 'radiance');
+  assert.equal(process.env[profileVariable], 'client-a');
   assert.deepEqual(refreshed, [{ allowNetwork: false, providers: ['anthropic'] }]);
-  assert.equal(statuses.at(-1), 'profile: radiance (anthropic: default login)');
-  assert.equal(existsSync(join(agentDir, 'pstack-pi/profiles/radiance/auth.json')), false);
+  assert.equal(statuses.at(-1), 'profile: client-a (anthropic: default login)');
+  assert.equal(existsSync(join(agentDir, 'pstack-pi/profiles/client-a/auth.json')), false);
 
-  await credentials.store.modify('anthropic', async () => radiance);
+  await credentials.store.modify('anthropic', async () => clientA);
   assert.equal(original.data.anthropic, personal);
-  await handlers.get('turn_start')({}, ctx(join(work, 'radiance/repo')));
-  assert.equal(statuses.at(-1), 'profile: radiance');
-  await handlers.get('model_select')({ model: { provider: 'openai', id: 'gpt-6-astra' } }, ctx(join(work, 'radiance/repo')));
-  assert.equal(statuses.at(-1), 'profile: radiance (openai: default login)');
+  await handlers.get('turn_start')({}, ctx(join(work, 'client-a/repo')));
+  assert.equal(statuses.at(-1), 'profile: client-a');
+  await handlers.get('model_select')({ model: { provider: 'openai', id: 'gpt-6-astra' } }, ctx(join(work, 'client-a/repo')));
+  assert.equal(statuses.at(-1), 'profile: client-a (openai: default login)');
 
   handlers.get('session_shutdown')();
   assert.equal(credentials.store, original);

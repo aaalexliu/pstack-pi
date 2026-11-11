@@ -53,7 +53,7 @@ function harness({ name, entries = [], branch = [], model = opus, mode = 'tui', 
     hasUI,
     model,
     modelRegistry: registry,
-    sessionManager: { getEntries: () => entries, getBranch: () => branch, getCwd: () => '/Users/alex/dev/radiance' },
+    sessionManager: { getEntries: () => entries, getBranch: () => branch, getCwd: () => '/Users/alex/dev/client-a' },
     ui: { notify: (/** @type {string} */ message) => notes.push(message), setTitle: (/** @type {string} */ value) => titles.push(value) },
   };
   title(/** @type {any} */ (pi));
@@ -182,13 +182,13 @@ test('the terminal title drops Pi\'s π prefix and follows the session name', as
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const pi = harness();
   t.mock.timers.tick(0);
-  assert.deepEqual(pi.titles, ['radiance']);
+  assert.deepEqual(pi.titles, ['client-a']);
   await pi.type('the login page redirects to /404');
-  assert.equal(pi.titles.at(-1), 'Fixing login redirect - radiance');
+  assert.equal(pi.titles.at(-1), 'Fixing login redirect - client-a');
   pi.rename('Release prep');
-  assert.equal(pi.titles.at(-1), 'Release prep - radiance');
+  assert.equal(pi.titles.at(-1), 'Release prep - client-a');
   pi.rename(undefined);
-  assert.equal(pi.titles.at(-1), 'radiance');
+  assert.equal(pi.titles.at(-1), 'client-a');
   assert.equal(pi.titles.length, 4);
 });
 
@@ -199,11 +199,11 @@ test('a braille spinner leads the title while the agent works, then the plain ti
   pi.titles.length = 0;
   pi.emit('agent_start', {});
   t.mock.timers.tick(spinnerIntervalMs * 2);
-  assert.deepEqual(pi.titles, [`${spinnerFrames[0]} Release prep - radiance`, `${spinnerFrames[1]} Release prep - radiance`, `${spinnerFrames[2]} Release prep - radiance`]);
+  assert.deepEqual(pi.titles, [`${spinnerFrames[0]} Release prep - client-a`, `${spinnerFrames[1]} Release prep - client-a`, `${spinnerFrames[2]} Release prep - client-a`]);
   pi.rename('Shipping');
-  assert.equal(pi.titles.at(-1), `${spinnerFrames[2]} Shipping - radiance`);
+  assert.equal(pi.titles.at(-1), `${spinnerFrames[2]} Shipping - client-a`);
   pi.emit('agent_settled', {});
-  assert.equal(pi.titles.at(-1), 'Shipping - radiance');
+  assert.equal(pi.titles.at(-1), 'Shipping - client-a');
   const count = pi.titles.length;
   t.mock.timers.tick(spinnerIntervalMs * 10);
   assert.equal(pi.titles.length, count, 'the spinner stops when the run settles');
@@ -219,7 +219,7 @@ test('the title is written again after Pi\'s own startup title, until shutdown',
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const pi = harness({ name: 'Release prep' });
   t.mock.timers.tick(2000);
-  assert.deepEqual(pi.titles, ['Release prep - radiance', 'Release prep - radiance', 'Release prep - radiance']);
+  assert.deepEqual(pi.titles, ['Release prep - client-a', 'Release prep - client-a', 'Release prep - client-a']);
   pi.emit('session_shutdown', {});
   t.mock.timers.tick(10_000);
   assert.equal(pi.titles.length, 3);

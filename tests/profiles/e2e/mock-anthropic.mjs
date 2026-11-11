@@ -3,7 +3,7 @@ import http from 'node:http';
 
 /**
  * Loopback stand-in for the Anthropic Messages API. Each reply names the login that
- * sent the request: "key=radiance" for a key containing RADIANCE, "key=default" for
+ * sent the request: "key=client-a" for a key containing CLIENT_A, "key=default" for
  * DEFAULT. A user message containing DELEGATE gets a subagent tool call that runs in
  * /tmp with CHILD_MODEL.
  */
@@ -14,7 +14,7 @@ http.createServer((request, response) => {
   request.on('data', (chunk) => { body += chunk; });
   request.on('end', () => {
     const key = String(request.headers['x-api-key'] ?? request.headers.authorization ?? '');
-    const label = /RADIANCE/u.test(key) ? 'radiance' : /DEFAULT/u.test(key) ? 'default' : 'unknown';
+    const label = /CLIENT_A/u.test(key) ? 'client-a' : /DEFAULT/u.test(key) ? 'default' : 'unknown';
     /** @type {{ model?: string, messages?: Array<{ content: unknown }> }} */
     let parsed = {};
     try { parsed = JSON.parse(body); } catch {}
