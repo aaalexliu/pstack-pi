@@ -16,15 +16,15 @@ cleanup() {
 }
 trap cleanup EXIT
 
-mkdir -p "$root/work/radiance/repo" "$root/work/nologin" "$root/work/other" "$agent/pstack-pi/profiles/radiance"
+mkdir -p "$root/work/client-a/repo" "$root/work/nologin" "$root/work/other" "$agent/pstack-pi/profiles/client-a"
 printf '{"providers":{"anthropic":{"baseUrl":"http://127.0.0.1:%s"}}}\n' "$port" > "$agent/models.json"
-printf '{"profiles":{"radiance":{"dirs":["%s"],"providers":["anthropic"]},"nologin":{"dirs":["%s"],"providers":["anthropic"]}}}\n' \
-  "$root/work/radiance" "$root/work/nologin" > "$agent/pstack-pi/profiles.json"
+printf '{"profiles":{"client-a":{"dirs":["%s"],"providers":["anthropic"]},"nologin":{"dirs":["%s"],"providers":["anthropic"]}}}\n' \
+  "$root/work/client-a" "$root/work/nologin" > "$agent/pstack-pi/profiles.json"
 printf '{"extensions":["%s","%s"],"defaultProvider":"anthropic","defaultModel":"claude-haiku-5-5","defaultThinkingLevel":"off","quietStartup":true,"enableInstallTelemetry":false}\n' \
   "$repo/extensions/profiles/index.ts" "$repo/extensions/subagent/index.ts" > "$agent/settings.json"
 printf '{"anthropic":{"type":"api_key","key":"sk-ant-api03-DEFAULT"}}\n' > "$agent/auth.json"
-printf '{"anthropic":{"type":"api_key","key":"sk-ant-api03-RADIANCE"}}\n' > "$agent/pstack-pi/profiles/radiance/auth.json"
-chmod 600 "$agent/auth.json" "$agent/pstack-pi/profiles/radiance/auth.json"
+printf '{"anthropic":{"type":"api_key","key":"sk-ant-api03-CLIENT_A"}}\n' > "$agent/pstack-pi/profiles/client-a/auth.json"
+chmod 600 "$agent/auth.json" "$agent/pstack-pi/profiles/client-a/auth.json"
 
 : > "$root/requests.log"
 CHILD_MODEL=anthropic/claude-haiku-5-5 node "$repo/tests/profiles/e2e/mock-anthropic.mjs" "$port" "$root/requests.log" &
@@ -45,15 +45,15 @@ expect() {
   fi
 }
 
-expect "$root/work/radiance/repo" - hi key=radiance
+expect "$root/work/client-a/repo" - hi key=client-a
 expect "$root/work/other" - hi key=default
 expect "$root/work/nologin" - hi key=default
-expect /tmp radiance hi key=radiance
-expect "$root/work/radiance/repo" default hi key=default
-expect "$root/work/radiance/repo" - DELEGATE "parent-after-subagent key=radiance"
+expect /tmp client-a hi key=client-a
+expect "$root/work/client-a/repo" default hi key=default
+expect "$root/work/client-a/repo" - DELEGATE "parent-after-subagent key=client-a"
 child="$(tail -n 2 "$root/requests.log" | head -n 1)"
 case "$child" in
-  *'"label":"radiance"'*) echo 'pass  subagent child in /tmp used radiance' ;;
+  *'"label":"client-a"'*) echo 'pass  subagent child in /tmp used client-a' ;;
   *) echo "FAIL  subagent child: $child"; failures=$((failures + 1)) ;;
 esac
 

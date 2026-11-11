@@ -255,7 +255,7 @@ The child receives the choice as `--model provider/model-id` and resolves creden
 An auth profile gives chats under chosen folders their own logins for chosen providers, such as a second Claude account for one client's repositories. Model names stay the same. Without `~/.pi/agent/pstack-pi/profiles.json` the extension does nothing.
 
 ```json
-{"profiles":{"radiance":{"dirs":["~/dev/jxp/radiance"],"providers":["anthropic"]}}}
+{"profiles":{"client-a":{"dirs":["~/dev/clients/client-a"],"providers":["anthropic"]}}}
 ```
 
 Each session start, including `/new`, `/resume`, `/fork` and `/reload`, picks one profile:
@@ -264,9 +264,9 @@ Each session start, including `/new`, `/resume`, `/fork` and `/reload`, picks on
 2. Otherwise, the deepest `dirs` entry that contains the session folder, compared as real paths.
 3. Otherwise, no profile.
 
-Pi then sets `PI_AUTH_PROFILE` to that choice, so the bash tool, `!` commands and subagents inherit it wherever they run. To start in a profile from any folder, run `PI_AUTH_PROFILE=radiance pi`.
+Pi then sets `PI_AUTH_PROFILE` to that choice, so the bash tool, `!` commands and subagents inherit it wherever they run. To start in a profile from any folder, run `PI_AUTH_PROFILE=client-a pi`.
 
-Inside a profile, its providers read `~/.pi/agent/pstack-pi/profiles/<name>/auth.json` first. `/login` saves there, refreshes write back to the file the login came from, and `/logout` removes only the profile login. A provider with no profile login falls back to the normal `auth.json`. The footer names the login behind the current model, for example `profile: radiance` or `profile: radiance (openai: default login)`.
+Inside a profile, its providers read `~/.pi/agent/pstack-pi/profiles/<name>/auth.json` first. `/login` saves there, refreshes write back to the file the login came from, and `/logout` removes only the profile login. A provider with no profile login falls back to the normal `auth.json`. The footer names the login behind the current model, for example `profile: client-a` or `profile: client-a (openai: default login)`.
 
 The extension swaps the credential store on Pi's private `modelRegistry.runtime.credentials.store` and restores it on `session_shutdown`. If a Pi release changes that field, it warns and leaves the normal logins in place. `tests/profiles/e2e/run.sh` checks it against real Pi with a loopback Anthropic stand-in and fake keys.
 
