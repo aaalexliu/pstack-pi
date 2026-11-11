@@ -1,6 +1,6 @@
 import { appendFile, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { decodePapercutRecord, type PapercutRecord } from './papercut-model.ts';
+import { decodePapercutRecord, papercutKey, type CurrentPapercutRecord, type PapercutRecord } from './papercut-model.ts';
 
 function safeFilenamePart(value: string): string {
   const safe = value.replace(/[^a-zA-Z0-9._-]+/gu, '-').replace(/^-+|-+$/gu, '');
@@ -14,6 +14,7 @@ function isMissingDirectory(error: unknown): boolean {
 /**
  * Append-only JSONL journal of papercut records plus immutable aggregation snapshots.
  * Each session and process appends to its own file, so concurrent Pi processes never interleave lines.
+ * Reads keep only the earliest record per papercut key, so bursts in older journals count once.
  */
 export class PapercutJournal {
   private readonly journalDirectory: string;
@@ -27,7 +28,7 @@ export class PapercutJournal {
     this.processId = processId;
   }
 
-  append(record: PapercutRecord): Promise<string> {
+  append(record: CurrentPapercutRecord): Promise<string> {
     const operation = this.pendingWrite.then(async () => {
       await mkdir(this.journalDirectory, { recursive: true, mode: 0o700 });
       const file = join(this.journalDirectory, `${safeFilenamePart(record.sessionId)}.${this.processId}.jsonl`);
@@ -48,7 +49,14 @@ export class PapercutJournal {
     }
     const files = filenames.filter((filename) => filename.endsWith('.jsonl'));
     const records = (await Promise.all(files.map((filename) => this.readJournalFile(join(this.journalDirectory, filename))))).flat();
-    return records.sort((left, right) => left.at.localeCompare(right.at));
+    records.sort((left, right) => left.at.localeCompare(right.at));
+    const seen = new Set<string>();
+    return records.filter((record) => {
+      const key = papercutKey(record);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   }
 
   async writeAggregation(input: { filename: string; content: string }): Promise<string> {
