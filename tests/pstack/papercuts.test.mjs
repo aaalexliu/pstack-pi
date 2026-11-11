@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, readdir } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { Check } from 'typebox/value';
-import { papercutToolName, registerPapercuts } from '../../extensions/pstack/papercuts.ts';
+import { maxPapercutsPerTurn, papercutToolName, registerPapercuts } from '../../extensions/pstack/papercuts.ts';
 
 function fakeExtension() {
   /** @type {Map<string, any>} */
@@ -22,6 +22,7 @@ function fakeExtension() {
   };
   const ctx = {
     cwd: '/work/alpha',
+    model: { provider: 'test-provider', id: 'test-model' },
     sessionManager: { getSessionId: () => 'session-1' },
     ui: { notify(/** @type {string} */ message, /** @type {string} */ level) { notifications.push({ message, level }); } },
   };
@@ -32,7 +33,7 @@ test('registers scoped tool hooks, one strict tool, and one command', async () =
   const root = await mkdtemp(join(tmpdir(), 'pstack-papercuts-'));
   const f = fakeExtension();
   registerPapercuts(/** @type {any} */ (f.pi), root);
-  assert.deepEqual([...f.handlers.keys()], ['tool_execution_start', 'tool_result']);
+  assert.deepEqual([...f.handlers.keys()].sort(), ['tool_execution_start', 'tool_result', 'turn_start']);
   assert.deepEqual([...f.tools.keys()], [papercutToolName]);
   assert.deepEqual([...f.commands.keys()], ['papercuts']);
   const tool = f.tools.get(papercutToolName);
@@ -89,4 +90,64 @@ test('records agent-supplied evidence verbatim and lists or aggregates the journ
   const markdown = await readFile(join(root, 'papercut-aggregations', snapshot), 'utf8');
   assert.match(markdown, /Records: 2\nProjects: 1/u);
   assert.match(markdown, /\| \/work\/alpha \| tool\.output-noisy \| cat dumped a lockfile \| 1 \| bash \| 24ms \| 50\.1 KiB \|/u);
+});
+
+test('new records name the host and the session model', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'pstack-papercuts-'));
+  const f = fakeExtension();
+  registerPapercuts(/** @type {any} */ (f.pi), root);
+  const tool = f.tools.get(papercutToolName);
+  const result = await tool.execute('call-1', { note: 'slow build' }, undefined, undefined, f.ctx);
+  const [line] = (await readFile(result.details.file, 'utf8')).trim().split('\n');
+  const record = JSON.parse(line);
+  assert.equal(record.version, 2);
+  assert.equal(record.host, hostname().replace(/\.local$/u, ''));
+  assert.doesNotMatch(record.host, /\.local$/u);
+  assert.equal(record.model, 'test-provider/test-model');
+  const withoutModel = await tool.execute('call-2', { note: 'no model yet' }, undefined, undefined, { ...f.ctx, model: undefined });
+  assert.equal(withoutModel.details.record.model, undefined);
+});
+
+test('thousands of concurrent calls with one note write one record', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'pstack-papercuts-'));
+  const f = fakeExtension();
+  registerPapercuts(/** @type {any} */ (f.pi), root);
+  const tool = f.tools.get(papercutToolName);
+  f.handlers.get('turn_start')({ type: 'turn_start', turnIndex: 0, timestamp: 0 });
+  const results = await Promise.all(Array.from({ length: 3000 }, (_, index) => tool.execute(`call-${index}`, { note: 'Same  note ' }, undefined, undefined, f.ctx)));
+  const recorded = results.filter((result) => result.details.status === 'recorded');
+  assert.equal(recorded.length, 1);
+  assert.equal((await readFile(recorded[0].details.file, 'utf8')).trim().split('\n').length, 1);
+  const duplicates = results.filter((result) => result.details.status === 'duplicate');
+  assert.equal(duplicates.length, 2999);
+  for (const result of duplicates) {
+    assert.equal(result.isError, undefined);
+    assert.match(result.content[0].text, /^Not recorded: this session already recorded the same papercut/u);
+  }
+  f.handlers.get('turn_start')({ type: 'turn_start', turnIndex: 1, timestamp: 1 });
+  const later = await tool.execute('call-later', { note: 'Same note' }, undefined, undefined, f.ctx);
+  assert.equal(later.details.status, 'duplicate', 'the same papercut stays a duplicate in later turns');
+  const otherSession = await tool.execute('call-other', { note: 'Same note' }, undefined, undefined, { ...f.ctx, sessionManager: { getSessionId: () => 'session-2' } });
+  assert.equal(otherSession.details.status, 'recorded');
+});
+
+test('caps distinct papercuts per turn and resets the cap on the next turn', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'pstack-papercuts-'));
+  const f = fakeExtension();
+  registerPapercuts(/** @type {any} */ (f.pi), root);
+  const tool = f.tools.get(papercutToolName);
+  const turnStart = f.handlers.get('turn_start');
+  turnStart({ type: 'turn_start', turnIndex: 0, timestamp: 0 });
+  const first = await Promise.all(Array.from({ length: 8 }, (_, index) => tool.execute(`a-${index}`, { note: `distinct ${index}` }, undefined, undefined, f.ctx)));
+  assert.equal(maxPapercutsPerTurn, 5);
+  assert.deepEqual(first.map((result) => result.details.status), ['recorded', 'recorded', 'recorded', 'recorded', 'recorded', 'turn-limit', 'turn-limit', 'turn-limit']);
+  for (const result of first.slice(5)) {
+    assert.equal(result.isError, undefined);
+    assert.equal(result.content[0].text, 'Not recorded: reached the limit of 5 papercuts per turn. Record only distinct problems.');
+  }
+  turnStart({ type: 'turn_start', turnIndex: 1, timestamp: 1 });
+  const second = await Promise.all([5, 6].map((index) => tool.execute(`b-${index}`, { note: `distinct ${index}` }, undefined, undefined, f.ctx)));
+  assert.deepEqual(second.map((result) => result.details.status), ['recorded', 'recorded']);
+  const lines = (await readFile(second[0].details.file, 'utf8')).trim().split('\n');
+  assert.deepEqual(lines.map((line) => JSON.parse(line).note).sort(), ['distinct 0', 'distinct 1', 'distinct 2', 'distinct 3', 'distinct 4', 'distinct 5', 'distinct 6']);
 });

@@ -14,12 +14,26 @@ const record = {
   evidence: { tool: 'read', durationMs: 1250, outputBytes: 42, isError: false },
 };
 
+test('decodes version 1 records and version 2 records with optional host and model', () => {
+  const current = { ...record, version: 2, host: 'test-mac', model: 'test-provider/test-model' };
+  assert.deepEqual(decodePapercutRecord(current), current);
+  const { host: _host, model: _model, ...bare } = current;
+  assert.deepEqual(decodePapercutRecord(bare), bare);
+  for (const invalid of [
+    { ...record, host: 'test-mac' },
+    { ...record, model: 'test-provider/test-model' },
+    { ...current, version: 3 },
+    { ...current, host: '' },
+    { ...current, extra: true },
+  ]) assert.equal(decodePapercutRecord(invalid), null, JSON.stringify(invalid));
+});
+
 test('accepts user-defined kinds and rejects malformed records at the storage boundary', () => {
   assert.deepEqual(decodePapercutRecord(record), record);
   const { evidence: _evidence, ...bare } = record;
   assert.deepEqual(decodePapercutRecord(bare), bare);
   for (const invalid of [
-    { ...record, version: 2 },
+    { ...record, version: 0 },
     { ...record, kind: 'Not Valid' },
     { ...record, note: '' },
     { ...record, at: 'yesterday' },

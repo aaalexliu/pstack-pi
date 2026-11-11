@@ -1,7 +1,7 @@
 import { Type, type Static } from 'typebox';
 import { Check } from 'typebox/value';
 
-export const papercutRecordVersion = 1 as const;
+export const papercutRecordVersion = 2 as const;
 export const papercutKindPattern = '^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$';
 export const maxPapercutNoteLength = 2000;
 
@@ -15,8 +15,7 @@ export const toolEvidenceSchema = Type.Object({
   isError: Type.Boolean(),
 }, { additionalProperties: false });
 
-export const papercutRecordSchema = Type.Object({
-  version: Type.Literal(papercutRecordVersion),
+const recordFieldsV1 = {
   source: Type.Literal('agent'),
   at: Type.String({ minLength: 1 }),
   cwd: Type.String({ minLength: 1 }),
@@ -24,7 +23,17 @@ export const papercutRecordSchema = Type.Object({
   kind: kindSchema,
   note: noteSchema,
   evidence: Type.Optional(toolEvidenceSchema),
-}, { additionalProperties: false });
+};
+
+export const papercutRecordSchema = Type.Union([
+  Type.Object({ version: Type.Literal(1), ...recordFieldsV1 }, { additionalProperties: false }),
+  Type.Object({
+    version: Type.Literal(papercutRecordVersion),
+    ...recordFieldsV1,
+    host: Type.Optional(Type.String({ minLength: 1, maxLength: 255 })),
+    model: Type.Optional(Type.String({ minLength: 1, maxLength: 512 })),
+  }, { additionalProperties: false }),
+]);
 
 export const papercutParameters = Type.Object({
   kind: Type.Optional(Type.String({
@@ -50,10 +59,16 @@ export const papercutParameters = Type.Object({
 
 export type ToolEvidence = Static<typeof toolEvidenceSchema>;
 export type PapercutRecord = Static<typeof papercutRecordSchema>;
+export type CurrentPapercutRecord = Extract<PapercutRecord, { version: typeof papercutRecordVersion }>;
 export type PapercutParameters = Static<typeof papercutParameters>;
 
 export function normalizePapercutNote(note: string): string {
   return note.trim().replace(/\s+/gu, ' ');
+}
+
+/** Records with the same key describe the same papercut. Writers refuse a second one and readers keep the earliest. */
+export function papercutKey(record: Pick<PapercutRecord, 'sessionId' | 'kind' | 'note'>): string {
+  return `${record.sessionId}\u0000${record.kind}\u0000${normalizePapercutNote(record.note)}`;
 }
 
 export function decodePapercutRecord(value: unknown): PapercutRecord | null {
