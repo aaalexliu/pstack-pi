@@ -136,7 +136,8 @@ test('registered tool follows session branches and persists only mutations', asy
     },
   };
   pstack(/** @type {any} */ (pi));
-  assert.deepEqual([...handlers.keys()], ['session_start', 'session_tree', 'input', 'before_agent_start', 'turn_start', 'tool_execution_start', 'tool_result']);
+  // tool_result is first seen from read suggestions, which registers before papercuts.
+  assert.deepEqual([...handlers.keys()], ['session_start', 'session_tree', 'input', 'before_agent_start', 'tool_result', 'turn_start', 'tool_execution_start']);
   assert.deepEqual([...tools.keys()], ['pstack_papercut', 'pstack_config', 'pstack_sessions', 'pstack_todo']);
   assert.equal(Check(tools.get('pstack_config').parameters, { action: 'get' }), true);
   assert.equal(Check(tools.get('pstack_config').parameters, { action: 'list-models' }), true);

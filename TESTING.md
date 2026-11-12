@@ -62,7 +62,7 @@ These are observations, not timeout limits. CPU load and cold starts affect them
 
 `test:sync` replays every transform against the pinned snapshot and verifies all copied bytes.
 
-`test:pstack` drives the `pstack` extension against a fake ExtensionAPI: tool and command registration, lifecycle hooks, the todo reducer, and the absence of a blanket command gate.
+`test:pstack` drives the `pstack` extension against a fake ExtensionAPI: tool and command registration, lifecycle hooks, the todo reducer, close matches when `read` fails with ENOENT, and the absence of a blanket command gate.
 
 `test:subagent` drives the `subagent` tool with a fake `pi` that speaks the JSON protocol: routing precedence and pool rotation, stdin task and `0600` prompt delivery, parallel order and concurrency, chain substitution, abort and timeout killing a `SIGTERM`-ignoring grandchild, and shutdown. Renderer tests cover narrow terminals, long chains, output expansion, and both inspector views.
 
