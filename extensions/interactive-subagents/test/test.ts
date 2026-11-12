@@ -165,6 +165,7 @@ const paneOf = (surface) => {
   return null;
 };
 const [cmd, sub] = args;
+if (state.touch && state.touch[cmd]) fs.writeFileSync(state.touch[cmd], "");
 if (state.fail && state.fail[cmd]) fail(state.fail[cmd]);
 if (cmd === "workspace" && sub === "create") {
   const ref = next("workspace");
@@ -2274,6 +2275,25 @@ describe("concurrency cap", () => {
           rmSync(dir, { recursive: true, force: true });
         }
       });
+    });
+  });
+
+  it("keeps a Claude child's result when its sentinel lands while the closed pane is being read", async () => {
+    await withFakeCmux(async (cmux) => {
+      const surface = createSurface("c1", { layout: "tabs", workspaceName: "agents: test" });
+      const dir = createTestDir();
+      const sentinelFile = join(dir, "done.sentinel");
+      try {
+        cmux.update((state) => {
+          state.touch = { "read-screen": sentinelFile };
+          state.fail = { "read-screen": "Surface ref not found: " + surface };
+        });
+        const result = await pollForExit(surface, new AbortController().signal, { interval: 10, sentinelFile });
+        assert.equal(result.reason, "sentinel");
+      } finally {
+        closeSurface(surface);
+        rmSync(dir, { recursive: true, force: true });
+      }
     });
   });
 

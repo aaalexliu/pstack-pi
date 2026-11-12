@@ -1491,6 +1491,9 @@ export async function pollForExit(
           }
         } catch {}
       }
+      if (options.sentinelFile && existsSync(options.sentinelFile)) {
+        return { reason: "sentinel", exitCode: 0 };
+      }
       const backend = getMuxBackend();
       if (backend && isPaneGoneError(backend, error)) {
         return { reason: "closed", exitCode: 1 };
