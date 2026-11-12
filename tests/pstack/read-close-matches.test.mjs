@@ -138,6 +138,7 @@ test('a missing file with no near names adds nothing past the list cap', async (
 
 test('a same-stem file past the first 1024 directory entries is listed first', async () => {
   await withRoot(async (root) => {
+    /** @param {string} prefix @param {number} count @param {string} ext */
     const writeSet = async (prefix, count, ext) => {
       const batch = 64;
       for (let offset = 0; offset < count; offset += batch) {
@@ -153,13 +154,14 @@ test('a same-stem file past the first 1024 directory entries is listed first', a
     const names = await directoryOrder(root);
     const sameStemName = names.find((name, index) => index > 1024 && stemOf(name).startsWith('kept-'));
     assert.equal(typeof sameStemName, 'string', `directory order did not place a kept name past index 1024`);
-    const index = names.indexOf(sameStemName);
-    assert.ok(index > 1024, `directory order placed ${sameStemName} at index ${index}`);
-    assert.deepEqual(names.filter((name) => stemOf(name) === stemOf(sameStemName)), [sameStemName]);
-    const missing = `${stemOf(sameStemName)}.ts`;
+    const keptName = /** @type {string} */ (sameStemName);
+    const index = names.indexOf(keptName);
+    assert.ok(index > 1024, `directory order placed ${keptName} at index ${index}`);
+    assert.deepEqual(names.filter((name) => stemOf(name) === stemOf(keptName)), [keptName]);
+    const missing = `${stemOf(keptName)}.ts`;
     const message = await readFailure(root, missing);
     const result = await onReadError(enoentEvent(missing, message), { cwd: root });
-    assert.equal(suggested(result)[0], sameStemName);
+    assert.equal(suggested(result)[0], keptName);
   });
 });
 
@@ -189,12 +191,13 @@ test('same-stem matches stop at 10 paths', async () => {
 });
 
 test('a special relative suggestion reads the fixture, not a rewritten path', async () => {
+  /** @param {string} root @param {string} requestPath */
   const readSuggested = async (root, requestPath) => {
     const message = await readFailure(root, requestPath);
     const result = await onReadError(enoentEvent(requestPath, message), { cwd: root });
     const tool = createReadTool(root);
     const read = await tool.execute('call', { path: suggested(result)[0] });
-    return read.content[0].text;
+    return /** @type {{ text: string }} */ (read.content[0]).text;
   };
   await withRoot(async (root) => {
     await writeFile(join(root, '@config.js'), 'at-config\n');
