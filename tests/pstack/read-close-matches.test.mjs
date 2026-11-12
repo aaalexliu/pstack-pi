@@ -1,0 +1,219 @@
+import assert from 'node:assert/strict';
+import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import test from 'node:test';
+import { createReadTool } from '@earendil-works/pi-coding-agent';
+import { registerReadCloseMatches } from '../../extensions/pstack/read-close-matches.ts';
+
+function handler() {
+  /** @type {Map<string, (event: any, ctx: any) => Promise<any>>} */
+  const handlers = new Map();
+  registerReadCloseMatches(/** @type {any} */ ({
+    on(/** @type {string} */ name, /** @type {any} */ fn) { handlers.set(name, fn); },
+  }));
+  const fn = handlers.get('tool_result');
+  assert.ok(fn);
+  return fn;
+}
+
+const onReadError = handler();
+
+/** @param {string} cwd @param {string} requestPath */
+async function readFailure(cwd, requestPath) {
+  const tool = createReadTool(cwd);
+  try {
+    await tool.execute('call', { path: requestPath });
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+  assert.fail(`read succeeded: ${requestPath}`);
+}
+
+/** @param {string} requestPath @param {string} message */
+function enoentEvent(requestPath, message) {
+  return {
+    type: 'tool_result',
+    toolName: 'read',
+    toolCallId: 'call',
+    input: { path: requestPath },
+    content: [{ type: 'text', text: message }],
+    details: undefined,
+    isError: true,
+  };
+}
+
+/** @param {(root: string) => Promise<void>} fn */
+async function withRoot(fn) {
+  const root = await mkdtemp(join(tmpdir(), 'read-close-'));
+  try {
+    await fn(root);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+/** @param {any} result */
+function suggested(result) {
+  assert.equal(result.content.length, 2);
+  const lines = result.content[1].text.split('\n');
+  assert.equal(lines[0], 'Closest existing paths:');
+  return lines.slice(1);
+}
+
+test('a .ts guess for an existing .js file lists the .js path first', async () => {
+  await withRoot(async (root) => {
+    await writeFile(join(root, 'widget.js'), 'export const n = 1;\n');
+    await writeFile(join(root, 'widget.md'), '# widget\n');
+    await writeFile(join(root, 'widgt.ts'), 'export const n = 2;\n');
+    await writeFile(join(root, 'readme.txt'), 'far\n');
+    const message = await readFailure(root, 'widget.ts');
+    assert.match(message, /^ENOENT: no such file or directory, access '/u);
+    const event = enoentEvent('widget.ts', message);
+    const result = await onReadError(event, { cwd: root });
+    assert.equal(result.content[0].text, message);
+    assert.equal(result.isError, undefined);
+    assert.deepEqual(suggested(result), ['widget.js', 'widget.md', 'widgt.ts']);
+  });
+});
+
+test('a path containing a quote still lists the same-stem file', async () => {
+  await withRoot(async (root) => {
+    const folder = join(root, "qu'ote");
+    await mkdir(folder);
+    await writeFile(join(folder, 'widget.js'), 'export const n = 1;\n');
+    const requestPath = "qu'ote/widget.ts";
+    const message = await readFailure(root, requestPath);
+    const result = await onReadError(enoentEvent(requestPath, message), { cwd: root });
+    assert.deepEqual(suggested(result), ["qu'ote/widget.js"]);
+  });
+});
+
+test('a wrong parent folder walks up to the nearest existing parent and lists near names', async () => {
+  await withRoot(async (root) => {
+    const src = join(root, 'src');
+    await mkdir(src);
+    await writeFile(join(src, 'widget.js'), 'export const n = 1;\n');
+    await writeFile(join(src, 'widgt.ts'), 'export const n = 2;\n');
+    await writeFile(join(src, 'notes.txt'), 'far\n');
+    await writeFile(join(root, 'widget.js'), 'not in the nearest parent\n');
+    const message = await readFailure(root, 'src/gone/widget.ts');
+    const result = await onReadError(enoentEvent('src/gone/widget.ts', message), { cwd: root });
+    assert.deepEqual(suggested(result), ['src/widget.js', 'src/widgt.ts']);
+  });
+});
+
+test('a missing folder under a wrong parent lists the same name from the nearest parent', async () => {
+  await withRoot(async (root) => {
+    await mkdir(join(root, 'library'));
+    await writeFile(join(root, 'library', 'note.txt'), 'x\n');
+    const message = await readFailure(root, 'wrong-parent/library');
+    const result = await onReadError(enoentEvent('wrong-parent/library', message), { cwd: root });
+    assert.deepEqual(suggested(result), ['library']);
+  });
+});
+
+test('a missing file with no near names adds nothing past the list cap', async () => {
+  await withRoot(async (root) => {
+    for (let i = 0; i < 12; i++) await writeFile(join(root, `aaaaaaaa${i}.ts`), 'far\n');
+    const message = await readFailure(root, 'zzzzzzzz.ts');
+    const event = enoentEvent('zzzzzzzz.ts', message);
+    assert.equal(await onReadError(event, { cwd: root }), undefined);
+  });
+});
+
+test('same-stem matches stop at 10 paths', async () => {
+  await withRoot(async (root) => {
+    const names = Array.from({ length: 12 }, (_, index) => `item.${String.fromCharCode(97 + index)}`);
+    for (const name of names) await writeFile(join(root, name), 'x\n');
+    const message = await readFailure(root, 'item.ts');
+    const result = await onReadError(enoentEvent('item.ts', message), { cwd: root });
+    assert.deepEqual(suggested(result), names.slice(0, 10));
+  });
+});
+
+test('an absolute missing path lists absolute close paths', async () => {
+  await withRoot(async (root) => {
+    await writeFile(join(root, 'widget.js'), 'export const n = 1;\n');
+    const requestPath = join(root, 'widget.ts');
+    const message = await readFailure(root, requestPath);
+    const result = await onReadError(enoentEvent(requestPath, message), { cwd: root });
+    assert.deepEqual(suggested(result), [join(root, 'widget.js')]);
+  });
+});
+
+test('a successful read is untouched, including text that mentions ENOENT', async () => {
+  await withRoot(async (root) => {
+    await writeFile(join(root, 'ok.txt'), "ENOENT: no such file or directory, access '/tmp/nope'\n");
+    const tool = createReadTool(root);
+    const read = await tool.execute('call', { path: 'ok.txt' });
+    const event = {
+      type: 'tool_result',
+      toolName: 'read',
+      toolCallId: 'call',
+      input: { path: 'ok.txt' },
+      content: read.content,
+      details: read.details,
+      isError: false,
+    };
+    assert.equal(await onReadError(event, { cwd: root }), undefined);
+  });
+});
+
+test('a non-ENOENT read error and a missing path from another tool stay unchanged', async () => {
+  await withRoot(async (root) => {
+    await writeFile(join(root, 'ok.txt'), 'hi\n');
+    await writeFile(join(root, 'ok.js'), 'near\n');
+    let offsetMessage = '';
+    const tool = createReadTool(root);
+    try {
+      await tool.execute('call', { path: 'ok.txt', offset: 9 });
+    } catch (error) {
+      offsetMessage = error instanceof Error ? error.message : String(error);
+    }
+    assert.match(offsetMessage, /beyond end of file/u);
+    const offset = {
+      type: 'tool_result',
+      toolName: 'read',
+      toolCallId: 'call',
+      input: { path: 'ok.txt', offset: 9 },
+      content: [{ type: 'text', text: offsetMessage }],
+      isError: true,
+    };
+    assert.equal(await onReadError(offset, { cwd: root }), undefined);
+    const bash = {
+      type: 'tool_result',
+      toolName: 'bash',
+      toolCallId: 'call',
+      input: { command: 'cat ok.ts' },
+      content: [{ type: 'text', text: `ENOENT: no such file or directory, access '${join(root, 'ok.ts')}'` }],
+      isError: true,
+    };
+    assert.equal(await onReadError(bash, { cwd: root }), undefined);
+  });
+});
+
+test('an unreadable nearest parent adds nothing', async () => {
+  await withRoot(async (root) => {
+    const locked = join(root, 'locked');
+    await mkdir(locked);
+    await writeFile(join(root, 'missing.js'), 'would match if the walk skipped locked\n');
+    await chmod(locked, 0o000);
+    try {
+      const message = `ENOENT: no such file or directory, access '${join(locked, 'missing.ts')}'`;
+      const result = await onReadError(enoentEvent('locked/missing.ts', message), { cwd: root });
+      assert.equal(result, undefined);
+    } finally {
+      await chmod(locked, 0o755);
+    }
+  });
+});
+
+test('an aborted read adds nothing', async () => {
+  await withRoot(async (root) => {
+    await writeFile(join(root, 'widget.js'), 'export const n = 1;\n');
+    const message = await readFailure(root, 'widget.ts');
+    const signal = AbortSignal.abort();
+    assert.equal(await onReadError(enoentEvent('widget.ts', message), { cwd: root, signal }), undefined);
+  });
+});
