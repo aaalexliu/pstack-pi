@@ -528,6 +528,114 @@ interface RunningSubagent {
 /** All currently running subagents, keyed by id. */
 const runningSubagents = new Map<string, RunningSubagent>();
 
+/**
+ * Caps running children per parent session at `maxConcurrent`. A spawning
+ * tool holds a slot from launch until the child's watcher ends; waiters start
+ * in call order as slots free.
+ */
+function createSpawnSlots(getLimit: () => number) {
+  let held = 0;
+  const waiting: Array<() => void> = [];
+
+  function admitWaiters() {
+    while (waiting.length > 0 && held < getLimit()) {
+      held++;
+      waiting.shift()!();
+    }
+  }
+
+  return {
+    get held() {
+      return held;
+    },
+    /** Position 0 holds a slot now. Position n >= 1 holds one once `ready` resolves. */
+    take(): { position: number; ready: Promise<void> } {
+      if (waiting.length === 0 && held < getLimit()) {
+        held++;
+        return { position: 0, ready: Promise.resolve() };
+      }
+      return { position: waiting.length + 1, ready: new Promise<void>((resolve) => waiting.push(resolve)) };
+    },
+    release() {
+      held = Math.max(0, held - 1);
+      admitWaiters();
+    },
+    /** Drop every waiter without starting it and forget held slots (session shutdown). */
+    clear() {
+      waiting.length = 0;
+      held = 0;
+    },
+  };
+}
+
+const spawnSlots = createSpawnSlots(() => loadSubagentsConfig(getAgentConfigDir()).maxConcurrent);
+
+type SpawnToolExecute = (
+  toolCallId: string,
+  params: any,
+  signal: any,
+  onUpdate: any,
+  ctx: any,
+) => Promise<any>;
+
+/**
+ * Run a spawning tool now when a slot is free. Otherwise return a "queued"
+ * result at once and run the tool when a slot frees; a queued launch that
+ * fails reaches the parent as a subagent_result turn. A result whose
+ * `details.status` is "started" keeps its slot until watchSubagent releases it.
+ */
+function withSpawnSlot<E extends SpawnToolExecute>(pi: ExtensionAPI, execute: E): E {
+  return (async (toolCallId, params, signal, onUpdate, ctx) => {
+    const run = async () => {
+      try {
+        const result = await execute(toolCallId, params, signal, onUpdate, ctx);
+        if (result?.details?.status !== "started") spawnSlots.release();
+        return result;
+      } catch (error) {
+        spawnSlots.release();
+        throw error;
+      }
+    };
+
+    const name = params.name ?? "Resume";
+    const ticket = spawnSlots.take();
+    if (ticket.position === 0) return run();
+
+    const reportFailure = (text: string, error?: string) =>
+      pi.sendMessage(
+        {
+          customType: "subagent_result",
+          content: `Queued sub-agent "${name}" failed to start: ${text}`,
+          display: true,
+          details: { name, task: params.task ?? params.message, exitCode: 1, error: error ?? text },
+        },
+        { triggerTurn: true, deliverAs: "steer" },
+      );
+    ticket.ready
+      .then(run)
+      .then(
+        (result) => {
+          if (result?.details?.status !== "started") reportFailure(result?.content?.[0]?.text ?? "unknown error");
+        },
+        (error) => reportFailure(error?.message ?? String(error), error?.message),
+      );
+
+    const running = spawnSlots.held;
+    return {
+      content: [
+        {
+          type: "text",
+          text:
+            `Sub-agent "${name}" is queued (position ${ticket.position}). ${running} sub-agents are already running, ` +
+            `the most this session runs at once. It starts automatically when one finishes, and its result is ` +
+            `delivered to you as a new turn like any other. Do not start it again.`,
+        },
+      ],
+      details: { name, task: params.task ?? params.message, status: "queued", position: ticket.position },
+    };
+  }) as E;
+}
+
 // ── Widget management ──
 
 /** Latest ExtensionContext from session_start, used for widget updates. */
@@ -924,6 +1032,9 @@ export const __test__ = {
   runningSubagents,
   formatElapsed,
   watchSubagent,
+  createSpawnSlots,
+  spawnSlots,
+  withSpawnSlot,
 };
 
 function startWidgetRefresh() {
@@ -1362,6 +1473,7 @@ async function watchSubagent(
       closeSurface(surface);
     } catch {}
     runningSubagents.delete(running.id);
+    spawnSlots.release();
   }
 }
 
@@ -1389,6 +1501,7 @@ export default function subagentsExtension(pi: ExtensionAPI) {
       agent.abortController?.abort();
     }
     runningSubagents.clear();
+    spawnSlots.clear();
   });
 
   // Tools denied via PI_DENY_TOOLS env var (set by parent agent based on frontmatter)
@@ -1422,7 +1535,7 @@ export default function subagentsExtension(pi: ExtensionAPI) {
         "After spawning, either end your turn immediately, or work on other independent tasks (including spawning more subagents in parallel). The harness will wake you with the result when it is ready.",
       parameters: SubagentParams,
 
-      async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      execute: withSpawnSlot(pi, async (_toolCallId, params, _signal, _onUpdate, ctx) => {
         // Prevent self-spawning (e.g. planner spawning another planner)
         const currentAgent = process.env.PI_SUBAGENT_AGENT;
         if (params.agent && currentAgent && params.agent === currentAgent) {
@@ -1547,7 +1660,7 @@ export default function subagentsExtension(pi: ExtensionAPI) {
             status: "started",
           },
         };
-      },
+      }),
 
       renderCall(args, theme) {
         const partialArgs = args as Record<string, unknown>;
@@ -1594,6 +1707,17 @@ export default function subagentsExtension(pi: ExtensionAPI) {
               " " +
               theme.fg("toolTitle", theme.bold(name)) +
               theme.fg("dim", " — started"),
+            0,
+            0,
+          );
+        }
+
+        if (details?.status === "queued") {
+          return new Text(
+            theme.fg("accent", "▸") +
+              " " +
+              theme.fg("toolTitle", theme.bold(name)) +
+              theme.fg("dim", ` — queued (#${details.position})`),
             0,
             0,
           );
@@ -1779,7 +1903,7 @@ export default function subagentsExtension(pi: ExtensionAPI) {
         return new Text(theme.fg("dim", text), 0, 0);
       },
 
-      async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      execute: withSpawnSlot(pi, async (_toolCallId, params, _signal, _onUpdate, ctx) => {
         const name = params.name ?? "Resume";
         const { autoExit, interactive } = resolveResumeLaunchBehavior(params);
         const startTime = Date.now();
@@ -1970,7 +2094,7 @@ export default function subagentsExtension(pi: ExtensionAPI) {
             status: "started",
           },
         };
-      },
+      }),
     });
 
   // /iterate command — fork the session into a subagent
