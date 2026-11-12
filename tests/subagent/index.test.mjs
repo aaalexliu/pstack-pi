@@ -25,7 +25,7 @@ const realSetTimeout = globalThis.setTimeout.bind(globalThis);
 const realDelay = (ms) => new Promise((resolve) => realSetTimeout(resolve, ms));
 
 /** @typedef {import('../../extensions/subagent/index.ts').SubagentDetails} SubagentDetails */
-/** @typedef {{content: {type: string, text: string}[], details: SubagentDetails}} ToolResult */
+/** @typedef {{content: {type: string, text: string}[], details: SubagentDetails, isError?: boolean}} ToolResult */
 
 /** Runs fake-pi with the flags the extension composed, in the process group the extension expects. */
 /** @type {import('../../extensions/subagent/index.ts').SpawnChild} */
@@ -98,10 +98,8 @@ async function fixture(t, options) {
   const ctx = /** @type {any} */ ({ cwd, model: { provider: 'fixture', id: 'model' }, thinkingLevel: 'high', hasUI: false, isProjectTrusted: () => false, ui: { confirm: async () => false, notify: (/** @type {string} */ text) => notices.push(text) } });
   /** @type {(params: Record<string, unknown>, signal?: AbortSignal, onUpdate?: (partial: ToolResult) => void) => Promise<ToolResult>} */
   const execute = (params, signal, onUpdate) => tools[0].execute('call', params, signal ?? abort.signal, onUpdate, ctx);
-  /** @param {ToolResult} result @param {boolean} [isError] */
-  const resultHook = (result, isError = false) => handlers.get('tool_result')?.({ type: 'tool_result', toolName: 'subagent', toolCallId: 'call', input: {}, content: result.content, details: result.details, isError });
   const promptDirs = async () => (await readdir(root)).filter((name) => name.startsWith('pi-subagent-'));
-  return { root, agentDir, cwd, tool: tools[0], handlers, commands, notices, ctx, execute, resultHook, promptDirs, abort };
+  return { root, agentDir, cwd, tool: tools[0], handlers, commands, notices, ctx, execute, promptDirs, abort };
 }
 
 /** @param {string} file @returns {Promise<{pid: number, grandchild: number}>} */
@@ -177,7 +175,8 @@ test('single mode runs the bundled agent in a detached child with prompt file, s
   assert.ok(!capture.args.includes(task), 'The task travels over stdin, not argv');
   assert.ok(updates.length >= 1 && updates[updates.length - 1].details.results[0].messages.length === 1);
   assert.deepEqual(await f.promptDirs(), [], 'Prompt temp directory is removed');
-  assert.equal(f.resultHook(result), undefined);
+  assert.equal(result.isError, false);
+  assert.deepEqual(result.details.results[0].messages.map((m) => m.role), ['assistant'], 'The child system prompt stays out of details');
 });
 
 test('model routing: explicit beats role beats agent default beats parent, and pinned models skip parent thinking', async (t) => {
@@ -294,7 +293,7 @@ test('unknown agents, mixed modes, and too many tasks return guidance without sp
   assert.deepEqual(unknown.details.results, []);
   assert.match((await f.execute({ agent: 'general-purpose', task: 'x', tasks: [{ agent: 'general-purpose', task: 'y' }] })).content[0].text, /exactly one mode/);
   assert.match((await f.execute({ tasks: Array.from({ length: 9 }, () => ({ agent: 'general-purpose', task: 'y' })) })).content[0].text, /Too many parallel tasks \(9\)/);
-  assert.equal(f.resultHook(unknown), undefined);
+  assert.equal(unknown.isError, false);
 });
 
 test('parallel mode keeps input order, caps concurrency, and reports one failure without failing the call', async (t) => {
@@ -315,9 +314,9 @@ test('parallel mode keeps input order, caps concurrency, and reports one failure
   let live = 0; let peak = 0;
   for (const [kind] of events.sort((a, b) => Number(a[1]) - Number(b[1]))) { live += kind === 'start' ? 1 : -1; peak = Math.max(peak, live); }
   assert.ok(peak <= MAX_CONCURRENCY && peak >= 2, `peak concurrency ${peak}`);
-  assert.equal(f.resultHook(result), undefined, 'A partial failure is not an error result');
+  assert.equal(result.isError, false, 'A partial failure is not an error result');
   const allFailed = await f.execute({ tasks: [{ agent: 'general-purpose', task: 'FAIL a' }, { agent: 'general-purpose', task: 'EXIT2 b' }] });
-  assert.deepEqual(f.resultHook(allFailed), { isError: true });
+  assert.equal(allFailed.isError, true);
   assert.match(allFailed.content[0].text, /\[general-purpose\] failed\nresolved-model: unknown\n\nchild exploded/);
 });
 
@@ -332,8 +331,7 @@ test('chain mode substitutes {previous} and stops at the first failed step', asy
   const stopped = await f.execute({ chain: [{ agent: 'general-purpose', task: 'FAIL early' }, { agent: 'general-purpose', task: 'never {previous}' }] });
   assert.equal(stopped.details.results.length, 1);
   assert.match(stopped.content[0].text, /Chain stopped at step 1 \(general-purpose\): PRIVATE_BOOM/);
-  assert.deepEqual(f.resultHook(stopped), { isError: true });
-  assert.equal(f.resultHook(stopped, true), undefined, 'An already failed event is left alone');
+  assert.equal(stopped.isError, true);
 });
 
 test('a failed single result is an error result and a spawn failure is reported', async (t) => {
@@ -341,7 +339,7 @@ test('a failed single result is an error result and a spawn failure is reported'
   const failed = await f.execute({ agent: 'general-purpose', task: 'FAIL x' });
   assert.match(failed.content[0].text, /^resolved-model: fixture\/model\n\nAgent error: PRIVATE_BOOM/);
   assert.equal(failed.details.results[0].observedModel, 'fixture/model');
-  assert.deepEqual(f.resultHook(failed), { isError: true });
+  assert.equal(failed.isError, true);
   const exited = await f.execute({ agent: 'general-purpose', task: 'EXIT2 x' });
   assert.equal(exited.details.results[0].exitCode, 2);
   assert.match(exited.content[0].text, /^resolved-model: unknown\n\nAgent failed: child exploded/);
@@ -396,7 +394,7 @@ test('timeoutMs stops a stuck child and reports a failed result instead of throw
   assert.match(result.content[0].text, /Agent aborted: Timed out after 300 ms/);
   assert.equal(result.details.results[0].stopReason, 'aborted');
   assert.notEqual(result.details.results[0].exitCode, 0);
-  assert.deepEqual(f.resultHook(result), { isError: true });
+  assert.equal(result.isError, true);
   assert.deepEqual(await untilGone([pid, grandchild], 1000), []);
 });
 
@@ -496,7 +494,7 @@ test('cmux mirrors per-run output and final status without changing batch result
   const result = await f.execute({ tasks });
   assert.deepEqual(result.details.results.map((r) => r.exitCode), [0, 0, 2]);
   assert.deepEqual(result.details.progress?.tasks.map((r) => r.state), ['succeeded', 'failed', 'failed']);
-  assert.equal(f.resultHook(result), undefined);
+  assert.equal(result.isError, false);
   const files = await f.files();
   assert.equal(files.length, 3);
   const texts = await Promise.all(files.map((file) => readFile(file, 'utf8')));

@@ -1,6 +1,6 @@
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { Text } from '@earendil-works/pi-tui';
-import { completer, replyText, smallModel } from '../shared/model.ts';
+import { replyText, smallModel } from '../shared/model.ts';
 import { cleanRecap, needsRecap, recapEntryType, systemPrompt, transcript } from './summary.ts';
 
 /** Claude Code's away-summary delay. */
@@ -24,9 +24,8 @@ export default function recap(pi: ExtensionAPI): void {
 
   /** Resolves to an error message, or undefined when it wrote a recap or had nothing to do. */
   const write = async (ctx: ExtensionContext, manual: boolean): Promise<string | undefined> => {
-    const complete = completer(ctx);
     const model = smallModel(ctx.modelRegistry, ctx.model);
-    if (!complete || !model) return manual ? 'this Pi version cannot call a model from an extension' : undefined;
+    if (!model) return undefined;
     const branch = ctx.sessionManager.getBranch();
     if (!manual && !needsRecap(branch)) return undefined;
     const prompt = transcript(branch, pi.getSessionName());
@@ -41,7 +40,7 @@ export default function recap(pi: ExtensionAPI): void {
     }, requestTimeoutMs);
     ctx.ui.setStatus(statusKey, ctx.ui.theme.fg('dim', '※ writing recap…'));
     try {
-      const reply = await complete(model, {
+      const reply = await ctx.modelRegistry.complete(model, {
         systemPrompt,
         messages: [{ role: 'user', content: `Recap this session.\n\n<transcript>\n${prompt}\n</transcript>`, timestamp: Date.now() }],
       }, { maxTokens: 1024, signal: controller.signal });

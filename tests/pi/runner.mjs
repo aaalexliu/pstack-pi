@@ -332,7 +332,7 @@ export async function runPiSmoke({ startFixture = startProvider, thinkingLevel =
     const scanResources = discoverResources ?? Boolean(packageFixture);
     if (!resolvedPi || resolvedPi.executable !== executable) {
       const version = command(executable, ["--version"]).trim();
-      assert.equal(version, "0.85.1", "Tests require Pi 0.85.1");
+      assert.equal(version, "1.5.2", "Tests require Pi 1.5.2");
       const cliPath = await realpath(command("which", [executable]).trim());
       const resolveSdk = ["--input-type=module", "-e", "process.stdout.write(import.meta.resolve('@earendil-works/pi-coding-agent'))"];
       let sdk;

@@ -18,7 +18,7 @@ jobs:
           node-version: "22.19.0"
           cache: npm
       - run: npm ci
-      - run: npm install --global --ignore-scripts @earendil-works/pi-coding-agent@0.85.1
+      - run: npm install --global --ignore-scripts @earendil-works/pi-coding-agent@1.5.2
       - run: npm run check
       - name: Check clean archive
         run: |

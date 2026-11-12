@@ -18,7 +18,7 @@
   ],
   "engines": {
     "node": ">=22.19.0",
-    "pi": "0.85.1"
+    "pi": ">=1.5.2"
   },
   "pi": {
     "extensions": [
@@ -279,11 +279,11 @@
     "sync:relock": "node scripts/sync-upstream.mjs relock . sync/manifest.json"
   },
   "devDependencies": {
-    "@earendil-works/pi-ai": "0.85.1",
-    "@earendil-works/pi-coding-agent": "0.85.1",
-    "@earendil-works/pi-tui": "0.85.1",
+    "@earendil-works/pi-ai": "1.5.2",
+    "@earendil-works/pi-coding-agent": "1.5.2",
+    "@earendil-works/pi-tui": "1.5.2",
     "@types/node": "22.19.19",
-    "typebox": "1.3.7",
+    "typebox": "1.3.27",
     "typescript": "5.9.3",
     "yaml": "2.9.0"
   },

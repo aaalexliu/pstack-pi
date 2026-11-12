@@ -9,7 +9,7 @@ import {
   titleEntryType,
   userPrompt,
 } from './naming.ts';
-import { completer, replyText, smallModel } from '../shared/model.ts';
+import { replyText, smallModel } from '../shared/model.ts';
 
 const requestTimeoutMs = 30_000;
 // Pi writes its own title after every session_start handler has finished, and other
@@ -96,9 +96,8 @@ export default function title(pi: ExtensionAPI): void {
     if (event.source !== 'interactive' || !ctx.hasUI || !event.text.trim()) return;
     const current = pi.getSessionName();
     if (current !== undefined && current !== autoTitle) return;
-    const complete = completer(ctx);
     const model = smallModel(ctx.modelRegistry, ctx.model);
-    if (!complete || !model) return;
+    if (!model) return;
 
     cancel();
     const controller = new AbortController();
@@ -112,7 +111,7 @@ export default function title(pi: ExtensionAPI): void {
 
     void (async () => {
       try {
-        const reply = await complete(model, {
+        const reply = await ctx.modelRegistry.complete(model, {
           systemPrompt,
           messages: [{ role: 'user', content: prompt, timestamp: Date.now() }],
         }, { maxTokens: 1024, signal: controller.signal });

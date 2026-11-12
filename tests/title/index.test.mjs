@@ -16,9 +16,9 @@ function reply(text, stopReason = 'stop') {
 
 /**
  * A fake Pi with one session. `answer(call)` returns the model's reply for a request.
- * @param {{ name?: string, entries?: any[], branch?: any[], model?: any, mode?: string, hasUI?: boolean, withComplete?: boolean, haikuAuth?: boolean, answer?: (call: any) => any }} options
+ * @param {{ name?: string, entries?: any[], branch?: any[], model?: any, mode?: string, hasUI?: boolean, haikuAuth?: boolean, answer?: (call: any) => any }} options
  */
-function harness({ name, entries = [], branch = [], model = opus, mode = 'tui', hasUI = true, withComplete = true, haikuAuth = true, answer = () => reply('{"newTask":true,"title":"Fixing login redirect"}') } = {}) {
+function harness({ name, entries = [], branch = [], model = opus, mode = 'tui', hasUI = true, haikuAuth = true, answer = () => reply('{"newTask":true,"title":"Fixing login redirect"}') } = {}) {
   /** @type {Map<string, Function[]>} */
   const handlers = new Map();
   /** @type {any[]} */
@@ -42,11 +42,11 @@ function harness({ name, entries = [], branch = [], model = opus, mode = 'tui', 
   const registry = {
     find: (/** @type {string} */ provider, /** @type {string} */ id) => [opus, haiku, sol].find((m) => m.provider === provider && m.id === id),
     hasConfiguredAuth: (/** @type {any} */ m) => m !== haiku || haikuAuth,
-    ...(withComplete ? { async complete(/** @type {any} */ m, /** @type {any} */ context, /** @type {any} */ options) {
+    async complete(/** @type {any} */ m, /** @type {any} */ context, /** @type {any} */ options) {
       const call = { model: m, context, options };
       calls.push(call);
       return answer(call);
-    } } : {}),
+    },
   };
   const ctx = {
     mode,
@@ -140,7 +140,7 @@ test('a /name during a request wins', async () => {
   assert.deepEqual(pi.appended, []);
 });
 
-test('does nothing without a UI, without typed input, or on Pi without ModelRegistry.complete', async () => {
+test('does not name sessions without a UI or typed input', async () => {
   const headless = harness({ hasUI: false });
   await headless.type('fix it');
   assert.equal(headless.calls.length, 0);
@@ -150,10 +150,6 @@ test('does nothing without a UI, without typed input, or on Pi without ModelRegi
   await flush();
   assert.equal(extension.calls.length, 0);
 
-  const oldPi = harness({ withComplete: false });
-  await oldPi.type('fix it');
-  assert.equal(oldPi.name(), undefined);
-  assert.deepEqual(oldPi.notes, []);
 });
 
 test('uses the session model when the provider has no small model or Haiku has no login', async () => {
