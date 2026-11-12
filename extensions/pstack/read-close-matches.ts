@@ -96,7 +96,15 @@ async function directoryNames(directory: string): Promise<string[] | undefined> 
   const names: string[] = [];
   try {
     for await (const entry of handle) {
-      if (!entry.name.includes('\n') && !entry.name.includes('\r')) names.push(entry.name);
+      if (entry.name.includes('\n') || entry.name.includes('\r')) continue;
+      if (entry.isSymbolicLink()) {
+        try {
+          await stat(join(directory, entry.name));
+        } catch {
+          continue;
+        }
+      }
+      names.push(entry.name);
     }
   } catch {
     return undefined;

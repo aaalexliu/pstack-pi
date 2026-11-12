@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { chmod, mkdir, mkdtemp, opendir, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, opendir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -160,6 +160,21 @@ test('a same-stem file past the first 1024 directory entries is listed first', a
     const message = await readFailure(root, missing);
     const result = await onReadError(enoentEvent(missing, message), { cwd: root });
     assert.equal(suggested(result)[0], sameStemName);
+  });
+});
+
+test('a dangling same-stem symlink is omitted and a live symlink is listed', async () => {
+  await withRoot(async (root) => {
+    await symlink('missing-target', join(root, 'widget.js'));
+    const ownMessage = await readFailure(root, 'widget.js');
+    assert.equal(await onReadError(enoentEvent('widget.js', ownMessage), { cwd: root }), undefined);
+    await writeFile(join(root, 'real.js'), 'export const n = 1;\n');
+    await symlink('real.js', join(root, 'widget.md'));
+    const message = await readFailure(root, 'widget.ts');
+    const result = await onReadError(enoentEvent('widget.ts', message), { cwd: root });
+    assert.deepEqual(suggested(result), ['widget.md']);
+    const again = await onReadError(enoentEvent('widget.js', ownMessage), { cwd: root });
+    assert.deepEqual(suggested(again), ['widget.md']);
   });
 });
 
