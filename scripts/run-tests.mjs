@@ -12,6 +12,12 @@ export const PI_UNIT_TESTS = [
   "tests/pi/unit.test.mjs",
 ];
 
+// The interactive-subagents subtree keeps upstream's test layout.
+export const SUBTREE_TESTS = [
+  "extensions/interactive-subagents/test/pstack.test.ts",
+  "extensions/interactive-subagents/test/test.ts",
+];
+
 const packedIsolation = [
   "--experimental-test-isolation=none",
   "--test-concurrency=1",
@@ -53,14 +59,20 @@ export async function listTestFiles(root = repository) {
     }
   }
   await walk(join(root, "tests"));
-  return found.sort();
+  return [...found, ...SUBTREE_TESTS].sort();
 }
+
+// Tests describe a root Pi. An agent that runs them from inside a subagent
+// must not hand them its child markers.
+const testEnvironment = Object.fromEntries(Object.entries(process.env).filter(([name]) =>
+  name !== "PSTACK_SUBAGENT_DEPTH" && !name.startsWith("PI_SUBAGENT_") && name !== "PI_DENY_TOOLS"));
 
 /** @param {string[]} args @param {string[]} files */
 function runNodeTest(args, files) {
   return new Promise((resolve, reject) => {
     const child = spawn(nodeTest[0], [...nodeTest.slice(1), ...args, ...files], {
       cwd: repository,
+      env: testEnvironment,
       stdio: "inherit",
     });
     child.once("error", reject);

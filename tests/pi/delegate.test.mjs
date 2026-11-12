@@ -145,6 +145,31 @@ test('a user agent overrides the bundled one by name and runs in a subdirectory 
   t.diagnostic(JSON.stringify({ requests: run.provider?.requests, diagnostics: run.diagnostics, cleanup: run.cleanup }));
 });
 
+test('a child with host default tools gets neither delegation tool set', async (t) => {
+  const final = 'The default-tools child answered.';
+  const delegation = ['blocking_subagent', 'subagent', 'subagent_interrupt', 'subagent_resume', 'subagents_list'];
+  const run = await runPiSmoke({
+    expectedText: final, expectedRequests: 3,
+    setup: async (paths) => {
+      await setupProject(paths);
+      await mkdir(path.join(paths.profile, 'agents'), { recursive: true });
+      await writeFile(path.join(paths.profile, 'agents/default-tools.md'), '---\nname: default-tools\ndescription: No tool list.\n---\nAnswer briefly.');
+    },
+    fixture: { script: [
+      { reply: { kind: 'tool', id: 'default-tools', name: 'blocking_subagent', arguments: { agent: 'default-tools', task: 'Say hello.' } }, check: (request) => {
+        for (const tool of delegation) assert.ok(toolNames(request).includes(tool), `Parent has ${tool}`);
+      } },
+      { reply: { kind: 'text', text: 'hello' }, check: (request) => {
+        const tools = toolNames(request);
+        assert.ok(tools.includes('read') && tools.includes('pstack_todo'), 'Child keeps host default tools');
+        for (const tool of delegation) assert.ok(!tools.includes(tool), `Child lacks ${tool}`);
+      } },
+      { reply: { kind: 'text', text: final }, check: (request) => assert.ok(toolResult(request, 'default-tools').includes('hello')) },
+    ] },
+  });
+  t.diagnostic(JSON.stringify({ requests: run.provider?.requests, diagnostics: run.diagnostics }));
+});
+
 test('packed poteto-agent can edit through its explicit tool set', async () => {
   const final = 'Poteto delegate finished.';
   let packageRoot = '';
