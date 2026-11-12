@@ -170,20 +170,18 @@ const SPAWNING_TOOLS = new Set([
 
 /**
  * Resolve the effective set of denied tool names from agent defaults.
- * `spawning: false` expands to all SPAWNING_TOOLS.
+ * Children get no SPAWNING_TOOLS unless their agent file says `spawning: true`.
  * `deny-tools` adds individual tool names on top.
  */
 function resolveDenyTools(agentDefs: AgentDefaults | null): Set<string> {
   const denied = new Set<string>();
-  if (!agentDefs) return denied;
 
-  // spawning: false → deny all spawning tools
-  if (agentDefs.spawning === false) {
+  if (agentDefs?.spawning !== true) {
     for (const t of SPAWNING_TOOLS) denied.add(t);
   }
 
   // deny-tools: explicit list
-  if (agentDefs.denyTools) {
+  if (agentDefs?.denyTools) {
     for (const t of agentDefs.denyTools
       .split(",")
       .map((s) => s.trim())
@@ -1131,6 +1129,8 @@ async function launchSubagent(
   if (denySet.size > 0) {
     envParts.push(`PI_DENY_TOOLS=${shellEscape([...denySet].join(","))}`);
   }
+  // pstack-pi hides its `blocking_subagent` tool at depth 1 and deeper.
+  envParts.push(`PSTACK_SUBAGENT_DEPTH=1`);
   envParts.push(`PI_SUBAGENT_NAME=${shellEscape(params.name)}`);
   if (params.agent) {
     envParts.push(`PI_SUBAGENT_AGENT=${shellEscape(params.agent)}`);
@@ -1827,6 +1827,8 @@ export default function subagentsExtension(pi: ExtensionAPI) {
         if (process.env.PI_CODING_AGENT_DIR) {
           resumeEnvParts.push(`PI_CODING_AGENT_DIR=${shellEscape(process.env.PI_CODING_AGENT_DIR)}`);
         }
+        resumeEnvParts.push(`PI_DENY_TOOLS=${shellEscape([...resolveDenyTools(null)].join(","))}`);
+        resumeEnvParts.push(`PSTACK_SUBAGENT_DEPTH=1`);
         resumeEnvParts.push(`PI_SUBAGENT_NAME=${shellEscape(name)}`);
         resumeEnvParts.push(`PI_SUBAGENT_SESSION=${shellEscape(params.sessionPath)}`);
         resumeEnvParts.push(`PI_SUBAGENT_ID=${shellEscape(id)}`);
