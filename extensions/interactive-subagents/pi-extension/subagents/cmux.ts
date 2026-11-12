@@ -845,7 +845,8 @@ function createCmuxAgentSurface(name: string, layout: CmuxLayout, workspaceName:
  * For cmux: every child of this parent goes in one separate "agents:" workspace,
  * laid out per `cmuxLayout` (see createCmuxAgentSurface).
  * For zellij: chooses a tab-aware tiled or stacked placement.
- * For tmux/wezterm: falls back to split behavior.
+ * For tmux: a new window in the parent's session (see createTmuxWindow).
+ * For wezterm: falls back to split behavior.
  *
  * Returns an identifier (`surface:42` in cmux, `%12` in tmux, `pane:7` in zellij, `42` in wezterm).
  */
@@ -866,10 +867,32 @@ export function createSurface(
     return createZellijSurface(name);
   }
 
-  // On tmux, target the parent pi's pane so splits follow the agent, not the user's focus.
-  // See https://github.com/HazAT/pi-interactive-subagents/issues/12
-  const fromSurface = backend === "tmux" ? process.env.TMUX_PANE : undefined;
-  return createSurfaceSplit(name, "right", fromSurface);
+  if (backend === "tmux") {
+    return createTmuxWindow(name);
+  }
+
+  return createSurfaceSplit(name, "right");
+}
+
+/**
+ * Open a child as a new background window, named after it, in the parent
+ * pi's tmux session (found from its pane, not from the user's focus).
+ */
+function createTmuxWindow(name: string): string {
+  const args = ["new-window", "-d", "-n", name, "-c", process.cwd(), "-P", "-F", "#{pane_id}"];
+  const parentPane = process.env.TMUX_PANE;
+  if (parentPane) {
+    const session = execFileSync("tmux", ["display-message", "-p", "-t", parentPane, "#{session_id}"], {
+      encoding: "utf8",
+    }).trim();
+    args.push("-t", `${session}:`);
+  }
+
+  const pane = execFileSync("tmux", args, { encoding: "utf8" }).trim();
+  if (!pane.startsWith("%")) {
+    throw new Error(`Unexpected tmux new-window output: ${pane}`);
+  }
+  return pane;
 }
 
 /**
