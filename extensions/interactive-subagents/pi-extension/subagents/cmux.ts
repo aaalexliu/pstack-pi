@@ -1322,6 +1322,8 @@ export async function readScreenAsync(surface: string, lines = 50): Promise<stri
  */
 export function closeSurface(surface: string): void {
   const backend = requireMuxBackend();
+  // Keep a failed close (the pane is already gone) off the parent's screen.
+  const quiet = { encoding: "utf8", stdio: "pipe" } as const;
 
   if (backend === "cmux") {
     // Callers close only panes this extension created. A just-exited child can
@@ -1339,35 +1341,49 @@ export function closeSurface(surface: string): void {
         cmuxAgentsWorkspace = null;
         if (listCmuxWorkspaceSurfaces(workspace.ref)?.every((s) => s === surface)) {
           // cmux refuses to close a workspace's last surface; close the workspace.
-          execFileSync("cmux", ["workspace", "close", workspace.ref, "--force"], { encoding: "utf8" });
+          execFileSync("cmux", ["workspace", "close", workspace.ref, "--force"], quiet);
           return;
         }
       }
     }
-    execSync(`cmux close-surface --surface ${shellEscape(surface)} --force`, {
-      encoding: "utf8",
-    });
+    execFileSync("cmux", ["close-surface", "--surface", surface, "--force"], quiet);
     return;
   }
 
   if (backend === "tmux") {
-    execFileSync("tmux", ["kill-pane", "-t", surface], { encoding: "utf8" });
+    execFileSync("tmux", ["kill-pane", "-t", surface], quiet);
     return;
   }
 
   if (backend === "wezterm") {
-    execFileSync("wezterm", ["cli", "kill-pane", "--pane-id", surface], {
-      encoding: "utf8",
-    });
+    execFileSync("wezterm", ["cli", "kill-pane", "--pane-id", surface], quiet);
     return;
   }
 
   zellijActionSync(["close-pane"], surface);
 }
 
+/**
+ * What each backend says when a pane is gone for good: closed by the user, or
+ * with its window, tab, or workspace. Any other read failure (a socket that
+ * blips, a slow server) may pass, so the watcher keeps polling. Zellij's
+ * wording is unknown, so its children keep polling as before.
+ */
+const PANE_GONE_ERRORS: Record<MuxBackend, RegExp | null> = {
+  cmux: /\bnot_found\b|(?:Surface|Workspace) ref not found/,
+  tmux: /can't find (?:pane|window)/,
+  wezterm: /no such pane/,
+  zellij: null,
+};
+
+export function isPaneGoneError(backend: MuxBackend, error: unknown): boolean {
+  const { stderr, message } = (error ?? {}) as { stderr?: unknown; message?: unknown };
+  return !!PANE_GONE_ERRORS[backend]?.test(`${stderr ?? ""}\n${message ?? ""}`);
+}
+
 export interface PollResult {
-  /** How the subagent exited */
-  reason: "done" | "ping" | "sentinel" | "error";
+  /** How the subagent exited. "closed": its pane was destroyed before it finished. */
+  reason: "done" | "ping" | "sentinel" | "error" | "closed";
   /** Shell exit code (from sentinel). 0 for file-based exits. */
   exitCode: number;
   /** Ping data if reason is "ping" */
@@ -1451,7 +1467,7 @@ export async function pollForExit(
       if (match) {
         return { reason: "sentinel", exitCode: parseInt(match[1], 10) };
       }
-    } catch {
+    } catch (error) {
       // Surface may have been destroyed — check if .exit file appeared in the meantime
       if (options.sessionFile) {
         try {
@@ -1462,6 +1478,10 @@ export async function pollForExit(
             return interpretExitSidecar(data);
           }
         } catch {}
+      }
+      const backend = getMuxBackend();
+      if (backend && isPaneGoneError(backend, error)) {
+        return { reason: "closed", exitCode: 1 };
       }
     }
 
