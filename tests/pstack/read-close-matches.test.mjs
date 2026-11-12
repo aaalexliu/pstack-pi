@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, opendir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -51,6 +51,20 @@ async function withRoot(fn) {
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+}
+
+/** @param {string} directory */
+async function directoryOrder(directory) {
+  const names = [];
+  const handle = await opendir(directory);
+  for await (const entry of handle) names.push(entry.name);
+  return names;
+}
+
+/** @param {string} name */
+function stemOf(name) {
+  const dot = name.lastIndexOf('.');
+  return dot > 0 ? name.slice(0, dot) : name;
 }
 
 /** @param {any} result */
@@ -119,6 +133,33 @@ test('a missing file with no near names adds nothing past the list cap', async (
     const message = await readFailure(root, 'zzzzzzzz.ts');
     const event = enoentEvent('zzzzzzzz.ts', message);
     assert.equal(await onReadError(event, { cwd: root }), undefined);
+  });
+});
+
+test('a same-stem file past the first 1024 directory entries is listed first', async () => {
+  await withRoot(async (root) => {
+    const writeSet = async (prefix, count, ext) => {
+      const batch = 64;
+      for (let offset = 0; offset < count; offset += batch) {
+        const size = Math.min(batch, count - offset);
+        await Promise.all(Array.from({ length: size }, (_, index) => {
+          const id = offset + index;
+          return writeFile(join(root, `${prefix}-${String(id).padStart(5, '0')}.${ext}`), 'x\n');
+        }));
+      }
+    };
+    await writeSet('pad', 1024, 'txt');
+    await writeSet('kept', 1026, 'js');
+    const names = await directoryOrder(root);
+    const sameStemName = names.find((name, index) => index > 1024 && stemOf(name).startsWith('kept-'));
+    assert.equal(typeof sameStemName, 'string', `directory order did not place a kept name past index 1024`);
+    const index = names.indexOf(sameStemName);
+    assert.ok(index > 1024, `directory order placed ${sameStemName} at index ${index}`);
+    assert.deepEqual(names.filter((name) => stemOf(name) === stemOf(sameStemName)), [sameStemName]);
+    const missing = `${stemOf(sameStemName)}.ts`;
+    const message = await readFailure(root, missing);
+    const result = await onReadError(enoentEvent(missing, message), { cwd: root });
+    assert.equal(suggested(result)[0], sameStemName);
   });
 });
 

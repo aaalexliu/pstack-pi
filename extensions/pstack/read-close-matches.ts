@@ -5,7 +5,6 @@ import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:pat
 
 const maxCloseMatches = 10;
 const maxEditDistance = 3;
-const maxDirectoryEntries = 1024;
 const enoentPrefix = 'ENOENT: ';
 const accessMarker = ", access '";
 
@@ -43,6 +42,7 @@ function rankNames(names: readonly string[], wanted: string): string[] {
   const sameStem = names.filter((name) => name !== wanted && stem(name) === wantedStem).sort(byName);
   const near = names.flatMap((name) => {
     if (stem(name) === wantedStem && name !== wanted) return [];
+    if (Math.abs(name.length - wanted.length) > maxEditDistance) return [];
     const distance = editDistanceAtMost(name, wanted, maxEditDistance);
     return distance === undefined ? [] : [{ name, distance }];
   }).sort((left, right) => left.distance - right.distance || byName(left.name, right.name));
@@ -97,7 +97,6 @@ async function directoryNames(directory: string): Promise<string[] | undefined> 
   try {
     for await (const entry of handle) {
       if (!entry.name.includes('\n') && !entry.name.includes('\r')) names.push(entry.name);
-      if (names.length >= maxDirectoryEntries) break;
     }
   } catch {
     return undefined;
