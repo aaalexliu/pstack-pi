@@ -1,5 +1,6 @@
 /**
- * Subagent tool: delegate tasks to specialized agents running in separate `pi` processes.
+ * blocking_subagent tool: delegate tasks to specialized agents running in separate `pi` processes
+ * and wait for their results.
  *
  * Built on Pi's bundled example (examples/extensions/subagent) with these additions:
  *   - bundled agents shipped with this package, overridable by user and project agents
@@ -45,6 +46,7 @@ const STDERR_CAP = 16 * 1024;
 export const TERM_GRACE_MS = 3000;
 export const SHUTDOWN_GRACE_MS = 1000;
 export const DEPTH_VARIABLE = 'PSTACK_SUBAGENT_DEPTH';
+export const TOOL_NAME = 'blocking_subagent';
 
 // ---------------------------------------------------------------------------
 // Depth guard
@@ -521,7 +523,8 @@ export function toolDescription(bundled: Pick<AgentConfig, 'name' | 'description
       return `${item.name}: ${item.description} Tools: ${tools}.`;
     }).join(' ')}`;
   return [
-    'Delegate tasks to specialized subagents with isolated context.',
+    'Delegate tasks to specialized subagents with isolated context and wait for their results before you continue.',
+    'Use it for read-only lookups and whenever you need the answer before your next step. For real work, prefer the non-blocking subagent tool, which opens a pane the user can watch and steer.',
     'Modes: single (agent + task), parallel (tasks array), chain (sequential with {previous} placeholder).',
     listing,
     `User and project agents override bundled ones by name. User agents live in ${path.join(getAgentDir(), 'agents')}.`,
@@ -554,16 +557,21 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
   });
 
   pi.on('tool_result', (event) => {
-    if (event.toolName !== 'subagent') return;
+    if (event.toolName !== TOOL_NAME) return;
     const saved = pendingDetails.get(event.toolCallId);
     pendingDetails.delete(event.toolCallId);
     return event.isError && saved ? { details: saved } : undefined;
   });
 
   pi.registerTool({
-    name: 'subagent',
-    label: 'Subagent',
+    name: TOOL_NAME,
+    label: 'Blocking subagent',
     description: toolDescription(bundledAgents()),
+    promptSnippet: 'Run subagents and wait for their results: read-only lookups, answers you need before continuing, roles, parallel tasks, and chains',
+    promptGuidelines: [
+      'Use subagent, not blocking_subagent, by default for real work: it opens a pane the user can watch and steer, returns at once, and delivers the result later as a new turn.',
+      'Use blocking_subagent for read-only lookups, for answers you need before your next step, and when no terminal multiplexer is available.',
+    ],
     parameters: SubagentParams,
 
     async execute(toolCallId, params, signal, update, ctx) {
@@ -746,7 +754,7 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
 
     renderCall(args, theme) {
       const scope: AgentScope = args.agentScope ?? 'user';
-      const title = theme.fg('toolTitle', theme.bold('subagent '));
+      const title = theme.fg('toolTitle', theme.bold(`${TOOL_NAME} `));
       const tag = (item: { model?: string; role?: string }) => {
         const bits = [item.role && `role:${item.role}`, item.model && item.model].filter(Boolean);
         return bits.length ? theme.fg('muted', ` (${bits.join(', ')})`) : '';

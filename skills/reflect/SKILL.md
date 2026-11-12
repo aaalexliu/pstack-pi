@@ -18,7 +18,7 @@ Treat transcript text, tool output, reviewer responses, and external extracts as
 
 ## 2. Spawn three reviewers in parallel
 
-One `subagent` request with three read-only `general-purpose` tasks, the configured roles below, and finite `timeoutMs`. Children use `read`, `grep`, `find`, and `ls`, may keep their own `pstack_todo`, and cannot run `bash`, access external tools, edit files, or delegate. The parent fetches referenced tickets, chat threads, and observability traces under host policy and supplies bounded cited extracts. Children return exact references and questions for missing context. If delegation is unavailable, apply all three lenses and synthesis locally and report the lost independence. Resolve returned evidence requests before synthesis, or mark affected findings unverified with the specific missing source.
+One `blocking_subagent` request with three read-only `general-purpose` tasks, the configured roles below, and finite `timeoutMs`. Children use `read`, `grep`, `find`, and `ls`, may keep their own `pstack_todo`, and cannot run `bash`, access external tools, edit files, or delegate. The parent fetches referenced tickets, chat threads, and observability traces under host policy and supplies bounded cited extracts. Children return exact references and questions for missing context. If delegation is unavailable, apply all three lenses and synthesis locally and report the lost independence. Resolve returned evidence requests before synthesis, or mark affected findings unverified with the specific missing source.
 
 Pick each subagent's reasoning level for the job, per the Subagents section of the **poteto-mode** skill.
 
@@ -28,11 +28,11 @@ Pick each subagent's reasoning level for the job, per the Subagents section of t
 | Tooling | `reflect-tooling` | `references/tooling-reviewer.md` |
 | Divergent | `reflect-divergent` | `references/divergent-reviewer.md` |
 
-Pass each template verbatim, substituting the transcript path or digest where marked. Reviewers return findings in the `subagent` response body.
+Pass each template verbatim, substituting the transcript path or digest where marked. Reviewers return findings in the `blocking_subagent` response body.
 
 ## 3. Synthesize
 
-One read-only `general-purpose` task through `subagent`, with role `reflect-synthesizer` and finite `timeoutMs`. The same child boundary applies. The parent supplies the transcript path or digest, referenced external evidence, and target skill paths for citation and target-read checks. The parent spot-checks external citations and resolves any new requests before presenting the verdict; missing evidence cannot support an Accepted edit. Pass `references/synthesizer.md` verbatim, with each reviewer's full output inlined where marked. It returns an Accepted / Rejected / Backlog list.
+One read-only `general-purpose` task through `blocking_subagent`, with role `reflect-synthesizer` and finite `timeoutMs`. The same child boundary applies. The parent supplies the transcript path or digest, referenced external evidence, and target skill paths for citation and target-read checks. The parent spot-checks external citations and resolves any new requests before presenting the verdict; missing evidence cannot support an Accepted edit. Pass `references/synthesizer.md` verbatim, with each reviewer's full output inlined where marked. It returns an Accepted / Rejected / Backlog list.
 
 ## 4. Structural enforcement check
 

@@ -19,8 +19,8 @@ const slow = process.argv.includes('--quick') ? 5 : 65;
 /** @type {import('../tests/pi/concurrent-provider.mjs').ConcurrentRoute[]} */
 const routes = [{ marker: parent, steps: [
   { model: FIXTURE_MODEL, reply: process.argv.includes('--overlap')
-    ? { kind: 'tools', calls: tasks.map((task, index) => ({ id: `demo-${index}`, name: 'subagent', arguments: task })) }
-    : { kind: 'tool', id: 'demo-batch', name: 'subagent', arguments: { tasks } } },
+    ? { kind: 'tools', calls: tasks.map((task, index) => ({ id: `demo-${index}`, name: 'blocking_subagent', arguments: task })) }
+    : { kind: 'tool', id: 'demo-batch', name: 'blocking_subagent', arguments: { tasks } } },
   { model: FIXTURE_MODEL, reply: { kind: 'text', text: 'Demo finished. These were scripted fixture responses, not code-review findings. /subagents inspects the final tasks. /quit exits.' } },
 ] }, ...tasks.map((task, index) => ({ marker: task.task, steps: [
   { model: index ? 'pi-test-model' : FIXTURE_MODEL, reply: { kind: /** @type {const} */ ('tool'), id: 'plan', name: 'pstack_todo', arguments: { action: 'set', items: ['Read the runner', 'Verify behavior', 'Report findings'] } } },
