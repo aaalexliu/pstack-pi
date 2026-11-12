@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { settingsPath } from "../../../subagent/cmux-settings.ts";
 
-export const SUBAGENTS_CONFIG_FILE = "interactive-subagents.json";
+/** The key that holds these settings in pstack-pi's `<agentDir>/pstack-pi/settings.json`. */
+export const SUBAGENTS_SETTINGS_KEY = "interactiveSubagents";
 
 export type CmuxLayout = "grid" | "tabs";
 
@@ -11,24 +11,22 @@ export interface SubagentsConfig {
   maxConcurrent: number;
   /** "grid": one pane per child in a 2x2 grid. "tabs": every child is a tab in one pane. */
   cmuxLayout: CmuxLayout;
-  /** Extra folders of agent .md files, searched after the user dir and before bundled agents. */
-  agentDirs: string[];
 }
 
 export const DEFAULT_SUBAGENTS_CONFIG: SubagentsConfig = {
   maxConcurrent: 4,
   cmuxLayout: "grid",
-  agentDirs: [],
 };
 
 function configError(source: string, message: string): Error {
   return new Error(`Invalid subagents config ${source}: ${message}`);
 }
 
-/** Parse the user config. Relative and `~/` agent dirs resolve against `baseDir` and the home dir. */
-export function parseSubagentsConfig(raw: unknown, source: string, baseDir: string): SubagentsConfig {
+/** Parse the `interactiveSubagents` value. A missing value means the defaults. */
+export function parseSubagentsConfig(raw: unknown, source: string): SubagentsConfig {
+  if (raw === undefined) return DEFAULT_SUBAGENTS_CONFIG;
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-    throw configError(source, "expected a JSON object");
+    throw configError(source, `${SUBAGENTS_SETTINGS_KEY} must be a JSON object`);
   }
   const record = raw as Record<string, unknown>;
   for (const key of Object.keys(record)) {
@@ -45,23 +43,12 @@ export function parseSubagentsConfig(raw: unknown, source: string, baseDir: stri
     throw configError(source, 'cmuxLayout must be "grid" or "tabs"');
   }
 
-  const { agentDirs = [] } = record;
-  if (!Array.isArray(agentDirs) || agentDirs.some((dir) => typeof dir !== "string" || dir === "")) {
-    throw configError(source, "agentDirs must be an array of folder paths");
-  }
-
-  return {
-    maxConcurrent: maxConcurrent as number,
-    cmuxLayout,
-    agentDirs: (agentDirs as string[]).map((dir) =>
-      dir === "~" || dir.startsWith("~/") ? join(homedir(), dir.slice(1)) : resolve(baseDir, dir),
-    ),
-  };
+  return { maxConcurrent: maxConcurrent as number, cmuxLayout };
 }
 
-/** Read `<agentDir>/interactive-subagents.json`. A missing file means the defaults. */
+/** Read the `interactiveSubagents` key of `<agentDir>/pstack-pi/settings.json`. A missing file or key means the defaults. */
 export function loadSubagentsConfig(agentDir: string): SubagentsConfig {
-  const path = join(agentDir, SUBAGENTS_CONFIG_FILE);
+  const path = settingsPath(agentDir);
   let text: string;
   try {
     text = readFileSync(path, "utf8");
@@ -76,5 +63,6 @@ export function loadSubagentsConfig(agentDir: string): SubagentsConfig {
   } catch (error) {
     throw configError(path, error instanceof Error ? error.message : String(error));
   }
-  return parseSubagentsConfig(raw, path, agentDir);
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw configError(path, "expected a JSON object");
+  return parseSubagentsConfig((raw as Record<string, unknown>)[SUBAGENTS_SETTINGS_KEY], path);
 }
