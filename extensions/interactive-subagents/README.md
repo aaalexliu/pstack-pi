@@ -56,7 +56,7 @@ If your shell startup is slow and subagent commands sometimes get dropped before
 export PI_SUBAGENT_SHELL_READY_DELAY_MS=2500
 ```
 
-Settings live in one optional user file, `${PI_CODING_AGENT_DIR:-~/.pi/agent}/interactive-subagents.json`. A missing file or key means the default:
+Settings live in one optional user file, `${PI_CODING_AGENT_DIR:-~/.pi/agent}/interactive-subagents.json`. A missing file or key means the default. Edits apply on the next spawn. If the file is not valid, Pi warns you and keeps the last good settings:
 
 ```json
 {

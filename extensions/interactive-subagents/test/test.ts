@@ -2289,6 +2289,48 @@ describe("concurrency cap", () => {
     });
   });
 
+  it("keeps a finished child's report and admits waiters while the config file is mid-edit", async () => {
+    await withMaxConcurrent(1, async () => {
+      const { api } = createMockExtensionApi();
+      const { launched, execute } = startedLauncher();
+      const start = testApi.withSpawnSlot(api, execute);
+      await start("id", { name: "running", task: "T" });
+      await start("id", { name: "waiting", task: "T" });
+      await start("id", { name: "last", task: "T" });
+      writeFileSync(join(process.env.PI_CODING_AGENT_DIR!, "interactive-subagents.json"), '{ "maxConcurrent": ');
+
+      const previousMux = process.env.PI_SUBAGENT_MUX;
+      process.env.PI_SUBAGENT_MUX = "wezterm";
+      const dir = createTestDir();
+      try {
+        const sessionFile = createSessionFile(dir, [SESSION_HEADER, ASSISTANT_MSG]);
+        writeFileSync(`${sessionFile}.exit`, JSON.stringify({ type: "done" }));
+        const result = await testApi.watchSubagent(
+          {
+            id: "w1",
+            name: "running",
+            task: "T",
+            surface: "surface:404",
+            startTime: Date.now(),
+            sessionFile,
+            interactive: false,
+            statusState: createStatusState({ source: "pi", startTimeMs: Date.now() }),
+          },
+          new AbortController().signal,
+        );
+        await tick();
+
+        assert.equal(result.exitCode, 0);
+        assert.equal(result.summary, "Here is my plan...");
+        assert.deepEqual(launched, ["running", "waiting"], "the last good limit of 1 still applies");
+        assert.doesNotThrow(() => testApi.discoverAgentDefinitions());
+      } finally {
+        restoreEnvVar("PI_SUBAGENT_MUX", previousMux);
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+  });
+
   it("releases a slot when a child's watcher ends", async () => {
     await withMaxConcurrent(1, async () => {
       const { api } = createMockExtensionApi();
