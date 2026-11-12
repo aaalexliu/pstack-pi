@@ -56,6 +56,22 @@ If your shell startup is slow and subagent commands sometimes get dropped before
 export PI_SUBAGENT_SHELL_READY_DELAY_MS=2500
 ```
 
+Settings live in one optional user file, `${PI_CODING_AGENT_DIR:-~/.pi/agent}/interactive-subagents.json`. A missing file or key means the default:
+
+```json
+{
+  "maxConcurrent": 4,
+  "cmuxLayout": "grid",
+  "agentDirs": ["~/.pi/agent/git/github.com/aaalexliu/pstack-pi/agents"]
+}
+```
+
+| Key             | Default  | Meaning                                                                                                                       |
+| --------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `maxConcurrent` | `4`      | Most children one parent runs at once. Extra `subagent` calls return a queued result and start when a slot frees.      |
+| `cmuxLayout`    | `"grid"` | `"grid"`: one pane per child in a 2x2 grid. `"tabs"`: every child is a tab in one pane. Both live in the `agents:` workspace. |
+| `agentDirs`     | `[]`     | Extra folders of agent `.md` files, searched after `~/.pi/agent/agents/` and before the bundled agents.                      |
+
 Subagent panes are created without stealing keyboard focus (cmux, tmux). Launch commands target child surfaces by explicit ID, so focus and command delivery are independent. Note: the `interactive` option controls parent status notifications, not terminal focus.
 
 ## What's Included

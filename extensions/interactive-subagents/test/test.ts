@@ -2,7 +2,7 @@ import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, readFileSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { visibleWidth } from "@mariozechner/pi-tui";
 import * as subagentsModule from "../pi-extension/subagents/index.ts";
@@ -55,6 +55,11 @@ import {
   findLatestAssistantError,
 } from "../pi-extension/subagents/subagent-done.ts";
 import { __pollForExitTest__ } from "../pi-extension/subagents/cmux.ts";
+import {
+  DEFAULT_SUBAGENTS_CONFIG,
+  loadSubagentsConfig,
+  parseSubagentsConfig,
+} from "../pi-extension/subagents/config.ts";
 
 // --- Helpers ---
 
@@ -1216,6 +1221,82 @@ describe("subagent discovery", () => {
     });
   });
 });
+describe("interactive-subagents.json", () => {
+  it("uses the defaults when the file is missing", () => {
+    withTempDir((dir) => {
+      assert.deepEqual(loadSubagentsConfig(dir), { maxConcurrent: 4, cmuxLayout: "grid", agentDirs: [] });
+    });
+  });
+
+  it("reads maxConcurrent, cmuxLayout, and agentDirs from the agent dir", () => {
+    withTempDir((dir) => {
+      writeFileSync(
+        join(dir, "interactive-subagents.json"),
+        JSON.stringify({ maxConcurrent: 2, cmuxLayout: "tabs", agentDirs: ["/abs/agents", "rel/agents", "~/home-agents"] }),
+      );
+      assert.deepEqual(loadSubagentsConfig(dir), {
+        maxConcurrent: 2,
+        cmuxLayout: "tabs",
+        agentDirs: ["/abs/agents", join(dir, "rel/agents"), join(homedir(), "home-agents")],
+      });
+    });
+  });
+
+  it("fills in defaults for keys the file leaves out", () => {
+    assert.deepEqual(parseSubagentsConfig({ cmuxLayout: "tabs" }, "test", "/base"), {
+      ...DEFAULT_SUBAGENTS_CONFIG,
+      cmuxLayout: "tabs",
+    });
+  });
+
+  it("rejects bad values and unknown keys with the file path in the error", () => {
+    for (const raw of [
+      { maxConcurrent: 0 },
+      { maxConcurrent: 2.5 },
+      { cmuxLayout: "split" },
+      { agentDirs: "/one/dir" },
+      { agentDirs: [""] },
+      { maxconcurrent: 2 },
+      [],
+    ]) {
+      assert.throws(() => parseSubagentsConfig(raw, "/cfg.json", "/base"), /Invalid subagents config \/cfg\.json/);
+    }
+  });
+
+  it("rejects malformed JSON", () => {
+    withTempDir((dir) => {
+      writeFileSync(join(dir, "interactive-subagents.json"), "{ nope");
+      assert.throws(() => loadSubagentsConfig(dir), /Invalid subagents config/);
+    });
+  });
+
+  it("searches agentDirs after the user dir and before the bundled agents", async () => {
+    const testApi = (subagentsModule as any).__test__;
+    await withIsolatedAgentEnv(async ({ globalDir, globalAgentsDir }) => {
+      const firstDir = join(globalDir, "extra-1");
+      const secondDir = join(globalDir, "extra-2");
+      writeFileSync(join(globalDir, "interactive-subagents.json"), JSON.stringify({ agentDirs: [firstDir, secondDir] }));
+      writeAgentFile(firstDir, "scout", "name: scout\nmodel: extra-1/scout");
+      writeAgentFile(secondDir, "scout", "name: scout\nmodel: extra-2/scout");
+      writeAgentFile(secondDir, "extra-only", "name: extra-only\ndescription: From extra-2\ntools: [read, grep, find, ls]");
+      writeAgentFile(globalAgentsDir, "extra-only", "name: extra-only\nmodel: user/extra-only");
+
+      assert.equal(testApi.loadAgentDefaults("scout").model, "extra-1/scout");
+      assert.equal(testApi.loadAgentDefaults("extra-only").model, "user/extra-only");
+
+      const listed = testApi.discoverAgentDefinitions();
+      assert.equal(listed.find((agent: any) => agent.name === "scout").model, "extra-1/scout");
+      assert.equal(listed.find((agent: any) => agent.name === "extra-only").model, "user/extra-only");
+      assert.ok(listed.some((agent: any) => agent.name === "worker"), "bundled agents still listed");
+
+      rmSync(globalAgentsDir, { recursive: true, force: true });
+      const fromExtra = testApi.loadAgentDefaults("extra-only");
+      assert.equal(fromExtra.tools, "read, grep, find, ls");
+      assert.equal(testApi.buildSubagentToolAllowlist(fromExtra.tools), "read,grep,find,ls,caller_ping,subagent_done");
+    });
+  });
+});
+
 describe("subagent-done.ts", () => {
   describe("shouldMarkUserTookOver", () => {
     it("ignores the initial injected task before the first agent run", () => {
