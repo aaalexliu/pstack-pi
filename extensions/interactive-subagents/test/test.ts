@@ -55,6 +55,7 @@ import {
   findLatestAssistantError,
 } from "../pi-extension/subagents/subagent-done.ts";
 import { __pollForExitTest__ } from "../pi-extension/subagents/cmux.ts";
+import { addCmuxSplit, planCmuxSplit, removeCmuxPane } from "../pi-extension/subagents/cmux-layout.ts";
 import {
   DEFAULT_SUBAGENTS_CONFIG,
   loadSubagentsConfig,
@@ -2625,6 +2626,40 @@ describe("cmux.ts", () => {
 
     it("returns null when the parent pane cannot be found", () => {
       assert.equal(selectZellijPlacement([pane({ id: 10 })], 99), null);
+    });
+  });
+
+  describe("agents workspace grid", () => {
+    function place(tree: any, surface: string) {
+      const plan = planCmuxSplit(tree);
+      return { plan, tree: addCmuxSplit(tree, plan.from, plan.direction, surface) };
+    }
+
+    it("fills a 2x2 grid: right of 1, under 1, under 2", () => {
+      let tree: any = { surface: "c1" };
+      const plans = [];
+      for (const surface of ["c2", "c3", "c4"]) {
+        const placed = place(tree, surface);
+        plans.push(placed.plan);
+        tree = placed.tree;
+      }
+      assert.deepEqual(plans, [
+        { from: "c1", direction: "right" },
+        { from: "c1", direction: "down" },
+        { from: "c2", direction: "down" },
+      ]);
+    });
+
+    it("gives a new child the largest pane left after one closes", () => {
+      let tree: any = { surface: "c1" };
+      for (const surface of ["c2", "c3", "c4"]) tree = place(tree, surface).tree;
+
+      tree = removeCmuxPane(tree, "c1");
+      assert.deepEqual(planCmuxSplit(tree), { from: "c3", direction: "down" });
+
+      tree = removeCmuxPane(tree, "c4");
+      assert.deepEqual(planCmuxSplit(tree), { from: "c3", direction: "down" });
+      assert.equal(removeCmuxPane(removeCmuxPane(tree, "c3")!, "c2"), null);
     });
   });
 
