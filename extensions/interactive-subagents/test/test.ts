@@ -1890,6 +1890,42 @@ describe("subagent interruption", () => {
   });
 });
 
+describe("subagent completion", () => {
+  it("keeps the child's report when closing its pane fails", async () => {
+    const testApi = (subagentsModule as any).__test__;
+    const previousMux = process.env.PI_SUBAGENT_MUX;
+    const previousWezterm = process.env.WEZTERM_UNIX_SOCKET;
+    process.env.PI_SUBAGENT_MUX = "wezterm";
+    delete process.env.WEZTERM_UNIX_SOCKET;
+    const dir = createTestDir();
+    try {
+      const sessionFile = createSessionFile(dir, [SESSION_HEADER, USER_MSG, ASSISTANT_MSG]);
+      writeFileSync(`${sessionFile}.exit`, JSON.stringify({ type: "done" }));
+      const running = {
+        id: "close-fail",
+        name: "Scout",
+        task: "T",
+        surface: "surface:404",
+        startTime: Date.now(),
+        sessionFile,
+        interactive: false,
+        statusState: createStatusState({ source: "pi", startTimeMs: Date.now() }),
+      };
+      testApi.runningSubagents.set(running.id, running);
+
+      const result = await testApi.watchSubagent(running, new AbortController().signal);
+
+      assert.equal(result.exitCode, 0);
+      assert.equal(result.summary, "Here is my plan...");
+      assert.equal(testApi.runningSubagents.has(running.id), false);
+    } finally {
+      restoreEnvVar("PI_SUBAGENT_MUX", previousMux);
+      restoreEnvVar("WEZTERM_UNIX_SOCKET", previousWezterm);
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("subagent status renderer", () => {
   function createTheme() {
     return {

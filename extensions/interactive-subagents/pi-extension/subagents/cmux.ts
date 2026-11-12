@@ -1194,7 +1194,9 @@ export function closeSurface(surface: string): void {
   const backend = requireMuxBackend();
 
   if (backend === "cmux") {
-    execSync(`cmux close-surface --surface ${shellEscape(surface)}`, {
+    // Callers close only panes this extension created. A just-exited child can
+    // still own a process, and cmux then asks for confirmation instead of closing.
+    execSync(`cmux close-surface --surface ${shellEscape(surface)} --force`, {
       encoding: "utf8",
     });
     return;
