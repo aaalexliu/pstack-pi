@@ -47,7 +47,7 @@ import {
   observeStatus,
   loadStatusConfig,
 } from "./status.ts";
-import { loadSubagentsConfig } from "./config.ts";
+import { DEFAULT_SUBAGENTS_CONFIG, loadSubagentsConfig, type SubagentsConfig } from "./config.ts";
 import {
   getSubagentActivityFile,
   readSubagentActivityFile,
@@ -199,14 +199,38 @@ function getAgentConfigDir(): string {
   return process.env.PI_CODING_AGENT_DIR ?? join(homedir(), ".pi", "agent");
 }
 
+let lastGoodSubagentsConfig = DEFAULT_SUBAGENTS_CONFIG;
+let reportedConfigError: string | undefined;
+
+/**
+ * The fork's settings, reread on each use so edits apply at once. A bad file,
+ * often one saved mid-edit, never fails the caller: it keeps the last good
+ * settings (the defaults before any) and warns the user once per error.
+ */
+function readSubagentsConfig(): SubagentsConfig {
+  try {
+    lastGoodSubagentsConfig = loadSubagentsConfig(getAgentConfigDir());
+    reportedConfigError = undefined;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message !== reportedConfigError) {
+      reportedConfigError = message;
+      try {
+        latestCtx?.ui.notify(`${message}. Using the last good settings.`, "warning");
+      } catch {}
+    }
+  }
+  return lastGoodSubagentsConfig;
+}
+
 function getConfiguredAgentDirs(): string[] {
-  return loadSubagentsConfig(getAgentConfigDir()).agentDirs;
+  return readSubagentsConfig().agentDirs;
 }
 
 /** Where cmux puts a child: the parent's own agents workspace, named after the parent session. */
 function cmuxPlacement(ctx: { sessionManager: { getSessionName(): string | undefined }; cwd: string }) {
   return {
-    layout: loadSubagentsConfig(getAgentConfigDir()).cmuxLayout,
+    layout: readSubagentsConfig().cmuxLayout,
     workspaceName: `agents: ${ctx.sessionManager.getSessionName() || basename(ctx.cwd)}`,
   };
 }
@@ -585,7 +609,7 @@ function createSpawnSlots(getLimit: () => number) {
   };
 }
 
-const spawnSlots = createSpawnSlots(() => loadSubagentsConfig(getAgentConfigDir()).maxConcurrent);
+const spawnSlots = createSpawnSlots(() => readSubagentsConfig().maxConcurrent);
 
 type SpawnToolExecute = (
   toolCallId: string,
