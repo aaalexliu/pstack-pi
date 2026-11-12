@@ -103,27 +103,93 @@ test('a path containing a quote still lists the same-stem file', async () => {
   });
 });
 
-test('a wrong parent folder walks up to the nearest existing parent and lists near names', async () => {
+test('a missing middle folder ranks the missing segment, not a file from higher up', async () => {
   await withRoot(async (root) => {
-    const src = join(root, 'src');
-    await mkdir(src);
-    await writeFile(join(src, 'widget.js'), 'export const n = 1;\n');
-    await writeFile(join(src, 'widgt.ts'), 'export const n = 2;\n');
-    await writeFile(join(src, 'notes.txt'), 'far\n');
-    await writeFile(join(root, 'widget.js'), 'not in the nearest parent\n');
-    const message = await readFailure(root, 'src/gone/widget.ts');
-    const result = await onReadError(enoentEvent('src/gone/widget.ts', message), { cwd: root });
-    assert.deepEqual(suggested(result), ['src/widget.js', 'src/widgt.ts']);
+    await mkdir(join(root, 'src', 'foo', 'bar'), { recursive: true });
+    await mkdir(join(root, 'foo'));
+    await writeFile(join(root, 'src', 'foo', 'a.ts'), 'ts\n');
+    await writeFile(join(root, 'src', 'foo', 'bar', 'a.ts'), 'ts\n');
+    await writeFile(join(root, 'src', 'index.js'), 'js\n');
+    await writeFile(join(root, 'src', 'widget.js'), 'js\n');
+    await writeFile(join(root, 'index.js'), 'js\n');
+    await writeFile(join(root, 'foo', 'a.ts'), 'other tree\n');
+
+    const typo = await readFailure(root, 'src/fo/a.ts');
+    assert.match(typo, /^ENOENT: no such file or directory, access '/u);
+    assert.deepEqual(suggested(await onReadError(enoentEvent('src/fo/a.ts', typo), { cwd: root })), ['src/foo/']);
+
+    const slash = await readFailure(root, 'src/fo/');
+    assert.deepEqual(suggested(await onReadError(enoentEvent('src/fo/', slash), { cwd: root })), ['src/foo/']);
+
+    const wrongDepth = await readFailure(root, 'src/bar/index.ts');
+    assert.deepEqual(suggested(await onReadError(enoentEvent('src/bar/index.ts', wrongDepth), { cwd: root })), ['src/foo/']);
+
+    const exactLeaf = await readFailure(root, 'src/bar/index.js');
+    assert.deepEqual(suggested(await onReadError(enoentEvent('src/bar/index.js', exactLeaf), { cwd: root })), ['src/foo/']);
+
+    const deeper = await readFailure(root, 'src/foo/ba/a.ts');
+    assert.deepEqual(suggested(await onReadError(enoentEvent('src/foo/ba/a.ts', deeper), { cwd: root })), ['src/foo/bar/']);
+
+    const leafFile = await readFailure(root, 'src/foo/missing/a.ts');
+    assert.equal(await onReadError(enoentEvent('src/foo/missing/a.ts', leafFile), { cwd: root }), undefined);
+
+    const asDir = await readFailure(root, 'src/widget.ts/extra');
+    assert.deepEqual(suggested(await onReadError(enoentEvent('src/widget.ts/extra', asDir), { cwd: root })), ['src/widget.js']);
   });
 });
 
-test('a missing folder under a wrong parent lists the same name from the nearest parent', async () => {
+test('a missing folder under a wrong parent lists that folder with a trailing slash', async () => {
   await withRoot(async (root) => {
     await mkdir(join(root, 'library'));
     await writeFile(join(root, 'library', 'note.txt'), 'x\n');
     const message = await readFailure(root, 'wrong-parent/library');
     const result = await onReadError(enoentEvent('wrong-parent/library', message), { cwd: root });
-    assert.deepEqual(suggested(result), ['library']);
+    assert.deepEqual(suggested(result), ['library/']);
+  });
+});
+
+test('a directory suggestion ends with a slash and a file suggestion does not', async () => {
+  await withRoot(async (root) => {
+    await mkdir(join(root, 'widget'));
+    await writeFile(join(root, 'widget.js'), 'js\n');
+    const message = await readFailure(root, 'widget.ts');
+    const result = await onReadError(enoentEvent('widget.ts', message), { cwd: root });
+    assert.deepEqual(suggested(result), ['widget/', 'widget.js']);
+  });
+});
+
+test('a folder that is both a close name and the exact leaf is listed once', async () => {
+  await withRoot(async (root) => {
+    await mkdir(join(root, 'foo'));
+    const message = await readFailure(root, 'fx/foo');
+    const result = await onReadError(enoentEvent('fx/foo', message), { cwd: root });
+    assert.deepEqual(suggested(result), ['foo/']);
+  });
+});
+
+test('a broken symlink is never a close folder, and a live folder symlink is', async () => {
+  await withRoot(async (root) => {
+    const src = join(root, 'src');
+    await mkdir(src);
+    await symlink('missing-target', join(src, 'foo'));
+    const danglingFolder = await readFailure(root, 'src/fo/a.ts');
+    assert.equal(await onReadError(enoentEvent('src/fo/a.ts', danglingFolder), { cwd: root }), undefined);
+
+    await rm(join(src, 'foo'));
+    await mkdir(join(root, 'real-foo'));
+    await symlink(join(root, 'real-foo'), join(src, 'foo'));
+    const liveFolder = await readFailure(root, 'src/fo/a.ts');
+    assert.deepEqual(suggested(await onReadError(enoentEvent('src/fo/a.ts', liveFolder), { cwd: root })), ['src/foo/']);
+
+    await symlink('missing-target', join(root, 'extensions'));
+    const danglingLeaf = await readFailure(root, 'additions/extensions');
+    assert.equal(await onReadError(enoentEvent('additions/extensions', danglingLeaf), { cwd: root }), undefined);
+
+    await rm(join(root, 'extensions'));
+    await mkdir(join(root, 'real-ext'));
+    await symlink(join(root, 'real-ext'), join(root, 'extensions'));
+    const liveLeaf = await readFailure(root, 'additions/extensions');
+    assert.deepEqual(suggested(await onReadError(enoentEvent('additions/extensions', liveLeaf), { cwd: root })), ['extensions/']);
   });
 });
 
@@ -223,6 +289,13 @@ test('an absolute missing path lists absolute close paths', async () => {
     const message = await readFailure(root, requestPath);
     const result = await onReadError(enoentEvent(requestPath, message), { cwd: root });
     assert.deepEqual(suggested(result), [join(root, 'widget.js')]);
+  });
+  await withRoot(async (root) => {
+    await mkdir(join(root, 'src', 'foo'), { recursive: true });
+    const requestPath = join(root, 'src', 'fo', 'a.ts');
+    const message = await readFailure(root, requestPath);
+    const result = await onReadError(enoentEvent(requestPath, message), { cwd: root });
+    assert.deepEqual(suggested(result), [`${join(root, 'src', 'foo')}/`]);
   });
 });
 

@@ -1,7 +1,7 @@
 import { isReadToolResult, type ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import { opendir, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 const maxCloseMatches = 10;
 const maxEditDistance = 3;
@@ -86,7 +86,7 @@ async function nearestDirectory(start: string): Promise<string | undefined> {
   }
 }
 
-async function directoryNames(directory: string): Promise<string[] | undefined> {
+async function listDirectory(directory: string): Promise<{ names: string[]; directories: ReadonlySet<string> } | undefined> {
   let handle;
   try {
     handle = await opendir(directory);
@@ -94,24 +94,33 @@ async function directoryNames(directory: string): Promise<string[] | undefined> 
     return undefined;
   }
   const names: string[] = [];
+  const directories = new Set<string>();
   try {
     for await (const entry of handle) {
       if (entry.name.includes('\n') || entry.name.includes('\r')) continue;
+      let folder = entry.isDirectory();
       if (entry.isSymbolicLink()) {
         try {
-          await stat(join(directory, entry.name));
+          folder = (await stat(join(directory, entry.name))).isDirectory();
         } catch {
           continue;
         }
       }
       names.push(entry.name);
+      if (folder) directories.add(entry.name);
     }
   } catch {
     return undefined;
   } finally {
     await handle.close().catch(() => undefined);
   }
-  return names;
+  return { names, directories };
+}
+
+function childSegments(absolutePath: string, directory: string): string[] {
+  const rel = relative(directory, absolutePath);
+  if (rel === '' || rel === '.' || rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) return [];
+  return rel.split(sep).filter((segment) => segment !== '' && segment !== '.' && segment !== '..');
 }
 
 function shownPath(directory: string, name: string, cwd: string, absoluteInput: boolean): string {
@@ -126,16 +135,32 @@ function shownPath(directory: string, name: string, cwd: string, absoluteInput: 
 async function closeMatchNote(text: string, input: unknown, cwd: string): Promise<string | undefined> {
   const missing = missingPath(text, input, cwd);
   if (!missing) return undefined;
-  const wanted = basename(missing);
-  if (wanted === '' || wanted === '.' || wanted === '..') return undefined;
-  const directory = await nearestDirectory(dirname(missing));
+  const trimmed = missing.replace(/[/\\]+$/u, '');
+  if (basename(trimmed) === '' || basename(trimmed) === '.' || basename(trimmed) === '..') return undefined;
+  const directory = await nearestDirectory(dirname(trimmed));
   if (!directory) return undefined;
-  const names = await directoryNames(directory);
-  if (!names) return undefined;
-  const matches = rankNames(names, wanted);
+  const segments = childSegments(trimmed, directory);
+  if (segments.length === 0) return undefined;
+  const listed = await listDirectory(directory);
+  if (!listed) return undefined;
+  // Rank the first missing segment. Ranking the leaf against a higher folder
+  // suggests a different file, and misses a close folder name.
+  const matches = rankNames(listed.names, segments[0]);
+  const leaf = segments[segments.length - 1];
+  if (
+    segments.length > 1
+    && listed.directories.has(leaf)
+    && !matches.includes(leaf)
+    && matches.length < maxCloseMatches
+  ) {
+    matches.push(leaf);
+  }
   if (matches.length === 0) return undefined;
   const absoluteInput = typeof input === 'string' && (isAbsolute(input) || input.startsWith('~/'));
-  const paths = matches.map((name) => shownPath(directory, name, cwd, absoluteInput));
+  const paths = matches.map((name) => {
+    const shown = shownPath(directory, name, cwd, absoluteInput);
+    return listed.directories.has(name) ? `${shown}/` : shown;
+  });
   return `Closest existing paths:\n${paths.join('\n')}`;
 }
 
