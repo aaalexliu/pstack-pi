@@ -41,14 +41,15 @@ Packed-Pi timeouts caused by other local sessions loading the machine are not pr
 
 ## Runtime
 
-Local measurements on macOS with Node 24.19.0 and Pi 0.85.1:
+Local measurements on macOS with Node 24.19.0 and Pi 1.5.2:
 
 | Suite | Wall time | Main cost |
 | --- | --- | --- |
-| `test:fast` | about 10s, down from 30s | Concurrent non-packed files |
-| `npm test` | about 51s, down from 105s | Includes all packed real-Pi scenarios |
-| `test:subagent` | about 8s, down from 17s | One real 3s SIGKILL grace test and shutdown coverage |
-| `test:sync` | about 8s, down from 11s | Real Git and filesystem cases; parsers use plain objects |
+| `test:fast` | about 10s | Concurrent non-packed files |
+| `npm test` | about 56s | Includes all packed real-Pi scenarios |
+| `npm run check` | about 59s | `npm test` plus typecheck, sync and content checks |
+| `test:subagent` | about 9s | One real 3s SIGKILL grace test and shutdown coverage |
+| `test:sync` | about 8s | Real Git and filesystem cases; parsers use plain objects |
 | `test:pi:unit` | about 3s | Provider, JSONL, package preparation, isolation, and cleanup cases |
 
 These are observations, not timeout limits. CPU load and cold starts affect them. Subagent progress uses ready/release signals rather than sleeps. The timeout test advances a fake clock only after real children are ready. Batch abort uses a short injected grace; production defaults stay unchanged.
@@ -73,7 +74,7 @@ These are observations, not timeout limits. CPU load and cold starts affect them
 
 `tests/media` checks cited images, videos, and PDFs in reply order against a fake Pi. It covers fenced code, path resolution, skipped files, deduplication, snapshot bytes after a source changes, repeat settles, prompt guidance, and image-capable and text-only renderers. Real loopback HTTP tests cover the token, Host check, HEAD, Range, feed order, conditional polling, and page headers. Fake cmux tests cover pane reuse, reopening, remote denial, branch rebuilds, resume, shutdown, and header links. The full check does not inspect the page in cmux or test its remote proxy.
 
-`test:pi` packs the package, moves it into an isolated profile, and runs real Pi `0.85.1` against a loopback provider with no credentials. It checks discovery of the shipped skill commands, exact expansion of three sampled skills, arguments, relocated paths, and the declared extension tools. A scripted parent delegates a fixture read to a real bundled child, receives the result, and runs harmless bash containing literal `git push` and `gh pr edit` text. Other runs hide project agents by default, run a user override in a subdirectory `cwd`, and let `poteto-agent` edit through its tool set. Child requests carry the agent's tools plus `pstack_todo`, never `subagent`. The child leads its own process group, and prompt temp files are gone after return. Execution-safety tests cover `timeoutMs`, two simultaneous single calls, eight parallel tasks with a four-child ceiling and one failing sibling, depth rejection, a fake `pi` in `PATH`, and parent `SIGTERM` and `SIGHUP` cleanup. Progress tests check live tools, child-owned todos, model and usage before completion, saved snapshots, and timeout cards. Duplicate-name diagnostics go through Pi's resource-loader SDK because print-mode JSONL does not emit those warnings. `tests/pi/README.md` lists the harness files and bounds.
+`test:pi` packs the package, moves it into an isolated profile, and runs real Pi `1.5.2` against a loopback provider with no credentials. It checks discovery of the shipped skill commands, exact expansion of three sampled skills, arguments, relocated paths, and the declared extension tools. A scripted parent delegates a fixture read to a real bundled child, receives the result, and runs harmless bash containing literal `git push` and `gh pr edit` text. Other runs hide project agents by default, run a user override in a subdirectory `cwd`, and let `poteto-agent` edit through its tool set. Child requests carry the agent's tools plus `pstack_todo`, never `subagent`. The child leads its own process group, and prompt temp files are gone after return. Execution-safety tests cover `timeoutMs`, two simultaneous single calls, eight parallel tasks with a four-child ceiling and one failing sibling, depth rejection, a fake `pi` in `PATH`, and parent `SIGTERM` and `SIGHUP` cleanup. Progress tests check live tools, child-owned todos, model and usage before completion, saved snapshots, and timeout cards. Duplicate-name diagnostics go through Pi's resource-loader SDK because print-mode JSONL does not emit those warnings. `tests/pi/README.md` lists the harness files and bounds.
 
 The packed-Pi files run serially in one process with `--experimental-test-isolation=none`. They share one validated production tarball and resolved Pi executable, but each run gets a fresh extraction, profile, provider, and process group. Custom fixture packages always pack again. Smoke tests check package listing and SDK resource discovery; other scenarios exercise the loaded package through real Pi without repeating those checks.
 

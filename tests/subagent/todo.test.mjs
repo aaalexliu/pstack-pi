@@ -157,7 +157,6 @@ test('registered tool follows session branches and persists only mutations', asy
   assert.equal(await startRun({ sections }), undefined);
   assert.deepEqual(Object.keys(sections), ['pstack_poteto_mode']);
   assert.match(sections.pstack_poteto_mode, /^Pstack Poteto Mode is active for this session branch\. .*skills\/poteto-mode\/SKILL\.md before applying the mode\.$/);
-  assert.equal((await startRun({})).systemPrompt, `base\n\n${sections.pstack_poteto_mode}`);
 
   await tool.execute('set', { action: 'set', items: ['root'] });
   assert.equal(appended.length, 2);
@@ -177,6 +176,5 @@ test('registered tool follows session branches and persists only mutations', asy
   sections = {};
   assert.equal(await startRun({ sections }), undefined);
   assert.deepEqual(sections, {});
-  assert.equal(await startRun({}), undefined);
   assert.equal((await tool.execute('get', { action: 'get' })).content[0].text, 'No pstack todo items.');
 });

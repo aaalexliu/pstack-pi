@@ -382,6 +382,8 @@ export async function runSingleAgent({ resolved, depth, signal, timeoutMs, onUpd
         let event: any;
         try { event = JSON.parse(line); } catch { return; }
         if (event?.type !== 'message_end' || !event.message) { observe(event); return; }
+        // The child's system message repeats its whole prompt; keeping it bloats every progress update.
+        if (event.message.role === 'system') return;
         const msg = event.message as Message;
         result.messages.push(msg);
         if (msg.role === 'assistant') {
@@ -555,13 +557,7 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
     if (event.toolName !== 'subagent') return;
     const saved = pendingDetails.get(event.toolCallId);
     pendingDetails.delete(event.toolCallId);
-    if (event.isError) return saved ? { details: saved } : undefined;
-    const details = event.details as SubagentDetails | undefined;
-    if (!details || details.results.length === 0) return;
-    const failed = details.mode === 'parallel'
-      ? details.results.every(isFailedResult)
-      : details.results.some(isFailedResult);
-    return failed ? { isError: true } : undefined;
+    return event.isError && saved ? { details: saved } : undefined;
   });
 
   pi.registerTool({
@@ -736,7 +732,10 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
         progress?.finish();
         const details = { ...result.details, ...(snapshot ? { progress: snapshot } : {}) };
         pendingDetails.delete(toolCallId);
-        return { ...result, details };
+        const isError = result.details.results.length > 0 && (result.details.mode === 'parallel'
+          ? result.details.results.every(isFailedResult)
+          : result.details.results.some(isFailedResult));
+        return { ...result, details, isError };
       } catch (error) {
         progress?.finish(error instanceof Error ? error.message : String(error));
         throw error;
