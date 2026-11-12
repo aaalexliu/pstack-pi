@@ -56,7 +56,7 @@ test('suggests the other extension before a closer name, and skips names farther
   }
 });
 
-test('walks to the nearest existing parent and marks directories', async () => {
+test('suggests a same-named folder in the nearest parent, not an ancestor file', async () => {
   const cwd = await mkdtemp(join(tmpdir(), 'pstack-read-suggest-'));
   try {
     await mkdir(join(cwd, 'extensions'));
@@ -65,7 +65,45 @@ test('walks to the nearest existing parent and marks directories', async () => {
     const message = await readMiss(cwd, 'additions/extensions');
     assert.equal(readEnoentNote(missEvent(message, 'additions/extensions'), cwd), 'Close matches:\nextensions/');
     const nested = await readMiss(cwd, 'gone/nested/index.ts');
-    assert.equal(readEnoentNote(missEvent(nested, 'gone/nested/index.ts'), cwd), 'Close matches:\nindex.js');
+    assert.equal(readEnoentNote(missEvent(nested, 'gone/nested/index.ts'), cwd), undefined);
+    const exact = await readMiss(cwd, 'gone/nested/index.js');
+    assert.equal(readEnoentNote(missEvent(exact, 'gone/nested/index.js'), cwd), undefined);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test('ranks the first missing segment when a middle folder is missing', async () => {
+  const cwd = await mkdtemp(join(tmpdir(), 'pstack-read-suggest-'));
+  try {
+    await mkdir(join(cwd, 'src', 'foo', 'bar'), { recursive: true });
+    await writeFile(join(cwd, 'src', 'foo', 'a.ts'), 'ts');
+    await writeFile(join(cwd, 'src', 'foo', 'index.js'), 'js');
+    await writeFile(join(cwd, 'src', 'index.js'), 'js');
+    await writeFile(join(cwd, 'src', 'foo', 'bar', 'a.ts'), 'ts');
+    await writeFile(join(cwd, 'src', 'widget.js'), 'js');
+
+    const typo = await readMiss(cwd, 'src/fo/a.ts');
+    assert.match(typo, /^ENOENT:/u);
+    assert.equal(readEnoentNote(missEvent(typo, 'src/fo/a.ts'), cwd), 'Close matches:\nsrc/foo/');
+    assert.deepEqual(suggestCloseMatches('src/fo/a.ts', cwd), ['src/foo/']);
+
+    const wrongDepth = await readMiss(cwd, 'src/bar/index.ts');
+    const wrongNote = readEnoentNote(missEvent(wrongDepth, 'src/bar/index.ts'), cwd);
+    assert.equal(wrongNote?.includes('index.js') ?? false, false);
+    assert.equal(suggestCloseMatches('src/bar/index.ts', cwd).some((path) => path.endsWith('index.js')), false);
+
+    const exactLeaf = await readMiss(cwd, 'src/bar/index.js');
+    assert.equal(readEnoentNote(missEvent(exactLeaf, 'src/bar/index.js'), cwd)?.includes('index.js') ?? false, false);
+
+    const deeper = await readMiss(cwd, 'src/foo/ba/a.ts');
+    assert.equal(readEnoentNote(missEvent(deeper, 'src/foo/ba/a.ts'), cwd), 'Close matches:\nsrc/foo/bar/');
+    assert.equal(suggestCloseMatches('src/foo/missing/a.ts', cwd).includes('src/foo/a.ts'), false);
+    assert.equal(suggestCloseMatches('src/foo/missing/index.ts', cwd).some((path) => path.endsWith('index.js')), false);
+
+    const asDir = await readMiss(cwd, 'src/widget.ts/extra');
+    assert.equal(readEnoentNote(missEvent(asDir, 'src/widget.ts/extra'), cwd), 'Close matches:\nsrc/widget.js');
+    assert.deepEqual(suggestCloseMatches('src/fo/', cwd), ['src/foo/']);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

@@ -67,10 +67,6 @@ function resolveRequestedPath(requestedPath: string, cwd: string): string {
   return resolve(cwd, path);
 }
 
-function missingName(absolutePath: string): string {
-  return basename(absolutePath.replace(/[/\\]+$/u, ''));
-}
-
 function nearestDirectory(absolutePath: string): string | undefined {
   let current = dirname(absolutePath.replace(/[/\\]+$/u, ''));
   for (;;) {
@@ -93,21 +89,45 @@ function displayPath(absolutePath: string, requestedPath: string, cwd: string): 
   return shown.split(sep).join('/');
 }
 
-/** Up to 10 existing paths in the nearest existing parent: same stem and another extension, then names within edit distance 3. */
+/** Segments of `absolutePath` below `directory`, or none when `directory` is not a lexical parent. */
+function childSegments(absolutePath: string, directory: string): string[] {
+  const trimmed = absolutePath.replace(/[/\\]+$/u, '');
+  const rel = relative(directory, trimmed);
+  if (!rel || rel === '.' || rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) return [];
+  return rel.split(sep).filter((segment) => segment !== '.' && segment !== '..');
+}
+
+/**
+ * Up to 10 paths in the nearest existing parent. Rank the leaf when that parent
+ * exists. Otherwise rank the first missing segment, so a missing middle folder
+ * does not borrow a file from higher up. Then include the leaf when it exactly
+ * names a directory there. Same stem, then edit distance 3.
+ */
 export function suggestCloseMatches(requestedPath: string, cwd: string): string[] {
   if (!requestedPath) return [];
   const absolute = resolveRequestedPath(requestedPath, cwd);
-  const name = missingName(absolute);
-  const directory = name ? nearestDirectory(absolute) : undefined;
+  if (!basename(absolute.replace(/[/\\]+$/u, ''))) return [];
+  const directory = nearestDirectory(absolute);
   if (!directory) return [];
+  const segments = childSegments(absolute, directory);
+  if (segments.length === 0) return [];
   let entries;
   try {
     entries = readdirSync(directory, { withFileTypes: true });
   } catch {
     return [];
   }
+  const names = entries.map((entry) => entry.name);
   const directories = new Set(entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name));
-  return rankNames(name, entries.map((entry) => entry.name)).map((entryName) => {
+  const ranked = rankNames(segments[0], names);
+  const leaf = segments[segments.length - 1];
+  const leafNamesDirectory = segments.length > 1
+    && directories.has(leaf)
+    && !leaf.includes('\n')
+    && !leaf.includes('\r')
+    && !ranked.includes(leaf);
+  if (leafNamesDirectory && ranked.length < matchLimit) ranked.push(leaf);
+  return ranked.map((entryName) => {
     const shown = displayPath(join(directory, entryName), requestedPath, cwd);
     return directories.has(entryName) ? `${shown}/` : shown;
   });
