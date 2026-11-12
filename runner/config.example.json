@@ -1,0 +1,17 @@
+{
+  "linearTokenCommand": "security find-generic-password -s linear-runner-token -w",
+  "team": "ENG",
+  "runnerUser": "job runner",
+  "repos": {
+    "web-app": { "path": "/Users/you/dev/web-app", "base": "main", "automerge": false },
+    "dotfiles": { "path": "/Users/you/dev/dotfiles", "base": "main", "automerge": true }
+  },
+  "webhooks": {
+    "lead": { "url": "https://bot.example.com/job-result", "keyFile": "/Users/you/.config/job-runner/lead.key" }
+  },
+  "models": { "implement": "anthropic/claude-opus-4-5", "review": "openai/gpt-5.5" },
+  "thinking": "high",
+  "pollSeconds": 30,
+  "slots": 1,
+  "worktreeRoot": "/Users/you/dev/job-worktrees"
+}

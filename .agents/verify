@@ -1,0 +1,12 @@
+#!/bin/sh
+# The TESTING.md gate for skill text, sync, and non-packed test changes. CI runs the packed real-Pi suite.
+cd "$(dirname "$0")/.." || exit 1
+start=$(date +%s)
+log=$(mktemp)
+trap 'rm -f "$log"' EXIT
+[ -d node_modules ] || npm ci --no-audit --no-fund >"$log" 2>&1 || { tail -40 "$log"; echo "verify: FAIL at npm ci"; exit 1; }
+base=$(git merge-base HEAD origin/main 2>/dev/null) || base=HEAD
+for step in "npm run -s typecheck" "npm run -s sync:check" "npm run -s check:content" "npm run -s test:fast" "node --test runner/*.test.ts" "git diff --check $base"; do
+  sh -c "$step" >"$log" 2>&1 || { tail -40 "$log"; echo "verify: FAIL at $step ($(( $(date +%s) - start ))s)"; exit 1; }
+done
+echo "verify: PASS ($(( $(date +%s) - start ))s)"
