@@ -14,5 +14,6 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["scripts/**/*.mjs", "tests/**/*.mjs", "extensions/**/*.ts", "runner/**/*.ts"]
+  "include": ["scripts/**/*.mjs", "tests/**/*.mjs", "extensions/**/*.ts", "runner/**/*.ts"],
+  "exclude": ["extensions/interactive-subagents/**"]
 }

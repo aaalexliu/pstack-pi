@@ -85,7 +85,7 @@
         },
         {
           "find": "The chat that receives `/poteto-mode` owns the playbook, the todo list, and every Task spawn.",
-          "replace": "The chat that receives `/skill:poteto-mode` owns the playbook, the todo list, and every `subagent` spawn.",
+          "replace": "The chat that receives `/skill:poteto-mode` owns the playbook, the todo list, and every `blocking_subagent` spawn.",
           "count": 1
         },
         {
@@ -342,12 +342,12 @@
         },
         {
           "find": "Spawn all N subagents in one message with `run_in_background: true`, each with the task, the path to the shared grounding, its own output path, and instructions to produce the artifact and a short rationale naming the alternatives it considered and what it rejected.",
-          "replace": "Send all N candidates through successive `subagent` requests of at most eight tasks, with four active children. Finish each request before the next; keep every configured panel entry. Each task uses `poteto-agent`, the selected role and explicit model, the same task, shared grounding paths, isolated `cwd`, and instructions to write the artifact and a short rationale naming the alternatives it considered and what it rejected. Keep the private rubric outside candidate inputs. Writers may use local bash and edit only assigned files, not external tools or nested delegation.\n\nEach writer persists its complete artifact, rationale, and check logs, then returns a receipt below 8 KiB with paths, commands, results, and gaps. The parent reads persisted files in full, paging as needed; truncated output is not a complete candidate. If scratch writes are forbidden, use `general-purpose` with `read`, `grep`, `find`, `ls`, and child-local `pstack_todo` only. Bound each proposal below 8 KiB or split it into bounded sections and collect every section before synthesis. Disclose that no runnable candidate was executed. If delegation is unavailable, produce distinct local attempts and disclose the lost independence. Replace dropouts when the invoking skill requires two viable designs; if none survive, report the block rather than invent a winner.",
+          "replace": "Send all N candidates through successive `blocking_subagent` requests of at most eight tasks, with four active children. Finish each request before the next; keep every configured panel entry. Each task uses `poteto-agent`, the selected role and explicit model, the same task, shared grounding paths, isolated `cwd`, and instructions to write the artifact and a short rationale naming the alternatives it considered and what it rejected. Keep the private rubric outside candidate inputs. Writers may use local bash and edit only assigned files, not external tools or nested delegation.\n\nEach writer persists its complete artifact, rationale, and check logs, then returns a receipt below 8 KiB with paths, commands, results, and gaps. The parent reads persisted files in full, paging as needed; truncated output is not a complete candidate. If scratch writes are forbidden, use `general-purpose` with `read`, `grep`, `find`, `ls`, and child-local `pstack_todo` only. Bound each proposal below 8 KiB or split it into bounded sections and collect every section before synthesis. Disclose that no runnable candidate was executed. If delegation is unavailable, produce distinct local attempts and disclose the lost independence. Replace dropouts when the invoking skill requires two viable designs; if none survive, report the block rather than invent a winner.",
           "count": 1
         },
         {
           "find": "choose one model from the `arena cross-judge pool` line in `~/.cursor/rules/pstack-models.mdc`. If the rule or that line is missing, choose from `claude-opus-5-5-xhigh` and `grok-4.7-xhigh-fast`. Spawn one readonly judge subagent. The judge is never from the parent's family, as Phase A step 3 defines families. Try only the entries from another family, in pool order. An `auto` or `inherit-parent` entry is the parent model, so it never judges. With the default pool, a Claude parent gets `grok-4.7-xhigh-fast`. A parent from any other family gets `claude-opus-5-5-xhigh` first. If the Task tool rejects an entry, use a valid slug of the same model at the closest level or speed from the error message, or move to the next entry when there is none. If no entry from another family runs, try the default pool's entries from another family the same way.",
-          "replace": "read the configured `arena-cross-judge` choices with `pstack_config`. Spawn one read-only `general-purpose` judge through `subagent` with role `arena-cross-judge` and an explicit `model`. The judge is never from the parent's family; a model's family is its provider's model line, such as Claude, GPT, or Grok. Try only the entries from another family, in configured order. An `inherit-parent` entry is the parent model, so it never judges. If a configured entry is unavailable, move to the next one. If no configured entry from another family runs, try another-family models from `pstack_config` `list-models` the same way.",
+          "replace": "read the configured `arena-cross-judge` choices with `pstack_config`. Spawn one read-only `general-purpose` judge through `blocking_subagent` with role `arena-cross-judge` and an explicit `model`. The judge is never from the parent's family; a model's family is its provider's model line, such as Claude, GPT, or Grok. Try only the entries from another family, in configured order. An `inherit-parent` entry is the parent model, so it never judges. If a configured entry is unavailable, move to the next one. If no configured entry from another family runs, try another-family models from `pstack_config` `list-models` the same way.",
           "count": 1
         },
         {
@@ -401,7 +401,7 @@
         },
         {
           "find": "Run multiple parallel subagents across slices of history",
-          "replace": "Use `subagent` with read-only `general-purpose` tasks across slices of history",
+          "replace": "Use `blocking_subagent` with read-only `general-purpose` tasks across slices of history",
           "count": 1
         },
         {
@@ -616,7 +616,7 @@
         },
         {
           "find": "## Start",
-          "replace": "The parent owns orchestration, runtime probes for read-only judges, forge actions, and integration. Children never delegate or resume. Use one live `subagent` request at a time, at most eight tasks per request and four active children without dropping coverage. Use `general-purpose` for read-only exploration and judgment and `poteto-agent` for scoped implementation. Read-only children cannot run shell commands, edit, or access external tools. Children may use their own `pstack_todo` and return text progress. Missing delegation requires local work with a separate review and disclosure of lost independence.\n\n## Start",
+          "replace": "The parent owns orchestration, runtime probes for read-only judges, forge actions, and integration. Children never delegate or resume. Use one live `blocking_subagent` request at a time, at most eight tasks per request and four active children without dropping coverage. Use `general-purpose` for read-only exploration and judgment and `poteto-agent` for scoped implementation. Read-only children cannot run shell commands, edit, or access external tools. Children may use their own `pstack_todo` and return text progress. Missing delegation requires local work with a separate review and disclosure of lost independence.\n\n## Start",
           "count": 1
         },
         {
@@ -640,12 +640,12 @@
       "transforms": [
         {
           "find": "When in doubt, take the simple path.",
-          "replace": "When in doubt, take the simple path.\n\nThe parent alone orchestrates through `subagent`, with at most eight tasks per request and four active children. Finish each request before the next. Children use `general-purpose` with `read`, `grep`, `find`, `ls`, and child-local `pstack_todo`; no bash, writes, external tools, or delegation. The parent owns external probes. If delegation is unavailable, follow the same steps locally and disclose the lost independence.",
+          "replace": "When in doubt, take the simple path.\n\nThe parent alone orchestrates through `blocking_subagent`, with at most eight tasks per request and four active children. Finish each request before the next. Children use `general-purpose` with `read`, `grep`, `find`, `ls`, and child-local `pstack_todo`; no bash, writes, external tools, or delegation. The parent owns external probes. If delegation is unavailable, follow the same steps locally and disclose the lost independence.",
           "count": 1
         },
         {
           "find": "Every spawn is a Task subagent with `subagent_type: generalPurpose` and `readonly: true`. Explorers use the `how explorer` line in the `pstack-models.mdc` rule (default `grok-4.7-xhigh-fast`), and every explainer uses the `how explainer` line (default `claude-opus-5-5-xhigh`). Set `model` to that line's value, or to the default if the rule or the line is missing. Leave `model` unset when the value is `auto` or `inherit-parent`. If the Task tool rejects a slug, use the default and say so. If it rejects the default, use the closest valid slug of the same family from its error message.",
-          "replace": "Every spawn is a `subagent` task with agent `general-purpose`. Explorers use role `how-explorer`, and every explainer uses role `how-explainer`. Pass an explicit `model` only when the user or the configured role names one; never invent a model identifier.",
+          "replace": "Every spawn is a `blocking_subagent` task with agent `general-purpose`. Explorers use role `how-explorer`, and every explainer uses role `how-explainer`. Pass an explicit `model` only when the user or the configured role names one; never invent a model identifier.",
           "count": 1
         },
         {
@@ -660,7 +660,7 @@
         },
         {
           "find": "Spawn all explorers in a single message,",
-          "replace": "Spawn all explorers in one `subagent` request,",
+          "replace": "Spawn all explorers in one `blocking_subagent` request,",
           "count": 1
         },
         {
@@ -839,7 +839,7 @@
         },
         {
           "find": "One read-only subagent per feature file, launched concurrently.",
-          "replace": "One read-only `general-purpose` task per feature file through `subagent`, launched concurrently in bounded requests of at most eight tasks and four active children, with explicit paths and a finite `timeoutMs`. Children have `read`, `grep`, `find`, `ls`, and their own `pstack_todo`; they do not delegate or access external services. The parent owns writes, external services, and live driving. If delegation is unavailable, do the same source pass locally and report the lost independence.",
+          "replace": "One read-only `general-purpose` task per feature file through `blocking_subagent`, launched concurrently in bounded requests of at most eight tasks and four active children, with explicit paths and a finite `timeoutMs`. Children have `read`, `grep`, `find`, `ls`, and their own `pstack_todo`; they do not delegate or access external services. The parent owns writes, external services, and live driving. If delegation is unavailable, do the same source pass locally and report the lost independence.",
           "count": 1
         },
         {
@@ -937,7 +937,7 @@
         },
         {
           "find": "Spawn `Task` with `subagent_type: \"comment-sicko\"`. Pass the scope.",
-          "replace": "Use `subagent` with `agent: \"comment-sicko\"`, `role: \"no-comments\"`, and a finite `timeoutMs`. Pass the scope and any base diff because the child has only `read`, `grep`, `find`, `ls`, and its own `pstack_todo`. If the fresh reviewer is unavailable, report the independent review gate blocked; a local pass does not complete this run.",
+          "replace": "Use `blocking_subagent` with `agent: \"comment-sicko\"`, `role: \"no-comments\"`, and a finite `timeoutMs`. Pass the scope and any base diff because the child has only `read`, `grep`, `find`, `ls`, and its own `pstack_todo`. If the fresh reviewer is unavailable, report the independent review gate blocked; a local pass does not complete this run.",
           "count": 1
         },
         {
@@ -1061,7 +1061,7 @@
         },
         {
           "find": "**Use `subagent_type: \"poteto-agent\"` for any subagent you spawn inside a playbook step** (code-writing delegates, ad-hoc helpers). The chat that receives `/poteto-mode` runs the playbook. Never spawn a `poteto-agent` to run the playbook itself. Routed workflow skills (`how`, `why`, `interrogate`, `reflect`, `swarm`) set their own `subagent_type` for diverse-model review. Respect what the skill prescribes, don't override to `poteto-agent`.",
-          "replace": "Use `subagent` for bounded leaf tasks. Use `poteto-agent` for writes and `general-purpose` for read-only exploration and review. The chat that receives `/skill:poteto-mode` runs the playbook. Never spawn a `poteto-agent` to run the playbook itself. Routed skills select their own roles. Use role `feature` or `bug-fix` for those implementations and the configured role model; use `/skill:setup-pstack` for model policy. Give hard design, concurrency, and algorithm work the strongest configured judgment model and mechanical edits the fast code model. Do not invent model identifiers.",
+          "replace": "Use `blocking_subagent` for bounded leaf tasks. Use `poteto-agent` for writes and `general-purpose` for read-only exploration and review. The chat that receives `/skill:poteto-mode` runs the playbook. Never spawn a `poteto-agent` to run the playbook itself. Routed skills select their own roles. Use role `feature` or `bug-fix` for those implementations and the configured role model; use `/skill:setup-pstack` for model policy. Give hard design, concurrency, and algorithm work the strongest configured judgment model and mechanical edits the fast code model. Do not invent model identifiers.",
           "count": 1
         },
         {
@@ -1071,7 +1071,7 @@
         },
         {
           "find": "**Match the model to the job.** Before each spawn, start from the role's line or default and pick the reasoning level and speed the job needs. The `/setup-pstack` budget sets each role's starting level, xhigh by default. Raise it one step, up to max, for the hardest or subtlest work. Lower it one step for judgment and two or more steps for routine work. Use fast mode only when the job is urgent, meaning CI or trunk is red or a person is blocked on the result right now. Otherwise use standard speed, the same slug without `-fast`. Verification is the exception and stays on the `swarm workers` model and speed (`grok-4.7-xhigh-fast` by default). Change only the effort level and whether the slug is fast, and keep the family the role names, so a diverse panel stays diverse. If the family has no slug at that level and speed, use its nearest slug. A role on `auto` or `inherit-parent` stays on the parent model. If the Task tool rejects the adjusted slug, do not try another adjusted slug. Use the role's line or default and say so. If the Task tool rejects that too, continue with the calling skill's fallback. A slug counts as rejected once a Task error says that the model is not valid, or leaves the slug out of its list of valid slugs. Never pass a rejected slug, and skip any fallback whose slug is already rejected. When the calling skill has no fallback, use the closest valid slug of the role's family from the error's list of valid slugs, or omit `model` so the subagent runs on the parent model when the list has none. When the calling skill's fallback runs out of slugs without saying what to do next, omit `model` too. Say so in both cases.",
-          "replace": "**Match the model to the job.** Before each spawn, start from the role's configured model and pick the reasoning level the job needs. Pass it as the `subagent` `thinking` field (`off`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`), which overrides the role's level. The `/skill:setup-pstack` budget sets each real selector's starting level as a `:<level>` suffix, `xhigh` when there is none, and an `inherit-parent` role starts at the parent's level. Raise it one step, up to `max`, for the hardest or subtlest work. Lower it one step for judgment and two or more steps for routine work. Pi has no fast mode, so there is no speed to pick. Verification is the exception and stays on the `swarm-worker` role at its starting level. Change only the level, and keep the model the role names, so a diverse panel stays diverse. Pi clamps a level the model does not support. A role on `inherit-parent` stays on the parent model. If a configured model is unavailable, check `pstack_config` `list-models`, say so, and continue with the calling skill's fallback. When the calling skill has no fallback, omit `model` so the subagent runs on the parent model, and say so. Never invent a model identifier.",
+          "replace": "**Match the model to the job.** Before each spawn, start from the role's configured model and pick the reasoning level the job needs. Pass it as the `blocking_subagent` `thinking` field (`off`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`), which overrides the role's level. The `/skill:setup-pstack` budget sets each real selector's starting level as a `:<level>` suffix, `xhigh` when there is none, and an `inherit-parent` role starts at the parent's level. Raise it one step, up to `max`, for the hardest or subtlest work. Lower it one step for judgment and two or more steps for routine work. Pi has no fast mode, so there is no speed to pick. Verification is the exception and stays on the `swarm-worker` role at its starting level. Change only the level, and keep the model the role names, so a diverse panel stays diverse. Pi clamps a level the model does not support. A role on `inherit-parent` stays on the parent model. If a configured model is unavailable, check `pstack_config` `list-models`, say so, and continue with the calling skill's fallback. When the calling skill has no fallback, omit `model` so the subagent runs on the parent model, and say so. Never invent a model identifier.",
           "count": 1
         },
         {
@@ -1572,7 +1572,7 @@
       "transforms": [
         {
           "find": "Spawn workers with `Task`. Keep the program's state in the Project tracker (`notes.md`) and the Project store.",
-          "replace": "Spawn workers with `subagent`. Keep the program's state in `notes.md` and its sibling files under a named durable local task directory.",
+          "replace": "Spawn workers with `blocking_subagent`. Keep the program's state in `notes.md` and its sibling files under a named durable local task directory.",
           "count": 1
         },
         {
@@ -1582,7 +1582,7 @@
         },
         {
           "find": "- **A sub-coordinator only when one area has many parallel workers.** It owns that area's workers and kickoffs and sends you one rollup, never raw worker reports. Stop at three levels: you, sub-coordinators, and workers. Keep about ten workers in flight per coordinator, and start the next one as each finishes instead of waiting on a whole batch.",
-          "replace": "- **No sub-coordinators.** Pi children cannot delegate, so you coordinate every worker and the tree stops at two levels: you and workers. Group an area's workers into a track you own. Only one `subagent` request runs at a time, with at most eight `tasks` and four active children. Send the next bounded request as soon as one returns instead of waiting on a whole batch.",
+          "replace": "- **No sub-coordinators.** Pi children cannot delegate, so you coordinate every worker and the tree stops at two levels: you and workers. Group an area's workers into a track you own. Only one `blocking_subagent` request runs at a time, with at most eight `tasks` and four active children. Send the next bounded request as soon as one returns instead of waiting on a whole batch.",
           "count": 1
         },
         {
@@ -1597,7 +1597,7 @@
         },
         {
           "find": "- **Stop or replace a worker that stalls or loops.**",
-          "replace": "- **Stop or replace a worker that stalls or loops.** Give each `subagent` request a finite `timeoutMs`.",
+          "replace": "- **Stop or replace a worker that stalls or loops.** Give each `blocking_subagent` request a finite `timeoutMs`.",
           "count": 1
         },
         {
@@ -1995,7 +1995,7 @@
         },
         {
           "find": "Spawn parallel subagents on a fast, cheap model, each taking a slice of the corpus. Tell every subagent to order candidates by real modification time (`ls -t`) and never by UUID name,",
-          "replace": "The parent orders candidates by real modification time (`ls -t` or file metadata), never UUID name. Use one `subagent` request with at most eight read-only `general-purpose` tasks, finite `timeoutMs`, configured fast models, and explicit file slices. Children use `read`, `grep`, `find`, and `ls`, may keep their own `pstack_todo`, and cannot run `bash`, access external tools, edit files, or delegate. If delegation is unavailable, search locally and disclose the lost independence. Tell every subagent to",
+          "replace": "The parent orders candidates by real modification time (`ls -t` or file metadata), never UUID name. Use one `blocking_subagent` request with at most eight read-only `general-purpose` tasks, finite `timeoutMs`, configured fast models, and explicit file slices. Children use `read`, `grep`, `find`, and `ls`, may keep their own `pstack_todo`, and cannot run `bash`, access external tools, edit files, or delegate. If delegation is unavailable, search locally and disclose the lost independence. Tell every subagent to",
           "count": 1
         },
         {
@@ -2024,7 +2024,7 @@
         },
         {
           "find": "One message, three `Task` calls, `subagent_type: generalPurpose`, agent mode (`readonly: false`). Reviewers need MCP access to look up the tickets, chat threads, and observability traces the transcript references, and readonly strips MCPs.",
-          "replace": "One `subagent` request with three read-only `general-purpose` tasks, the configured roles below, and finite `timeoutMs`. Children use `read`, `grep`, `find`, and `ls`, may keep their own `pstack_todo`, and cannot run `bash`, access external tools, edit files, or delegate. The parent fetches referenced tickets, chat threads, and observability traces under host policy and supplies bounded cited extracts. Children return exact references and questions for missing context. If delegation is unavailable, apply all three lenses and synthesis locally and report the lost independence. Resolve returned evidence requests before synthesis, or mark affected findings unverified with the specific missing source.",
+          "replace": "One `blocking_subagent` request with three read-only `general-purpose` tasks, the configured roles below, and finite `timeoutMs`. Children use `read`, `grep`, `find`, and `ls`, may keep their own `pstack_todo`, and cannot run `bash`, access external tools, edit files, or delegate. The parent fetches referenced tickets, chat threads, and observability traces under host policy and supplies bounded cited extracts. Children return exact references and questions for missing context. If delegation is unavailable, apply all three lenses and synthesis locally and report the lost independence. Resolve returned evidence requests before synthesis, or mark affected findings unverified with the specific missing source.",
           "count": 1
         },
         {
@@ -2039,12 +2039,12 @@
         },
         {
           "find": "`Task` response body",
-          "replace": "`subagent` response body",
+          "replace": "`blocking_subagent` response body",
           "count": 1
         },
         {
           "find": "One `Task` call, `subagent_type: generalPurpose`, `model` from the `reflect judgment, divergent, synthesizer` line (default `claude-opus-5-5-xhigh`), agent mode (`readonly: false`). It spot-verifies citations through MCP, and readonly strips MCPs.",
-          "replace": "One read-only `general-purpose` task through `subagent`, with role `reflect-synthesizer` and finite `timeoutMs`. The same child boundary applies. The parent supplies the transcript path or digest, referenced external evidence, and target skill paths for citation and target-read checks. The parent spot-checks external citations and resolves any new requests before presenting the verdict; missing evidence cannot support an Accepted edit.",
+          "replace": "One read-only `general-purpose` task through `blocking_subagent`, with role `reflect-synthesizer` and finite `timeoutMs`. The same child boundary applies. The parent supplies the transcript path or digest, referenced external evidence, and target skill paths for citation and target-read checks. The parent spot-checks external citations and resolves any new requests before presenting the verdict; missing evidence cannot support an Accepted edit.",
           "count": 1
         },
         {
@@ -2108,7 +2108,7 @@
         },
         {
           "find": "A skill counts as used when the transcript shows a `Read` of its `SKILL.md` (under `.cursor/skills/`, `~/.cursor/skills/`, or `~/.cursor/plugins/`), a `Task` prompt naming its path, or a tool call (Shell, Grep, MCP, etc.) matching its documented commands.",
-          "replace": "A skill counts as used when the transcript shows a `read` of its `SKILL.md` (under trusted project `.pi/skills/` or `.agents/skills/`, user-level `~/.pi/agent/skills/` or `~/.agents/skills/`, or installed package paths), an expanded `/skill:<name>` message containing the loaded `<skill name=\"...\" location=\"...\">` body (manual Pi invocation does not require a separate file read), a `subagent` prompt naming its path, or a tool call (`bash`, `grep`, external tools, etc.) matching its documented commands.",
+          "replace": "A skill counts as used when the transcript shows a `read` of its `SKILL.md` (under trusted project `.pi/skills/` or `.agents/skills/`, user-level `~/.pi/agent/skills/` or `~/.agents/skills/`, or installed package paths), an expanded `/skill:<name>` message containing the loaded `<skill name=\"...\" location=\"...\">` body (manual Pi invocation does not require a separate file read), a `blocking_subagent` prompt naming its path, or a tool call (`bash`, `grep`, external tools, etc.) matching its documented commands.",
           "count": 1
         },
         {
@@ -2142,7 +2142,7 @@
         },
         {
           "find": "A skill counts as used when the transcript shows a `Read` of its `SKILL.md` (under `.cursor/skills/`, `~/.cursor/skills/`, or `~/.cursor/plugins/`), a `Task` prompt naming its path, or a tool call (Shell, Grep, MCP, etc.) matching its documented commands.",
-          "replace": "A skill counts as used when the transcript shows a `read` of its `SKILL.md` (under trusted project `.pi/skills/` or `.agents/skills/`, user-level `~/.pi/agent/skills/` or `~/.agents/skills/`, or installed package paths), an expanded `/skill:<name>` message containing the loaded `<skill name=\"...\" location=\"...\">` body (manual Pi invocation does not require a separate file read), a `subagent` prompt naming its path, or a tool call (`bash`, `grep`, external tools, etc.) matching its documented commands.",
+          "replace": "A skill counts as used when the transcript shows a `read` of its `SKILL.md` (under trusted project `.pi/skills/` or `.agents/skills/`, user-level `~/.pi/agent/skills/` or `~/.agents/skills/`, or installed package paths), an expanded `/skill:<name>` message containing the loaded `<skill name=\"...\" location=\"...\">` body (manual Pi invocation does not require a separate file read), a `blocking_subagent` prompt naming its path, or a tool call (`bash`, `grep`, external tools, etc.) matching its documented commands.",
           "count": 1
         },
         {
@@ -2215,7 +2215,7 @@
         },
         {
           "find": "A skill counts as used when the transcript shows a `Read` of its `SKILL.md` (under `.cursor/skills/`, `~/.cursor/skills/`, or `~/.cursor/plugins/`), a `Task` prompt naming its path, or a tool call (Shell, Grep, MCP, etc.) matching its documented commands.",
-          "replace": "A skill counts as used when the transcript shows a `read` of its `SKILL.md` (under trusted project `.pi/skills/` or `.agents/skills/`, user-level `~/.pi/agent/skills/` or `~/.agents/skills/`, or installed package paths), an expanded `/skill:<name>` message containing the loaded `<skill name=\"...\" location=\"...\">` body (manual Pi invocation does not require a separate file read), a `subagent` prompt naming its path, or a tool call (`bash`, `grep`, external tools, etc.) matching its documented commands.",
+          "replace": "A skill counts as used when the transcript shows a `read` of its `SKILL.md` (under trusted project `.pi/skills/` or `.agents/skills/`, user-level `~/.pi/agent/skills/` or `~/.agents/skills/`, or installed package paths), an expanded `/skill:<name>` message containing the loaded `<skill name=\"...\" location=\"...\">` body (manual Pi invocation does not require a separate file read), a `blocking_subagent` prompt naming its path, or a tool call (`bash`, `grep`, external tools, etc.) matching its documented commands.",
           "count": 1
         },
         {
@@ -2274,7 +2274,7 @@
         },
         {
           "find": "### 3. Budget, map, and confirm\n\n**(a) Ask for a budget.** Prefer AskQuestion over free text. Offer these four options with these exact labels, and name the current budget when the rule records one. With no rule, say that `large` matches the skill defaults.\n\n- `unlimited — max reasoning`\n- `large — xhigh reasoning`\n- `medium — high reasoning`\n- `small — medium reasoning`\n\n**(b) Apply it.** Build the working table from the skill defaults, and on a re-run keep any role you changed by family, list, or alias (`inherit-parent`, `auto`). `unlimited`, `large`, `medium`, and `small` set the effort token of every real slug, panel entries included, to `max`, `xhigh`, `high`, or `medium`. The effort token is the last token, or the one before a trailing `fast`, on the ladder `max` > `xhigh` > `high` > `medium` > `low`. If the result is not a detected slug, use the same family's detected slug with the highest effort at or below the target, else mark the role as needing a choice. `inherit-parent` and `auto` do not change. So `unlimited` turns `claude-opus-5-5-xhigh` into `claude-opus-5-5-max`. Grok slugs top out at `xhigh`, so under `unlimited` the fallback puts Grok at `xhigh` and keeps `grok-4.7-xhigh-fast` as it is. `large` keeps both defaults. `small` turns them into `claude-opus-5-5-medium` and `grok-4.7-medium-fast`.\n\n**(c) Show the roles and confirm.** Show every role with its model, marking any real slug not in the detected set as needing a choice. Also list each line step 2 dropped. Ask whether to accept as-is or change specific roles, offering the detected models plus `inherit-parent` and `auto` (both mean: this role runs on the parent chat model, which is how Auto users stay on Auto) as the options. Prefer AskQuestion over free text. For panel roles (arena runners, architect runners, interrogate reviewers) the value is a list, and one subagent runs per entry, alias entries included, so the list length sets the count. `arena cross-judge pool` is also a list, but Arena runs one judge. It tries only values from a family other than the parent's, in list order, so order it by preference. An `inherit-parent` or `auto` value never judges. `swarm workers` is the default model for every worker unless a race or comparison assigns another model per arm.\n",
-          "replace": "### 3. Budget, map, and confirm\n\n**(a) Ask for a budget.** Prefer an available structured choice tool or numbered chat choices over free text. Offer these four options with these exact labels, and name the current budget when every real selector in the role map carries the same `:<level>` suffix. With no role map, say that `large` matches the skill defaults.\n\n- `unlimited - max reasoning`\n- `large - xhigh reasoning`\n- `medium - high reasoning`\n- `small - medium reasoning`\n\n**(b) Apply it.** Build the working table from the skill defaults (all roles `inherit-parent` until the user picks concrete selectors), and on a re-run keep any role the user already set to a real slug or `inherit-parent`. `unlimited`, `large`, `medium`, and `small` set the thinking level of every real selector, panel entries included, to `max`, `xhigh`, `high`, or `medium`. Write the level as a `:<level>` suffix, such as `anthropic/claude-opus-5-5:xhigh`, replacing any suffix already there. The `subagent` tool passes the selector to the child's `--model`, and Pi clamps a level the model does not support. `inherit-parent` does not change; that role runs at the parent's level. The suffixes record the budget; `models.json` has no separate budget field.\n\n**(c) Show the roles and confirm.** Show every role from the current `subagent` schema with its model, marking any real slug not in the detected set as needing a choice. Ask whether to accept as-is or change specific roles, offering the detected models plus `inherit-parent` (this role runs on the parent chat model) as the options. Prefer an available structured choice tool or numbered chat choices over free text. Wait for explicit confirmation before writing, including on repeat runs. Role values may be a selector or a nonempty list. Lists rotate deterministically across requests to the role; preserve duplicate entries because they weight that rotation. A list does not itself spawn a panel. Panel workflows (arena runners, architect runners, interrogate reviewers) must select each configured entry explicitly, alias entries included, within bounded requests. For `arena-cross-judge`, Arena runs one judge. It tries only values from a family other than the parent's, in list order, so order it by preference. An `inherit-parent` value never judges. `swarm-worker` is the default model for every worker unless a race or comparison assigns another model per arm. Explicit task model selection takes precedence over the role map.\n",
+          "replace": "### 3. Budget, map, and confirm\n\n**(a) Ask for a budget.** Prefer an available structured choice tool or numbered chat choices over free text. Offer these four options with these exact labels, and name the current budget when every real selector in the role map carries the same `:<level>` suffix. With no role map, say that `large` matches the skill defaults.\n\n- `unlimited - max reasoning`\n- `large - xhigh reasoning`\n- `medium - high reasoning`\n- `small - medium reasoning`\n\n**(b) Apply it.** Build the working table from the skill defaults (all roles `inherit-parent` until the user picks concrete selectors), and on a re-run keep any role the user already set to a real slug or `inherit-parent`. `unlimited`, `large`, `medium`, and `small` set the thinking level of every real selector, panel entries included, to `max`, `xhigh`, `high`, or `medium`. Write the level as a `:<level>` suffix, such as `anthropic/claude-opus-5-5:xhigh`, replacing any suffix already there. The `blocking_subagent` tool passes the selector to the child's `--model`, and Pi clamps a level the model does not support. `inherit-parent` does not change; that role runs at the parent's level. The suffixes record the budget; `models.json` has no separate budget field.\n\n**(c) Show the roles and confirm.** Show every role from the current `blocking_subagent` schema with its model, marking any real slug not in the detected set as needing a choice. Ask whether to accept as-is or change specific roles, offering the detected models plus `inherit-parent` (this role runs on the parent chat model) as the options. Prefer an available structured choice tool or numbered chat choices over free text. Wait for explicit confirmation before writing, including on repeat runs. Role values may be a selector or a nonempty list. Lists rotate deterministically across requests to the role; preserve duplicate entries because they weight that rotation. A list does not itself spawn a panel. Panel workflows (arena runners, architect runners, interrogate reviewers) must select each configured entry explicitly, alias entries included, within bounded requests. For `arena-cross-judge`, Arena runs one judge. It tries only values from a family other than the parent's, in list order, so order it by preference. An `inherit-parent` value never judges. `swarm-worker` is the default model for every worker unless a race or comparison assigns another model per arm. Explicit task model selection takes precedence over the role map.\n",
           "count": 1
         },
         {
@@ -2353,7 +2353,7 @@
         },
         {
           "find": "Before handing back, spawn a subagent on a different model family from the one that did the work.",
-          "replace": "Before handing back, use `pstack_config` to discover available models and select an exact `provider/model-id` from a different model family than the one that did the work. Use one read-only `general-purpose` task through `subagent`, role `review`, explicit `model`, finite `timeoutMs`, and exact log/transcript paths. Check the resolved reviewer identity, not just the requested selector. The tool result includes `resolved-model: <provider/model-id>` from the child response, or `resolved-model: unknown` (first line for a single result; one line per task block for parallel). Use that line. Do not ask the child to name its model, and do not treat the requested selector, `details.results[].model`, or the child's own wording as the resolved id. Children use `read`, `grep`, `find`, and `ls`, may keep their own `pstack_todo`, and cannot run `bash`, access external tools, edit, or delegate. The parent supplies approved external evidence locally. If delegation or a different-family model is unavailable, mark independent review incomplete; local or same-family review cannot pass this gate.",
+          "replace": "Before handing back, use `pstack_config` to discover available models and select an exact `provider/model-id` from a different model family than the one that did the work. Use one read-only `general-purpose` task through `blocking_subagent`, role `review`, explicit `model`, finite `timeoutMs`, and exact log/transcript paths. Check the resolved reviewer identity, not just the requested selector. The tool result includes `resolved-model: <provider/model-id>` from the child response, or `resolved-model: unknown` (first line for a single result; one line per task block for parallel). Use that line. Do not ask the child to name its model, and do not treat the requested selector, `details.results[].model`, or the child's own wording as the resolved id. Children use `read`, `grep`, `find`, and `ls`, may keep their own `pstack_todo`, and cannot run `bash`, access external tools, edit, or delegate. The parent supplies approved external evidence locally. If delegation or a different-family model is unavailable, mark independent review incomplete; local or same-family review cannot pass this gate.",
           "count": 1
         },
         {
@@ -4445,7 +4445,7 @@
         },
         {
           "find": "Spawn all N workers in one message with `subagent_type: generalPurpose`, `environment: \"cloud\"`, `run_in_background: true`, and the step 3 model, left unset for `auto` or `inherit-parent`. Use `environment: \"local\"` only when the worker needs access to something on the user's computer.",
-          "replace": "Use one live `subagent` request at a time with at most eight `tasks` and at most four active children. For N greater than eight, use successive bounded requests without shrinking the declared coverage. Use `general-purpose` for read-only work and `poteto-agent` for scoped writes. Set role `swarm-worker` unless a model race sets exact models. The parent owns all orchestration and integration. Children never delegate. Use separate worktrees or scratch outputs for writes, not just separate branch names in one checkout. Verify the requested base and head locally before each task. No cloud or background resume is promised.",
+          "replace": "Use one live `blocking_subagent` request at a time with at most eight `tasks` and at most four active children. For N greater than eight, use successive bounded requests without shrinking the declared coverage. Use `general-purpose` for read-only work and `poteto-agent` for scoped writes. Set role `swarm-worker` unless a model race sets exact models. The parent owns all orchestration and integration. Children never delegate. Use separate worktrees or scratch outputs for writes, not just separate branch names in one checkout. Verify the requested base and head locally before each task. No cloud or background resume is promised.",
           "count": 1
         },
         {
@@ -4460,7 +4460,7 @@
         },
         {
           "find": "## Start",
-          "replace": "The parent owns orchestration, runtime probes for read-only judges, forge actions, and integration. Children never delegate or resume. Use one live `subagent` request at a time, at most eight tasks per request and four active children without dropping coverage. Use `general-purpose` for read-only exploration and judgment and `poteto-agent` for scoped implementation. Read-only children cannot run shell commands, edit, or access external tools. Children may use their own `pstack_todo` and return text progress. Missing delegation requires local work with a separate review and disclosure of lost independence.\n\n## Start",
+          "replace": "The parent owns orchestration, runtime probes for read-only judges, forge actions, and integration. Children never delegate or resume. Use one live `blocking_subagent` request at a time, at most eight tasks per request and four active children without dropping coverage. Use `general-purpose` for read-only exploration and judgment and `poteto-agent` for scoped implementation. Read-only children cannot run shell commands, edit, or access external tools. Children may use their own `pstack_todo` and return text progress. Missing delegation requires local work with a separate review and disclosure of lost independence.\n\n## Start",
           "count": 1
         },
         {
@@ -4494,7 +4494,7 @@
       "transforms": [
         {
           "find": "Run them in parallel and combine the results",
-          "replace": "The parent owns both workflows and external searches. Run independent leaf research in parallel within one `subagent` request of at most eight tasks, with four active children, and combine the results. Finish each request before the next; never ask a child to orchestrate either skill. Children use `general-purpose` with `read`, `grep`, `find`, `ls`, and child-local `pstack_todo` only. If delegation is unavailable, run the research locally and disclose the lost independence",
+          "replace": "The parent owns both workflows and external searches. Run independent leaf research in parallel within one `blocking_subagent` request of at most eight tasks, with four active children, and combine the results. Finish each request before the next; never ask a child to orchestrate either skill. Children use `general-purpose` with `read`, `grep`, `find`, `ls`, and child-local `pstack_todo` only. If delegation is unavailable, run the research locally and disclose the lost independence",
           "count": 1
         },
         {
@@ -4570,7 +4570,7 @@
         },
         {
           "find": "Every spawn is `generalPurpose` with `readonly: false` (agent mode). **Do not use readonly/Ask mode.** It strips MCP access, which disables the MCP-backed investigators and the synthesizer's citation spot-checks. Investigators still shouldn't write anything.",
-          "replace": "Every spawn is a `general-purpose` `subagent` task. Children have `read`, `grep`, `find`, `ls`, and child-local `pstack_todo`; no bash, writes, external tools, or delegation. The parent executes each source playbook's live searches and supplies complete evidence with queries and citations inline or in local files. Child prompts replace live calls with reading that evidence and requesting missing searches from the parent. The parent follows up before synthesis. If delegation is unavailable, retain the same source lanes and templates locally and disclose the lost independence.",
+          "replace": "Every spawn is a `general-purpose` `blocking_subagent` task. Children have `read`, `grep`, `find`, `ls`, and child-local `pstack_todo`; no bash, writes, external tools, or delegation. The parent executes each source playbook's live searches and supplies complete evidence with queries and citations inline or in local files. Child prompts replace live calls with reading that evidence and requesting missing searches from the parent. The parent follows up before synthesis. If delegation is unavailable, retain the same source lanes and templates locally and disclose the lost independence.",
           "count": 1
         },
         {
@@ -4590,7 +4590,7 @@
         },
         {
           "find": "all in a single message so they run concurrently, each owning exactly one tool or MCP.",
-          "replace": "each owning evidence from exactly one tool or MCP; the parent runs that tool. Send them through `subagent` in requests of at most eight tasks, with four active children, and finish each request before the next.",
+          "replace": "each owning evidence from exactly one tool or MCP; the parent runs that tool. Send them through `blocking_subagent` in requests of at most eight tasks, with four active children, and finish each request before the next.",
           "count": 1
         },
         {

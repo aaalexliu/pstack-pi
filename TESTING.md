@@ -9,9 +9,9 @@
 | `npm run test:pi` | Pi harness tests and packed real-Pi tests |
 | `npm run test:pi:unit` | Pi harness tests without launching Pi |
 
-`test:fast` runs the sync, content, pstack, subagent, profiles, title, recap, media, and Pi harness test files in one Node test invocation. Files keep separate processes and run concurrently. It skips packed real-Pi tests. `npm test` runs that same set, then the packed tests without repeating the harness tests.
+`test:fast` runs the sync, content, pstack, subagent, profiles, title, recap, media, interactive-subagents, and Pi harness test files in one Node test invocation. Files keep separate processes and run concurrently. It skips packed real-Pi tests. `npm test` runs that same set, then the packed tests without repeating the harness tests.
 
-`scripts/run-tests.mjs` discovers test files. New files under `tests/pi/` default to the packed suite unless listed in `PI_UNIT_TESTS`.
+`scripts/run-tests.mjs` discovers test files. New files under `tests/pi/` default to the packed suite unless listed in `PI_UNIT_TESTS`. It also runs the interactive-subagents subtree's files listed in `SUBTREE_TESTS`. It drops `PSTACK_SUBAGENT_DEPTH`, `PI_SUBAGENT_*`, and `PI_DENY_TOOLS` from the test environment, so tests run from inside a subagent still see a root Pi.
 
 `npm run check` runs `typecheck`, `sync:check`, `check:content`, and `npm test` in that order. CI runs the same command in the checkout and in a clean Git archive with no `.git` directory.
 
@@ -29,7 +29,7 @@ Use the strongest gate for mixed changes. Markdown is not automatically docs-onl
 
 Run the full check when a change affects any of:
 
-- `extensions/subagent/**` or `extensions/pstack/**` runtime behavior
+- `extensions/subagent/**`, `extensions/interactive-subagents/**`, or `extensions/pstack/**` runtime behavior
 - packed tests under `tests/pi/**`, their shared harness, or test orchestration such as `scripts/run-tests.mjs`
 - dependencies, the supported Pi/Node versions, pack membership, package exposure, or profile isolation
 - timeouts, parallelism, the depth guard, `pi` resolution on `PATH`, or parent signal handling
@@ -64,7 +64,9 @@ These are observations, not timeout limits. CPU load and cold starts affect them
 
 `test:pstack` drives the `pstack` extension against a fake ExtensionAPI: tool and command registration, lifecycle hooks, the todo reducer, and the absence of a blanket command gate.
 
-`test:subagent` drives the `subagent` tool with a fake `pi` that speaks the JSON protocol: routing precedence and pool rotation, stdin task and `0600` prompt delivery, parallel order and concurrency, chain substitution, abort and timeout killing a `SIGTERM`-ignoring grandchild, and shutdown. Renderer tests cover narrow terminals, long chains, output expansion, and both inspector views.
+`test:subagent` drives the `blocking_subagent` tool with a fake `pi` that speaks the JSON protocol: routing precedence and pool rotation, stdin task and `0600` prompt delivery, parallel order and concurrency, chain substitution, abort and timeout killing a `SIGTERM`-ignoring grandchild, and shutdown. Renderer tests cover narrow terminals, long chains, output expansion, and both inspector views.
+
+`extensions/interactive-subagents/test/test.ts` is upstream's unit suite plus the ported fork changes: cmux and tmux placement, the agents workspace and its cleanup, force-close, the concurrency cap and queue, pane-gone detection, settings and their last-good fallback, agent discovery including pstack-pi's agents, and the spawning deny list. `test/pstack.test.ts` loads both delegation extensions as a root, a `blocking_subagent` child, and an interactive child, and checks which tools each gets. Both import `@mariozechner/pi-coding-agent`, `@mariozechner/pi-tui`, and `@sinclair/typebox`, which Pi aliases at runtime; devDependencies alias them to the pinned `@earendil-works` packages and `typebox`. Upstream's integration tests need a live multiplexer and model and do not run.
 
 `tests/profiles` checks the auth profiles extension against fake credential stores: folder and inherited profile selection, the launch profile read once per process, logins and refreshes landing in the right file, and store restore on shutdown. `tests/profiles/e2e/run.sh` is a manual check against real Pi 1.x and a loopback Anthropic stand-in with fake keys; CI does not run it.
 
@@ -74,7 +76,7 @@ These are observations, not timeout limits. CPU load and cold starts affect them
 
 `tests/media` checks cited images, videos, and PDFs in reply order against a fake Pi. It covers fenced code, path resolution, skipped files, deduplication, snapshot bytes after a source changes, repeat settles, prompt guidance, and image-capable and text-only renderers. Real loopback HTTP tests cover the token, Host check, HEAD, Range, feed order, conditional polling, and page headers. Fake cmux tests cover pane reuse, reopening, remote denial, branch rebuilds, resume, shutdown, and header links. The full check does not inspect the page in cmux or test its remote proxy.
 
-`test:pi` packs the package, moves it into an isolated profile, and runs real Pi `1.5.2` against a loopback provider with no credentials. It checks discovery of the shipped skill commands, exact expansion of three sampled skills, arguments, relocated paths, and the declared extension tools. A scripted parent delegates a fixture read to a real bundled child, receives the result, and runs harmless bash containing literal `git push` and `gh pr edit` text. Other runs hide project agents by default, run a user override in a subdirectory `cwd`, and let `poteto-agent` edit through its tool set. Child requests carry the agent's tools plus `pstack_todo`, never `subagent`. The child leads its own process group, and prompt temp files are gone after return. Execution-safety tests cover `timeoutMs`, two simultaneous single calls, eight parallel tasks with a four-child ceiling and one failing sibling, depth rejection, a fake `pi` in `PATH`, and parent `SIGTERM` and `SIGHUP` cleanup. Progress tests check live tools, child-owned todos, model and usage before completion, saved snapshots, and timeout cards. Duplicate-name diagnostics go through Pi's resource-loader SDK because print-mode JSONL does not emit those warnings. `tests/pi/README.md` lists the harness files and bounds.
+`test:pi` packs the package, moves it into an isolated profile, and runs real Pi `1.5.2` against a loopback provider with no credentials. It checks discovery of the shipped skill commands, exact expansion of three sampled skills, arguments, relocated paths, and the declared extension tools. A scripted parent delegates a fixture read to a real bundled child, receives the result, and runs harmless bash containing literal `git push` and `gh pr edit` text. Other runs hide project agents by default, run a user override in a subdirectory `cwd`, and let `poteto-agent` edit through its tool set. Child requests carry the agent's tools plus `pstack_todo`, never `blocking_subagent`. The child leads its own process group, and prompt temp files are gone after return. Execution-safety tests cover `timeoutMs`, two simultaneous single calls, eight parallel tasks with a four-child ceiling and one failing sibling, depth rejection, a fake `pi` in `PATH`, and parent `SIGTERM` and `SIGHUP` cleanup. Progress tests check live tools, child-owned todos, model and usage before completion, saved snapshots, and timeout cards. Duplicate-name diagnostics go through Pi's resource-loader SDK because print-mode JSONL does not emit those warnings. `tests/pi/README.md` lists the harness files and bounds.
 
 The packed-Pi files run serially in one process with `--experimental-test-isolation=none`. They share one validated production tarball and resolved Pi executable, but each run gets a fresh extraction, profile, provider, and process group. Custom fixture packages always pack again. Smoke tests check package listing and SDK resource discovery; other scenarios exercise the loaded package through real Pi without repeating those checks.
 

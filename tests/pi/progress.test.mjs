@@ -8,11 +8,11 @@ test('packed Pi streams live metadata and saves the finished inline card with un
   const run = await runPiSmoke({
     expectedText: 'Live progress verified.', expectedRequests: 6,
     fixture: { script: [
-      { reply: { kind: 'tool', id: 'delegate', name: 'subagent', arguments: { agent: 'poteto-agent', role: 'review', task: 'Inspect then verify with a short wait.' } } },
+      { reply: { kind: 'tool', id: 'delegate', name: 'blocking_subagent', arguments: { agent: 'poteto-agent', role: 'review', task: 'Inspect then verify with a short wait.' } } },
       { reply: { kind: 'tool', id: 'plan', name: 'pstack_todo', arguments: { action: 'set', items: ['Inspect', 'Verify'] } }, check: (request) => {
         assert.ok(Array.isArray(request.tools));
         assert.ok(request.tools.some((tool) => tool.function.name === 'pstack_todo'));
-        assert.ok(!request.tools.some((tool) => tool.function.name === 'subagent'));
+        assert.ok(!request.tools.some((tool) => tool.function.name === 'blocking_subagent'));
       } },
       { reply: { kind: 'tool', id: 'wait', name: 'bash', arguments: { command: 'sleep 2' } } },
       { reply: { kind: 'tool', id: 'done', name: 'pstack_todo', arguments: { action: 'complete', item: 'Inspect' } } },
@@ -20,9 +20,9 @@ test('packed Pi streams live metadata and saves the finished inline card with un
       { reply: { kind: 'text', text: 'Live progress verified.' } },
     ] },
   });
-  const end = run.events.findIndex((event) => event.type === 'tool_execution_end' && event.toolName === 'subagent');
+  const end = run.events.findIndex((event) => event.type === 'tool_execution_end' && event.toolName === 'blocking_subagent');
   assert.ok(end > 0);
-  const updates = run.events.slice(0, end).filter((event) => event.type === 'tool_execution_update' && event.toolName === 'subagent');
+  const updates = run.events.slice(0, end).filter((event) => event.type === 'tool_execution_update' && event.toolName === 'blocking_subagent');
   const snapshots = updates.map((event) => /** @type {{details: Details}} */ (event.partialResult).details.progress).filter((snapshot) => snapshot !== undefined);
   const live = snapshots.find((snapshot) => snapshot.tasks[0].state === 'running' && snapshot.tasks[0].tools.some((tool) => tool.name === 'bash'));
   assert.ok(live, 'Need a live tool snapshot before completion');
@@ -40,7 +40,7 @@ test('packed Pi streams live metadata and saves the finished inline card with un
   assert.deepEqual(final.tasks[0].usage, result.details.results[0].usage);
   assert.equal(final.tasks[0].usage.input, 44);
   assert.equal(final.tasks[0].usage.output, 28);
-  const saved = run.events.find((event) => event.type === 'message_end' && /** @type {{toolName?: string}} */ (event.message)?.toolName === 'subagent');
+  const saved = run.events.find((event) => event.type === 'message_end' && /** @type {{toolName?: string}} */ (event.message)?.toolName === 'blocking_subagent');
   assert.ok(saved);
   assert.deepEqual(/** @type {{details: unknown}} */ (saved.message).details, result.details);
 });
@@ -49,12 +49,12 @@ test('a timed-out real child keeps terminal metadata and reported usage in its f
   const run = await runPiSmoke({
     expectedText: 'Timeout card verified.', expectedRequests: 3,
     fixture: { script: [
-      { reply: { kind: 'tool', id: 'timeout', name: 'subagent', arguments: { agent: 'poteto-agent', task: 'Run the slow check.', timeoutMs: 3500 } } },
+      { reply: { kind: 'tool', id: 'timeout', name: 'blocking_subagent', arguments: { agent: 'poteto-agent', task: 'Run the slow check.', timeoutMs: 3500 } } },
       { reply: { kind: 'tool', id: 'slow', name: 'bash', arguments: { command: 'sleep 10' } } },
       { reply: { kind: 'text', text: 'Timeout card verified.' } },
     ] },
   });
-  const end = run.events.find((event) => event.type === 'tool_execution_end' && event.toolName === 'subagent');
+  const end = run.events.find((event) => event.type === 'tool_execution_end' && event.toolName === 'blocking_subagent');
   assert.ok(end && end.isError === true);
   const result = /** @type {{content: {text: string}[], details: Details}} */ (end.result);
   assert.match(result.content[0].text, /Timed out after 3500 ms/);

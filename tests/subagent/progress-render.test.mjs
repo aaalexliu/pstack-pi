@@ -188,7 +188,7 @@ function inspectorFixture(t) {
 test('/subagents opens without waiting for work, scrolls all chain rows, refreshes live, and closes without aborting', async (t) => {
   const f = inspectorFixture(t);
   await f.command.handler('', f.ctx);
-  assert.deepEqual(f.notifications, ['No subagent request yet.']);
+  assert.deepEqual(f.notifications, ['No blocking_subagent request yet.']);
   const snapshot = fixture(24, true);
   f.view.publish(snapshot, f.ctx, 'request');
   const opening = f.command.handler('', f.ctx);
