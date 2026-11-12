@@ -2018,6 +2018,145 @@ describe("subagent completion", () => {
   });
 });
 
+describe("concurrency cap", () => {
+  const testApi = (subagentsModule as any).__test__;
+  const tick = () => new Promise<void>((resolve) => setImmediate(resolve));
+
+  async function withMaxConcurrent(maxConcurrent: number, fn: () => Promise<void>) {
+    const dir = createTestDir();
+    const previous = process.env.PI_CODING_AGENT_DIR;
+    process.env.PI_CODING_AGENT_DIR = dir;
+    writeFileSync(join(dir, "interactive-subagents.json"), JSON.stringify({ maxConcurrent }));
+    testApi.spawnSlots.clear();
+    try {
+      await fn();
+    } finally {
+      testApi.spawnSlots.clear();
+      restoreEnvVar("PI_CODING_AGENT_DIR", previous);
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
+  function startedLauncher() {
+    const launched: string[] = [];
+    const execute = async (_id: string, params: any) => {
+      launched.push(params.name);
+      return { content: [{ type: "text", text: "started" }], details: { name: params.name, status: "started" } };
+    };
+    return { launched, execute };
+  }
+
+  it("starts up to maxConcurrent at once and queues the rest in call order", async () => {
+    await withMaxConcurrent(4, async () => {
+      const { api, sentMessages } = createMockExtensionApi();
+      const { launched, execute } = startedLauncher();
+      const start = testApi.withSpawnSlot(api, execute);
+
+      const results = [];
+      for (const name of ["c1", "c2", "c3", "c4", "c5", "c6"]) results.push(await start("id", { name, task: "T" }));
+
+      assert.deepEqual(launched, ["c1", "c2", "c3", "c4"]);
+      assert.deepEqual(results.map((r: any) => r.details.status), ["started", "started", "started", "started", "queued", "queued"]);
+      assert.deepEqual(results.slice(4).map((r: any) => r.details.position), [1, 2]);
+      assert.match(results[4].content[0].text, /queued \(position 1\)/);
+
+      testApi.spawnSlots.release();
+      await tick();
+      assert.deepEqual(launched, ["c1", "c2", "c3", "c4", "c5"]);
+
+      testApi.spawnSlots.release();
+      await tick();
+      assert.deepEqual(launched, ["c1", "c2", "c3", "c4", "c5", "c6"]);
+      assert.equal(testApi.spawnSlots.held, 4);
+      assert.equal(sentMessages.length, 0);
+    });
+  });
+
+  it("frees the slot of a spawn that does not start a child", async () => {
+    await withMaxConcurrent(1, async () => {
+      const { api } = createMockExtensionApi();
+      const refusals = testApi.withSpawnSlot(api, async () => ({ content: [{ type: "text", text: "no mux" }], details: { error: "x" } }));
+      const throws = testApi.withSpawnSlot(api, async () => {
+        throw new Error("boom");
+      });
+      const { launched, execute } = startedLauncher();
+      const start = testApi.withSpawnSlot(api, execute);
+
+      await refusals("id", { name: "r", task: "T" });
+      await assert.rejects(throws("id", { name: "t", task: "T" }), /boom/);
+      const result = await start("id", { name: "ok", task: "T" });
+
+      assert.equal(result.details.status, "started");
+      assert.deepEqual(launched, ["ok"]);
+    });
+  });
+
+  it("reports a queued spawn that later fails to start as a parent turn and frees its slot", async () => {
+    await withMaxConcurrent(1, async () => {
+      const { api, sentMessages } = createMockExtensionApi();
+      const { launched, execute } = startedLauncher();
+      const start = testApi.withSpawnSlot(api, execute);
+      const failing = testApi.withSpawnSlot(api, async () => {
+        throw new Error("surface create failed");
+      });
+
+      await start("id", { name: "first", task: "T" });
+      const queuedFailure = await failing("id", { name: "doomed", task: "T" });
+      const queuedOk = await start("id", { name: "after", task: "T" });
+      assert.equal(queuedFailure.details.status, "queued");
+      assert.equal(queuedOk.details.position, 2);
+
+      testApi.spawnSlots.release();
+      await tick();
+
+      assert.equal(sentMessages.length, 1);
+      assert.equal(sentMessages[0].message.customType, "subagent_result");
+      assert.match(sentMessages[0].message.content, /"doomed" failed to start: surface create failed/);
+      assert.equal(sentMessages[0].message.details.exitCode, 1, "rendered as a failure, not a completion");
+      assert.deepEqual(sentMessages[0].options, { triggerTurn: true, deliverAs: "steer" });
+      assert.deepEqual(launched, ["first", "after"]);
+    });
+  });
+
+  it("releases a slot when a child's watcher ends", async () => {
+    await withMaxConcurrent(1, async () => {
+      const { api } = createMockExtensionApi();
+      const { launched, execute } = startedLauncher();
+      const start = testApi.withSpawnSlot(api, execute);
+      await start("id", { name: "running", task: "T" });
+      await start("id", { name: "waiting", task: "T" });
+
+      const previousMux = process.env.PI_SUBAGENT_MUX;
+      const previousWezterm = process.env.WEZTERM_UNIX_SOCKET;
+      process.env.PI_SUBAGENT_MUX = "wezterm";
+      delete process.env.WEZTERM_UNIX_SOCKET;
+      const dir = createTestDir();
+      try {
+        const sessionFile = createSessionFile(dir, [SESSION_HEADER, ASSISTANT_MSG]);
+        writeFileSync(`${sessionFile}.exit`, JSON.stringify({ type: "done" }));
+        const running = {
+          id: "w1",
+          name: "running",
+          task: "T",
+          surface: "surface:404",
+          startTime: Date.now(),
+          sessionFile,
+          interactive: false,
+          statusState: createStatusState({ source: "pi", startTimeMs: Date.now() }),
+        };
+        await testApi.watchSubagent(running, new AbortController().signal);
+        await tick();
+      } finally {
+        restoreEnvVar("PI_SUBAGENT_MUX", previousMux);
+        restoreEnvVar("WEZTERM_UNIX_SOCKET", previousWezterm);
+        rmSync(dir, { recursive: true, force: true });
+      }
+
+      assert.deepEqual(launched, ["running", "waiting"]);
+    });
+  });
+});
+
 describe("subagent status renderer", () => {
   function createTheme() {
     return {
