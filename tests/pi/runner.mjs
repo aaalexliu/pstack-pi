@@ -10,7 +10,7 @@ export { jsonlParser } from './jsonl.mjs';
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { FIXTURE_KEY, FIXTURE_MODEL, FIXTURE_TEXT, FIXTURE_USAGE, startProvider } from "./provider.mjs";
-import { checkContent, checkPackedContent, expectedPackFiles, recordOutput } from '../../scripts/check-content.mjs';
+import { checkContent, checkPackedContent, expectedPackFiles, isExecutable } from '../../scripts/check-content.mjs';
 
 /** @typedef {Record<string, unknown> & { type: string }} PiEvent */
 /** @typedef {{ text: string, bytes: number, truncated: boolean }} Diagnostics */
@@ -117,9 +117,7 @@ async function packOnce({ sourceRoot, files, content, hold }) {
       const filename = join(extracted, name);
       const stat = await lstat(filename);
       assert.ok(stat.isFile() && !stat.isSymbolicLink());
-      const record = content?.byDestination.get(name);
-      const executable = record !== undefined && recordOutput(record)?.mode === "100755";
-      assert.equal(stat.mode & 0o7777, executable ? 0o755 : 0o644, `Packed mode differs: ${name}`);
+      assert.equal(stat.mode & 0o7777, isExecutable(content, name) ? 0o755 : 0o644, `Packed mode differs: ${name}`);
       assert.deepEqual(await readFile(filename), await readFile(join(sourceRoot, name)), `Packed bytes differ: ${name}`);
     }
     const manifest = JSON.parse(await readFile(join(extracted, "package.json"), "utf8"));

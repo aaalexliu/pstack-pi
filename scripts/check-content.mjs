@@ -98,6 +98,15 @@ async function addAdditions(root, inventory) {
   return files;
 }
 
+// The Claude Code plugin in the interactive-subagents subtree runs this hook directly.
+export const executableExtensionFiles = new Set(['extensions/interactive-subagents/pi-extension/subagents/plugin/hooks/on-stop.sh']);
+
+/** @param {ContentInventory | undefined} inventory @param {string} relative */
+export function isExecutable(inventory, relative) {
+  const record = inventory?.byDestination.get(relative);
+  return (record !== undefined && recordOutput(record)?.mode === '100755') || executableExtensionFiles.has(relative);
+}
+
 /** @param {string} root @param {string[]} roots @param {ContentInventory} inventory */
 async function fileInventory(root, roots, inventory) {
   assert.ok((await lstat(root)).isDirectory() && !(await lstat(root)).isSymbolicLink(), 'Root must be a real directory');
@@ -117,9 +126,7 @@ async function fileInventory(root, roots, inventory) {
       for (const child of await readdir(filename)) await walk(`${relative}/${child}`);
     } else {
       assert.ok(stat.isFile(), `Special file: ${relative}`);
-      const record = inventory.byDestination.get(relative);
-      const executable = record !== undefined && recordOutput(record)?.mode === '100755';
-      assert.equal(stat.mode & 0o7777, executable ? 0o755 : 0o644, `Unexpected file mode: ${relative}`);
+      assert.equal(stat.mode & 0o7777, isExecutable(inventory, relative) ? 0o755 : 0o644, `Unexpected file mode: ${relative}`);
       files.set(relative, await readFile(filename));
     }
   }
@@ -130,7 +137,7 @@ async function fileInventory(root, roots, inventory) {
 /** @param {ContentInventory} inventory */
 export function extensionFiles(inventory) {
   return inventory.byDestination.has('additions/agents/general-purpose.md')
-    ? ['extensions/media/index.ts', 'extensions/media/media.ts', 'extensions/media/page.html', 'extensions/media/server.ts', 'extensions/profiles/config.ts', 'extensions/profiles/index.ts', 'extensions/pstack/export-session.ts', 'extensions/pstack/index.ts', 'extensions/pstack/mode.ts', 'extensions/pstack/papercut-aggregation.ts', 'extensions/pstack/papercut-journal.ts', 'extensions/pstack/papercut-model.ts', 'extensions/pstack/papercut-observer.ts', 'extensions/pstack/papercuts.ts', 'extensions/pstack/read-close-matches.ts', 'extensions/pstack/todo.ts', 'extensions/recap/index.ts', 'extensions/recap/summary.ts', 'extensions/shared/model.ts', 'extensions/subagent/agents.ts', 'extensions/subagent/cmux.ts', 'extensions/subagent/cmux-settings.ts', 'extensions/subagent/index.ts', 'extensions/subagent/model-config.ts', 'extensions/subagent/progress.ts', 'extensions/subagent/view.ts', 'extensions/title/index.ts', 'extensions/title/naming.ts'] : [];
+    ? ['extensions/interactive-subagents/LICENSE', 'extensions/interactive-subagents/README.md', 'extensions/interactive-subagents/config.json.example', 'extensions/interactive-subagents/package.json', 'extensions/interactive-subagents/agents/claude-code.md', 'extensions/interactive-subagents/agents/planner.md', 'extensions/interactive-subagents/agents/reviewer.md', 'extensions/interactive-subagents/agents/scout.md', 'extensions/interactive-subagents/agents/visual-tester.md', 'extensions/interactive-subagents/agents/worker.md', 'extensions/interactive-subagents/pi-extension/subagents/activity.ts', 'extensions/interactive-subagents/pi-extension/subagents/cmux-layout.ts', 'extensions/interactive-subagents/pi-extension/subagents/cmux.ts', 'extensions/interactive-subagents/pi-extension/subagents/config.ts', 'extensions/interactive-subagents/pi-extension/subagents/index.ts', 'extensions/interactive-subagents/pi-extension/subagents/plan-skill.md', 'extensions/interactive-subagents/pi-extension/subagents/plugin/.claude-plugin/plugin.json', 'extensions/interactive-subagents/pi-extension/subagents/plugin/hooks/hooks.json', 'extensions/interactive-subagents/pi-extension/subagents/plugin/hooks/on-stop.sh', 'extensions/interactive-subagents/pi-extension/subagents/session.ts', 'extensions/interactive-subagents/pi-extension/subagents/status.ts', 'extensions/interactive-subagents/pi-extension/subagents/subagent-done.ts', 'extensions/media/index.ts', 'extensions/media/media.ts', 'extensions/media/page.html', 'extensions/media/server.ts', 'extensions/profiles/config.ts', 'extensions/profiles/index.ts', 'extensions/pstack/export-session.ts', 'extensions/pstack/index.ts', 'extensions/pstack/mode.ts', 'extensions/pstack/papercut-aggregation.ts', 'extensions/pstack/papercut-journal.ts', 'extensions/pstack/papercut-model.ts', 'extensions/pstack/papercut-observer.ts', 'extensions/pstack/papercuts.ts', 'extensions/pstack/read-close-matches.ts', 'extensions/pstack/todo.ts', 'extensions/recap/index.ts', 'extensions/recap/summary.ts', 'extensions/shared/model.ts', 'extensions/subagent/agents.ts', 'extensions/subagent/cmux.ts', 'extensions/subagent/cmux-settings.ts', 'extensions/subagent/index.ts', 'extensions/subagent/model-config.ts', 'extensions/subagent/progress.ts', 'extensions/subagent/view.ts', 'extensions/title/index.ts', 'extensions/title/naming.ts'] : [];
 }
 
 /** @param {ContentInventory} inventory */
@@ -150,7 +157,7 @@ export function assertPackageExposure(rawPackage, inventory) {
   const pi = object(pkg.pi);
   assert.deepEqual(Object.keys(pi).sort(), ['extensions', 'prompts', 'skills', 'themes'], 'Unexpected Pi registration');
   const runtime = extensionFiles(inventory).length > 0;
-  assert.deepEqual(pi.extensions, runtime ? ['extensions/pstack/index.ts', 'extensions/subagent/index.ts', 'extensions/profiles/index.ts', 'extensions/title/index.ts', 'extensions/recap/index.ts', 'extensions/media/index.ts'] : [], 'Only package-owned extensions may register');
+  assert.deepEqual(pi.extensions, runtime ? ['extensions/pstack/index.ts', 'extensions/subagent/index.ts', 'extensions/profiles/index.ts', 'extensions/title/index.ts', 'extensions/recap/index.ts', 'extensions/media/index.ts', 'extensions/interactive-subagents/pi-extension/subagents/index.ts'] : [], 'Only package-owned extensions may register');
   for (const key of ['prompts', 'themes']) assert.deepEqual(pi[key], [], `No ${key} may register`);
   assert.equal(pkg.dependencies, undefined, 'No runtime dependencies: Pi supplies pi-coding-agent, pi-ai, pi-tui, and typebox');
   if (runtime) assert.deepEqual(pkg.peerDependencies, { '@earendil-works/pi-ai': '*', '@earendil-works/pi-coding-agent': '*', '@earendil-works/pi-tui': '*', typebox: '*' });
@@ -254,7 +261,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.ar
     const inventory = await checkContent({ root, manifest: JSON.parse(await readFile('sync/manifest.json', 'utf8')), lock: JSON.parse(await readFile('sync/upstream.lock.json', 'utf8')) });
     const packed = JSON.parse(execFileSync('npm', ['pack', '--dry-run', '--json', '--ignore-scripts'], { encoding: 'utf8', timeout: 15_000, maxBuffer: 1024 * 1024 }));
     assertPackInventory(packed[0].files.map(/** @param {{path: string}} file */ (file) => file.path), inventory);
-    console.log(`${inventory.bySource.size} records, ${inventory.byDestination.size} files, ${inventory.bySkillName.size} skills, ${inventory.byAgentName.size} agents, ${extensionFiles(inventory).length ? 6 : 0} extensions`);
+    console.log(`${inventory.bySource.size} records, ${inventory.byDestination.size} files, ${inventory.bySkillName.size} skills, ${inventory.byAgentName.size} agents, ${extensionFiles(inventory).length ? 7 : 0} extensions`);
   } catch (error) {
     console.error(String(error));
     process.exitCode = 1;
