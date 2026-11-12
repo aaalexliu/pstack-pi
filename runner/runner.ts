@@ -24,6 +24,7 @@ type Check = { ok: boolean; text: string };
 type Linear = ReturnType<typeof linearClient>;
 
 const STEP_TIMEOUT_MS = 2 * 60 * 60 * 1000;
+const MAX_ROUNDS = 3;
 const PROMPTS = fileURLToPath(new URL('./prompts/', import.meta.url));
 const ISSUE_FIELDS = 'id identifier title description url createdAt labels { nodes { name } }';
 
@@ -150,7 +151,9 @@ const proof = (dir: string) => {
 
 async function runJob(issue: Issue, repo: Repo, config: Config, linear: Linear, fetchFn: typeof fetch) {
   const description = issue.description ?? '';
-  const rounds = Math.max(1, Number(/^Rounds:\s*(\d+)/im.exec(description)?.[1] ?? 1));
+  const rounds = Math.min(MAX_ROUNDS, Math.max(1, Number(/^Rounds:\s*(\d+)/im.exec(description)?.[1] ?? 1)));
+  const line = (key: string) => new RegExp(`^${key}:\\s*(\\S+)`, 'im').exec(description)?.[1];
+  const models = { implement: line('Implement model') ?? config.models.implement, review: line('Review model') ?? config.models.review };
   const reportTo = /^Report to:\s*(.+)$/im.exec(description)?.[1].trim();
   const slug = issue.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40).replace(/^-+|-+$/g, '');
   const branch = `job/${issue.identifier.toLowerCase()}-${slug}`;
@@ -177,7 +180,7 @@ async function runJob(issue: Issue, repo: Repo, config: Config, linear: Linear, 
     await say(`Picked up by ${os.hostname()} on branch \`${branch}\`.`);
     await worktree(repo, branch, dir);
     const base = `origin/${repo.base}`;
-    await pi('implement', 'implement', config.models.implement, `${brief}${await newComments()}`);
+    await pi('implement', 'implement', models.implement, `${brief}${await newComments()}`);
     await commit(dir, `${issue.identifier}: implement`);
     if ((await must('git', ['rev-list', '--count', `${base}..HEAD`], dir)) === '0') {
       throw new Error(`implement made no change.\n\n${proof(dir) || 'No PROOF.md.'}`);
@@ -190,7 +193,7 @@ async function runJob(issue: Issue, repo: Repo, config: Config, linear: Linear, 
       const scope = round === 1
         ? `Review the whole change: git diff ${base}...HEAD`
         : `Review only the latest fix: git diff ${fixFrom}..HEAD\nIt was meant to fix these findings:\n${JSON.stringify(open, null, 2)}`;
-      await pi(`review-${round}`, 'review', config.models.review, `${brief}\n\nReview round ${round} of ${rounds}. ${scope}\n\nVerify: ${check.text}\n\nWrite the findings to .runner/findings-${round}.json.${await newComments()}`);
+      await pi(`review-${round}`, 'review', models.review, `${brief}\n\nReview round ${round} of ${rounds}. ${scope}\n\nVerify: ${check.text}\n\nWrite the findings to .runner/findings-${round}.json.${await newComments()}`);
       const findings = parseFindings(path.join(dir, '.runner', `findings-${round}.json`));
       open = findings.filter((f) => f.must_fix && f.caused_by_change);
       log.push(`Review round ${round}: ${findings.length} findings, ${open.length} caused must-fix.`);
@@ -198,7 +201,7 @@ async function runJob(issue: Issue, repo: Repo, config: Config, linear: Linear, 
       if (open.length === 0 || (round === rounds && rounds > 1)) break;
       fixFrom = await must('git', ['rev-parse', 'HEAD'], dir);
       const failed = check.ok ? '' : `\n\nVerify failed:\n${check.text}`;
-      await pi(`fix-${round}`, 'implement', config.models.implement, `${brief}\n\nFix round ${round}. A reviewer found these problems your change caused. Fix each one and its whole class, then update .runner/PROOF.md.\n${JSON.stringify(open, null, 2)}${failed}${await newComments()}`);
+      await pi(`fix-${round}`, 'implement', models.implement, `${brief}\n\nFix round ${round}. A reviewer found these problems your change caused. Fix each one and its whole class, then update .runner/PROOF.md.\n${JSON.stringify(open, null, 2)}${failed}${await newComments()}`);
       await commit(dir, `${issue.identifier}: fix round ${round}`);
       check = await verify(dir);
       // Rounds: 1 trusts its one fix once verify passes. Longer jobs review every fix and stop at the cap.

@@ -16,9 +16,10 @@ When the runner finishes, it sets the issue to `In Review` and clears the delega
 
 The runner picks the oldest issue in the team that is in `Todo` and delegated to `runnerUser`. The first label that names a repo in the config picks the repo. If no label matches, the runner comments, clears the delegate, and skips the issue.
 
-Two lines in the issue description change a job:
+A few lines in the issue description change a job:
 
-- `Rounds: 3` sets the maximum number of review rounds. The default is 1.
+- `Rounds: 3` sets the maximum number of review rounds. The default is 1, and 3 is the hard limit.
+- `Implement model: xai/grok-4.7` and `Review model: anthropic/claude-opus-5-5` override `models` for this job, so whoever dispatches it can pick by quota.
 - `Report to: lead` names a webhook in the config. When the job ends, the runner POSTs `{issue, url, state, pr}` to it with `Authorization: Bearer <key from keyFile>`. `state` is `ready` or `needs-decision`.
 
 Then the runner works through these steps:
@@ -52,7 +53,7 @@ Each step is one fresh `pi` process in the worktree:
 pi -p --model <model> --thinking <thinking> --append-system-prompt runner/prompts/<step>.md "<input>"
 ```
 
-Implement and fix use [prompts/implement.md](prompts/implement.md) and `models.implement`. Review uses [prompts/review.md](prompts/review.md) and `models.review`. Pick a review model from a different family than the implement model.
+Implement and fix use [prompts/implement.md](prompts/implement.md) and `models.implement`. Review uses [prompts/review.md](prompts/review.md) and `models.review`. The strongest reviewer you have quota for is the best pick. A different family from the implementer helps, but it isn't required.
 
 Steps hand off through files in `<worktree>/.runner/`, which git ignores:
 

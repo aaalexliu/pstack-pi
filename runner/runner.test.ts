@@ -59,7 +59,7 @@ if (process.argv.some((a) => a.endsWith('review.md'))) {
   fs.appendFileSync('work.txt', step + '\\n');
   fs.writeFileSync('.runner/PROOF.md', 'Ran it: ' + step);
 }
-fs.appendFileSync(${JSON.stringify(piLog)}, JSON.stringify({ step, input }) + '\\n');
+fs.appendFileSync(${JSON.stringify(piLog)}, JSON.stringify({ step, input, model: process.argv[process.argv.indexOf('--model') + 1] }) + '\\n');
 `, { mode: 0o755 });
   const gh = path.join(root, 'gh');
   writeFileSync(gh, `#!/bin/sh\necho "$*" >> ${JSON.stringify(ghLog)}\necho https://github.com/example/repo/pull/7\n`, { mode: 0o755 });
@@ -114,6 +114,7 @@ fs.appendFileSync(${JSON.stringify(piLog)}, JSON.stringify({ step, input }) + '\
     config, hooks, origin,
     run: (...argv: string[]) => main(argv, config, fakeFetch as typeof fetch),
     piSteps: () => lines(piLog).map((line) => JSON.parse(line).step),
+    piModels: () => lines(piLog).map((line) => JSON.parse(line).model),
     piInput: (step: string) => lines(piLog).map((line) => JSON.parse(line)).find((call) => call.step === step)?.input as string,
     ghCalls: () => lines(ghLog),
     bodies: (i: FakeIssue) => i.comments.map((c) => c.body),
@@ -183,6 +184,21 @@ test('hitting the round cap with open findings opens a draft PR and asks for a d
   const decision = t.bodies(job).find((b) => b.startsWith('Needs decision:'));
   assert.match(decision ?? '', /work\.txt:1: breaks the thing/);
   assert.equal(t.hooks[0].body.state, 'needs-decision');
+});
+
+test('no job runs more than 3 review rounds, whatever its Rounds line says', async () => {
+  const job = issue(1, { description: 'Make it work.\nRounds: 9' });
+  const t = setup([job], [[caused], [caused], [caused], [caused]]);
+  await t.run('--once');
+  assert.deepEqual(t.piSteps(), ['implement', 'review-1', 'fix-1', 'review-2', 'fix-2', 'review-3']);
+  assert.ok(t.bodies(job).some((b) => b.startsWith('Needs decision:') && b.includes('after 3 review rounds')));
+});
+
+test('model lines in the issue override the configured models', async () => {
+  const job = issue(1, { description: 'Make it work.\nReview model: openai/gpt-6.1-sol\nImplement model: xai/grok-4.7' });
+  const t = setup([job], [[caused]]);
+  await t.run('--once');
+  assert.deepEqual(t.piModels(), ['xai/grok-4.7', 'openai/gpt-6.1-sol', 'xai/grok-4.7']);
 });
 
 test('steps see human comments once, as new comments', async () => {
