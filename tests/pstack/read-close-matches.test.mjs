@@ -188,6 +188,31 @@ test('same-stem matches stop at 10 paths', async () => {
   });
 });
 
+test('a special relative suggestion reads the fixture, not a rewritten path', async () => {
+  const readSuggested = async (root, requestPath) => {
+    const message = await readFailure(root, requestPath);
+    const result = await onReadError(enoentEvent(requestPath, message), { cwd: root });
+    const tool = createReadTool(root);
+    const read = await tool.execute('call', { path: suggested(result)[0] });
+    return read.content[0].text;
+  };
+  await withRoot(async (root) => {
+    await writeFile(join(root, '@config.js'), 'at-config\n');
+    await writeFile(join(root, 'config.js'), 'plain-config\n');
+    assert.equal(await readSuggested(root, './@config.ts'), 'at-config\n');
+  });
+  await withRoot(async (root) => {
+    await writeFile(join(root, '~'), 'tilde-file\n');
+    assert.equal(await readSuggested(root, '~.ts'), 'tilde-file\n');
+  });
+  await withRoot(async (root) => {
+    const folder = join(root, '~');
+    await mkdir(folder);
+    await writeFile(join(folder, 'widget.js'), 'tilde-dir\n');
+    assert.equal(await readSuggested(root, './~/widget.ts'), 'tilde-dir\n');
+  });
+});
+
 test('an absolute missing path lists absolute close paths', async () => {
   await withRoot(async (root) => {
     await writeFile(join(root, 'widget.js'), 'export const n = 1;\n');

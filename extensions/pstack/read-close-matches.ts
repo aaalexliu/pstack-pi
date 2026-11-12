@@ -119,6 +119,7 @@ function shownPath(directory: string, name: string, cwd: string, absoluteInput: 
   if (absoluteInput) return full;
   const shown = relative(cwd, full);
   if (shown === '' || shown.startsWith('..') || isAbsolute(shown)) return full;
+  if (shown === '~' || shown.startsWith('~/') || shown.startsWith('@')) return `./${shown}`;
   return shown;
 }
 
