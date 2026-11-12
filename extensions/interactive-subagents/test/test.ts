@@ -1373,6 +1373,17 @@ describe("tool registration", () => {
     });
   });
 
+  it("denies spawning tools to every child unless its agent file sets spawning: true", () => {
+    const testApi = (subagentsModule as any).__test__;
+    const spawningTools = ["subagent", "subagent_interrupt", "subagent_resume", "subagents_list"];
+
+    for (const defs of [null, {}, { spawning: false }]) {
+      assert.deepEqual([...testApi.resolveDenyTools(defs)].sort(), spawningTools);
+    }
+    assert.deepEqual([...testApi.resolveDenyTools({ spawning: true })], []);
+    assert.deepEqual([...testApi.resolveDenyTools({ spawning: true, denyTools: "bash" })], ["bash"]);
+  });
+
   it("expands spawning false to deny subagent interruption", () => {
     const testApi = (subagentsModule as any).__test__;
     const denied = testApi.resolveDenyTools({ spawning: false });

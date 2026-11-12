@@ -382,16 +382,16 @@ subagent({ name: "Scout", agent: "scout", interactive: true, task: "..." });
 
 ## Tool Access Control
 
-By default, every sub-agent can spawn further sub-agents. Control this with frontmatter:
+Sub-agents get no spawning tools unless their agent file sets `spawning: true`. Every child also runs with `PSTACK_SUBAGENT_DEPTH=1`, which hides pstack-pi's `blocking_subagent` tool. Control this with frontmatter:
 
-### `spawning: false`
+### `spawning: true`
 
-Denies all subagent lifecycle tools (`subagent`, `subagent_interrupt`, `subagents_list`, `subagent_resume`):
+Grants the subagent lifecycle tools (`subagent`, `subagent_interrupt`, `subagents_list`, `subagent_resume`) to a child:
 
 ```yaml
 ---
-name: worker
-spawning: false
+name: planner
+spawning: true
 ---
 ```
 
@@ -410,7 +410,7 @@ deny-tools: subagent
 
 | Agent      | `spawning`  | Rationale                                    |
 | ---------- | ----------- | -------------------------------------------- |
-| planner    | _(default)_ | Legitimately spawns scouts for investigation |
+| planner    | _(default)_ | Set `true` to let it spawn scouts            |
 | worker     | `false`     | Should implement tasks, not delegate         |
 | researcher | `false`     | Should research, not spawn                   |
 | reviewer   | `false`     | Should review, not spawn                     |
