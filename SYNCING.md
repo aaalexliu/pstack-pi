@@ -122,6 +122,7 @@ git subtree pull --prefix=extensions/interactive-subagents \
 3. If upstream added or removed runtime files, update `files` in `package.json`, `extensionFiles` in `scripts/check-content.mjs`, and the pack count in `tests/pi/smoke.test.mjs`.
 4. If upstream's unit tests moved, update `SUBTREE_TESTS` in `scripts/run-tests.mjs`.
 5. Run `npm run check`.
+6. Merge the PR with a merge commit, never a squash. A squash puts the subtree trailers on a commit that also holds pstack-pi's changes, and the next `git subtree pull` then drops those changes.
 
 ## Failure and recovery
 
