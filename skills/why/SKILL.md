@@ -10,7 +10,7 @@ Investigate the motivation and intent behind code. The companion `how` skill ans
 
 Pick each subagent's reasoning level for the job, per the Subagents section of the **poteto-mode** skill.
 
-Every spawn is a `general-purpose` `subagent` task. Children have `read`, `grep`, `find`, `ls`, and child-local `pstack_todo`; no bash, writes, external tools, or delegation. The parent executes each source playbook's live searches and supplies complete evidence with queries and citations inline or in local files. Child prompts replace live calls with reading that evidence and requesting missing searches from the parent. The parent follows up before synthesis. If delegation is unavailable, retain the same source lanes and templates locally and disclose the lost independence.
+Every spawn is a `general-purpose` `blocking_subagent` task. Children have `read`, `grep`, `find`, `ls`, and child-local `pstack_todo`; no bash, writes, external tools, or delegation. The parent executes each source playbook's live searches and supplies complete evidence with queries and citations inline or in local files. Child prompts replace live calls with reading that evidence and requesting missing searches from the parent. The parent follows up before synthesis. If delegation is unavailable, retain the same source lanes and templates locally and disclose the lost independence.
 
 ## Operating Posture
 
@@ -46,7 +46,7 @@ Map each available MCP to one evidence category:
 
 Check source control access through git and `gh`; record any missing access as a gap. For the other six, classify using the MCP name, server instructions, tool names, and resource descriptors. If an MCP could fit more than one category, choose the one matching its primary evidence. Record ambiguous cases in the coverage map.
 
-Spawn one investigator per category that has a matching MCP, each owning evidence from exactly one tool or MCP; the parent runs that tool. Send them through `subagent` in requests of at most eight tasks, with four active children, and finish each request before the next. Don't ask one agent to cover multiple MCPs. Use role `why-investigator`.
+Spawn one investigator per category that has a matching MCP, each owning evidence from exactly one tool or MCP; the parent runs that tool. Send them through `blocking_subagent` in requests of at most eight tasks, with four active children, and finish each request before the next. Don't ask one agent to cover multiple MCPs. Use role `why-investigator`.
 
 Each investigator's prompt is `references/investigator-prompt.md` filled in, plus:
 - the category playbook `references/sources/<source>.md` for the selected MCP, adapted from the examples in `references/source-playbook.md`

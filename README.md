@@ -1,7 +1,7 @@
 # pstack for Pi
 
 `@aaalexliu/pstack-pi` provides 55 of the 58 main skills from Lauren Tan's pstack, plus the Pi-owned `deeper`, `alex-show-me`, and `list-writing` skills.
-It copies compatible upstream content and applies exact, reviewed edits to Cursor-specific instructions. No full-file replacements remain. It also includes branch-aware task tracking, scoped session discovery, model-config readback, and a `subagent` tool built on Pi's bundled example with bundled agents, role-based model routing, a depth guard, and process-group cleanup. The three Benny Cursor Cloud Automation skills are outside this package's main-skill scope.
+It copies compatible upstream content and applies exact, reviewed edits to Cursor-specific instructions. No full-file replacements remain. It also includes branch-aware task tracking, scoped session discovery, model-config readback, and a `blocking_subagent` tool built on Pi's bundled example with bundled agents, role-based model routing, a depth guard, and process-group cleanup. The three Benny Cursor Cloud Automation skills are outside this package's main-skill scope.
 
 ## Install
 
@@ -22,13 +22,13 @@ pi list
 Then start Pi in your project. For example:
 
 ```text
-Use the subagent tool with general-purpose to inspect this repository and summarize its entry points.
+Use the blocking_subagent tool with general-purpose to inspect this repository and summarize its entry points.
 ```
 
 For bounded parallel work:
 
 ```text
-Use the subagent tool to run separate read-only checks for the API, tests, and package metadata in parallel.
+Use the blocking_subagent tool to run separate read-only checks for the API, tests, and package metadata in parallel.
 ```
 
 You can also run a reviewed skill directly, such as `/skill:tdd add a regression test for this bug`.
@@ -65,7 +65,7 @@ Every skill except `list-writing` keeps `disable-model-invocation: true` so Pi e
 `/skill:statechart` runs its bundled `scripts/statechart` command. That command needs Node 22.18 to 22.x, Node 23.6 or later, Bun 1.1.5 or later, or Deno 2.0 or later, plus `mise`. Its first run downloads TLC and Java through mise. Rendering a chart to SVG uses the npm package `pele@1.9.0`, installed outside your repo. Node will not run the TypeScript scripts from a `node_modules` folder, so use the Git install above.
 
 The package ships 125 generated skill and support files, two generated agents, five Pi-owned files under `additions/`, twenty-seven extension modules, and the root package files.
-It registers `pstack_config`, `pstack_papercut`, `pstack_sessions`, `pstack_todo`, and, at root depth, `subagent`.
+It registers `pstack_config`, `pstack_papercut`, `pstack_sessions`, `pstack_todo`, and, at root depth, `blocking_subagent`.
 The delegation extension owns one `session_shutdown` hook that stops live children and a `tool_result` hook that preserves progress details when a call throws. Its `execute` result marks failed calls with `isError`. The papercut journal owns a `tool_execution_start` hook and a `tool_result` hook that append a one-line measurement to other tools' results. When `read` fails with ENOENT, a `tool_result` hook appends up to 10 existing paths from the nearest existing parent folder. It ranks the first missing path segment, same stem with other extensions first, then names within edit distance 3, and marks folders with a trailing `/`. The requested file name is added only when it exactly names a folder there. The title extension owns an `input` hook that names the session in the background. The recap extension owns an `agent_settled` hook that starts its idle timer. The media extension records cited files after a TUI reply and draws a media entry under it.
 Todo and Poteto Mode state follow the active session branch through versioned custom entries. The package registers `/pstack`, `/pstack-export`, `/subagents`, `/pstack-cmux`, `/papercuts`, `/recap`, and `/media`, but no prompts, themes, or blanket approval hooks.
 
@@ -75,13 +75,13 @@ Todo and Poteto Mode state follow the active session branch through versioned cu
 
 The package never installs a blanket command-approval gate, inspects unrelated shell strings, or requests package-wide confirmation for routine Git pushes or pull-request edits.
 Those actions remain under host policy.
-Its validation applies only to `subagent` requests.
+Its validation applies only to `blocking_subagent` requests.
 
 ## Core workflows
 
 Run `/skill:poteto-mode <task>` to load the mode and keep its short operating reminder active on the current session branch. The reminder is a `pstack_poteto_mode` system prompt section. Pi records sections in the session, so a request rebuilt from the session, as `pi-cached-compaction` does, matches the one Pi sent. The mode selects one of six bundled playbooks: feature, bug fix, investigation, prototype, multi-phase plan, or orchestration. Branching before the command restores the mode state from that earlier point.
 
-Poteto Mode uses `poteto-agent` for bounded implementation work and `general-purpose` for read-only exploration. `poteto-agent` has `read`, `grep`, `find`, `ls`, `bash`, `edit`, and `write`; it is a leaf process with no `subagent` tool. The parent still owns the design, diff review, and final checks.
+Poteto Mode uses `poteto-agent` for bounded implementation work and `general-purpose` for read-only exploration. `poteto-agent` has `read`, `grep`, `find`, `ls`, `bash`, `edit`, and `write`; it is a leaf process with no `blocking_subagent` tool. The parent still owns the design, diff review, and final checks.
 
 Run `/skill:how <question>` for an architecture walkthrough. Narrow questions use one read-only explainer. Broad questions can use two to four read-only explorers followed by one explainer. The configured `how-explorer` and `how-explainer` roles select their models, with parent-model inheritance as the default.
 
@@ -136,7 +136,7 @@ Aggregations always span every project because papercuts describe the tooling, n
 
 ## Delegation
 
-The `subagent` tool is Pi's bundled subagent example (`examples/extensions/subagent`) plus a few additions.
+The `blocking_subagent` tool is Pi's bundled subagent example (`examples/extensions/subagent`) plus a few additions.
 Each call spawns a separate `pi --mode json -p --no-session` process per task, so every child has its own context window.
 
 ```json
@@ -331,7 +331,7 @@ Pi-owned files live in `additions/`, apart from the 573 upstream paths, and ship
 
 | File | Why it exists |
 | --- | --- |
-| `additions/agents/general-purpose.md` | Gives `subagent` one read-only delegate without turning on deferred upstream agents. |
+| `additions/agents/general-purpose.md` | Gives `blocking_subagent` one read-only delegate without turning on deferred upstream agents. |
 | `additions/skills/deeper/SKILL.md` | Turns a task into a deeper prompt. It predates upstream `sharpen`, which the manifest omits in its favor. |
 | `additions/skills/alex-show-me/` | Adapts the MIT-licensed `show-me` skill from [humanlayer/skills](https://github.com/humanlayer/skills) with bug views and set nodes. Ships the license notice in `references/humanlayer-license.md`. |
 | `additions/skills/list-writing/SKILL.md` | Turns the checklist in [Agent text at scale](https://fsdatalab.github.io/blog/agent-text-at-scale/) into rules for lists and breakdowns. |

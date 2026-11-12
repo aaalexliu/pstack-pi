@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Swarm
 
-The parent owns orchestration, runtime probes for read-only judges, forge actions, and integration. Children never delegate or resume. Use one live `subagent` request at a time, at most eight tasks per request and four active children without dropping coverage. Use `general-purpose` for read-only exploration and judgment and `poteto-agent` for scoped implementation. Read-only children cannot run shell commands, edit, or access external tools. Children may use their own `pstack_todo` and return text progress. Missing delegation requires local work with a separate review and disclosure of lost independence.
+The parent owns orchestration, runtime probes for read-only judges, forge actions, and integration. Children never delegate or resume. Use one live `blocking_subagent` request at a time, at most eight tasks per request and four active children without dropping coverage. Use `general-purpose` for read-only exploration and judgment and `poteto-agent` for scoped implementation. Read-only children cannot run shell commands, edit, or access external tools. Children may use their own `pstack_todo` and return text progress. Missing delegation requires local work with a separate review and disclosure of lost independence.
 
 ## Start
 
@@ -26,7 +26,7 @@ The parent opens `pstack_todo` with one entry per phase before launching anythin
 
 ## Phase B: Fan out
 
-Use one live `subagent` request at a time with at most eight `tasks` and at most four active children. For N greater than eight, use successive bounded requests without shrinking the declared coverage. Use `general-purpose` for read-only work and `poteto-agent` for scoped writes. Set role `swarm-worker` unless a model race sets exact models. The parent owns all orchestration and integration. Children never delegate. Use separate worktrees or scratch outputs for writes, not just separate branch names in one checkout. Verify the requested base and head locally before each task. No cloud or background resume is promised.
+Use one live `blocking_subagent` request at a time with at most eight `tasks` and at most four active children. For N greater than eight, use successive bounded requests without shrinking the declared coverage. Use `general-purpose` for read-only work and `poteto-agent` for scoped writes. Set role `swarm-worker` unless a model race sets exact models. The parent owns all orchestration and integration. Children never delegate. Use separate worktrees or scratch outputs for writes, not just separate branch names in one checkout. Verify the requested base and head locally before each task. No cloud or background resume is promised.
 
 The parent verifies the requested branch and head locally before dispatch. Children never resume. Use live cancellation only if exposed; confirm exit before writable scope reuse.
 

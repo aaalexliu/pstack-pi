@@ -40,7 +40,7 @@ function assertOnlyDeclaredTools(run) {
   assert.deepEqual(run.resources?.extensions, runtime ? [join(run.paths.package, 'extensions/pstack/index.ts'), join(run.paths.package, 'extensions/subagent/index.ts'), join(run.paths.package, 'extensions/profiles/index.ts'), join(run.paths.package, 'extensions/title/index.ts'), join(run.paths.package, 'extensions/recap/index.ts'), join(run.paths.package, 'extensions/media/index.ts')] : []);
   const tools = run.provider?.decodedRequests[0]?.tools;
   assert.ok(Array.isArray(tools));
-  assert.deepEqual(tools.map((tool) => tool.function.name).sort(), ['bash', 'edit', ...(runtime ? ['pstack_config', 'pstack_papercut', 'pstack_sessions', 'pstack_todo'] : []), 'read', ...(runtime ? ['subagent'] : []), 'write']);
+  assert.deepEqual(tools.map((tool) => tool.function.name).sort(), ['bash', ...(runtime ? ['blocking_subagent'] : []), 'edit', ...(runtime ? ['pstack_config', 'pstack_papercut', 'pstack_sessions', 'pstack_todo'] : []), 'read', 'write']);
   assert.ok(!run.events.some((event) => event.type.startsWith('tool_execution')));
 }
 import { PiTestError, runPiSmoke } from "./runner.mjs";

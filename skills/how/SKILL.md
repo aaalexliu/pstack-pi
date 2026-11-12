@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 Explore the codebase to answer "how does X work?" questions. Produce architectural explanations at the level of a senior engineer onboarding onto a subsystem, enough to build a working mental model, not so much that it reads like annotated source code. The reader is not in the weeds of this codebase. Lead with the surrounding workflow: who acts, in what order, and what someone watching would see. Then one concrete example. Use a failure example when the point is a bug, a race, or an edge. Keep file and function names as places to look. Those names are not the explanation. Do not invent a short name for a phase. Use a name only if the code, the docs, or the user already use it, and say what it is the first time.
 
-Every spawn is a `subagent` task with agent `general-purpose`. Explorers use role `how-explorer`, and every explainer uses role `how-explainer`. Pass an explicit `model` only when the user or the configured role names one; never invent a model identifier. Pick each subagent's reasoning level for the job, per the Subagents section of the **poteto-mode** skill.
+Every spawn is a `blocking_subagent` task with agent `general-purpose`. Explorers use role `how-explorer`, and every explainer uses role `how-explainer`. Pass an explicit `model` only when the user or the configured role names one; never invent a model identifier. Pick each subagent's reasoning level for the job, per the Subagents section of the **poteto-mode** skill.
 
 ## 1. Assess complexity
 
@@ -21,11 +21,11 @@ When the answer depends on how an outside product behaves, such as a vendor's re
 
 When in doubt, take the simple path.
 
-The parent alone orchestrates through `subagent`, with at most eight tasks per request and four active children. Finish each request before the next. Children use `general-purpose` with `read`, `grep`, `find`, `ls`, and child-local `pstack_todo`; no bash, writes, external tools, or delegation. The parent owns external probes. If delegation is unavailable, follow the same steps locally and disclose the lost independence.
+The parent alone orchestrates through `blocking_subagent`, with at most eight tasks per request and four active children. Finish each request before the next. Children use `general-purpose` with `read`, `grep`, `find`, `ls`, and child-local `pstack_todo`; no bash, writes, external tools, or delegation. The parent owns external probes. If delegation is unavailable, follow the same steps locally and disclose the lost independence.
 
 ## 2. Explore (complex only)
 
-Decompose the question into 2 to 4 angles, each a distinct slice of the subsystem. Spawn all explorers in one `subagent` request, each with `references/explorer-prompt.md` and its angle filled in.
+Decompose the question into 2 to 4 angles, each a distinct slice of the subsystem. Spawn all explorers in one `blocking_subagent` request, each with `references/explorer-prompt.md` and its angle filled in.
 
 ## 3. Synthesize (complex only)
 

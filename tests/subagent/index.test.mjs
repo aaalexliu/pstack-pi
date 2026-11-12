@@ -126,7 +126,7 @@ test('depth guard: a child Pi registers nothing, the root registers the tool and
   assert.equal(childEnvironment(0, { PI_MEMORY_EXIT_SUMMARY: '1' }).PI_MEMORY_EXIT_SUMMARY, '0', 'Children never write pi-memory exit summaries');
   for (const depth of ['1', '01', '7', 'x']) assert.deepEqual(registration({ env: { [DEPTH_VARIABLE]: depth } }).tools, []);
   const { tools, handlers } = registration({ env: {} });
-  assert.equal(tools[0].name, 'subagent');
+  assert.equal(tools[0].name, 'blocking_subagent');
   assert.deepEqual([...handlers.keys()].sort(), ['session_shutdown', 'tool_result']);
   for (const text of ['comment-sicko', 'general-purpose', 'poteto-agent', 'inherit-parent', roles[0], 'Children cannot delegate']) assert.ok(tools[0].description.includes(text), text);
 });
@@ -450,7 +450,7 @@ test('aborted batches wait for all children and preserve terminal metadata throu
   await assert.rejects(pending, /aborted/);
   assert.deepEqual(await untilGone(children.flatMap(({ pid, grandchild }) => [pid, grandchild]), 500), []);
   const hook = f.handlers.get('tool_result');
-  const event = { toolName: 'subagent', toolCallId: 'call', isError: true };
+  const event = { toolName: 'blocking_subagent', toolCallId: 'call', isError: true };
   const saved = hook?.(event);
   assert.ok(saved.details.progress.endedAt);
   assert.deepEqual(saved.details.progress.tasks.map((/** @type {{state: string}} */ row) => row.state), ['aborted', 'aborted']);
