@@ -14,5 +14,5 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["scripts/**/*.mjs", "tests/**/*.mjs", "extensions/**/*.ts"]
+  "include": ["scripts/**/*.mjs", "tests/**/*.mjs", "extensions/**/*.ts", "runner/**/*.ts"]
 }
