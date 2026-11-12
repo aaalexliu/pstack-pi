@@ -151,7 +151,14 @@ const flag = (name) => args[args.indexOf(name) + 1];
 const next = (kind) => kind + ":" + state.next++;
 const save = () => fs.writeFileSync(file, JSON.stringify(state));
 const fail = (message) => { process.stderr.write("Error: " + message + "\\n"); process.exit(1); };
-const workspace = (ref) => state.workspaces[ref] || fail("Workspace ref not found: " + ref);
+const workspace = (ref) => {
+  if (state.lagging && state.lagging[ref] > 0) {
+    state.lagging[ref]--;
+    save();
+    fail("Workspace ref not found: " + ref);
+  }
+  return state.workspaces[ref] || fail("Workspace ref not found: " + ref);
+};
 const paneOf = (surface) => {
   for (const ws of Object.values(state.workspaces))
     for (const [pane, surfaces] of Object.entries(ws)) if (surfaces.includes(surface)) return { ws, pane, surfaces };
@@ -162,6 +169,7 @@ if (state.fail && state.fail[cmd]) fail(state.fail[cmd]);
 if (cmd === "workspace" && sub === "create") {
   const ref = next("workspace");
   state.workspaces[ref] = { [next("pane")]: [next("surface")] };
+  if (state.lagLookups) state.lagging = { [ref]: state.lagLookups };
   save();
   console.log("OK " + ref);
 } else if (cmd === "workspace" && sub === "close") {
@@ -2910,6 +2918,22 @@ describe("cmux.ts", () => {
         assert.ok(newRef && newRef !== ref, "the next child gets a new workspace");
         closeSurface(next);
         assert.deepEqual(Object.keys(cmux.workspaces()), [ref]);
+      });
+    });
+
+    it("waits for cmux to accept a new workspace before setting it up", async () => {
+      await withFakeCmux(async (cmux) => {
+        cmux.update((state) => {
+          state.lagLookups = 3;
+        });
+
+        const child = createSurface("c1", placement);
+
+        const workspaces = cmux.workspaces();
+        assert.equal(Object.keys(workspaces).length, 1);
+        assert.ok(Object.values(workspaces).some((panes) => Object.values(panes).flat().includes(child)));
+        closeSurface(child);
+        assert.deepEqual(cmux.workspaces(), {});
       });
     });
 

@@ -780,6 +780,7 @@ function createCmuxAgentsWorkspace(
   if (!ref) throw new Error(`Unexpected cmux workspace create output: ${output}`);
 
   try {
+    waitForCmuxWorkspace(ref);
     const parentWorkspace = process.env.CMUX_WORKSPACE_ID;
     if (parentWorkspace) {
       execFileSync("cmux", ["reorder-workspace", "--workspace", ref, "--after", parentWorkspace], {
@@ -821,6 +822,17 @@ function listCmuxWorkspaceSurfaces(ref: string): string[] | null {
   } | null;
   if (!Array.isArray(panes?.panes)) return null;
   return panes.panes.filter((pane) => pane.dock_scope !== "global").flatMap((pane) => pane.surface_refs ?? []);
+}
+
+/**
+ * `cmux workspace create` can print the new ref a moment before other commands
+ * accept it, longer while cmux is busy closing other workspaces.
+ */
+function waitForCmuxWorkspace(ref: string): void {
+  const deadline = Date.now() + 3000;
+  while (!cmuxWorkspaceExists(ref) && Date.now() < deadline) {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
+  }
 }
 
 function cmuxWorkspaceExists(ref: string): boolean {
