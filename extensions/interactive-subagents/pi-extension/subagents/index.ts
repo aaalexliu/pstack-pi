@@ -2,7 +2,7 @@ import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-age
 import { keyHint } from "@mariozechner/pi-coding-agent";
 import { Type, type Static } from "@sinclair/typebox";
 import { Box, Text, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   readdirSync,
@@ -201,6 +201,14 @@ function getAgentConfigDir(): string {
 
 function getConfiguredAgentDirs(): string[] {
   return loadSubagentsConfig(getAgentConfigDir()).agentDirs;
+}
+
+/** Where cmux puts a child: the parent's own agents workspace, named after the parent session. */
+function cmuxPlacement(ctx: { sessionManager: { getSessionName(): string | undefined }; cwd: string }) {
+  return {
+    layout: loadSubagentsConfig(getAgentConfigDir()).cmuxLayout,
+    workspaceName: `agents: ${ctx.sessionManager.getSessionName() || basename(ctx.cwd)}`,
+  };
 }
 
 function getBundledAgentsDir(): string {
@@ -1054,7 +1062,15 @@ function startWidgetRefresh() {
  */
 async function launchSubagent(
   params: typeof SubagentParams.static,
-  ctx: { sessionManager: { getSessionFile(): string | null; getSessionId(): string; getSessionDir(): string }; cwd: string },
+  ctx: {
+    sessionManager: {
+      getSessionFile(): string | null;
+      getSessionId(): string;
+      getSessionDir(): string;
+      getSessionName(): string | undefined;
+    };
+    cwd: string;
+  },
   options?: { surface?: string },
 ): Promise<RunningSubagent> {
   const startTime = Date.now();
@@ -1091,7 +1107,7 @@ async function launchSubagent(
   // Use pre-created surface (parallel mode) or create a new one.
   // For new surfaces, pause briefly so the shell is ready before sending the command.
   const surfacePreCreated = !!options?.surface;
-  const surface = options?.surface ?? createSurface(params.name);
+  const surface = options?.surface ?? createSurface(params.name, cmuxPlacement(ctx));
   if (!surfacePreCreated) {
     await new Promise<void>((resolve) => setTimeout(resolve, getShellReadyDelayMs()));
   }
@@ -1925,7 +1941,7 @@ export default function subagentsExtension(pi: ExtensionAPI) {
         // Record entry count before resuming so we can extract new messages
         const entryCountBefore = getNewEntries(params.sessionPath, 0).length;
 
-        const surface = createSurface(name);
+        const surface = createSurface(name, cmuxPlacement(ctx));
         await new Promise<void>((resolve) => setTimeout(resolve, getShellReadyDelayMs()));
 
         // Build pi resume command

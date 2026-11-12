@@ -3,6 +3,13 @@ import { promisify } from "node:util";
 import { existsSync, readFileSync, rmSync, writeFileSync, mkdirSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
+import type { CmuxLayout } from "./config.ts";
+import {
+  addCmuxSplit,
+  planCmuxSplit,
+  removeCmuxPane,
+  type CmuxLayoutNode,
+} from "./cmux-layout.ts";
 
 const execFileAsync = promisify(execFile);
 
@@ -199,8 +206,20 @@ async function zellijActionAsync(args: string[], surface?: string): Promise<stri
   return stdout;
 }
 
-/** Tracked subagent pane for cmux — reused across subagent launches. */
-let cmuxSubagentPane: string | null = null;
+/**
+ * The cmux workspace that holds every child of this parent session. Its
+ * layout is fixed when it is created; a changed setting applies to the next one.
+ */
+type CmuxAgentsWorkspace = {
+  ref: string;
+  /** Live child surfaces. The workspace closes when the last one does. */
+  surfaces: Set<string>;
+  arrangement:
+    | { layout: "grid"; panes: CmuxLayoutNode }
+    | { layout: "tabs"; pane: string };
+};
+
+let cmuxAgentsWorkspace: CmuxAgentsWorkspace | null = null;
 
 // Mirrors Zellij 0.44.x tab minimums, used to predict which pane Zellij itself
 // will choose for a directionless split.
@@ -714,6 +733,7 @@ function createCmuxSplitSurface(
   name: string,
   direction: "left" | "right" | "up" | "down",
   fromSurface?: string,
+  workspace?: string,
 ): CmuxCreatedSurface {
   const identifySnapshot = captureCmuxIdentifySnapshot();
   const focusSnapshot = identifySnapshot.focused;
@@ -722,6 +742,7 @@ function createCmuxSplitSurface(
 
   try {
     const args = ["new-split", direction];
+    if (workspace) args.push("--workspace", workspace, "--focus", "false");
     if (fromSurface) args.push("--surface", fromSurface);
 
     const output = execFileSync("cmux", args, { encoding: "utf8" }).trim();
@@ -742,34 +763,103 @@ function createCmuxSplitSurface(
 }
 
 /**
+ * Create the agents workspace without focusing it, right after the parent's
+ * workspace in the sidebar, and return its first terminal for the first child.
+ */
+function createCmuxAgentsWorkspace(
+  workspaceName: string,
+  layout: CmuxLayout,
+  childName: string,
+): string {
+  const output = execFileSync(
+    "cmux",
+    ["workspace", "create", "--name", workspaceName, "--cwd", process.cwd(), "--focus", "false"],
+    { encoding: "utf8", env: { ...process.env, CMUX_QUIET: "1" } },
+  );
+  const ref = output.match(/workspace:\d+/)?.[0];
+  if (!ref) throw new Error(`Unexpected cmux workspace create output: ${output}`);
+
+  try {
+    const parentWorkspace = process.env.CMUX_WORKSPACE_ID;
+    if (parentWorkspace) {
+      execFileSync("cmux", ["reorder-workspace", "--workspace", ref, "--after", parentWorkspace], {
+        encoding: "utf8",
+      });
+    }
+
+    const listing = parseCmuxJson(
+      execFileSync("cmux", ["--json", "list-panes", "--workspace", ref], { encoding: "utf8" }),
+    ) as { panes?: Array<{ ref?: string; surface_refs?: string[] }> } | null;
+    const first = listing?.panes?.find((pane) => pane.ref && pane.surface_refs?.length);
+    if (!first) throw new Error(`No terminal in new cmux workspace ${ref}`);
+    const surface = first.surface_refs![0];
+
+    renameCmuxSurface(surface, childName);
+    cmuxAgentsWorkspace = {
+      ref,
+      surfaces: new Set([surface]),
+      arrangement:
+        layout === "grid" ? { layout, panes: { surface } } : { layout, pane: first.ref! },
+    };
+    return surface;
+  } catch (error) {
+    try {
+      execFileSync("cmux", ["workspace", "close", ref, "--force"], { encoding: "utf8" });
+    } catch {}
+    throw error;
+  }
+}
+
+function cmuxWorkspaceExists(ref: string): boolean {
+  return spawnSync("cmux", ["tree", "--workspace", ref], { encoding: "utf8" }).status === 0;
+}
+
+/**
+ * Give a child its own surface in the agents workspace: a pane of a 2x2 grid
+ * ("grid") or a tab in the workspace's one pane ("tabs").
+ */
+function createCmuxAgentSurface(name: string, layout: CmuxLayout, workspaceName: string): string {
+  if (cmuxAgentsWorkspace && !cmuxWorkspaceExists(cmuxAgentsWorkspace.ref)) {
+    cmuxAgentsWorkspace = null;
+  }
+  const workspace = cmuxAgentsWorkspace;
+  if (!workspace) return createCmuxAgentsWorkspace(workspaceName, layout, name);
+
+  const { arrangement } = workspace;
+  if (arrangement.layout === "tabs") {
+    const surface = createSurfaceInPane(name, arrangement.pane, workspace.ref);
+    workspace.surfaces.add(surface);
+    return surface;
+  }
+
+  const plan = planCmuxSplit(arrangement.panes);
+  const { surface } = createCmuxSplitSurface(name, plan.direction, plan.from, workspace.ref);
+  arrangement.panes = addCmuxSplit(arrangement.panes, plan.from, plan.direction, surface);
+  workspace.surfaces.add(surface);
+  return surface;
+}
+
+/**
  * Create a new terminal surface for a subagent.
  *
- * For cmux: the first call creates a right-split pane; subsequent calls add
- * tabs to that same pane (avoiding ever-narrower splits).
+ * For cmux: every child of this parent goes in one separate "agents:" workspace,
+ * laid out per `cmuxLayout` (see createCmuxAgentSurface).
  * For zellij: chooses a tab-aware tiled or stacked placement.
  * For tmux/wezterm: falls back to split behavior.
  *
  * Returns an identifier (`surface:42` in cmux, `%12` in tmux, `pane:7` in zellij, `42` in wezterm).
  */
-export function createSurface(name: string): string {
+export function createSurface(
+  name: string,
+  cmux: { layout: CmuxLayout; workspaceName: string } = {
+    layout: "grid",
+    workspaceName: `agents: ${basename(process.cwd())}`,
+  },
+): string {
   const backend = getMuxBackend();
 
-  if (backend === "cmux" && cmuxSubagentPane) {
-    // Verify the pane still exists before adding a tab to it
-    try {
-      const tree = execSync(`cmux tree`, { encoding: "utf8" });
-      if (tree.includes(cmuxSubagentPane)) {
-        return createSurfaceInPane(name, cmuxSubagentPane);
-      }
-    } catch {}
-    // Pane is gone — fall through to create a new split
-    cmuxSubagentPane = null;
-  }
-
   if (backend === "cmux") {
-    const created = createCmuxSplitSurface(name, "right", process.env.CMUX_SURFACE_ID);
-    cmuxSubagentPane = created.paneRef ?? null;
-    return created.surface;
+    return createCmuxAgentSurface(name, cmux.layout, cmux.workspaceName);
   }
 
   if (backend === "zellij") {
@@ -785,14 +875,18 @@ export function createSurface(name: string): string {
 /**
  * Create a new surface (tab) in an existing cmux pane.
  */
-function createSurfaceInPane(name: string, pane: string): string {
+function createSurfaceInPane(name: string, pane: string, workspace: string): string {
   const identifySnapshot = captureCmuxIdentifySnapshot();
   const focusSnapshot = identifySnapshot.focused;
   const callerSnapshot = identifySnapshot.caller;
   let child: CmuxCreatedSurface | null = null;
 
   try {
-    const output = execFileSync("cmux", ["new-surface", "--pane", pane], { encoding: "utf8" }).trim();
+    const output = execFileSync(
+      "cmux",
+      ["new-surface", "--pane", pane, "--workspace", workspace, "--focus", "false"],
+      { encoding: "utf8" },
+    ).trim();
     child = parseCmuxCreatedSurface(output, "new-surface");
     child.paneRef ??= pane;
     renameCmuxSurface(child.surface, name);
@@ -1196,6 +1290,19 @@ export function closeSurface(surface: string): void {
   if (backend === "cmux") {
     // Callers close only panes this extension created. A just-exited child can
     // still own a process, and cmux then asks for confirmation instead of closing.
+    const workspace = cmuxAgentsWorkspace;
+    if (workspace?.surfaces.delete(surface)) {
+      if (workspace.surfaces.size === 0) {
+        // cmux refuses to close a workspace's last surface; close the workspace.
+        cmuxAgentsWorkspace = null;
+        execFileSync("cmux", ["workspace", "close", workspace.ref, "--force"], { encoding: "utf8" });
+        return;
+      }
+      const { arrangement } = workspace;
+      if (arrangement.layout === "grid") {
+        arrangement.panes = removeCmuxPane(arrangement.panes, surface)!;
+      }
+    }
     execSync(`cmux close-surface --surface ${shellEscape(surface)} --force`, {
       encoding: "utf8",
     });
