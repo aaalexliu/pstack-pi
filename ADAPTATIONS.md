@@ -84,6 +84,27 @@ Tier A poteto-mode playbooks ship as copies or narrow transforms: `opening-a-pr`
 
 `tests/content/workflow-contracts.json` records reviewed upstream passages separately from Pi boundary clauses. `tests/content/fidelity.test.mjs` checks both against the package-loaded files, rejects full replacements, and checks that command edits do not alter scratch paths. Production tests replay every transform and verify all copied bytes. These tests check instructions and loading, not model compliance.
 
+## Interactive subagents
+
+`extensions/interactive-subagents/` is a squashed `git subtree` of [HazAT/pi-interactive-subagents](https://github.com/HazAT/pi-interactive-subagents) at v3.7.2, commit `c100577ebf7393a11d098ad9810ec6c269dcfc30`. Its MIT `LICENSE` ships with it. It runs non-blocking subagents in cmux or tmux panes the user can watch and steer. Upstream's names stay: the `subagent`, `subagent_resume`, `subagent_interrupt`, and `subagents_list` tools, `subagent_done` and `caller_ping` in children, and the `/plan`, `/iterate`, and `/subagent` commands. pstack-pi's blocking tool is `blocking_subagent` so both fit. Upstream's `@mariozechner` and `@sinclair/typebox` imports stay; Pi 1.5.2 aliases them.
+
+Each change below is one or more commits on top of the subtree. The first group ports [aaalexliu/pi-interactive-subagents](https://github.com/aaalexliu/pi-interactive-subagents) (fork commit `f767085`) without its tool rename, its `interactive-subagents.json`, or its `agentDirs` setting. `SYNCING.md` explains how to pull a new upstream tag.
+
+| Change | Why | Files |
+| --- | --- | --- |
+| Force-close finished child panes in cmux. Cleanup runs in `finally`. | cmux 0.65 refuses `close-surface` while the pane still owns a process. The close failed and the parent lost the child's report. A close failure can no longer replace the result. | `pi-extension/subagents/cmux.ts`, `pi-extension/subagents/index.ts` |
+| Children get no spawning tools unless their agent says `spawning: true`, and run with `PSTACK_SUBAGENT_DEPTH=1`. | Only the parent delegates. The depth hides `blocking_subagent` in children. | `pi-extension/subagents/index.ts`, `README.md` |
+| Cap running children per parent at `maxConcurrent`, default 4, and queue the rest. | Bounds load. A queued call returns at once and starts when a slot frees. | `pi-extension/subagents/index.ts` |
+| cmux puts each parent's children in one `agents: <session>` workspace, as a 2x2 grid or as tabs. The workspace closes only when nothing else is in it. A new workspace waits until cmux accepts its ref. | Keeps children out of the user's own panes. A terminal the user opened there survives, and a child no longer fails to start right after another workspace closes. | `pi-extension/subagents/cmux.ts`, `pi-extension/subagents/cmux-layout.ts`, `pi-extension/subagents/index.ts` |
+| tmux opens each child as a window in the parent's session. | Full-size panes instead of ever narrower splits. | `pi-extension/subagents/cmux.ts` |
+| A destroyed pane, window, or workspace ends the child's watcher and frees its slot. A Claude child's sentinel is checked again after a pane-gone read. | The parent gets a stopped report with the session path instead of waiting forever. A result written during that read is kept. | `pi-extension/subagents/cmux.ts`, `pi-extension/subagents/index.ts` |
+| `maxConcurrent` and `cmuxLayout` live under `interactiveSubagents` in `<agent dir>/pstack-pi/settings.json`. A missing file or key means the defaults. A bad file keeps the last good settings. | One settings file for the package, the one `/pstack-cmux` already writes and keeps unknown keys in. A file saved mid-edit never fails cleanup, admission, or spawns. | `pi-extension/subagents/config.ts`, `pi-extension/subagents/index.ts`, `README.md` |
+| Agent frontmatter lists accept YAML flow lists such as `tools: [read, bash]`. | pstack-pi's agents use them. | `pi-extension/subagents/index.ts` |
+| Children find pstack-pi's `agents/` and `additions/agents/` with no config, after the bundled agents and before user and project agents. `{{PSTACK_ROOT}}` resolves to the package root. | Interactive children can run `poteto-agent`, `general-purpose`, and `comment-sicko`, as `blocking_subagent` can. | `pi-extension/subagents/index.ts`, `extensions/subagent/agents.ts` |
+| A `blocking_subagent` child, at depth 1 or more without `PI_SUBAGENT_NAME`, registers none of the interactive spawning tools. | Both extensions load in every child. A blocking child with host default tools would otherwise get `subagent`. | `pi-extension/subagents/index.ts`, `test/pstack.test.ts` |
+
+`package.json` registers `pi-extension/subagents/index.ts` and ships the extension modules, plan skill, Claude Code plugin, bundled agents, README, config example, package file, and license. The plugin's `on-stop.sh` keeps its executable mode. `tsconfig.json` leaves the subtree out of `tsc`; its unit tests cover it.
+
 ## Why the earlier replacements lost behavior
 
 Commit `0a6f170` activated Interrogate as an 18-line replacement of the 111-line source workflow. Its reason cited Cursor tools and model routing, but the rewrite also dropped scope selection, configured panel membership, attribution, and the verdict structure. Hash checks accepted the reviewed bytes; they did not prove a faithful adaptation.

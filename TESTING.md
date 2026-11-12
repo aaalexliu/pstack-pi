@@ -9,9 +9,9 @@
 | `npm run test:pi` | Pi harness tests and packed real-Pi tests |
 | `npm run test:pi:unit` | Pi harness tests without launching Pi |
 
-`test:fast` runs the sync, content, pstack, subagent, profiles, title, recap, media, and Pi harness test files in one Node test invocation. Files keep separate processes and run concurrently. It skips packed real-Pi tests. `npm test` runs that same set, then the packed tests without repeating the harness tests.
+`test:fast` runs the sync, content, pstack, subagent, profiles, title, recap, media, interactive-subagents, and Pi harness test files in one Node test invocation. Files keep separate processes and run concurrently. It skips packed real-Pi tests. `npm test` runs that same set, then the packed tests without repeating the harness tests.
 
-`scripts/run-tests.mjs` discovers test files. New files under `tests/pi/` default to the packed suite unless listed in `PI_UNIT_TESTS`.
+`scripts/run-tests.mjs` discovers test files. New files under `tests/pi/` default to the packed suite unless listed in `PI_UNIT_TESTS`. It also runs the interactive-subagents subtree's files listed in `SUBTREE_TESTS`. It drops `PSTACK_SUBAGENT_DEPTH`, `PI_SUBAGENT_*`, and `PI_DENY_TOOLS` from the test environment, so tests run from inside a subagent still see a root Pi.
 
 `npm run check` runs `typecheck`, `sync:check`, `check:content`, and `npm test` in that order. CI runs the same command in the checkout and in a clean Git archive with no `.git` directory.
 
@@ -29,7 +29,7 @@ Use the strongest gate for mixed changes. Markdown is not automatically docs-onl
 
 Run the full check when a change affects any of:
 
-- `extensions/subagent/**` or `extensions/pstack/**` runtime behavior
+- `extensions/subagent/**`, `extensions/interactive-subagents/**`, or `extensions/pstack/**` runtime behavior
 - packed tests under `tests/pi/**`, their shared harness, or test orchestration such as `scripts/run-tests.mjs`
 - dependencies, the supported Pi/Node versions, pack membership, package exposure, or profile isolation
 - timeouts, parallelism, the depth guard, `pi` resolution on `PATH`, or parent signal handling
@@ -65,6 +65,8 @@ These are observations, not timeout limits. CPU load and cold starts affect them
 `test:pstack` drives the `pstack` extension against a fake ExtensionAPI: tool and command registration, lifecycle hooks, the todo reducer, and the absence of a blanket command gate.
 
 `test:subagent` drives the `blocking_subagent` tool with a fake `pi` that speaks the JSON protocol: routing precedence and pool rotation, stdin task and `0600` prompt delivery, parallel order and concurrency, chain substitution, abort and timeout killing a `SIGTERM`-ignoring grandchild, and shutdown. Renderer tests cover narrow terminals, long chains, output expansion, and both inspector views.
+
+`extensions/interactive-subagents/test/test.ts` is upstream's unit suite plus the ported fork changes: cmux and tmux placement, the agents workspace and its cleanup, force-close, the concurrency cap and queue, pane-gone detection, settings and their last-good fallback, agent discovery including pstack-pi's agents, and the spawning deny list. `test/pstack.test.ts` loads both delegation extensions as a root, a `blocking_subagent` child, and an interactive child, and checks which tools each gets. Both import `@mariozechner/pi-coding-agent`, `@mariozechner/pi-tui`, and `@sinclair/typebox`, which Pi aliases at runtime; devDependencies alias them to the pinned `@earendil-works` packages and `typebox`. Upstream's integration tests need a live multiplexer and model and do not run.
 
 `tests/profiles` checks the auth profiles extension against fake credential stores: folder and inherited profile selection, the launch profile read once per process, logins and refreshes landing in the right file, and store restore on shutdown. `tests/profiles/e2e/run.sh` is a manual check against real Pi 1.x and a loopback Anthropic stand-in with fake keys; CI does not run it.
 

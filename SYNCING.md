@@ -108,6 +108,21 @@ node --test tests/content/fidelity.test.mjs
 
 8. Run focused workflow tests, then follow `RELEASING.md`. Run the full suite once on the final tree.
 
+## Update interactive subagents
+
+`extensions/interactive-subagents/` is a squashed `git subtree` of [HazAT/pi-interactive-subagents](https://github.com/HazAT/pi-interactive-subagents), not part of the sync manifest. The pin and pstack-pi's changes on top are in the "Interactive subagents" section of `ADAPTATIONS.md`. To move to a new upstream tag:
+
+```sh
+git subtree pull --prefix=extensions/interactive-subagents \
+  https://github.com/HazAT/pi-interactive-subagents <tag> --squash
+```
+
+1. Resolve conflicts against the change list in `ADAPTATIONS.md`. Keep upstream's tool names.
+2. Update the pin in `ADAPTATIONS.md`.
+3. If upstream added or removed runtime files, update `files` in `package.json`, `extensionFiles` in `scripts/check-content.mjs`, and the pack count in `tests/pi/smoke.test.mjs`.
+4. If upstream's unit tests moved, update `SUBTREE_TESTS` in `scripts/run-tests.mjs`.
+5. Run `npm run check`.
+
 ## Failure and recovery
 
 Sync operations use a project lock and stage writes before promotion. A failed operation rolls back managed roots. If rollback or cleanup itself fails, the tool preserves the lock and prints the manual recovery path. Do not delete an unfamiliar lock or relock around source drift. Inspect the reported state first.

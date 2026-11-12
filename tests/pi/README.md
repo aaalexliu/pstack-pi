@@ -10,11 +10,11 @@
 - `process-observer.mjs` and `production-observer.mjs` read `ps` snapshots to count live Pi processes and confirm that every child under the root is gone before the test rescues anything.
 - `unit.test.mjs` covers revision, JSONL, provider bounds, missing executables, test-file classification, pack reuse, fresh extracts, and failed-setup cleanup. `provider.test.mjs` and `concurrent-provider.test.mjs` test the loopback providers. `npm run test:pi:unit` runs these three files without launching Pi. `npm run test:fast` includes them.
 - `smoke.test.mjs` proves package loading, three sampled skill expansions (`bro`, `poteto-mode`, one principle), and the declared tool surface. `todo.test.mjs` proves persisted todos.
-- `delegate.test.mjs` proves a real parent delegating to real bundled, user, and poteto children, with exact child tool lists and no leftover prompt files.
+- `delegate.test.mjs` proves a real parent delegating to real bundled, user, and poteto children, with exact child tool lists and no leftover prompt files. A child with host default tools gets neither `blocking_subagent` nor the interactive `subagent` tools.
 - `progress.test.mjs` proves live model, tool, checklist and usage metadata, persisted final snapshots, and timeout cards through packed Pi. Renderer tests under `tests/subagent/` cover scrolling, raw status, long chains, overlap, and reload. The demo script exercises the real terminal views.
 - `execution-safety.test.mjs` proves the depth guard, `timeoutMs`, simultaneous calls, eight parallel tasks with a four-child ceiling, fake `pi` in `PATH`, and parent `SIGTERM` and `SIGHUP` cleanup.
 
-Packed test files run serially in one process via `--experimental-test-isolation=none --test-concurrency=1`. This shares preparation without sharing test profiles. Non-packed files retain process isolation. Individual packed tests still run concurrent children. Explicit child tool lists include the agent's tools plus `pstack_todo`, never `subagent`.
+Packed test files run serially in one process via `--experimental-test-isolation=none --test-concurrency=1`. This shares preparation without sharing test profiles. Non-packed files retain process isolation. Individual packed tests still run concurrent children. Explicit child tool lists include the agent's tools plus `pstack_todo`, never `blocking_subagent`.
 
 The runner deletes its shared pack at suite teardown and on normal process exit. Retained runs get their own tarball copy alongside `run.json`. A direct `node --test tests/pi/smoke.test.mjs` invocation prepares its own pack and cleans it up. New `tests/pi/*.test.mjs` files default to packed tests; add only non-Pi harness files to `PI_UNIT_TESTS` in `scripts/run-tests.mjs`.
 
