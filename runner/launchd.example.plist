@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>local.job-runner</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>NODE_PATH_HERE</string>
+    <string>PSTACK_PI_CHECKOUT_HERE/runner/runner.ts</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>PATH_WITH_PI_GH_GIT_NODE_HERE</string>
+    <key>HOME</key>
+    <string>HOME_HERE</string>
+  </dict>
+  <key>WorkingDirectory</key>
+  <string>HOME_HERE</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>HOME_HERE/Library/Logs/job-runner.log</string>
+  <key>StandardErrorPath</key>
+  <string>HOME_HERE/Library/Logs/job-runner.log</string>
+</dict>
+</plist>
