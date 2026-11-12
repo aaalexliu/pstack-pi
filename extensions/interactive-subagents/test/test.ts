@@ -20,6 +20,8 @@ import {
 import {
   closeSurface,
   createSurface,
+  isPaneGoneError,
+  pollForExit,
   shellEscape,
   isCmuxAvailable,
   isWezTermAvailable,
@@ -2220,6 +2222,73 @@ describe("concurrency cap", () => {
     });
   });
 
+  it("ends the watchers of children whose workspace the user closed and starts the queued child", async () => {
+    await withMaxConcurrent(4, async () => {
+      await withFakeCmux(async (cmux) => {
+        const { api } = createMockExtensionApi();
+        const { launched, execute } = startedLauncher();
+        const start = testApi.withSpawnSlot(api, execute);
+        for (const name of ["c1", "c2", "c3", "c4", "c5"]) await start("id", { name, task: "T" });
+        assert.deepEqual(launched, ["c1", "c2", "c3", "c4"]);
+
+        const dir = createTestDir();
+        const watchers = new AbortController();
+        try {
+          const children = launched.map((name) => ({
+            id: name,
+            name,
+            task: "T",
+            surface: createSurface(name, { layout: "grid", workspaceName: "agents: test" }),
+            startTime: Date.now(),
+            sessionFile: join(dir, `${name}.jsonl`),
+            interactive: false,
+            statusState: createStatusState({ source: "pi", startTimeMs: Date.now() }),
+          }));
+          cmux.update((state) => {
+            state.workspaces = {};
+          });
+
+          const results = await Promise.race([
+            Promise.all(children.map((child) => testApi.watchSubagent(child, watchers.signal))),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
+          ]);
+          assert.ok(results, "every watcher ends once its pane is gone");
+          await tick();
+
+          for (const [i, result] of results.entries()) {
+            const report = testApi.resolveResultPresentation(result, result.name);
+            assert.match(report, /stopped after .*: its pane was closed before it finished/);
+            assert.ok(report.includes(`Session: ${children[i].sessionFile}`), "names the session to resume");
+          }
+          assert.deepEqual(launched, ["c1", "c2", "c3", "c4", "c5"]);
+        } finally {
+          watchers.abort();
+          rmSync(dir, { recursive: true, force: true });
+        }
+      });
+    });
+  });
+
+  it("keeps watching a child while its pane cannot be read for a passing reason", async () => {
+    await withFakeCmux(async (cmux) => {
+      const surface = createSurface("c1", { layout: "tabs", workspaceName: "agents: test" });
+      cmux.update((state) => {
+        state.fail = { "read-screen": "Socket not found at /tmp/cmux.sock" };
+      });
+      const abort = new AbortController();
+      let settled = false;
+      const poll = pollForExit(surface, abort.signal, { interval: 10 }).finally(() => {
+        settled = true;
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      assert.equal(settled, false);
+      abort.abort();
+      await assert.rejects(poll, /Abort/);
+      closeSurface(surface);
+    });
+  });
+
   it("releases a slot when a child's watcher ends", async () => {
     await withMaxConcurrent(1, async () => {
       const { api } = createMockExtensionApi();
@@ -2815,6 +2884,27 @@ describe("cmux.ts", () => {
 
         assert.ok(!cmux.calls().some((call) => call.startsWith("workspace close")));
       });
+    });
+  });
+
+  describe("isPaneGoneError", () => {
+    it("tells a destroyed pane from a read that failed for a passing reason", () => {
+      const gone: Array<[any, string]> = [
+        ["cmux", "Error: not_found: Surface not found for the given surface_id"],
+        ["cmux", "Error: Workspace ref not found: workspace:7"],
+        ["tmux", "can't find pane: %12"],
+        ["tmux", "can't find window: @3"],
+        ["wezterm", "unexpected response Ok(ErrorResponse(ErrorResponse { reason: \"Error: no such pane 42\" }))"],
+      ];
+      const passing: Array<[any, string]> = [
+        ["cmux", "Error: Socket not found at /tmp/cmux.sock"],
+        ["cmux", "Error: timed out"],
+        ["tmux", "no server running on /private/tmp/tmux-502/default"],
+        ["wezterm", "While connecting to Socket: connection refused"],
+        ["zellij", "There is no pane with this id"],
+      ];
+      for (const [backend, stderr] of gone) assert.equal(isPaneGoneError(backend, { stderr }), true, stderr);
+      for (const [backend, stderr] of passing) assert.equal(isPaneGoneError(backend, { stderr }), false, stderr);
     });
   });
 

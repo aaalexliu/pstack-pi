@@ -76,6 +76,8 @@ In cmux, all children of one parent session live in one separate workspace named
 
 In tmux, each child opens as a new background window, named after the child, in the parent's tmux session. Zellij and WezTerm keep their split behavior.
 
+If you close a running child's pane, window, or workspace in cmux, tmux, or WezTerm, the parent gets a report that the child stopped, with its session path so `subagent_resume` can resume it, and a queued child takes its slot. In Zellij the parent keeps waiting.
+
 Subagent panes are created without stealing keyboard focus (cmux, tmux). Launch commands target child surfaces by explicit ID, so focus and command delivery are independent. Note: the `interactive` option controls parent status notifications, not terminal focus.
 
 ## What's Included

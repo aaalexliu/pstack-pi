@@ -457,13 +457,20 @@ function formatWidgetRightLabel(snapshot: StatusSnapshot): string {
 function resolveResultPresentation(
   result: Pick<
     SubagentResult,
-    "exitCode" | "elapsed" | "summary" | "sessionFile" | "errorMessage"
+    "exitCode" | "elapsed" | "summary" | "sessionFile" | "errorMessage" | "paneClosed"
   >,
   name: string,
 ): string {
   const sessionRef = result.sessionFile
     ? `\n\nSession: ${result.sessionFile}\nResume: pi --session ${result.sessionFile}`
     : "";
+
+  if (result.paneClosed) {
+    return (
+      `Sub-agent "${name}" stopped after ${formatElapsed(result.elapsed)}: its pane was closed before it finished.` +
+      (result.sessionFile ? ` Resume it with subagent_resume.${sessionRef}` : "")
+    );
+  }
 
   if (result.errorMessage) {
     // Auto-retry exhausted or other agent-loop error. The subagent did not
@@ -499,6 +506,8 @@ interface SubagentResult {
   /** Provider/agent error message when auto-retry exhausted (overload, rate limit, etc.). */
   errorMessage?: string;
   ping?: { name: string; message: string };
+  /** The child's pane, window, or workspace was destroyed before it finished. */
+  paneClosed?: boolean;
 }
 
 /**
@@ -1400,6 +1409,18 @@ async function watchSubagent(
     });
 
     const elapsed = Math.floor((Date.now() - startTime) / 1000);
+
+    if (result.reason === "closed") {
+      return {
+        name,
+        task,
+        summary: "Its pane was closed before it finished.",
+        ...(running.cli === "claude" ? {} : { sessionFile }),
+        exitCode: result.exitCode,
+        elapsed,
+        paneClosed: true,
+      };
+    }
 
     if (running.cli === "claude") {
       // Claude Code result extraction
