@@ -47,13 +47,7 @@ export default function pstack(pi: ExtensionAPI): void {
   });
   pi.on('before_agent_start', (event) => {
     if (!mode.enabled) return;
-    const { sections } = event.systemPromptOptions as { sections?: Record<string, string> };
-    if (sections) {
-      sections[potetoSection] = potetoReminder;
-      return;
-    }
-    // Pi 0.85.1 has no prompt sections.
-    return { systemPrompt: `${event.systemPrompt}\n\n${potetoReminder}` };
+    event.systemPromptOptions.sections[potetoSection] = potetoReminder;
   });
 
   pi.registerCommand('pstack', {

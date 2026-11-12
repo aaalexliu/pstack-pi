@@ -22,9 +22,9 @@ const conversation = () => [
 
 /**
  * A fake Pi with one session whose branch grows as entries are appended.
- * @param {{ mode?: string, idle?: boolean, withComplete?: boolean, branch?: any[], answer?: (call: any) => any }} options
+ * @param {{ mode?: string, idle?: boolean, branch?: any[], answer?: (call: any) => any }} options
  */
-function harness({ mode = 'tui', idle = true, withComplete = true, branch = conversation(), answer = () => reply('The goal was to push the dotfiles, and it is done. Next, run the rebuild.') } = {}) {
+function harness({ mode = 'tui', idle = true, branch = conversation(), answer = () => reply('The goal was to push the dotfiles, and it is done. Next, run the rebuild.') } = {}) {
   /** @type {Map<string, Function[]>} */
   const handlers = new Map();
   /** @type {Map<string, any>} */
@@ -45,11 +45,11 @@ function harness({ mode = 'tui', idle = true, withComplete = true, branch = conv
     modelRegistry: {
       find: (/** @type {string} */ provider, /** @type {string} */ id) => [opus, haiku].find((m) => m.provider === provider && m.id === id),
       hasConfiguredAuth: () => true,
-      ...(withComplete ? { async complete(/** @type {any} */ model, /** @type {any} */ context, /** @type {any} */ options) {
+      async complete(/** @type {any} */ model, /** @type {any} */ context, /** @type {any} */ options) {
         const call = { model, context, options };
         calls.push(call);
         return answer(call);
-      } } : {}),
+      },
     },
     sessionManager: { getBranch: () => branch },
     ui: { theme: plain, notify: (/** @type {string} */ text) => notes.push(text), setStatus: (/** @type {string} */ _key, /** @type {string | undefined} */ text) => statuses.push(text) },
@@ -144,14 +144,11 @@ test('/recap writes one now and refuses while the agent works', async () => {
   await empty.run('recap');
   assert.match(empty.notes[0], /no conversation/);
 
-  const oldPi = harness({ withComplete: false });
-  await oldPi.run('recap');
-  assert.match(oldPi.notes[0], /cannot call a model/);
 });
 
-test('never arms outside the TUI or on Pi without ModelRegistry.complete', async (t) => {
+test('never arms outside the TUI', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
-  for (const pi of [harness({ mode: 'print' }), harness({ mode: 'rpc' }), harness({ withComplete: false })]) {
+  for (const pi of [harness({ mode: 'print' }), harness({ mode: 'rpc' })]) {
     pi.emit('agent_settled');
     t.mock.timers.tick(idleMs);
     await flush();

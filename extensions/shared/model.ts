@@ -1,5 +1,4 @@
-import type { Api, AssistantMessage, Context, Model } from '@earendil-works/pi-ai';
-import type { ExtensionContext } from '@earendil-works/pi-coding-agent';
+import type { Api, AssistantMessage, Model } from '@earendil-works/pi-ai';
 
 /** The small model to use on each provider. Other providers use the session model. */
 export const smallModels: Readonly<Record<string, string>> = { anthropic: 'claude-haiku-5-5' };
@@ -14,14 +13,6 @@ export function smallModel(registry: Registry, session: Model<Api> | undefined):
   const id = smallModels[session.provider];
   const small = id === undefined ? undefined : registry.find(session.provider, id);
   return small && registry.hasConfiguredAuth(small) ? small : session;
-}
-
-export type Complete = (model: Model<Api>, context: Context, options: { maxTokens: number; signal: AbortSignal }) => Promise<AssistantMessage>;
-
-/** `ModelRegistry.complete` arrived after Pi 0.85.1. Without it, callers skip their model request. */
-export function completer(ctx: ExtensionContext): Complete | undefined {
-  const complete = (ctx.modelRegistry as unknown as { complete?: Complete }).complete;
-  return typeof complete === 'function' ? complete.bind(ctx.modelRegistry) : undefined;
 }
 
 export function replyText(message: Pick<AssistantMessage, 'content'>): string {

@@ -1,6 +1,6 @@
 # Real Pi test controls
 
-`npm run test:pi` runs the harness tests, then Pi 0.85.1 against a bounded loopback provider. The runner packs the real package once per packed suite, checks its tar inventory and bytes, and extracts it into a fresh isolated profile for each test. Custom fixture packages always pack again.
+`npm run test:pi` runs the harness tests, then Pi 1.5.2 against a bounded loopback provider. The runner packs the real package once per packed suite, checks its tar inventory and bytes, and extracts it into a fresh isolated profile for each test. Custom fixture packages always pack again.
 
 ## Files
 

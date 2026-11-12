@@ -40,7 +40,7 @@ pi install git:github.com/aaalexliu/pstack-pi@<new-full-commit-sha>
 pi remove git:github.com/aaalexliu/pstack-pi
 ```
 
-The package supports Pi `0.85.1` and Node.js `>=22.19.0` in this release.
+The package requires Pi `>=1.5.2` and Node.js `>=22.19.0`. We test against Pi `1.5.2`; older Pi releases are not supported.
 
 ## Documentation
 
@@ -55,7 +55,7 @@ The package supports Pi `0.85.1` and Node.js `>=22.19.0` in this release.
 
 ## Supported scope
 
-Pi `0.85.1` exposes 58 skill commands:
+Pi `1.5.2` discovers all 58 package skill commands in an isolated profile:
 
 - Workflows: `/skill:alex-show-me`, `/skill:architect`, `/skill:arena`, `/skill:automate-me`, `/skill:benchmark-checklist`, `/skill:blast-radius`, `/skill:bro`, `/skill:correct`, `/skill:create-formal-verification-skill`, `/skill:create-verification-skill`, `/skill:deeper`, `/skill:figure-it-out`, `/skill:how`, `/skill:in-your-own-words`, `/skill:interrogate`, `/skill:ketchup`, `/skill:list-writing`, `/skill:maintain-formal-verification-skill`, `/skill:maintain-verification-skill`, `/skill:make-bot-ui`, `/skill:no-comments`, `/skill:poteto-mode`, `/skill:recall`, `/skill:reflect`, `/skill:setup-pstack`, `/skill:show-me-your-work`, `/skill:statechart`, `/skill:swarm`, `/skill:tdd`, `/skill:teach`, `/skill:technical-writing`, `/skill:typescript-best-practices`, `/skill:unslop`, and `/skill:why`.
 - Principles: `/skill:principle-attack-the-premise`, `/skill:principle-boundary-discipline`, `/skill:principle-build-the-lever`, `/skill:principle-encode-lessons-in-structure`, `/skill:principle-exhaust-the-design-space`, `/skill:principle-experience-first`, `/skill:principle-explain-the-number`, `/skill:principle-fix-root-causes`, `/skill:principle-foundational-thinking`, `/skill:principle-guard-the-context-window`, `/skill:principle-laziness-protocol`, `/skill:principle-make-operations-idempotent`, `/skill:principle-migrate-callers-then-delete-legacy-apis`, `/skill:principle-minimize-reader-load`, `/skill:principle-model-the-domain`, `/skill:principle-never-block-on-the-human`, `/skill:principle-outcome-oriented-execution`, `/skill:principle-prove-it-works`, `/skill:principle-redesign-from-first-principles`, `/skill:principle-separate-before-serializing-shared-state`, `/skill:principle-sequence-verifiable-units`, `/skill:principle-subtract-before-you-add`, `/skill:principle-test-behavior-not-implementation`, and `/skill:principle-type-system-discipline`.
@@ -66,7 +66,7 @@ Every skill except `list-writing` keeps `disable-model-invocation: true` so Pi e
 
 The package ships 125 generated skill and support files, two generated agents, five Pi-owned files under `additions/`, twenty-five extension modules, and the root package files.
 It registers `pstack_config`, `pstack_papercut`, `pstack_sessions`, `pstack_todo`, and, at root depth, `subagent`.
-The delegation extension owns one `session_shutdown` hook that stops live children and a `tool_result` hook that marks its own failed calls. The papercut journal owns a `tool_execution_start` hook and a `tool_result` hook that append a one-line measurement to other tools' results. The title extension owns an `input` hook that names the session in the background. The recap extension owns an `agent_settled` hook that starts its idle timer. The media extension records cited files after a TUI reply and draws a media entry under it.
+The delegation extension owns one `session_shutdown` hook that stops live children and a `tool_result` hook that preserves progress details when a call throws. Its `execute` result marks failed calls with `isError`. The papercut journal owns a `tool_execution_start` hook and a `tool_result` hook that append a one-line measurement to other tools' results. The title extension owns an `input` hook that names the session in the background. The recap extension owns an `agent_settled` hook that starts its idle timer. The media extension records cited files after a TUI reply and draws a media entry under it.
 Todo and Poteto Mode state follow the active session branch through versioned custom entries. The package registers `/pstack`, `/pstack-export`, `/subagents`, `/pstack-cmux`, `/papercuts`, `/recap`, and `/media`, but no prompts, themes, or blanket approval hooks.
 
 `/pstack-export [path.html]` runs stock Pi HTML export (`pi --export`) for the current session, then injects a sticky token time series for the active branch. Bars jump to the first entry in that local-time minute. Scroll on the transcript updates the current bucket. Without a path it writes `pi-session-<session>.html` in the cwd.
@@ -79,7 +79,7 @@ Its validation applies only to `subagent` requests.
 
 ## Core workflows
 
-Run `/skill:poteto-mode <task>` to load the mode and keep its short operating reminder active on the current session branch. The reminder is a `pstack_poteto_mode` system prompt section. Pi records sections in the session, so a request rebuilt from the session, as `pi-cached-compaction` does, matches the one Pi sent. Pi 0.85.1 has no sections, so there the reminder is appended to the system prompt. The mode selects one of six bundled playbooks: feature, bug fix, investigation, prototype, multi-phase plan, or orchestration. Branching before the command restores the mode state from that earlier point.
+Run `/skill:poteto-mode <task>` to load the mode and keep its short operating reminder active on the current session branch. The reminder is a `pstack_poteto_mode` system prompt section. Pi records sections in the session, so a request rebuilt from the session, as `pi-cached-compaction` does, matches the one Pi sent. The mode selects one of six bundled playbooks: feature, bug fix, investigation, prototype, multi-phase plan, or orchestration. Branching before the command restores the mode state from that earlier point.
 
 Poteto Mode uses `poteto-agent` for bounded implementation work and `general-purpose` for read-only exploration. `poteto-agent` has `read`, `grep`, `find`, `ls`, `bash`, `edit`, and `write`; it is a leaf process with no `subagent` tool. The parent still owns the design, diff review, and final checks.
 
@@ -161,7 +161,7 @@ What this package adds to the example:
 - A depth guard. The child receives `PSTACK_SUBAGENT_DEPTH=1`; at depth one or more the subagent extension registers nothing, so children cannot delegate. Explicit agent tool lists also include `pstack_todo`, so a child can report its own checklist.
 - Process groups. Each child is a detached session leader. Abort, `timeoutMs`, and parent shutdown send `SIGTERM` to the whole group, then `SIGKILL` after three seconds. Parent shutdown waits up to one second for children to exit and discards any result that arrives during shutdown.
 - Private inputs. The system prompt goes through a `0600` temp file with `--append-system-prompt` and the task through stdin, so neither appears in `ps`. The temp file is removed after the child exits.
-- Error results. Pi 0.85.1 ignores `isError` returned from `execute`, so a `tool_result` hook marks the result as an error when a single task fails, a chain stops, or every parallel task fails. A parallel call with some failures stays a normal result that names each failure.
+- Error results. `execute` returns `isError: true` when a single task fails, a chain stops, or every parallel task fails. A parallel call with some failures stays a normal result that names each failure. The `tool_result` hook keeps progress details when a call throws.
 - The child is launched through the same Node binary and Pi entrypoint as the parent, never through `pi` on `PATH`.
 
 The child also receives `PI_MEMORY_EXIT_SUMMARY=0`, so [pi-memory](https://github.com/jayzeng/pi-memory) does not summarize each child transcript into the shared daily log when the child exits.
@@ -277,7 +277,7 @@ In the interactive TUI, each prompt you type asks a small model, in the backgrou
 - The model is Claude Haiku 5.5 when the session model is Anthropic and Haiku has a login. Otherwise it is the session model. The request holds the current name, the last 800 characters of the previous assistant reply, and the first 1,500 characters of your message.
 - Each typed prompt costs one extra model call. Pi warns that Anthropic bills third-party use of a Claude subscription as extra usage, per token.
 - A name you set with `/name` stays until it is cleared. A resumed session keeps renaming only if this extension set its name.
-- Print, JSON, and RPC runs and subagent children never call the model. Pi releases without `ModelRegistry.complete`, such as `0.85.1`, skip naming.
+- Print, JSON, and RPC runs and subagent children never call the model.
 - A failed request warns once per session and keeps the old name.
 
 ## Recaps
@@ -287,7 +287,7 @@ When a run ends in the interactive TUI and you then do nothing for three minutes
 - The model choice matches session titles: Claude Haiku 5.5 on Anthropic sessions with a Haiku login, otherwise the session model.
 - The request holds the session name and the newest 12,000 characters of the conversation: your prompts, the assistant's text, each tool call's name and input, and the output of failed tool calls. It leaves out thinking and other tool output.
 - Typing, a `!` command, or a new run cancels a pending recap, including one the model is still writing. A run with nothing new since the last recap gets none.
-- Print, JSON, and RPC runs and subagent children never start the timer. Pi releases without `ModelRegistry.complete`, such as `0.85.1`, skip recaps.
+- Print, JSON, and RPC runs and subagent children never start the timer.
 - A failed automatic recap warns once per session.
 
 ## Cited media
@@ -308,7 +308,7 @@ Add `-l` to register it in the current project's settings instead.
 
 Use the change-based local checks in `TESTING.md` before pushing `main`. Docs-only prose does not need `npm test`; runtime, packaging, and test-runner changes need `npm run check`. Use `npm run test:fast` while iterating on non-runtime changes. `AGENTS.md` lists the editing rules, starting with the one that matters most: `skills/` and `agents/` are generated, so edit `sync/manifest.json` and run `npm run sync` instead.
 
-`engines.pi` records the tested version but npm does not enforce it.
+`engines.pi` records the minimum supported version, but npm does not enforce it.
 The package starts at version `0.1.0` and follows independent SemVer, not Cursor plugin versions.
 
 ## Upstream provenance
