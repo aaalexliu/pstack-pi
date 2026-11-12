@@ -49,6 +49,7 @@ import {
 } from "./status.ts";
 import { DEFAULT_SUBAGENTS_CONFIG, loadSubagentsConfig, type SubagentsConfig } from "./config.ts";
 import { bundledAgentsDirectories as pstackAgentDirs, packageRoot as pstackRoot } from "../../../subagent/agents.ts";
+import { parentDepth } from "../../../subagent/index.ts";
 import {
   getSubagentActivityFile,
   readSubagentActivityFile,
@@ -1572,6 +1573,11 @@ export default function subagentsExtension(pi: ExtensionAPI) {
       .map((s) => s.trim())
       .filter(Boolean),
   );
+  // A pstack-pi blocking_subagent child is a leaf. Only this extension's own
+  // children carry PI_SUBAGENT_NAME and their agent's spawning choice.
+  if (parentDepth() >= 1 && !process.env.PI_SUBAGENT_NAME) {
+    for (const tool of SPAWNING_TOOLS) deniedTools.add(tool);
+  }
 
   const shouldRegister = (name: string) => !deniedTools.has(name);
 
