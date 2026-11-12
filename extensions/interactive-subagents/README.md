@@ -74,6 +74,8 @@ Settings live in one optional user file, `${PI_CODING_AGENT_DIR:-~/.pi/agent}/in
 
 In cmux, all children of one parent session live in one separate workspace named `agents: <parent session name>` (the cwd basename when the session has no name). It opens right after the parent's workspace in the sidebar, without taking focus. With the default `"grid"` layout each running child gets its own pane: child 1 top-left, child 2 top-right, child 3 bottom-left, child 4 bottom-right. A child that starts after another closed splits the largest pane left. The workspace closes with its last child.
 
+In tmux, each child opens as a new background window, named after the child, in the parent's tmux session. Zellij and WezTerm keep their split behavior.
+
 Subagent panes are created without stealing keyboard focus (cmux, tmux). Launch commands target child surfaces by explicit ID, so focus and command delivery are independent. Note: the `interactive` option controls parent status notifications, not terminal focus.
 
 ## What's Included
