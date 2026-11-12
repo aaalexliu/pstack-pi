@@ -8,7 +8,7 @@ import { mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from "node
 import { join } from "node:path";
 import { jsonlParser, PiTestError, disposePreparedPackage, extractPreparedPackage, preparePackedPackage, repositoryRevision, runPiSmoke } from "./runner.mjs";
 import { checkContent, expectedPackFiles } from "../../scripts/check-content.mjs";
-import { classifyTestFiles, listTestFiles, PI_UNIT_TESTS } from "../../scripts/run-tests.mjs";
+import { classifyTestFiles, listTestFiles, PI_UNIT_TESTS, SUBTREE_TESTS } from "../../scripts/run-tests.mjs";
 import { fileURLToPath } from "node:url";
 
 const repository = fileURLToPath(new URL("../../", import.meta.url));
@@ -77,7 +77,7 @@ test("run-tests classifies packed Pi files apart from the unified nonpacked set"
   assert.equal(files.length, packed.length + nonpacked.length);
   assert.equal(nonpacked.includes("tests/pi/unit.test.mjs"), true);
   assert.equal(packed.includes("tests/pi/unit.test.mjs"), false);
-  for (const file of PI_UNIT_TESTS) assert.equal(nonpacked.includes(file), true);
+  for (const file of [...PI_UNIT_TESTS, ...SUBTREE_TESTS]) assert.equal(nonpacked.includes(file), true);
   assert.equal(nonpacked.includes("tests/pi/smoke.test.mjs"), false);
   assert.equal(packed.includes("tests/pi/smoke.test.mjs"), true);
   const future = "tests/pi/future-integration.test.mjs";

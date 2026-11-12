@@ -37,7 +37,7 @@ async function setupProject(paths) {
 
 /** @param {import('./runner.mjs').PiTestRun} run */
 function subagentEnds(run) {
-  return run.events.filter((event) => event.type === 'tool_execution_end' && event.toolName === 'subagent');
+  return run.events.filter((event) => event.type === 'tool_execution_end' && event.toolName === 'blocking_subagent');
 }
 
 test('packed real parent delegates a file read to a bundled agent, then keeps running', async (t) => {
@@ -55,7 +55,7 @@ test('packed real parent delegates a file read to a bundled agent, then keeps ru
       await writeFile(path.join(paths.cwd, 'fixture.txt'), marker);
     },
     fixture: { script: [
-      { reply: { kind: 'tool', id: 'delegate', name: 'subagent', arguments: { agent: 'general-purpose', task: 'Read fixture.txt and report its exact contents.' } }, check: (request) => assert.ok(toolNames(request).includes('subagent')) },
+      { reply: { kind: 'tool', id: 'delegate', name: 'blocking_subagent', arguments: { agent: 'general-purpose', task: 'Read fixture.txt and report its exact contents.' } }, check: (request) => assert.ok(toolNames(request).includes('blocking_subagent')) },
       { reply: { kind: 'tool', id: 'read-fixture', name: 'read', arguments: { path: 'fixture.txt' } }, check: (request) => {
         assertChild(request, ['read', 'grep', 'find', 'ls']);
         childProcesses = execFileSync('ps', ['-axo', 'pid=,ppid=,pgid=,command='], { encoding: 'utf8' }).split('\n').filter((line) => Number(line.trim().split(/\s+/)[1]) === parentPid && /(?:\bpi$|pi-coding-agent\/dist\/)/.test(line.trimEnd()));
@@ -101,9 +101,9 @@ test('project agents stay hidden until agentScope opts in', async (t) => {
   const run = await runPiSmoke({
     expectedText: final, expectedRequests: 2, setup: setupProject,
     fixture: { script: [
-      { reply: { kind: 'tool', id: 'deny', name: 'subagent', arguments: { agent: 'project', task: 'Do not run this project agent.' } } },
+      { reply: { kind: 'tool', id: 'deny', name: 'blocking_subagent', arguments: { agent: 'project', task: 'Do not run this project agent.' } } },
       { reply: { kind: 'text', text: final }, check: (request) => {
-        assert.ok(toolNames(request).includes('subagent'), 'Unexpected child request');
+        assert.ok(toolNames(request).includes('blocking_subagent'), 'Unexpected child request');
         assert.match(toolResult(request, 'deny'), /Unknown agent \\"project\\"/);
         assert.match(toolResult(request, 'deny'), /general-purpose \(bundled\)/);
       } },
@@ -128,7 +128,7 @@ test('a user agent overrides the bundled one by name and runs in a subdirectory 
       await writeFile(path.join(paths.profile, 'agents/general-purpose.md'), `---\nname: general-purpose\ndescription: Bash-only override.\ntools: [bash]\n---\n${marker}`);
     },
     fixture: { script: [
-      { reply: { kind: 'tool', id: 'override', name: 'subagent', arguments: { agent: 'general-purpose', task: 'Print the working directory.', cwd: 'sub' } } },
+      { reply: { kind: 'tool', id: 'override', name: 'blocking_subagent', arguments: { agent: 'general-purpose', task: 'Print the working directory.', cwd: 'sub' } } },
       { reply: { kind: 'text', text: 'Ran in sub.' }, check: (request) => {
         assertChild(request, ['bash']);
         assert.ok(JSON.stringify(request).includes(marker));
@@ -145,6 +145,31 @@ test('a user agent overrides the bundled one by name and runs in a subdirectory 
   t.diagnostic(JSON.stringify({ requests: run.provider?.requests, diagnostics: run.diagnostics, cleanup: run.cleanup }));
 });
 
+test('a child with host default tools gets neither delegation tool set', async (t) => {
+  const final = 'The default-tools child answered.';
+  const delegation = ['blocking_subagent', 'subagent', 'subagent_interrupt', 'subagent_resume', 'subagents_list'];
+  const run = await runPiSmoke({
+    expectedText: final, expectedRequests: 3,
+    setup: async (paths) => {
+      await setupProject(paths);
+      await mkdir(path.join(paths.profile, 'agents'), { recursive: true });
+      await writeFile(path.join(paths.profile, 'agents/default-tools.md'), '---\nname: default-tools\ndescription: No tool list.\n---\nAnswer briefly.');
+    },
+    fixture: { script: [
+      { reply: { kind: 'tool', id: 'default-tools', name: 'blocking_subagent', arguments: { agent: 'default-tools', task: 'Say hello.' } }, check: (request) => {
+        for (const tool of delegation) assert.ok(toolNames(request).includes(tool), `Parent has ${tool}`);
+      } },
+      { reply: { kind: 'text', text: 'hello' }, check: (request) => {
+        const tools = toolNames(request);
+        assert.ok(tools.includes('read') && tools.includes('pstack_todo'), 'Child keeps host default tools');
+        for (const tool of delegation) assert.ok(!tools.includes(tool), `Child lacks ${tool}`);
+      } },
+      { reply: { kind: 'text', text: final }, check: (request) => assert.ok(toolResult(request, 'default-tools').includes('hello')) },
+    ] },
+  });
+  t.diagnostic(JSON.stringify({ requests: run.provider?.requests, diagnostics: run.diagnostics }));
+});
+
 test('packed poteto-agent can edit through its explicit tool set', async () => {
   const final = 'Poteto delegate finished.';
   let packageRoot = '';
@@ -158,7 +183,7 @@ test('packed poteto-agent can edit through its explicit tool set', async () => {
       testRoot = paths.root;
     },
     fixture: { script: [
-      { reply: { kind: 'tool', id: 'delegate-poteto', name: 'subagent', arguments: { agent: 'poteto-agent', task: 'Create poteto-created.txt with the exact text POTETO_LEAF.' } } },
+      { reply: { kind: 'tool', id: 'delegate-poteto', name: 'blocking_subagent', arguments: { agent: 'poteto-agent', task: 'Create poteto-created.txt with the exact text POTETO_LEAF.' } } },
       { reply: { kind: 'tool', id: 'write-poteto', name: 'bash', arguments: { command: 'printf %s POTETO_LEAF > poteto-created.txt' } }, check: async (request) => {
         assertChild(request, ['read', 'grep', 'find', 'ls', 'bash', 'edit', 'write']);
         const skillPath = path.join(packageRoot, 'skills/poteto-mode/SKILL.md');

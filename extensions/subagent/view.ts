@@ -133,10 +133,10 @@ export function createProgressView(pi: ExtensionAPI) {
   let opening = false;
   let closed = false;
   pi.registerCommand('subagents', {
-    description: 'Inspect subagent tasks, todos and usage; raw shows public snapshot JSON',
+    description: 'Inspect blocking_subagent tasks, todos and usage; raw shows public snapshot JSON',
     handler: async (args, ctx) => {
       if (closed) return;
-      if (!latest) { if (ctx.hasUI) ctx.ui.notify('No subagent request yet.', 'info'); return; }
+      if (!latest) { if (ctx.hasUI) ctx.ui.notify('No blocking_subagent request yet.', 'info'); return; }
       const raw = args.trim() === 'raw';
       const content = () => raw ? JSON.stringify(latest, null, 2).split('\n') : progressLines(latest!, true);
       if (ctx.mode !== 'tui') { if (ctx.hasUI) ctx.ui.notify(content().join('\n'), 'info'); return; }
