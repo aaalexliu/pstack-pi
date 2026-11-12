@@ -913,6 +913,7 @@ export const __test__ = {
   resolveResumeLaunchBehavior,
   runningSubagents,
   formatElapsed,
+  watchSubagent,
 };
 
 function startWidgetRefresh() {
@@ -1291,9 +1292,6 @@ async function watchSubagent(
         try { unlinkSync(running.sentinelFile + ".transcript"); } catch {}
       }
 
-      closeSurface(surface);
-      runningSubagents.delete(running.id);
-
       return { name, task, summary, exitCode: result.exitCode, elapsed, ...(sessionId ? { claudeSessionId: sessionId } : {}) };
     }
 
@@ -1316,9 +1314,6 @@ async function watchSubagent(
           : "Sub-agent exited without output";
     }
 
-    closeSurface(surface);
-    runningSubagents.delete(running.id);
-
     return {
       name,
       task,
@@ -1330,11 +1325,6 @@ async function watchSubagent(
       ...(result.errorMessage ? { errorMessage: result.errorMessage } : {}),
     };
   } catch (err: any) {
-    try {
-      closeSurface(surface);
-    } catch {}
-    runningSubagents.delete(running.id);
-
     if (signal.aborted) {
       return {
         name,
@@ -1354,6 +1344,12 @@ async function watchSubagent(
       elapsed: Math.floor((Date.now() - startTime) / 1000),
       error: err?.message ?? String(err),
     };
+  } finally {
+    // A pane that fails to close must not cost the parent the child's report.
+    try {
+      closeSurface(surface);
+    } catch {}
+    runningSubagents.delete(running.id);
   }
 }
 
