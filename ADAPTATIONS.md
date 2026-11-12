@@ -102,6 +102,7 @@ Each change below is one or more commits on top of the subtree. The first group 
 | Agent frontmatter lists accept YAML flow lists such as `tools: [read, bash]`. | pstack-pi's agents use them. | `pi-extension/subagents/index.ts` |
 | Children find pstack-pi's `agents/` and `additions/agents/` with no config, after the bundled agents and before user and project agents. `{{PSTACK_ROOT}}` resolves to the package root. | Interactive children can run `poteto-agent`, `general-purpose`, and `comment-sicko`, as `blocking_subagent` can. | `pi-extension/subagents/index.ts`, `extensions/subagent/agents.ts` |
 | A `blocking_subagent` child, at depth 1 or more without `PI_SUBAGENT_NAME`, registers none of the interactive spawning tools. | Both extensions load in every child. A blocking child with host default tools would otherwise get `subagent`. | `pi-extension/subagents/index.ts`, `test/pstack.test.ts` |
+| The child tools widget toggles with `ctrl+shift+j`, not `ctrl+j`. | Pi 1.5 binds `ctrl+j` to a new line, so every child pane opened with a shortcut-conflict warning. | `pi-extension/subagents/subagent-done.ts`, `README.md` |
 
 `package.json` registers `pi-extension/subagents/index.ts` and ships the extension modules, plan skill, Claude Code plugin, bundled agents, README, config example, package file, and license. The plugin's `on-stop.sh` keeps its executable mode. `tsconfig.json` leaves the subtree out of `tsc`; its unit tests cover it.
 
