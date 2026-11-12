@@ -56,13 +56,15 @@ If your shell startup is slow and subagent commands sometimes get dropped before
 export PI_SUBAGENT_SHELL_READY_DELAY_MS=2500
 ```
 
-Settings live in one optional user file, `${PI_CODING_AGENT_DIR:-~/.pi/agent}/interactive-subagents.json`. A missing file or key means the default. Edits apply on the next spawn. If the file is not valid, Pi warns you and keeps the last good settings:
+In pstack-pi, settings live under the `interactiveSubagents` key of pstack-pi's settings file, `${PI_CODING_AGENT_DIR:-~/.pi/agent}/pstack-pi/settings.json`. A missing file or key means the defaults. Edits apply on the next spawn. If the file is not valid, Pi warns you and keeps the last good settings:
 
 ```json
 {
-  "maxConcurrent": 4,
-  "cmuxLayout": "grid",
-  "agentDirs": ["~/.pi/agent/git/github.com/aaalexliu/pstack-pi/agents"]
+  "version": 1,
+  "interactiveSubagents": {
+    "maxConcurrent": 4,
+    "cmuxLayout": "grid"
+  }
 }
 ```
 
@@ -70,7 +72,8 @@ Settings live in one optional user file, `${PI_CODING_AGENT_DIR:-~/.pi/agent}/in
 | --------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | `maxConcurrent` | `4`      | Most children one parent runs at once. Extra `subagent` calls return a queued result and start when a slot frees.      |
 | `cmuxLayout`    | `"grid"` | `"grid"`: one pane per child in a 2x2 grid. `"tabs"`: every child is a tab in one pane. Both live in the `agents:` workspace. |
-| `agentDirs`     | `[]`     | Extra folders of agent `.md` files, searched after `~/.pi/agent/agents/` and before the bundled agents.                      |
+
+Children can also use pstack-pi's own agents from the package's `agents/` and `additions/agents/` folders. A user or project agent with the same name overrides them, and they override the agents bundled here.
 
 In cmux, all children of one parent session live in one separate workspace named `agents: <parent session name>` (the cwd basename when the session has no name). It opens right after the parent's workspace in the sidebar, without taking focus. With the default `"grid"` layout each running child gets its own pane: child 1 top-left, child 2 top-right, child 3 bottom-left, child 4 bottom-right. A child that starts after another closed splits the largest pane left. The workspace closes with its last child, unless you opened a terminal or tab of your own there. Then it stays open and the next child starts in a new workspace.
 

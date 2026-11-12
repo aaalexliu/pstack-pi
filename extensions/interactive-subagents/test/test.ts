@@ -1334,29 +1334,36 @@ describe("subagent discovery", () => {
     });
   });
 });
-describe("interactive-subagents.json", () => {
-  it("uses the defaults when the file is missing", () => {
+function writePstackSettings(agentDir: string, settings: unknown) {
+  mkdirSync(join(agentDir, "pstack-pi"), { recursive: true });
+  writeFileSync(
+    join(agentDir, "pstack-pi", "settings.json"),
+    typeof settings === "string" ? settings : JSON.stringify(settings),
+  );
+}
+
+describe("interactiveSubagents in pstack-pi settings", () => {
+  it("uses the defaults when the file or the key is missing", () => {
     withTempDir((dir) => {
-      assert.deepEqual(loadSubagentsConfig(dir), { maxConcurrent: 4, cmuxLayout: "grid", agentDirs: [] });
+      assert.deepEqual(loadSubagentsConfig(dir), { maxConcurrent: 4, cmuxLayout: "grid" });
+      writePstackSettings(dir, { version: 1, cmuxTabs: true });
+      assert.deepEqual(loadSubagentsConfig(dir), { maxConcurrent: 4, cmuxLayout: "grid" });
     });
   });
 
-  it("reads maxConcurrent, cmuxLayout, and agentDirs from the agent dir", () => {
+  it("reads maxConcurrent and cmuxLayout from the interactiveSubagents key", () => {
     withTempDir((dir) => {
-      writeFileSync(
-        join(dir, "interactive-subagents.json"),
-        JSON.stringify({ maxConcurrent: 2, cmuxLayout: "tabs", agentDirs: ["/abs/agents", "rel/agents", "~/home-agents"] }),
-      );
-      assert.deepEqual(loadSubagentsConfig(dir), {
-        maxConcurrent: 2,
-        cmuxLayout: "tabs",
-        agentDirs: ["/abs/agents", join(dir, "rel/agents"), join(homedir(), "home-agents")],
+      writePstackSettings(dir, {
+        version: 1,
+        cmuxTabs: false,
+        interactiveSubagents: { maxConcurrent: 2, cmuxLayout: "tabs" },
       });
+      assert.deepEqual(loadSubagentsConfig(dir), { maxConcurrent: 2, cmuxLayout: "tabs" });
     });
   });
 
-  it("fills in defaults for keys the file leaves out", () => {
-    assert.deepEqual(parseSubagentsConfig({ cmuxLayout: "tabs" }, "test", "/base"), {
+  it("fills in defaults for keys the value leaves out", () => {
+    assert.deepEqual(parseSubagentsConfig({ cmuxLayout: "tabs" }, "test"), {
       ...DEFAULT_SUBAGENTS_CONFIG,
       cmuxLayout: "tabs",
     });
@@ -1367,45 +1374,46 @@ describe("interactive-subagents.json", () => {
       { maxConcurrent: 0 },
       { maxConcurrent: 2.5 },
       { cmuxLayout: "split" },
-      { agentDirs: "/one/dir" },
-      { agentDirs: [""] },
+      { agentDirs: ["/one/dir"] },
       { maxconcurrent: 2 },
       [],
+      null,
     ]) {
-      assert.throws(() => parseSubagentsConfig(raw, "/cfg.json", "/base"), /Invalid subagents config \/cfg\.json/);
+      assert.throws(() => parseSubagentsConfig(raw, "/cfg.json"), /Invalid subagents config \/cfg\.json/);
     }
   });
 
   it("rejects malformed JSON", () => {
     withTempDir((dir) => {
-      writeFileSync(join(dir, "interactive-subagents.json"), "{ nope");
+      writePstackSettings(dir, "{ nope");
       assert.throws(() => loadSubagentsConfig(dir), /Invalid subagents config/);
     });
   });
 
-  it("searches agentDirs after the user dir and before the bundled agents", async () => {
+  it("finds pstack-pi's agents after the user dir and before the bundled agents", async () => {
     const testApi = (subagentsModule as any).__test__;
-    await withIsolatedAgentEnv(async ({ globalDir, globalAgentsDir }) => {
-      const firstDir = join(globalDir, "extra-1");
-      const secondDir = join(globalDir, "extra-2");
-      writeFileSync(join(globalDir, "interactive-subagents.json"), JSON.stringify({ agentDirs: [firstDir, secondDir] }));
-      writeAgentFile(firstDir, "scout", "name: scout\nmodel: extra-1/scout");
-      writeAgentFile(secondDir, "scout", "name: scout\nmodel: extra-2/scout");
-      writeAgentFile(secondDir, "extra-only", "name: extra-only\ndescription: From extra-2\ntools: [read, grep, find, ls]");
-      writeAgentFile(globalAgentsDir, "extra-only", "name: extra-only\nmodel: user/extra-only");
+    const pstackRoot = fileURLToPath(new URL("../../..", import.meta.url));
+    await withIsolatedAgentEnv(async ({ globalAgentsDir }) => {
+      const general = testApi.loadAgentDefaults("general-purpose");
+      assert.equal(general.tools, "read, grep, find, ls");
+      assert.equal(testApi.buildSubagentToolAllowlist(general.tools), "read,grep,find,ls,caller_ping,subagent_done");
 
-      assert.equal(testApi.loadAgentDefaults("scout").model, "extra-1/scout");
-      assert.equal(testApi.loadAgentDefaults("extra-only").model, "user/extra-only");
+      const poteto = testApi.loadAgentDefaults("poteto-agent");
+      assert.ok(poteto.body.includes(`${pstackRoot}skills/poteto-mode/SKILL.md`), "PSTACK_ROOT resolves to the package root");
+      assert.ok(!poteto.body.includes("{{PSTACK_ROOT}}"));
 
       const listed = testApi.discoverAgentDefinitions();
-      assert.equal(listed.find((agent: any) => agent.name === "scout").model, "extra-1/scout");
-      assert.equal(listed.find((agent: any) => agent.name === "extra-only").model, "user/extra-only");
-      assert.ok(listed.some((agent: any) => agent.name === "worker"), "bundled agents still listed");
+      for (const name of ["general-purpose", "poteto-agent", "comment-sicko"]) {
+        assert.equal(listed.find((agent: any) => agent.name === name)?.source, "pstack", name);
+      }
+      assert.equal(listed.find((agent: any) => agent.name === "worker")?.source, "package");
 
-      rmSync(globalAgentsDir, { recursive: true, force: true });
-      const fromExtra = testApi.loadAgentDefaults("extra-only");
-      assert.equal(fromExtra.tools, "read, grep, find, ls");
-      assert.equal(testApi.buildSubagentToolAllowlist(fromExtra.tools), "read,grep,find,ls,caller_ping,subagent_done");
+      writeAgentFile(globalAgentsDir, "general-purpose", "name: general-purpose\nmodel: user/general");
+      assert.equal(testApi.loadAgentDefaults("general-purpose").model, "user/general");
+      assert.equal(
+        testApi.discoverAgentDefinitions().find((agent: any) => agent.name === "general-purpose").source,
+        "global",
+      );
     });
   });
 });
@@ -2139,7 +2147,7 @@ describe("concurrency cap", () => {
     const dir = createTestDir();
     const previous = process.env.PI_CODING_AGENT_DIR;
     process.env.PI_CODING_AGENT_DIR = dir;
-    writeFileSync(join(dir, "interactive-subagents.json"), JSON.stringify({ maxConcurrent }));
+    writePstackSettings(dir, { version: 1, interactiveSubagents: { maxConcurrent } });
     testApi.spawnSlots.clear();
     try {
       await fn();
@@ -2325,7 +2333,7 @@ describe("concurrency cap", () => {
       await start("id", { name: "running", task: "T" });
       await start("id", { name: "waiting", task: "T" });
       await start("id", { name: "last", task: "T" });
-      writeFileSync(join(process.env.PI_CODING_AGENT_DIR!, "interactive-subagents.json"), '{ "maxConcurrent": ');
+      writePstackSettings(process.env.PI_CODING_AGENT_DIR!, '{ "interactiveSubagents": ');
 
       const previousMux = process.env.PI_SUBAGENT_MUX;
       process.env.PI_SUBAGENT_MUX = "wezterm";

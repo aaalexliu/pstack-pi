@@ -18,7 +18,7 @@ export type AgentConfig = AgentDefinition & { source: AgentSource; filePath: str
 
 export type AgentDiscoveryResult = { agents: AgentConfig[]; projectAgentsDir: string | null };
 
-const packageRoot = path.resolve(fileURLToPath(new URL('../..', import.meta.url)));
+export const packageRoot = path.resolve(fileURLToPath(new URL('../..', import.meta.url)));
 
 // `agents/` holds agents generated from upstream pstack. `additions/agents/` holds Pi-owned agents.
 export const bundledAgentsDirectories = [path.join(packageRoot, 'agents'), path.join(packageRoot, 'additions', 'agents')];

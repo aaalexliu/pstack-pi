@@ -20,13 +20,14 @@ test('cmux tabs default off without creating settings', async (t) => {
 
 test('activation and deactivation persist atomically and preserve other settings', async (t) => {
   const dir = await fixture(t);
+  const interactiveSubagents = { maxConcurrent: 2, cmuxLayout: 'tabs' };
   await mkdir(path.dirname(settingsPath(dir)));
-  await writeFile(settingsPath(dir), JSON.stringify({ version: 1, other: { keep: true } }));
+  await writeFile(settingsPath(dir), JSON.stringify({ version: 1, other: { keep: true }, interactiveSubagents }));
   await saveCmuxTabs(dir, true);
-  assert.deepEqual(await loadSettings(dir), { version: 1, cmuxTabs: true, other: { keep: true } });
+  assert.deepEqual(await loadSettings(dir), { version: 1, cmuxTabs: true, other: { keep: true }, interactiveSubagents });
   assert.equal((await stat(settingsPath(dir))).mode & 0o777, 0o600);
   await saveCmuxTabs(dir, false);
-  assert.deepEqual(await loadSettings(dir), { version: 1, cmuxTabs: false, other: { keep: true } });
+  assert.deepEqual(await loadSettings(dir), { version: 1, cmuxTabs: false, other: { keep: true }, interactiveSubagents });
   assert.deepEqual(await readdir(path.dirname(settingsPath(dir))), ['settings.json']);
 });
 

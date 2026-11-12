@@ -48,6 +48,7 @@ import {
   loadStatusConfig,
 } from "./status.ts";
 import { DEFAULT_SUBAGENTS_CONFIG, loadSubagentsConfig, type SubagentsConfig } from "./config.ts";
+import { bundledAgentsDirectories as pstackAgentDirs, packageRoot as pstackRoot } from "../../../subagent/agents.ts";
 import {
   getSubagentActivityFile,
   readSubagentActivityFile,
@@ -149,7 +150,7 @@ interface AgentDefaults {
   disableModelInvocation?: boolean;
 }
 
-type AgentSource = "package" | "config" | "global" | "project";
+type AgentSource = "package" | "pstack" | "global" | "project";
 
 interface AgentDefinition extends AgentDefaults {
   name: string;
@@ -223,10 +224,6 @@ function readSubagentsConfig(): SubagentsConfig {
   return lastGoodSubagentsConfig;
 }
 
-function getConfiguredAgentDirs(): string[] {
-  return readSubagentsConfig().agentDirs;
-}
-
 /** Where cmux puts a child: the parent's own agents workspace, named after the parent session. */
 function cmuxPlacement(ctx: { sessionManager: { getSessionName(): string | undefined }; cwd: string }) {
   return {
@@ -265,7 +262,10 @@ function parseAgentDefinition(content: string, fallbackName: string): AgentDefin
   if (!match) return null;
 
   const frontmatter = match[1];
-  const body = content.replace(/^---\n[\s\S]*?\n---\n*/, "").trim();
+  const body = content
+    .replace(/^---\n[\s\S]*?\n---\n*/, "")
+    .trim()
+    .replaceAll("{{PSTACK_ROOT}}", pstackRoot);
   const systemPromptMode = getFrontmatterValue(frontmatter, "system-prompt");
 
   return {
@@ -298,7 +298,7 @@ function discoverAgentDefinitions(): ListedAgentDefinition[] {
   const agents = new Map<string, ListedAgentDefinition>();
   const dirs: Array<{ path: string; source: AgentSource }> = [
     { path: getBundledAgentsDir(), source: "package" },
-    ...[...getConfiguredAgentDirs()].reverse().map((path) => ({ path, source: "config" as const })),
+    ...[...pstackAgentDirs].reverse().map((path) => ({ path, source: "pstack" as const })),
     { path: join(getAgentConfigDir(), "agents"), source: "global" },
     { path: join(process.cwd(), ".pi", "agents"), source: "project" },
   ];
@@ -402,7 +402,7 @@ function loadAgentDefaults(agentName: string): AgentDefaults | null {
   const paths = [
     join(process.cwd(), ".pi", "agents", `${agentName}.md`),
     join(configDir, "agents", `${agentName}.md`),
-    ...getConfiguredAgentDirs().map((dir) => join(dir, `${agentName}.md`)),
+    ...pstackAgentDirs.map((dir) => join(dir, `${agentName}.md`)),
     join(getBundledAgentsDir(), `${agentName}.md`),
   ];
 
