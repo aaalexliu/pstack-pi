@@ -18,6 +18,8 @@ import {
 } from "../pi-extension/subagents/session.ts";
 
 import {
+  closeSurface,
+  createSurface,
   shellEscape,
   isCmuxAvailable,
   isWezTermAvailable,
@@ -127,6 +129,105 @@ function restoreEnvVar(name: string, value: string | undefined) {
     return;
   }
   process.env[name] = value;
+}
+
+/**
+ * A stand-in `cmux` on PATH that keeps workspaces, panes, and surfaces in a JSON
+ * file and logs each call. The socket path points nowhere, so a call that
+ * missed the fake could not reach the cmux this test may run inside.
+ */
+const FAKE_CMUX = `#!/usr/bin/env node
+const fs = require("fs");
+const path = require("path");
+const dir = process.env.FAKE_CMUX_DIR;
+const file = path.join(dir, "state.json");
+const state = JSON.parse(fs.readFileSync(file, "utf8"));
+let args = process.argv.slice(2);
+fs.appendFileSync(path.join(dir, "log"), args.join(" ") + "\\n");
+if (args[0] === "--json") args = args.slice(1);
+const flag = (name) => args[args.indexOf(name) + 1];
+const next = (kind) => kind + ":" + state.next++;
+const save = () => fs.writeFileSync(file, JSON.stringify(state));
+const fail = (message) => { process.stderr.write("Error: " + message + "\\n"); process.exit(1); };
+const workspace = (ref) => state.workspaces[ref] || fail("Workspace ref not found: " + ref);
+const paneOf = (surface) => {
+  for (const ws of Object.values(state.workspaces))
+    for (const [pane, surfaces] of Object.entries(ws)) if (surfaces.includes(surface)) return { ws, pane, surfaces };
+  return null;
+};
+const [cmd, sub] = args;
+if (state.fail && state.fail[cmd]) fail(state.fail[cmd]);
+if (cmd === "workspace" && sub === "create") {
+  const ref = next("workspace");
+  state.workspaces[ref] = { [next("pane")]: [next("surface")] };
+  save();
+  console.log("OK " + ref);
+} else if (cmd === "workspace" && sub === "close") {
+  workspace(args[2]);
+  delete state.workspaces[args[2]];
+  save();
+} else if (cmd === "list-panes") {
+  const ws = workspace(flag("--workspace"));
+  console.log(JSON.stringify({ panes: Object.entries(ws).map(([ref, surface_refs]) => ({ ref, surface_refs })) }));
+} else if (cmd === "tree") {
+  workspace(flag("--workspace"));
+} else if (cmd === "new-surface") {
+  const pane = workspace(flag("--workspace"))[flag("--pane")];
+  const surface = next("surface");
+  pane.push(surface);
+  save();
+  console.log("OK " + surface + " " + flag("--pane"));
+} else if (cmd === "new-split") {
+  const ws = workspace(flag("--workspace"));
+  const pane = next("pane");
+  const surface = next("surface");
+  ws[pane] = [surface];
+  save();
+  console.log("OK " + surface + " " + pane);
+} else if (cmd === "close-surface") {
+  const owner = paneOf(flag("--surface")) || fail("Surface ref not found: " + flag("--surface"));
+  owner.surfaces.splice(owner.surfaces.indexOf(flag("--surface")), 1);
+  if (owner.surfaces.length === 0) delete owner.ws[owner.pane];
+  save();
+} else if (cmd === "read-screen") {
+  if (!paneOf(flag("--surface"))) fail("not_found: Surface not found for the given surface_id");
+} else if (cmd === "identify") {
+  process.exit(1);
+}
+`;
+
+async function withFakeCmux(fn: (cmux: {
+  calls(): string[];
+  workspaces(): Record<string, Record<string, string[]>>;
+  update(change: (state: any) => void): void;
+}) => Promise<void>) {
+  const dir = createTestDir();
+  writeFileSync(join(dir, "cmux"), FAKE_CMUX, { mode: 0o755 });
+  writeFileSync(join(dir, "state.json"), JSON.stringify({ next: 1, workspaces: {} }));
+  writeFileSync(join(dir, "log"), "");
+  const saved = Object.fromEntries(
+    ["PATH", "PI_SUBAGENT_MUX", "CMUX_SOCKET_PATH", "CMUX_WORKSPACE_ID", "FAKE_CMUX_DIR"].map((k) => [k, process.env[k]]),
+  );
+  process.env.PATH = `${dir}:${process.env.PATH}`;
+  process.env.PI_SUBAGENT_MUX = "cmux";
+  process.env.CMUX_SOCKET_PATH = join(dir, "no-such.sock");
+  delete process.env.CMUX_WORKSPACE_ID;
+  process.env.FAKE_CMUX_DIR = dir;
+  const readState = () => JSON.parse(readFileSync(join(dir, "state.json"), "utf8"));
+  try {
+    await fn({
+      calls: () => readFileSync(join(dir, "log"), "utf8").trim().split("\n").filter(Boolean),
+      workspaces: () => readState().workspaces,
+      update(change) {
+        const state = readState();
+        change(state);
+        writeFileSync(join(dir, "state.json"), JSON.stringify(state));
+      },
+    });
+  } finally {
+    for (const [k, v] of Object.entries(saved)) restoreEnvVar(k, v);
+    rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 function withMockedNow<T>(now: number, fn: () => T): T {
@@ -2660,6 +2761,60 @@ describe("cmux.ts", () => {
       tree = removeCmuxPane(tree, "c4");
       assert.deepEqual(planCmuxSplit(tree), { from: "c3", direction: "down" });
       assert.equal(removeCmuxPane(removeCmuxPane(tree, "c3")!, "c2"), null);
+    });
+  });
+
+  describe("agents workspace cleanup", () => {
+    const placement = { layout: "tabs" as const, workspaceName: "agents: test" };
+
+    it("closes the workspace when the last child leaves nothing else in it", async () => {
+      await withFakeCmux(async (cmux) => {
+        const first = createSurface("c1", placement);
+        const second = createSurface("c2", placement);
+        const [ref] = Object.keys(cmux.workspaces());
+
+        closeSurface(first);
+        closeSurface(second);
+
+        assert.deepEqual(cmux.workspaces(), {});
+        assert.ok(cmux.calls().includes(`workspace close ${ref} --force`));
+      });
+    });
+
+    it("leaves a workspace holding the user's own terminal open and starts the next child in a new one", async () => {
+      await withFakeCmux(async (cmux) => {
+        const child = createSurface("c1", placement);
+        const [ref] = Object.keys(cmux.workspaces());
+        cmux.update((state) => {
+          state.workspaces[ref]["pane:user"] = ["surface:user"];
+        });
+
+        closeSurface(child);
+
+        assert.deepEqual(Object.values(cmux.workspaces()[ref]).flat(), ["surface:user"]);
+        assert.ok(!cmux.calls().some((call) => call.startsWith("workspace close")));
+
+        const next = createSurface("c2", placement);
+        const [, newRef] = Object.keys(cmux.workspaces());
+        assert.ok(newRef && newRef !== ref, "the next child gets a new workspace");
+        closeSurface(next);
+        assert.deepEqual(Object.keys(cmux.workspaces()), [ref]);
+      });
+    });
+
+    it("leaves the workspace open when cmux cannot list what is in it", async () => {
+      await withFakeCmux(async (cmux) => {
+        const child = createSurface("c1", placement);
+        cmux.update((state) => {
+          state.fail = { "list-panes": "Socket not found at /tmp/cmux.sock" };
+        });
+
+        try {
+          closeSurface(child);
+        } catch {}
+
+        assert.ok(!cmux.calls().some((call) => call.startsWith("workspace close")));
+      });
     });
   });
 

@@ -810,6 +810,19 @@ function createCmuxAgentsWorkspace(
   }
 }
 
+/**
+ * Every surface in a workspace, or null when cmux cannot list it. A global
+ * dock pane shows up in every workspace and does not close with one.
+ */
+function listCmuxWorkspaceSurfaces(ref: string): string[] | null {
+  const listing = readCmux(["--json", "list-panes", "--workspace", ref]);
+  const panes = (listing ? parseCmuxJson(listing) : null) as {
+    panes?: Array<{ dock_scope?: string; surface_refs?: string[] }>;
+  } | null;
+  if (!Array.isArray(panes?.panes)) return null;
+  return panes.panes.filter((pane) => pane.dock_scope !== "global").flatMap((pane) => pane.surface_refs ?? []);
+}
+
 function cmuxWorkspaceExists(ref: string): boolean {
   return spawnSync("cmux", ["tree", "--workspace", ref], { encoding: "utf8" }).status === 0;
 }
@@ -1315,15 +1328,20 @@ export function closeSurface(surface: string): void {
     // still own a process, and cmux then asks for confirmation instead of closing.
     const workspace = cmuxAgentsWorkspace;
     if (workspace?.surfaces.delete(surface)) {
-      if (workspace.surfaces.size === 0) {
-        // cmux refuses to close a workspace's last surface; close the workspace.
-        cmuxAgentsWorkspace = null;
-        execFileSync("cmux", ["workspace", "close", workspace.ref, "--force"], { encoding: "utf8" });
-        return;
-      }
       const { arrangement } = workspace;
-      if (arrangement.layout === "grid") {
-        arrangement.panes = removeCmuxPane(arrangement.panes, surface)!;
+      if (workspace.surfaces.size > 0) {
+        if (arrangement.layout === "grid") {
+          arrangement.panes = removeCmuxPane(arrangement.panes, surface)!;
+        }
+      } else {
+        // The last child is done. Forget the workspace, and close it only when
+        // nothing else, such as a terminal the user opened there, is left in it.
+        cmuxAgentsWorkspace = null;
+        if (listCmuxWorkspaceSurfaces(workspace.ref)?.every((s) => s === surface)) {
+          // cmux refuses to close a workspace's last surface; close the workspace.
+          execFileSync("cmux", ["workspace", "close", workspace.ref, "--force"], { encoding: "utf8" });
+          return;
+        }
       }
     }
     execSync(`cmux close-surface --surface ${shellEscape(surface)} --force`, {
