@@ -4,6 +4,7 @@ import { appendFileSync, closeSync, existsSync, fsyncSync, mkdirSync, openSync, 
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createDueRoutines, type Routine } from './routines.ts';
 
 export type Repo = { path: string; base: string };
 export type Config = {
@@ -20,6 +21,7 @@ export type Config = {
   stallMinutes: number;
   host: string;
   worktreeRoot: string;
+  routines?: Routine[];
 };
 type Comment = { id: string; body: string; createdAt: string; user: { name: string; app?: boolean } | null; botActor?: { name: string } | null };
 /** Only a person's comment counts as Alex acting: not the runner, its leads, or any other app or bot. */
@@ -435,6 +437,7 @@ export async function main(argv: string[], config: Config, fetchFn: typeof fetch
   if (dryRun) console.log(`Config: ${JSON.stringify(config, null, 2)}`);
   for (;;) {
     try {
+      if (!dryRun) await createDueRoutines(config, fetchFn);
       await poll(ctx, dryRun, say);
     } catch (error) {
       console.error('poll failed', error);

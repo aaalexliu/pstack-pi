@@ -125,6 +125,9 @@ The runner reads `~/.config/job-runner/config.json`, or the file named by `JOB_R
 | `stallMinutes` | Minutes without lead activity before the runner asks. Default 30 |
 | `host` | The host name the status comment uses for `ssh`. Default: this Mac's name |
 | `worktreeRoot` | The directory for ticket worktrees |
+| `routines` | Optional scheduled tickets: `{name, schedule, repo, title, prompt}`. See below |
+
+Each poll, [routines.ts](routines.ts) files the latest due run of each routine as a Todo issue delegated to the runner, labelled `repo`, titled `<title> (<date>)`, with `prompt` as its description. A `schedule` is `daily HH:MM`, `weekly Mon HH:MM`, or `every Nh`, in this Mac's local time. The description ends with the marker `runner-routine <name> <due time>`, and the runner skips a run whose marker already exists, so a restart never files twice. After downtime it files only the latest missed run. From then on it is an ordinary ticket.
 
 `JOB_RUNNER_PI`, `JOB_RUNNER_TMUX` and `JOB_RUNNER_MEMORY_PRESSURE` replace those binaries. The tests use them for stubs.
 
