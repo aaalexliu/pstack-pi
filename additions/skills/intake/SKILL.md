@@ -27,12 +27,12 @@ A ticket that an agent builds starts while the person who asked is still here. T
    ```
 
 3. Add the label that names the repo, if the runner picks repos by label. Add `Needs: screen` on its own line when the work drives the Mac's screen, a browser, or a simulator.
-4. Delegate the ticket to the runner's app user in the same step. Do not assign it to the person; an assignee means it is their move.
+4. Set the ticket's state to `Todo` and delegate it to the runner's app user in the same step. The runner picks up only `Todo` tickets delegated to it. Do not assign it to the person; an assignee means it is their move.
 5. Tell the user the ticket link and the goal line you wrote.
 
 ## Rules
 
 - Ask the user only for what you cannot fill yourself. If they gave no reference, ask once; if they have none, write "None".
 - Keep each heading short. A long ticket hides the goal.
-- Do not decide calls that are costly to undo, such as a data model, a public API, a migration, money, or anything outside the Mac. Name them under Goal as open, and the agent will ask.
+- Do not leave calls that are costly to undo for the agent, such as a data model, a public API, a migration, money, or anything outside the Mac. Ask the person now, while they are here, and write the answer under Goal. If they cannot answer yet, do not file the ticket.
 - Do not build the work yourself in the session that files it.
