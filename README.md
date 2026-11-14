@@ -145,6 +145,7 @@ In cmux, interactive children of one parent share an `agents: <session>` workspa
 
 The `blocking_subagent` tool is Pi's bundled subagent example (`examples/extensions/subagent`) plus a few additions.
 Each call spawns a separate `pi --mode json -p --no-session` process per task, so every child has its own context window.
+Set `keepSession: true` on the call or a task to keep that child's session file instead. The child then runs with `--session-id <uuid>` in Pi's normal session folder for its `cwd`, and its result adds `session-id: <id>` and `session-path: <absolute path>` lines after `resolved-model:`, so an audit can open the transcript.
 
 ```json
 {"agent":"general-purpose","task":"Read src/index.ts and explain its exports."}
@@ -156,7 +157,7 @@ Three modes, exactly one per call:
 - Parallel: `tasks`, an array of 1-8 `{agent, task}` entries. At most four children run at once; results keep input order.
 - Chain: `chain`, an array of `{agent, task}` steps run in order. `{previous}` in a task is replaced by the prior step's output. A failed step stops the chain.
 
-Every task entry, and the call itself, accepts optional `cwd`, `model`, `role`, and `thinking`. The call also accepts `timeoutMs`, `agentScope`, and `confirmProjectAgents`.
+Every task entry, and the call itself, accepts optional `cwd`, `model`, `role`, `thinking`, and `keepSession`. The call also accepts `timeoutMs`, `agentScope`, and `confirmProjectAgents`.
 `thinking` is `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`. Set it per task to match the job. A task value overrides the call default; an explicit value overrides the parent's thinking level. Pi clamps the requested level to the child's model capabilities.
 `cwd` is any directory; a relative path resolves against the parent's working directory.
 `timeoutMs` kills any child still running after that many milliseconds and reports the task as failed with `Timed out after N ms`.

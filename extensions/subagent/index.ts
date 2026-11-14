@@ -19,6 +19,7 @@ import { type ChildProcess, spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { Message } from '@earendil-works/pi-ai';
 import {
@@ -28,6 +29,7 @@ import {
   type ExtensionContext,
   getAgentDir,
   getMarkdownTheme,
+  SessionManager,
 } from '@earendil-works/pi-coding-agent';
 import { Container, Markdown, Spacer, Text } from '@earendil-works/pi-tui';
 import { Type } from 'typebox';
@@ -162,6 +164,8 @@ export interface SingleResult {
   stopReason?: string;
   errorMessage?: string;
   step?: number;
+  sessionId?: string;
+  sessionPath?: string;
 }
 
 export interface SubagentDetails {
@@ -204,8 +208,9 @@ export function observedModelId(provider: unknown, model: unknown): string | und
   return `${left}/${right}`;
 }
 
-export function modelFacingText(observed: string | undefined, body: string): string {
-  return `resolved-model: ${observed ?? 'unknown'}\n\n${body}`;
+export function modelFacingText(observed: string | undefined, body: string, session?: Pick<SingleResult, 'sessionId' | 'sessionPath'>): string {
+  const sessionLines = session?.sessionId ? `session-id: ${session.sessionId}\nsession-path: ${session.sessionPath ?? 'unknown'}\n` : '';
+  return `resolved-model: ${observed ?? 'unknown'}\n${sessionLines}\n${body}`;
 }
 
 function truncateParallelOutput(output: string): string {
@@ -326,6 +331,7 @@ export interface ResolvedTask {
   thinking?: ExtensionContext['thinkingLevel'];
   role?: string;
   step?: number;
+  keepSession?: boolean;
 }
 
 type OnUpdateCallback = (partial: AgentToolResult<SubagentDetails>) => void;
@@ -343,14 +349,15 @@ export async function runSingleAgent({ resolved, depth, signal, timeoutMs, onUpd
   termGraceMs?: number;
 }): Promise<SingleResult> {
   const { agent, task, cwd, step } = resolved;
-  const args: string[] = ['--mode', 'json', '-p', '--no-session'];
+  const sessionId = resolved.keepSession ? randomUUID() : undefined;
+  const args: string[] = ['--mode', 'json', '-p', ...(sessionId ? ['--session-id', sessionId] : ['--no-session'])];
   if (resolved.model) args.push('--model', resolved.model);
   if (resolved.thinking) args.push('--thinking', resolved.thinking);
   if (agent.tools && agent.tools.length > 0) args.push('--tools', [...new Set([...agent.tools, 'pstack_todo'])].join(','));
 
   const result: SingleResult = {
     agent: agent.name, agentSource: agent.source, task, exitCode: -1, messages: [], stderr: '',
-    usage: zeroUsage(), model: resolved.model, modelSource: resolved.modelSource, thinking: resolved.thinking, step,
+    usage: zeroUsage(), model: resolved.model, modelSource: resolved.modelSource, thinking: resolved.thinking, step, sessionId,
   };
   const observe = (event: unknown) => {
     try { onEvent?.(event, result); } catch { /* Display failures must not stop the child. */ }
@@ -458,6 +465,7 @@ export async function runSingleAgent({ resolved, depth, signal, timeoutMs, onUpd
     });
 
     result.exitCode = exitCode;
+    if (sessionId) result.sessionPath = SessionManager.findById(cwd, sessionId);
     if (stopCause === 'user') {
       result.stopReason = 'aborted';
       result.errorMessage = 'Subagent was aborted';
@@ -488,6 +496,8 @@ const thinkingSchema = Type.Union([
   Type.Literal('high'), Type.Literal('xhigh'), Type.Literal('max'),
 ], { description: 'Child reasoning level. Set for the job; overrides the inherited parent level. An item value overrides the call default.' });
 
+const keepSessionSchema = Type.Boolean({ description: 'Keep the child\'s Pi session file instead of running with --no-session. The result then names its session-id and session-path. An item value overrides the call default.' });
+
 const taskFields = {
   agent: Type.String({ description: 'Name of the agent to invoke' }),
   task: Type.String({ description: 'Task to delegate to the agent' }),
@@ -495,6 +505,7 @@ const taskFields = {
   model: Type.Optional(modelChoiceSchema),
   role: Type.Optional(roleSchema),
   thinking: Type.Optional(thinkingSchema),
+  keepSession: Type.Optional(keepSessionSchema),
 };
 const TaskItem = Type.Object(taskFields);
 const ChainItem = Type.Object({ ...taskFields, task: Type.String({ description: 'Task with optional {previous} placeholder for prior output' }) });
@@ -507,6 +518,7 @@ const SubagentParams = Type.Object({
   model: Type.Optional(modelChoiceSchema),
   role: Type.Optional(roleSchema),
   thinking: Type.Optional(thinkingSchema),
+  keepSession: Type.Optional(keepSessionSchema),
   cwd: Type.Optional(Type.String({ description: 'Working directory for the agent process (single mode)' })),
   timeoutMs: Type.Optional(Type.Integer({ minimum: 1, description: 'Kill any child still running after this many milliseconds' })),
   agentScope: Type.Optional(Type.Union([Type.Literal('user'), Type.Literal('project'), Type.Literal('both')], {
@@ -532,6 +544,7 @@ export function toolDescription(bundled: Pick<AgentConfig, 'name' | 'description
     `model accepts inherit-parent or provider/model-id. role selects a configured model from ${modelConfigPath(getAgentDir())}; roles: ${roles.join(', ')}.`,
     'Explicit model overrides role, then the agent default, then the parent model. thinking sets the child reasoning level per call or task; a task value overrides the call default. Children cannot delegate.',
     'Single and chain result text starts with `resolved-model: provider/model-id` from the child response, or `resolved-model: unknown`. Parallel results include that line in each task block. That line is the resolved identity. The requested selector is not.',
+    'With keepSession: true, the child keeps a Pi session file in the normal session folder for its cwd, and the result adds `session-id: <id>` and `session-path: <absolute path>` lines after resolved-model.',
   ].join(' ');
 }
 
@@ -609,7 +622,7 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
           return { content: [{ type: 'text', text: `Too many parallel tasks (${params.tasks.length}). Max is ${MAX_PARALLEL_TASKS}.` }], details: makeDetails('parallel')([]) };
         }
 
-        const requested = params.chain ?? params.tasks ?? [{ agent: params.agent!, task: params.task!, cwd: params.cwd, model: params.model, role: params.role, thinking: params.thinking }];
+        const requested = params.chain ?? params.tasks ?? [{ agent: params.agent!, task: params.task!, cwd: params.cwd, model: params.model, role: params.role, thinking: params.thinking, keepSession: params.keepSession }];
         const config = await loadModelConfig(getAgentDir());
         const resolvedTasks: ResolvedTask[] = [];
         for (const [index, item] of requested.entries()) {
@@ -623,6 +636,7 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
             agent, task: item.task, cwd: item.cwd ?? params.cwd ?? ctx.cwd,
             model: inherits ? defaults.model : formatModelChoice(selection.choice),
             modelSource: selection.source, thinking: item.thinking ?? params.thinking ?? (inherits ? defaults.thinkingLevel : undefined), role: item.role ?? params.role,
+            keepSession: item.keepSession ?? params.keepSession,
             step: hasChain ? index + 1 : undefined,
           });
         }
@@ -690,12 +704,12 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
             const result = await run(withContext, chainUpdate, index);
             results.push(result);
             if (isFailedResult(result)) {
-              return { content: [{ type: 'text', text: modelFacingText(result.observedModel, `Chain stopped at step ${resolved.step} (${resolved.agent.name}): ${getResultOutput(result)}`) }], details: makeDetails('chain')(results) };
+              return { content: [{ type: 'text', text: modelFacingText(result.observedModel, `Chain stopped at step ${resolved.step} (${resolved.agent.name}): ${getResultOutput(result)}`, result) }], details: makeDetails('chain')(results) };
             }
             previousOutput = getFinalOutput(result.messages);
           }
           const last = results[results.length - 1];
-          return { content: [{ type: 'text', text: modelFacingText(last.observedModel, getFinalOutput(last.messages) || '(no output)') }], details: makeDetails('chain')(results) };
+          return { content: [{ type: 'text', text: modelFacingText(last.observedModel, getFinalOutput(last.messages) || '(no output)', last) }], details: makeDetails('chain')(results) };
         }
 
         if (mode === 'parallel') {
@@ -721,7 +735,7 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
           const successCount = results.filter((r) => !isFailedResult(r)).length;
           const summaries = results.map((r) => {
             const status = isFailedResult(r) ? `failed${r.stopReason && r.stopReason !== 'stop' ? ` (${r.stopReason})` : ''}` : 'completed';
-            return `### [${r.agent}] ${status}\n${modelFacingText(r.observedModel, truncateParallelOutput(getResultOutput(r)))}`;
+            return `### [${r.agent}] ${status}\n${modelFacingText(r.observedModel, truncateParallelOutput(getResultOutput(r)), r)}`;
           });
           return {
             content: [{ type: 'text', text: `Parallel: ${successCount}/${results.length} succeeded\n\n${summaries.join('\n\n---\n\n')}` }],
@@ -731,9 +745,9 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
 
         const result = await run(resolvedTasks[0], onUpdate, 0);
         if (isFailedResult(result)) {
-          return { content: [{ type: 'text', text: modelFacingText(result.observedModel, `Agent ${result.stopReason || 'failed'}: ${getResultOutput(result)}`) }], details: makeDetails('single')([result]) };
+          return { content: [{ type: 'text', text: modelFacingText(result.observedModel, `Agent ${result.stopReason || 'failed'}: ${getResultOutput(result)}`, result) }], details: makeDetails('single')([result]) };
         }
-        return { content: [{ type: 'text', text: modelFacingText(result.observedModel, getFinalOutput(result.messages) || '(no output)') }], details: makeDetails('single')([result]) };
+        return { content: [{ type: 'text', text: modelFacingText(result.observedModel, getFinalOutput(result.messages) || '(no output)', result) }], details: makeDetails('single')([result]) };
       };
       try {
         const result = await request();

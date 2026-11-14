@@ -16,7 +16,7 @@ const fakePi = fileURLToPath(new URL('./fake-pi.mjs', import.meta.url));
 
 /** @param {string} text */
 function childOutput(text) {
-  const match = /^resolved-model: [^\n]+\n\n/.exec(text);
+  const match = /^resolved-model: [^\n]+\n(?:session-id: [^\n]+\nsession-path: [^\n]+\n)?\n/.exec(text);
   assert.ok(match, `missing resolved-model line: ${text.slice(0, 120)}`);
   return text.slice(match[0].length);
 }
@@ -267,6 +267,24 @@ test('parallel and chain thinking use per-item overrides over the call default',
       assert.deepEqual(args.slice(0, 8), ['--mode', 'json', '-p', '--no-session', '--model', 'pinned/model', '--thinking', level]);
     }
   }
+});
+
+test('keepSession runs the child with a session id and reports session-id and session-path in every mode', async (t) => {
+  const f = await fixture(t);
+  const single = await f.execute({ agent: 'general-purpose', task: 'x', keepSession: true });
+  const id = single.details.results[0].sessionId;
+  assert.match(single.content[0].text, new RegExp(`^resolved-model: fixture/model\\nsession-id: ${id}\\nsession-path: [^\\n]+\\n\\n`));
+  const args = JSON.parse(childOutput(single.content[0].text)).args;
+  assert.deepEqual(args.slice(0, 5), ['--mode', 'json', '-p', '--session-id', id]);
+  assert.ok(!args.includes('--no-session'));
+  for (const mode of ['tasks', 'chain']) {
+    const result = await f.execute({ [mode]: [{ agent: 'general-purpose', task: 'a' }, { agent: 'general-purpose', task: 'b', keepSession: false }], keepSession: true });
+    assert.ok(result.details.results[0].sessionId);
+    assert.equal(result.details.results[1].sessionId, undefined);
+    assert.equal((result.content[0].text.match(/session-id: /g) ?? []).length, mode === 'tasks' ? 1 : 0, 'chain reports the last step only');
+  }
+  const plain = await f.execute({ agent: 'general-purpose', task: 'x' });
+  assert.doesNotMatch(plain.content[0].text, /session-id:/);
 });
 
 test('resolved-model comes from the child response, not the requested selector', async (t) => {
