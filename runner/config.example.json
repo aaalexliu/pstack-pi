@@ -2,16 +2,20 @@
   "linearTokenCommand": "security find-generic-password -s linear-runner-token -w",
   "team": "ENG",
   "runnerUser": "job runner",
+  "decisionAssignee": "Your Name",
   "repos": {
-    "web-app": { "path": "/Users/you/dev/web-app", "base": "main", "automerge": false },
-    "dotfiles": { "path": "/Users/you/dev/dotfiles", "base": "main", "automerge": true }
+    "web-app": { "path": "/Users/you/dev/web-app", "base": "main", "automerge": false, "fullSuiteLabel": "full-suite" },
+    "dotfiles": { "path": "/Users/you/dev/dotfiles", "base": "main", "automerge": true, "ciGate": true }
   },
   "webhooks": {
-    "lead": { "url": "https://bot.example.com/job-result", "keyFile": "/Users/you/.config/job-runner/lead.key" }
+    "desk": { "url": "https://bot.example.com/job-result", "keyFile": "/Users/you/.config/job-runner/desk.key" }
   },
-  "models": { "implement": "anthropic/claude-opus-4-5", "review": "openai/gpt-5.5" },
+  "models": { "lead": "anthropic/claude-opus-4-5", "review": "openai/gpt-5.5" },
   "thinking": "high",
   "pollSeconds": 30,
-  "slots": 1,
+  "maxLeads": 2,
+  "minFreeMemoryPercent": 20,
+  "stallMinutes": 30,
+  "host": "build-mac",
   "worktreeRoot": "/Users/you/dev/job-worktrees"
 }
