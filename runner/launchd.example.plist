@@ -12,7 +12,7 @@
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>
-    <string>PATH_WITH_PI_GH_GIT_NODE_HERE</string>
+    <string>PATH_WITH_NODE_PI_GH_GIT_TMUX_HERE</string>
     <key>HOME</key>
     <string>HOME_HERE</string>
   </dict>
