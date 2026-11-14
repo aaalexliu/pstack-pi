@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { accessSync, appendFileSync, constants, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { accessSync, appendFileSync, closeSync, constants, existsSync, fsyncSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync, writeSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -18,39 +18,44 @@ export type Config = {
   pollSeconds: number;
   maxLeads: number;
   minFreeMemoryPercent: number;
+  stallMinutes: number;
   host: string;
   worktreeRoot: string;
-  stateFile: string;
 };
 export type Finding = { must_fix: boolean; caused_by_change: boolean; where: string; what: string; done_when: string };
 export type Ask = { question: string; recommendation: string; options: { option: string; pick_this_if: string }[]; context?: string };
-export type Ending =
-  | { kind: 'report'; body: string }
-  | { kind: 'change'; full_suite: boolean; full_suite_why: string }
-  | ({ kind: 'decision' } & Ask);
-/** One ticket the runner owns. The runner saves these to `stateFile`, so a restart can resume them. */
-export type Ticket = {
-  id: string; key: string; title: string; url: string; description: string; repo: string; branch: string; dir: string;
-  sessionId: string; models: { lead: string; review: string }; statusId?: string; seen: string[]; launches: number;
-  startNote?: string; reviews: number; verifyFails: number; fixFrom?: string; open: Finding[]; judged: boolean; log: string[];
-  pr?: string; decision?: { id: string; identifier: string; url: string };
-};
-type Issue = { id: string; identifier: string; title: string; description: string | null; url: string; createdAt: string; labels: { nodes: { name: string }[] } };
+type Change = { kind: 'change'; full_suite: boolean; full_suite_why: string };
+export type Ending = { kind: 'report'; body: string } | Change | ({ kind: 'decision' } & Ask);
 type Comment = { id: string; body: string; createdAt: string; user: { name: string } | null };
-type Check = { ok: boolean; missing: boolean; text: string };
-type Ctx = { config: Config; linear: ReturnType<typeof linearClient>; fetchFn: typeof fetch; tickets: Map<string, Ticket>; save: () => void };
+type Issue = { id: string; identifier: string; title: string; description: string | null; url: string; createdAt: string; labels: { nodes: { name: string }[] } };
+/** A Decision issue, and the ids of the issues it is marked as blocking. */
+type Decision = { id: string; identifier: string; url: string; state: string; blocks: string[] };
+/** A ticket as the runner sees it this poll. Everything else is read again from Linear, GitHub, tmux and `<dir>/.runner/`. */
+export type Work = { id: string; key: string; title: string; url: string; description: string; repo: string; branch: string; dir: string; models: { lead: string; review: string } };
+/** Why a turn exists, saved in `.runner/turn-N/cause.json` with the last comment its input carries. */
+type Cause = { cause: 'task' | 'again' | 'answer' | 'verify' | 'findings' | 'cut'; decision?: string; round?: number; through?: { id: string; createdAt: string } };
+type Review = { round: number; head: string; findings: Finding[] };
+type Ctx = { config: Config; linear: ReturnType<typeof linearClient>; fetchFn: typeof fetch };
+/** The next step for a ticket, worked out from what is true now. */
+export type Observation =
+  | { kind: 'start' | 'running' }
+  | { kind: 'launch' | 'relaunch' | 'consume'; turn: number }
+  | { kind: 'answer' | 'stop' | 'waiting'; turn: number; decision: Decision };
 
 const STEP_TIMEOUT_MS = 2 * 60 * 60 * 1000;
 const MAX_ROUNDS = 3;
 const PROMPTS = fileURLToPath(new URL('./prompts/', import.meta.url));
 const AUTO_EXIT = fileURLToPath(new URL('../extensions/interactive-subagents/pi-extension/subagents/subagent-done.ts', import.meta.url));
 const ISSUE_FIELDS = 'id identifier title description url createdAt labels { nodes { name } }';
+const RESTART_NOTE = 'The runner restarted while you worked on the message below. If you already acted on it, check where the work stands and carry on.';
 const bin = (name: 'pi' | 'gh' | 'tmux' | 'memory_pressure') => process.env[`JOB_RUNNER_${name.toUpperCase()}`] ?? name;
-const sh = (value: string) => `'${value.replaceAll("'", `'\\''`)}'`;
+/** Quotes one shell word. Plain words stay bare so the commands in the status comment stay readable. */
+export const sh = (value: string) => (/^[\w@%+=:,./-]+$/.test(value) ? value : `'${value.replaceAll("'", `'\\''`)}'`);
 /** tmux matches `-t ALE-1` to `ALE-10` by prefix when `ALE-1` is gone. `=` asks for the exact name. */
 const session = (key: string) => `=${key}`;
 const pane = (key: string) => `=${key}:`;
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 export function loadConfig(file: string): Config {
   const raw = JSON.parse(readFileSync(file, 'utf8'));
@@ -58,10 +63,7 @@ export function loadConfig(file: string): Config {
     if (!raw[key]) throw new Error(`${file}: missing "${key}"`);
   }
   if (!raw.models.lead || !raw.models.review) throw new Error(`${file}: "models" needs "lead" and "review"`);
-  return {
-    webhooks: {}, thinking: 'high', pollSeconds: 30, maxLeads: 2, minFreeMemoryPercent: 20, host: os.hostname().replace(/\.local$/, ''),
-    stateFile: path.join(os.homedir(), '.config', 'job-runner', 'state.json'), ...raw,
-  };
+  return { webhooks: {}, thinking: 'high', pollSeconds: 30, maxLeads: 2, minFreeMemoryPercent: 20, stallMinutes: 30, host: os.hostname().replace(/\.local$/, ''), ...raw };
 }
 
 function run(cmd: string, args: string[], cwd: string, timeout = 0): Promise<{ code: number; out: string }> {
@@ -83,6 +85,16 @@ async function must(cmd: string, args: string[], cwd: string, timeout = 0): Prom
   return out.trim();
 }
 
+/** Writes a file whole or not at all: temp file, flush, rename. */
+export function put(file: string, content: string) {
+  const temp = `${file}.${process.pid}.tmp`;
+  const fd = openSync(temp, 'w');
+  try { writeSync(fd, content); fsyncSync(fd); } finally { closeSync(fd); }
+  renameSync(temp, file);
+}
+const readOr = (file: string) => (existsSync(file) ? readFileSync(file, 'utf8') : null);
+const readJson = <T>(file: string): T | null => { try { return JSON.parse(readFileSync(file, 'utf8')) as T; } catch { return null; } };
+
 function linearClient(config: Config, fetchFn: typeof fetch) {
   let stateIds: Map<string, string> | undefined;
   let decisionIds: { team: string; assignee: string } | undefined;
@@ -97,6 +109,24 @@ function linearClient(config: Config, fetchFn: typeof fetch) {
     if (!res.ok || body.errors || !body.data) throw new Error(`Linear ${res.status}: ${JSON.stringify(body.errors ?? body)}`);
     return body.data;
   }
+  type Found = { id: string; identifier: string; url: string; state: { type: string }; relations?: { nodes: { type: string; relatedIssue: { id: string } }[] } };
+  const ISSUE = 'id identifier url state { type } relations { nodes { type relatedIssue { id } } }';
+  const decision = (i: Found): Decision => ({
+    id: i.id, identifier: i.identifier, url: i.url, state: i.state.type,
+    blocks: (i.relations?.nodes ?? []).filter((r) => r.type === 'blocks').map((r) => r.relatedIssue.id),
+  });
+  const findMarked = async (mark: string): Promise<Decision | null> => {
+    const found = (await gql<{ issues: { nodes: Found[] } }>(
+      `query FindMarked($team: String!, $mark: String!) { issues(first: 1, filter: { team: { key: { eq: $team } }, description: { contains: $mark } }) { nodes { ${ISSUE} } } }`,
+      { team: config.team, mark },
+    )).issues.nodes[0];
+    return found ? decision(found) : null;
+  };
+  /** Adds the `blocks` link Alex sees in Linear. Nothing reads it to decide whether an issue exists. */
+  const link = async (issue: Decision, workId: string) => {
+    if (issue.blocks.includes(workId)) return;
+    await gql('mutation Relate($input: IssueRelationCreateInput!) { issueRelationCreate(input: $input) { success } }', { input: { issueId: issue.id, relatedIssueId: workId, type: 'blocks' } });
+  };
   return {
     async issues(state: string): Promise<Issue[]> {
       const data = await gql<{ issues: { nodes: Issue[] } }>(
@@ -104,9 +134,6 @@ function linearClient(config: Config, fetchFn: typeof fetch) {
         { team: config.team, state, user: config.runnerUser },
       );
       return data.issues.nodes.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-    },
-    async stateType(id: string): Promise<string> {
-      return (await gql<{ issue: { state: { type: string } } }>('query IssueState($id: String!) { issue(id: $id) { state { type } } }', { id })).issue.state.type;
     },
     async update(id: string, state: string | null, clearDelegate = false) {
       stateIds ??= new Map(
@@ -137,20 +164,25 @@ function linearClient(config: Config, fetchFn: typeof fetch) {
       );
       return data.issue.comments.nodes.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     },
-    /** Files a Decision issue assigned to `decisionAssignee`, marked as blocking the work ticket. */
-    async createDecision(workId: string, title: string, description: string) {
+    findMarked,
+    link,
+    /**
+     * Files an issue assigned to `decisionAssignee`, with `mark` in its description, unless one with that mark exists.
+     * The mark, not the link, says whether it exists: creating and linking are two writes, and a crash can fall between them.
+     * The `blocks` link is for Alex to see.
+     */
+    async fileIssue(workId: string, title: string, description: string, mark: string) {
       if (!decisionIds) {
         const team = await gql<{ teams: { nodes: { id: string }[] } }>('query Team($key: String!) { teams(filter: { key: { eq: $key } }) { nodes { id } } }', { key: config.team });
         const user = await gql<{ users: { nodes: { id: string }[] } }>('query User($name: String!) { users(filter: { name: { eq: $name } }) { nodes { id } } }', { name: config.decisionAssignee });
         if (!team.teams.nodes[0] || !user.users.nodes[0]) throw new Error(`Linear has no team ${config.team} or no user ${config.decisionAssignee}`);
         decisionIds = { team: team.teams.nodes[0].id, assignee: user.users.nodes[0].id };
       }
-      const data = await gql<{ issueCreate: { issue: { id: string; identifier: string; url: string } } }>(
-        'mutation CreateIssue($input: IssueCreateInput!) { issueCreate(input: $input) { issue { id identifier url } } }',
-        { input: { teamId: decisionIds.team, assigneeId: decisionIds.assignee, title, description } },
-      );
-      const issue = data.issueCreate.issue;
-      await gql('mutation Relate($input: IssueRelationCreateInput!) { issueRelationCreate(input: $input) { success } }', { input: { issueId: issue.id, relatedIssueId: workId, type: 'blocks' } });
+      const issue = (await findMarked(mark)) ?? decision((await gql<{ issueCreate: { issue: Found } }>(
+        `mutation CreateIssue($input: IssueCreateInput!) { issueCreate(input: $input) { issue { ${ISSUE} } } }`,
+        { input: { teamId: decisionIds.team, assigneeId: decisionIds.assignee, title, description: `${description}\n\n${mark}` } },
+      )).issueCreate.issue);
+      await link(issue, workId);
       return issue;
     },
   };
@@ -179,6 +211,13 @@ export function parseEnding(text: string | null, proof: string): Ending | { erro
   return { error: '.runner/ending.json needs "kind" set to "report", "change" or "decision"' };
 }
 
+/** Accepts an ending only from a Pi that exited 0. */
+export function readEnding(exitCode: string | null, text: string | null, proof: string): Ending | { error: string } {
+  if (exitCode === null) return { error: 'the lead session ended without an exit record' };
+  if (exitCode !== '0') return { error: `Pi exited with code ${exitCode}` };
+  return parseEnding(text, proof);
+}
+
 export function renderDecision(work: { key: string; url: string }, ask: Ask) {
   const title = `Decision for ${work.key}: ${ask.question.length > 80 ? `${ask.question.slice(0, 77)}...` : ask.question}`;
   const body = [
@@ -187,23 +226,35 @@ export function renderDecision(work: { key: string; url: string }, ask: Ask) {
     `**Recommendation:** ${ask.recommendation}`,
     ...(ask.options.length ? [ask.options.map((o, i) => `${i + 1}. **${o.option}**. Pick this if ${o.pick_this_if}`).join('\n')] : []),
     ...(ask.context ? [`**Context:**\n\n${ask.context}`] : []),
-    `Answer in a comment, then close this issue. The runner resumes ${work.key}'s lead with your comments.`,
+    `Answer in a comment, then mark this issue Done. The runner resumes ${work.key}'s lead with your comments. Canceling this issue stops ${work.key} and hands it back.`,
   ];
   return { title, body: body.join('\n\n') };
 }
 
-export function renderStatus(t: Pick<Ticket, 'key' | 'sessionId' | 'dir' | 'branch'>, host: string, state: string, detail = '') {
-  const quiz = `${t.dir}-quiz`;
+/** The commands Alex copies from the status comment. Each word is quoted for the local shell and again for the remote one. */
+export function commands(w: Pick<Work, 'key' | 'dir' | 'branch'>, sessionId: string, host: string) {
+  const ssh = (...remote: string[]) => `ssh -t ${sh(host)} ${sh(remote.join(' '))}`;
+  const quiz = `${w.dir}-quiz`;
+  return {
+    watch: ssh('tmux attach -t', sh(session(w.key))),
+    takeOver: ssh('touch', sh(path.join(w.dir, '.runner', 'takeover')), '&& tmux attach -t', sh(session(w.key))),
+    quiz: ssh('cd', sh(w.dir), '&& git worktree add -B', sh(`${w.branch}-quiz`), sh(quiz), 'HEAD && cd', sh(quiz), '&& tmux new -s', sh(`${w.key}-quiz`), 'pi --fork', sh(sessionId)),
+    stop: ssh('tmux kill-session -t', sh(session(w.key))),
+  };
+}
+
+export function renderStatus(w: Pick<Work, 'key' | 'dir' | 'branch'>, sessionId: string, host: string, state: string, detail = '') {
+  const c = commands(w, sessionId, host);
   return [
     `**Runner:** ${state}`,
     '',
     `- Host: ${host}`,
-    `- tmux session: \`${t.key}\``,
-    `- Session id: \`${t.sessionId}\``,
-    `- Worktree: \`${t.dir}\` on \`${t.branch}\``,
-    `- Watch or steer: \`ssh -t ${host} tmux attach -t ${t.key}\``,
-    `- Take over (auto-exit stays off until you quit Pi): \`ssh -t ${host} 'touch ${t.dir}/.runner/takeover && tmux attach -t ${t.key}'\``,
-    `- Quiz a fork: \`ssh -t ${host} 'cd ${t.dir} && git worktree add -B ${t.branch}-quiz ${quiz} HEAD && cd ${quiz} && tmux new -s ${t.key}-quiz pi --fork ${t.sessionId}'\``,
+    `- tmux session: \`${w.key}\``,
+    `- Session id: \`${sessionId}\``,
+    `- Worktree: \`${w.dir}\` on \`${w.branch}\``,
+    `- Watch or steer: \`${c.watch}\``,
+    `- Take over (auto-exit stays off until you quit Pi): \`${c.takeOver}\``,
+    `- Quiz a fork: \`${c.quiz}\``,
     ...(detail ? ['', detail] : []),
   ].join('\n');
 }
@@ -218,346 +269,489 @@ export function startBlock(o: { running: number; maxLeads: number; freeMemory: n
 
 export const needsScreen = (description: string) => /^Needs:\s*screen\s*$/im.test(description);
 
-/** Waiting tickets whose Decision issue Alex has closed, as Done or Canceled. */
-export const answered = (waiting: Ticket[], stateTypes: Map<string, string>) =>
-  waiting.filter((t) => ['completed', 'canceled'].includes(stateTypes.get(t.id) ?? ''));
+const rf = (w: Pick<Work, 'dir'>, name: string) => path.join(w.dir, '.runner', name);
+const tf = (w: Pick<Work, 'dir'>, n: number, name: string) => path.join(w.dir, '.runner', `turn-${n}`, name);
+const sessionId = (w: Work) => readOr(rf(w, 'session-id'))?.trim() ?? '';
+const proof = (w: Work) => (readOr(rf(w, 'PROOF.md')) ?? '').trim();
+const brief = (w: Work) => `Issue ${w.key}: ${w.title}\n${w.url}\n\n${w.description}`;
+/** The text in a Decision or stall issue's description that finds it again. Linear's relations are not used for this. */
+export const marker = (kind: 'decision' | 'stall', key: string, turn: number) => `runner-${kind} ${key} turn ${turn} end`;
 
-export async function verify(dir: string): Promise<Check> {
-  const script = path.join(dir, '.agents', 'verify');
-  try { accessSync(script, constants.X_OK); } catch { return { ok: false, missing: true, text: 'no executable .agents/verify' }; }
-  const { code, out } = await run(script, [], dir, STEP_TIMEOUT_MS);
-  return { ok: code === 0, missing: false, text: `.agents/verify exited ${code}\n${tail(out, 30)}` };
+/** Turn folders in `.runner/`, oldest first. The newest is the live turn; every older one is consumed. */
+export function turns(w: Pick<Work, 'dir'>): number[] {
+  const dir = path.join(w.dir, '.runner');
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir).flatMap((name) => /^turn-(\d+)$/.exec(name)?.slice(1).map(Number) ?? []).sort((a, b) => a - b);
+}
+const newest = (w: Work) => turns(w).at(-1) ?? 0;
+
+/**
+ * Works out the next step for a ticket from what is true now, and changes nothing. A turn that ended is acted on
+ * before Pi ever starts again, and Pi starts only for a newest turn with no exit, no ending and no live session.
+ */
+export async function observe(w: Work, live: boolean, decisionFor: (turn: number) => Promise<Decision | null>): Promise<Observation> {
+  if (!existsSync(w.dir) || !sessionId(w)) return { kind: 'start' };
+  if (live) return { kind: 'running' };
+  const turn = newest(w);
+  if (turn === 0) return { kind: 'start' };
+  if (!existsSync(tf(w, turn, 'exit')) && !existsSync(tf(w, turn, 'ending.json'))) {
+    return { kind: existsSync(tf(w, turn, 'launched')) ? 'relaunch' : 'launch', turn };
+  }
+  const decision = await decisionFor(turn);
+  if (!decision) return { kind: 'consume', turn };
+  if (decision.state === 'completed') return { kind: 'answer', turn, decision };
+  if (decision.state === 'canceled') return { kind: 'stop', turn, decision };
+  return { kind: 'waiting', turn, decision };
+}
+
+const hasVerify = (dir: string) => { try { accessSync(path.join(dir, '.agents', 'verify'), constants.X_OK); return true; } catch { return false; } };
+
+async function verify(dir: string): Promise<{ ok: boolean; text: string }> {
+  const { code, out } = await run(path.join(dir, '.agents', 'verify'), [], dir, STEP_TIMEOUT_MS);
+  return { ok: code === 0, text: `.agents/verify exited ${code}\n${tail(out, 30)}` };
 }
 
 function parseFindings(file: string): Finding[] {
-  let value: unknown;
-  try { value = JSON.parse(readFileSync(file, 'utf8')); } catch { value = undefined; }
+  const value = readJson<unknown>(file);
   const valid = Array.isArray(value) && value.every((f) =>
     typeof f?.must_fix === 'boolean' && typeof f.caused_by_change === 'boolean' &&
     ['where', 'what', 'done_when'].every((key) => typeof f[key] === 'string'));
-  if (!valid) throw new Error(`review wrote no valid findings JSON to ${path.basename(file)}`);
+  if (!valid) throw new Error(`review wrote no valid findings JSON to ${path.basename(path.dirname(file))}/${path.basename(file)}`);
   return value as Finding[];
 }
 
 const describe = (f: Finding) =>
   `- [${f.must_fix ? (f.caused_by_change ? 'must fix' : 'must fix, not caused by this change') : 'note'}] ${f.where}: ${f.what} Done when: ${f.done_when}`;
+const blocking = (findings: Finding[]) => findings.filter((f) => f.must_fix && f.caused_by_change);
 
 const repoLocks = new Map<string, Promise<unknown>>();
 /** Runs git setup for one repo at a time: two leads starting together would fight over `.git/config.lock`. */
-function worktree(repo: Repo, branch: string, dir: string) {
-  const next = (repoLocks.get(repo.path) ?? Promise.resolve()).catch(() => {}).then(() => makeWorktree(repo, branch, dir));
+function worktree(repo: Repo, w: Work) {
+  const next = (repoLocks.get(repo.path) ?? Promise.resolve()).catch(() => {}).then(() => makeWorktree(repo, w));
   repoLocks.set(repo.path, next);
   return next;
 }
 
-async function makeWorktree(repo: Repo, branch: string, dir: string) {
-  await must('git', ['fetch', 'origin', repo.base], repo.path);
-  if (existsSync(dir)) await must('git', ['worktree', 'remove', '--force', dir], repo.path);
-  await must('git', ['worktree', 'prune'], repo.path);
-  mkdirSync(path.dirname(dir), { recursive: true });
-  await must('git', ['worktree', 'add', '-B', branch, dir, `origin/${repo.base}`], repo.path);
-  const exclude = path.join(path.resolve(dir, await must('git', ['rev-parse', '--git-common-dir'], dir)), 'info', 'exclude');
+/** Reuses the ticket's worktree or branch when they exist. It never removes a worktree or resets a branch. */
+async function makeWorktree(repo: Repo, w: Work) {
+  if (existsSync(w.dir)) {
+    const head = await run('git', ['rev-parse', '--abbrev-ref', 'HEAD'], w.dir);
+    if (head.code !== 0 || head.out.trim() !== w.branch) throw new Error(`${w.dir} exists but is not a worktree on ${w.branch}, so the runner left it alone.`);
+  } else {
+    await must('git', ['fetch', 'origin', repo.base], repo.path);
+    await must('git', ['worktree', 'prune'], repo.path);
+    mkdirSync(path.dirname(w.dir), { recursive: true });
+    const known = (await run('git', ['rev-parse', '--verify', '--quiet', `refs/heads/${w.branch}`], repo.path)).code === 0;
+    await must('git', ['worktree', 'add', ...(known ? [w.dir, w.branch] : ['-b', w.branch, w.dir, `origin/${repo.base}`])], repo.path);
+  }
+  const exclude = path.join(path.resolve(w.dir, await must('git', ['rev-parse', '--git-common-dir'], w.dir)), 'info', 'exclude');
   if (!existsSync(exclude) || !readFileSync(exclude, 'utf8').split('\n').includes('.runner/')) {
     mkdirSync(path.dirname(exclude), { recursive: true });
     appendFileSync(exclude, '\n.runner/\n');
   }
-  mkdirSync(path.join(dir, '.runner'), { recursive: true });
+  mkdirSync(path.join(w.dir, '.runner'), { recursive: true });
 }
 
-const readOr = (file: string, fallback: string | null = null) => (existsSync(file) ? readFileSync(file, 'utf8') : fallback);
-const proof = (dir: string) => (readOr(path.join(dir, '.runner', 'PROOF.md'), '') ?? '').trim();
-const brief = (t: Ticket) => `Issue ${t.key}: ${t.title}\n${t.url}\n\n${t.description}`;
-
-async function status(ctx: Ctx, t: Ticket, state: string, detail = '') {
-  const body = renderStatus(t, ctx.config.host, state, detail);
-  if (t.statusId) await ctx.linear.editComment(t.statusId, body);
-  else { t.statusId = await ctx.linear.comment(t.id, body); t.seen.push(t.statusId); }
-  ctx.save();
+/** Edits the ticket's one status comment, or posts it if Linear has none yet. */
+async function status(ctx: Ctx, w: Work, state: string, detail = '') {
+  const body = renderStatus(w, sessionId(w), ctx.config.host, state, detail);
+  const mine = (await ctx.linear.comments(w.id)).find((c) => c.user?.name === ctx.config.runnerUser && c.body.startsWith('**Runner:**'));
+  if (mine) await ctx.linear.editComment(mine.id, body);
+  else await ctx.linear.comment(w.id, body);
 }
 
-/** Human comments on the work ticket that no lead has seen yet. */
-async function newComments(ctx: Ctx, t: Ticket): Promise<Comment[]> {
-  const fresh = (await ctx.linear.comments(t.id)).filter((c) => !t.seen.includes(c.id));
-  t.seen.push(...fresh.map((c) => c.id));
-  ctx.save();
-  return fresh.filter((c) => c.user?.name !== ctx.config.runnerUser);
+/** Posts a comment unless the runner already posted the same body. */
+async function postOnce(ctx: Ctx, w: Work, body: string) {
+  if (!(await ctx.linear.comments(w.id)).some((c) => c.user?.name === ctx.config.runnerUser && c.body === body)) await ctx.linear.comment(w.id, body);
+}
+
+/** Human comments newer than `.runner/delivered.json`, the last one the lead got. */
+async function undelivered(ctx: Ctx, w: Work) {
+  const delivered = readJson<{ id: string; createdAt: string }>(rf(w, 'delivered.json'));
+  return (await ctx.linear.comments(w.id)).filter((c) => c.user?.name !== ctx.config.runnerUser && (!delivered || c.createdAt > delivered.createdAt));
 }
 const formatComments = (comments: Comment[]) =>
   comments.length ? `\n\nNew comments on the issue:\n${comments.map((c) => `- ${c.user?.name ?? 'unknown'}: ${c.body}`).join('\n')}` : '';
+const endLine = (n: number) => `\n\nFor a change, update .runner/PROOF.md first. End this turn by writing .runner/turn-${n}/ending.json.`;
+const lastOf = (comments: Comment[]) => { const c = comments.at(-1); return c ? { id: c.id, createdAt: c.createdAt } : undefined; };
 
-/** Starts the lead in a detached tmux session named for the ticket. Pi exits at the end of its turn (auto-exit). */
-async function launch(ctx: Ctx, t: Ticket, input: string) {
-  const runner = path.join(t.dir, '.runner');
-  for (const file of ['ending.json', 'lead-exit', 'takeover']) rmSync(path.join(runner, file), { force: true });
-  const inputFile = path.join(runner, `input-${++t.launches}.md`);
-  writeFileSync(inputFile, input);
-  ctx.save();
-  const pi = (...extra: string[]) => [bin('pi'), '--session-id', t.sessionId, '-e', AUTO_EXIT, '--model', t.models.lead, '--thinking', ctx.config.thinking,
+/**
+ * Makes the next turn: one folder with the input and its cause, built aside and renamed into place, so it
+ * appears whole or not at all. The new folder makes the older turn consumed, so one cause never makes two turns.
+ */
+async function newTurn(ctx: Ctx, w: Work, cause: Cause, input: string) {
+  const n = newest(w) + 1;
+  const comments = await undelivered(ctx, w);
+  const temp = rf(w, `.turn-${n}.${process.pid}.tmp`);
+  rmSync(temp, { recursive: true, force: true });
+  mkdirSync(temp);
+  put(path.join(temp, 'input.md'), `${input}${formatComments(comments)}${endLine(n)}`);
+  put(path.join(temp, 'cause.json'), JSON.stringify({ ...cause, through: lastOf(comments) }));
+  renameSync(temp, path.join(w.dir, '.runner', `turn-${n}`));
+}
+
+/** Starts the lead on turn `n` in a detached tmux session named for the ticket. Pi exits at the end of its turn (auto-exit). */
+async function launch(ctx: Ctx, w: Work, n: number, restart: boolean) {
+  put(tf(w, n, 'launched'), new Date().toISOString());
+  let inputFile = tf(w, n, 'input.md');
+  let through = readJson<Cause>(tf(w, n, 'cause.json'))?.through;
+  if (restart) {
+    // Pi stopped with the runner before the turn ended. Send the same turn again, with comments it may have missed.
+    const comments = await undelivered(ctx, w);
+    inputFile = tf(w, n, 'restart.md');
+    put(inputFile, `${RESTART_NOTE}\n\n---\n\n${readFileSync(tf(w, n, 'input.md'), 'utf8')}${formatComments(comments)}`);
+    through = lastOf(comments) ?? through;
+  }
+  for (const file of ['takeover', 'held']) rmSync(rf(w, file), { force: true });
+  const pi = (...extra: string[]) => [bin('pi'), '--session-id', sessionId(w), '-e', AUTO_EXIT, '--model', w.models.lead, '--thinking', ctx.config.thinking,
     '--append-system-prompt', path.join(PROMPTS, 'lead.md'), ...extra].map(sh).join(' ');
   const keep = ['PI_AUTH_PROFILE', 'PI_CODING_AGENT_DIR'].filter((name) => process.env[name]).map((name) => `export ${name}=${sh(process.env[name]!)}`);
-  const script = [
+  put(rf(w, 'lead.sh'), [
     '#!/bin/sh',
-    `cd ${sh(t.dir)} || exit 1`,
+    `cd ${sh(w.dir)} || exit 1`,
     `export PATH=${sh(process.env.PATH ?? '')}`,
     '# The tmux server keeps the environment of whoever started it. Drop Pi variables from another session.',
     "for v in $(env | sed -n 's/^\\(PI_[A-Z_]*\\)=.*/\\1/p; s/^\\(PSTACK_[A-Z_]*\\)=.*/\\1/p'); do unset \"$v\"; done",
     ...keep,
-    `PI_SUBAGENT_AUTO_EXIT=1 PI_SUBAGENT_ID=${sh(t.key)} PI_SUBAGENT_ACTIVITY_FILE=${sh(path.join(runner, 'activity.json'))} ${pi(`@${inputFile}`)}`,
+    `PI_SUBAGENT_AUTO_EXIT=1 PI_SUBAGENT_ID=${sh(w.key)} PI_SUBAGENT_ACTIVITY_FILE=${sh(rf(w, 'activity.json'))} ${pi(`@${inputFile}`)}`,
     'code=$?',
     '# A person who touched .runner/takeover keeps the session, without auto-exit, until they quit Pi.',
-    `if [ -f .runner/takeover ] && [ ! -f .runner/ending.json ]; then rm -f .runner/takeover; ${pi()}; fi`,
-    'echo "$code" > .runner/lead-exit',
+    `if [ -f .runner/takeover ] && [ ! -f .runner/turn-${n}/ending.json ]; then mv .runner/takeover .runner/held; ${pi()}; code=$?; rm -f .runner/held; fi`,
+    `echo "$code" > .runner/turn-${n}/exit`,
     '',
-  ].join('\n');
-  writeFileSync(path.join(runner, 'lead.sh'), script, { mode: 0o755 });
-  await run(bin('tmux'), ['kill-session', '-t', session(t.key)], t.dir);
-  await must(bin('tmux'), ['new-session', '-d', '-s', t.key, '-x', '200', '-y', '50', '-c', t.dir, `sh ${sh(path.join(runner, 'lead.sh'))}`], t.dir);
+  ].join('\n'));
+  await status(ctx, w, 'Lead running');
+  await run(bin('tmux'), ['kill-session', '-t', session(w.key)], w.dir);
+  await must(bin('tmux'), ['new-session', '-d', '-s', w.key, '-x', '200', '-y', '50', '-c', w.dir, `sh ${sh(rf(w, 'lead.sh'))}`], w.dir);
+  if (through) put(rf(w, 'delivered.json'), JSON.stringify(through));
 }
 
-/** Waits for the lead to exit. Meanwhile posts its start note and types new human comments into the session. */
-async function waitForLead(ctx: Ctx, t: Ticket): Promise<string> {
-  const exitFile = path.join(t.dir, '.runner', 'lead-exit');
-  const postStartNote = async () => {
-    const note = readOr(path.join(t.dir, '.runner', 'start.md'))?.trim();
-    if (!note || note === t.startNote) return;
-    t.startNote = note;
-    t.seen.push(await ctx.linear.comment(t.id, `Start note from the lead:\n\n${note}`));
-    ctx.save();
-  };
+const live = async (w: Pick<Work, 'key'>) => (await run(bin('tmux'), ['has-session', '-t', session(w.key)], process.cwd())).code === 0;
+
+/** Pastes new comments into the running lead, and records them as delivered only after every tmux step succeeds. */
+async function steer(ctx: Ctx, w: Work) {
+  if (existsSync(rf(w, 'takeover')) || existsSync(rf(w, 'held'))) return;
+  const comments = await undelivered(ctx, w);
+  if (!comments.length) return;
+  const text = comments.map((c) => `Comment from ${c.user?.name ?? 'unknown'} on ${w.key}:\n${c.body}`).join('\n\n');
+  const buffer = `runner-${w.key}`;
+  for (const args of [['set-buffer', '-b', buffer, '--', text], ['paste-buffer', '-p', '-d', '-b', buffer, '-t', pane(w.key)], ['send-keys', '-t', pane(w.key), 'Enter']]) {
+    if ((await run(bin('tmux'), args, w.dir)).code !== 0) return;
+  }
+  put(rf(w, 'delivered.json'), JSON.stringify(lastOf(comments)));
+}
+
+/** Minutes since the lead last did anything, from its activity file, or since the turn started. */
+export function quietMinutes(w: Pick<Work, 'dir'>, turn: number, now = Date.now()) {
+  let last = 0;
+  try { last = statSync(tf(w, turn, 'launched')).mtimeMs; } catch { /* not launched */ }
+  last = Math.max(last, readJson<{ updatedAt?: number }>(rf(w, 'activity.json'))?.updatedAt ?? 0);
+  return last ? Math.floor((now - last) / 60000) : 0;
+}
+
+/** Flags a lead quiet for `stallMinutes`: a status line and one issue for Alex per turn. It does not stop the lead. */
+async function checkStall(ctx: Ctx, w: Work, n: number) {
+  if (existsSync(tf(w, n, 'stalled')) || existsSync(rf(w, 'held'))) return;
+  const quiet = quietMinutes(w, n);
+  if (quiet < ctx.config.stallMinutes) return;
+  const c = commands(w, sessionId(w), ctx.config.host);
+  await status(ctx, w, `Lead quiet for ${quiet} minutes. It still holds a slot.`);
+  await ctx.linear.fileIssue(w.id, `Check ${w.key}: the lead looks stuck`, [
+    `Work ticket: [${w.key}](${w.url})`,
+    `The lead has shown no activity for ${quiet} minutes and still holds a lead slot.`,
+    `Watch it with \`${c.watch}\`. If it is stuck, stop it with \`${c.stop}\`; the runner then starts the same turn again. Mark this issue Done when you have looked.`,
+  ].join('\n\n'), marker('stall', w.key, n));
+  put(tf(w, n, 'stalled'), String(quiet));
+}
+
+/** Waits until turn `n` exits. Meanwhile posts the start note, pastes comments, and watches for a stall. */
+async function waitForLead(ctx: Ctx, w: Work, n: number) {
   for (;;) {
-    await postStartNote();
-    if (existsSync(exitFile) || (await run(bin('tmux'), ['has-session', '-t', session(t.key)], t.dir)).code !== 0) break;
-    if (!existsSync(path.join(t.dir, '.runner', 'takeover'))) {
-      const fresh = await newComments(ctx, t);
-      if (fresh.length) {
-        const text = fresh.map((c) => `Comment from ${c.user?.name ?? 'unknown'} on ${t.key}:\n${c.body}`).join('\n\n');
-        await run(bin('tmux'), ['set-buffer', '-b', `runner-${t.key}`, '--', text], t.dir);
-        await run(bin('tmux'), ['paste-buffer', '-p', '-d', '-b', `runner-${t.key}`, '-t', pane(t.key)], t.dir);
-        await run(bin('tmux'), ['send-keys', '-t', pane(t.key), 'Enter'], t.dir);
-      }
-    }
+    await startNote(ctx, w);
+    if (existsSync(tf(w, n, 'exit')) || !(await live(w))) break;
+    await steer(ctx, w);
+    await checkStall(ctx, w, n);
     await sleep(ctx.config.pollSeconds * 1000);
   }
-  await run(bin('tmux'), ['kill-session', '-t', session(t.key)], t.dir);
-  await postStartNote();
-  return readOr(exitFile)?.trim() || 'unknown';
+  await run(bin('tmux'), ['kill-session', '-t', session(w.key)], w.dir);
 }
 
-async function step(ctx: Ctx, t: Ticket, name: string, prompt: 'review' | 'judge', input: string) {
-  const args = ['-p', '--model', t.models.review, '--thinking', ctx.config.thinking, '--append-system-prompt', path.join(PROMPTS, `${prompt}.md`), input];
-  const { code, out } = await run(bin('pi'), args, t.dir, STEP_TIMEOUT_MS);
-  writeFileSync(path.join(t.dir, '.runner', `${name}.log`), out);
+/** Posts the lead's `.runner/start.md` once. */
+async function startNote(ctx: Ctx, w: Work) {
+  const note = readOr(rf(w, 'start.md'))?.trim();
+  if (note) await postOnce(ctx, w, `Start note from the lead:\n\n${note}`);
+}
+
+async function step(ctx: Ctx, w: Work, name: string, prompt: 'review' | 'judge', input: string) {
+  const args = ['-p', '--model', w.models.review, '--thinking', ctx.config.thinking, '--append-system-prompt', path.join(PROMPTS, `${prompt}.md`), input];
+  const { code, out } = await run(bin('pi'), args, w.dir, STEP_TIMEOUT_MS);
+  writeFileSync(rf(w, `${name}.log`), out);
   if (code !== 0) throw new Error(`${name} step exited ${code}:\n${tail(out, 20)}`);
 }
 
-async function webhook(ctx: Ctx, t: Ticket, state: 'ready' | 'done' | 'needs-decision') {
-  const name = /^Report to:\s*(.+)$/im.exec(t.description)?.[1].trim();
+async function webhook(ctx: Ctx, w: Work, state: 'ready' | 'done' | 'needs-decision', pr: string | null = null) {
+  const name = /^Report to:\s*(.+)$/im.exec(w.description)?.[1].trim();
   const hook = name ? ctx.config.webhooks[name] : undefined;
   if (!hook) return;
   try {
     const res = await ctx.fetchFn(hook.url, {
       method: 'POST',
       headers: { Authorization: `Bearer ${readFileSync(hook.keyFile, 'utf8').trim()}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ issue: t.key, url: t.url, state, pr: t.pr ?? null }),
+      body: JSON.stringify({ issue: w.key, url: w.url, state, pr }),
     });
-    if (!res.ok) console.error(`${t.key}: webhook ${name} returned ${res.status}`);
+    if (!res.ok) console.error(`${w.key}: webhook ${name} returned ${res.status}`);
   } catch (error) {
-    console.error(`${t.key}: webhook ${name} failed`, error);
+    console.error(`${w.key}: webhook ${name} failed`, error);
   }
 }
 
-function finish(ctx: Ctx, t: Ticket) {
-  ctx.tickets.delete(t.id);
-  ctx.save();
+/** Files turn `n`'s one Decision issue. Its marker finds it again, so a retry never files a second. */
+async function decide(ctx: Ctx, w: Work, n: number, ask: Ask) {
+  const { title, body } = renderDecision(w, ask);
+  const issue = await ctx.linear.fileIssue(w.id, title, body, marker('decision', w.key, n));
+  await status(ctx, w, `Waiting on [${issue.identifier}](${issue.url}). The lead has exited and holds no slot.`);
+  await webhook(ctx, w, 'needs-decision');
 }
 
-/** Files a Decision issue and leaves the work ticket In Progress. The lead has exited, so the ticket holds no slot. */
-async function decide(ctx: Ctx, t: Ticket, ask: Ask) {
-  const { title, body } = renderDecision(t, ask);
-  t.decision = await ctx.linear.createDecision(t.id, title, body);
-  ctx.save();
-  await status(ctx, t, `Waiting on [${t.decision.identifier}](${t.decision.url}). The lead has exited and holds no slot.`);
-  await webhook(ctx, t, 'needs-decision');
-}
+/** Every saved review, oldest first, for the PR body and the judge. */
+const reviewLog = (w: Work) => turns(w).flatMap((k) => {
+  const r = readJson<Review>(tf(w, k, 'review.json'));
+  return r ? [`Review round ${r.round}: ${r.findings.length} findings, ${blocking(r.findings).length} caused must-fix.`] : [];
+});
 
-async function ship(ctx: Ctx, t: Ticket, ending: { full_suite: boolean; full_suite_why: string }, check: Check, gaps: Finding[]) {
-  const repo = ctx.config.repos[t.repo];
+async function ship(ctx: Ctx, w: Work, n: number, ending: Change) {
+  const repo = ctx.config.repos[w.repo];
   const gh = bin('gh');
-  const body = [
-    `Linear: [${t.key}](${t.url})`,
-    `## Goal\n\n${t.title}\n\n${t.description}`,
-    `## Proof\n\n${proof(t.dir)}`,
-    `## Review\n\n${t.log.join('\n')}\nVerify: ${check.missing ? 'no .agents/verify; CI is the gate' : check.text.split('\n')[0]}\nFull suite: ${ending.full_suite ? 'needed' : 'not needed'}. ${ending.full_suite_why}`,
-    ...(gaps.length ? [`## Known gaps\n\nThe judge chose to ship with these open:\n${gaps.map(describe).join('\n')}`] : []),
-  ].join('\n\n');
-  writeFileSync(path.join(t.dir, '.runner', 'pr.md'), body);
-  await must('git', ['push', '--force', '-u', 'origin', t.branch], t.dir);
-  if (t.pr) await must(gh, ['pr', 'edit', t.pr, '--body-file', '.runner/pr.md'], t.dir);
-  else {
-    const created = await must(gh, ['pr', 'create', '--base', repo.base, '--head', t.branch, '--title', `${t.key}: ${t.title}`, '--body-file', '.runner/pr.md'], t.dir);
-    t.pr = created.match(/https:\/\/\S+/g)?.at(-1) ?? created;
-    ctx.save();
+  // Find a PR an earlier, interrupted run opened before opening another.
+  const prs = JSON.parse(await must(gh, ['pr', 'list', '--head', w.branch, '--state', 'all', '--json', 'url,state'], w.dir)) as { url: string; state: string }[];
+  let pr = prs.find((p) => p.state === 'OPEN' || p.state === 'MERGED');
+  if (pr?.state !== 'MERGED') {
+    const body = [
+      `Linear: [${w.key}](${w.url})`,
+      `## Goal\n\n${w.title}\n\n${w.description}`,
+      `## Proof\n\n${proof(w)}`,
+      `## Review\n\n${reviewLog(w).join('\n')}\nVerify: ${hasVerify(w.dir) ? 'passed' : 'no .agents/verify; CI is the gate'}\nFull suite: ${ending.full_suite ? 'needed' : 'not needed'}. ${ending.full_suite_why}`,
+    ].join('\n\n');
+    writeFileSync(rf(w, 'pr.md'), body);
+    await must('git', ['push', '--force', '-u', 'origin', w.branch], w.dir);
+    if (pr) await must(gh, ['pr', 'edit', pr.url, '--body-file', '.runner/pr.md'], w.dir);
+    else {
+      const created = await must(gh, ['pr', 'create', '--base', repo.base, '--head', w.branch, '--title', `${w.key}: ${w.title}`, '--body-file', '.runner/pr.md'], w.dir);
+      pr = { url: created.match(/https:\/\/\S+/g)?.at(-1) ?? created, state: 'OPEN' };
+    }
+    if (ending.full_suite && repo.fullSuiteLabel) await must(gh, ['pr', 'edit', pr.url, '--add-label', repo.fullSuiteLabel], w.dir);
   }
-  if (ending.full_suite && repo.fullSuiteLabel) await must(gh, ['pr', 'edit', t.pr, '--add-label', repo.fullSuiteLabel], t.dir);
-  let outcome = 'ready for review';
-  if (repo.automerge) {
-    if ((await run(gh, ['pr', 'merge', t.pr, '--auto', '--squash'], t.dir)).code === 0) outcome = 'set to merge when its checks pass';
-    else if (check.missing) {
-      return decide(ctx, t, {
-        question: `CI is the only gate for ${t.repo}, but auto-merge would not turn on for ${t.pr}. How should it merge?`,
-        recommendation: 'Turn on auto-merge and required checks for the repo, or add .agents/verify, then close this issue.',
+  let outcome = pr.state === 'MERGED' ? 'merged' : 'ready for review';
+  if (repo.automerge && pr.state !== 'MERGED') {
+    // Auto-merge waits for required checks. The runner never merges around them.
+    const auto = await run(gh, ['pr', 'merge', pr.url, '--auto', '--squash'], w.dir);
+    if (auto.code === 0) outcome = 'set to merge when its checks pass';
+    else if (JSON.parse(await must(gh, ['pr', 'view', pr.url, '--json', 'state'], w.dir)).state === 'MERGED') outcome = 'merged';
+    else {
+      return decide(ctx, w, n, {
+        question: `GitHub would not turn on auto-merge for ${pr.url}, and the runner does not merge around checks. How should it merge?`,
+        recommendation: 'Turn on auto-merge for the repo, or merge the PR yourself once its checks pass. Then mark this issue Done.',
         options: [],
+        context: tail(auto.out, 10),
       });
-    } else { await must(gh, ['pr', 'merge', t.pr, '--squash'], t.dir); outcome = 'merged'; }
+    }
   }
-  await ctx.linear.update(t.id, 'In Review', true);
-  await status(ctx, t, `PR ${outcome}: ${t.pr}`, t.log.join('\n'));
-  finish(ctx, t);
-  await webhook(ctx, t, 'ready');
+  await ctx.linear.update(w.id, 'In Review', true);
+  await status(ctx, w, `PR ${outcome}: ${pr.url}`, reviewLog(w).join('\n'));
+  await webhook(ctx, w, 'ready', pr.url);
 }
 
 /**
- * The gate for a change ending: commit, verify, review. Returns the message that resumes the lead
- * for another round, or null when the ticket shipped or waits on a Decision issue.
+ * Commits, verifies and reviews turn `n`'s change. The review and the judge's verdict are saved per turn, so a
+ * retry after a crash reuses them. Rounds count from the last turn Alex started (an answer or a new delegation).
  */
-async function gate(ctx: Ctx, t: Ticket, ending: { full_suite: boolean; full_suite_why: string }): Promise<string | null> {
-  const repo = ctx.config.repos[t.repo];
+async function gate(ctx: Ctx, w: Work, n: number, ending: Change) {
+  const repo = ctx.config.repos[w.repo];
   const base = `origin/${repo.base}`;
-  await must('git', ['add', '-A'], t.dir);
-  if ((await run('git', ['diff', '--cached', '--quiet'], t.dir)).code !== 0) await must('git', ['commit', '-q', '-m', `${t.key}: ${t.reviews ? `fix round ${t.reviews}` : t.title}`], t.dir);
-  if ((await must('git', ['rev-list', '--count', `${base}..HEAD`], t.dir)) === '0') {
-    await decide(ctx, t, { question: 'The lead ended with a change, but the branch has no commits. What next?', recommendation: 'Read PROOF.md in the worktree and tell the lead what to do.', options: [], context: proof(t.dir) });
-    return null;
+  const all = turns(w).filter((k) => k <= n);
+  const since = all.filter((k) => ['answer', 'again'].includes(readJson<Cause>(tf(w, k, 'cause.json'))?.cause ?? '')).at(-1) ?? all[0];
+  const window = all.filter((k) => k >= since);
+  const reviews = window.filter((k) => k < n).flatMap((k) => readJson<Review>(tf(w, k, 'review.json')) ?? []);
+  await must('git', ['add', '-A'], w.dir);
+  if ((await run('git', ['diff', '--cached', '--quiet'], w.dir)).code !== 0) await must('git', ['commit', '-q', '-m', `${w.key}: ${n > 1 ? `turn ${n}` : w.title}`], w.dir);
+  if ((await must('git', ['rev-list', '--count', `${base}..HEAD`], w.dir)) === '0') {
+    return decide(ctx, w, n, { question: 'The lead ended with a change, but the branch has no commits. What next?', recommendation: 'Read PROOF.md in the worktree and tell the lead what to do.', options: [], context: proof(w) });
   }
-  const check = await verify(t.dir);
-  if (check.missing && !repo.ciGate) {
-    await decide(ctx, t, {
-      question: `${t.repo} has no executable .agents/verify, so the runner will not merge. How should this ship?`,
-      recommendation: `Add .agents/verify to ${t.repo}, or set "ciGate": true for it in the runner config. Then close this issue.`,
+  const verified = hasVerify(w.dir);
+  if (!verified && !repo.ciGate) {
+    return decide(ctx, w, n, {
+      question: `${w.repo} has no executable .agents/verify, so the runner will not merge. How should this ship?`,
+      recommendation: `Add .agents/verify to ${w.repo}, or set "ciGate": true for it in the runner config. Then mark this issue Done.`,
       options: [],
     });
-    return null;
   }
-  if (!check.ok && !check.missing) {
-    if (++t.verifyFails >= MAX_ROUNDS) {
-      await decide(ctx, t, { question: `.agents/verify still fails after ${MAX_ROUNDS} tries. What next?`, recommendation: 'Read the output, then tell the lead what to change.', options: [], context: check.text });
-      return null;
+  const check = verified ? await verify(w.dir) : { ok: true, text: 'no .agents/verify; CI is the gate' };
+  if (!check.ok) {
+    put(tf(w, n, 'verify.txt'), check.text);
+    if (window.filter((k) => existsSync(tf(w, k, 'verify.txt'))).length >= MAX_ROUNDS) {
+      return decide(ctx, w, n, { question: `.agents/verify still fails after ${MAX_ROUNDS} tries. What next?`, recommendation: 'Read the output, then tell the lead what to change.', options: [], context: check.text });
     }
-    await status(ctx, t, 'Verify failed; the lead is fixing it', check.text);
-    return `.agents/verify failed. Fix the cause, update .runner/PROOF.md, and end again with a change ending.\n\n${check.text}${formatComments(await newComments(ctx, t))}`;
+    await status(ctx, w, 'Verify failed; the lead is fixing it', check.text);
+    return newTurn(ctx, w, { cause: 'verify' }, `.agents/verify failed. Fix the cause, update .runner/PROOF.md, and end again with a change ending.\n\n${check.text}`);
   }
-  const round = ++t.reviews;
-  const scope = round === 1 || !t.fixFrom
-    ? `Review the whole change: git diff ${base}...HEAD`
-    : `Review only the latest fix: git diff ${t.fixFrom}..HEAD\nIt was meant to fix these findings:\n${JSON.stringify(t.open, null, 2)}`;
-  await status(ctx, t, `Review round ${round} running`);
-  await step(ctx, t, `review-${round}`, 'review', `${brief(t)}\n\nReview round ${round}. ${scope}\n\nVerify: ${check.missing ? 'no .agents/verify; CI is the gate' : check.text}\n\nWrite the findings to .runner/findings-${round}.json.`);
-  const findings = parseFindings(path.join(t.dir, '.runner', `findings-${round}.json`));
-  t.open = findings.filter((f) => f.must_fix && f.caused_by_change);
-  t.log.push(`Review round ${round}: ${findings.length} findings, ${t.open.length} caused must-fix.`);
-  await status(ctx, t, `Review round ${round} done`, [t.log.at(-1), ...findings.map(describe)].join('\n'));
-  if (t.open.length === 0) { await ship(ctx, t, ending, check, []); return null; }
-  const fixFrom = await must('git', ['rev-parse', 'HEAD'], t.dir);
-  const findingsJson = JSON.stringify(t.open, null, 2);
-  if (round >= MAX_ROUNDS) {
-    if (t.judged) {
-      await decide(ctx, t, { question: `Caused must-fix findings are still open after the judge's cut. Ship, cut more, or stop?`, recommendation: 'Read the findings and the draft branch, then tell the lead.', options: [], context: t.open.map(describe).join('\n') });
-      return null;
-    }
-    t.judged = true;
-    await status(ctx, t, `Judge running after ${round} review rounds`);
-    rmSync(path.join(t.dir, '.runner', 'judge.json'), { force: true });
-    await step(ctx, t, 'judge', 'judge', `${brief(t)}\n\nDiff: git diff ${base}...HEAD\n\n${t.log.join('\n')}\n\nOpen findings this change caused:\n${findingsJson}\n\nWrite .runner/judge.json.`);
-    let verdict: { decision?: unknown; why?: unknown } = {};
-    try { verdict = JSON.parse(readOr(path.join(t.dir, '.runner', 'judge.json'), '') ?? ''); } catch { /* checked below */ }
-    if (!['ship', 'cut', 'ask'].includes(verdict.decision as string) || typeof verdict.why !== 'string') throw new Error('judge wrote no valid .runner/judge.json');
-    t.log.push(`Judge: ${verdict.decision}. ${verdict.why}`);
-    if (verdict.decision === 'ship') { await ship(ctx, t, ending, check, t.open); return null; }
-    if (verdict.decision === 'ask') {
-      await decide(ctx, t, { question: `After ${round} review rounds, the judge asks for your call on the open findings.`, recommendation: verdict.why, options: [], context: t.open.map(describe).join('\n') });
-      return null;
-    }
-    t.fixFrom = fixFrom;
-    ctx.save();
-    return `The judge read the open findings after ${round} review rounds and says cut scope: ${verdict.why}\n\nCut the scope so these findings no longer apply, update .runner/PROOF.md, and end again with a change ending.\n${findingsJson}${formatComments(await newComments(ctx, t))}`;
+  const round = reviews.length + 1;
+  const previous = reviews.at(-1);
+  let review = readJson<Review>(tf(w, n, 'review.json'));
+  if (!review) {
+    const scope = previous
+      ? `Review only the latest fix: git diff ${previous.head}..HEAD\nIt was meant to fix these findings:\n${JSON.stringify(blocking(previous.findings), null, 2)}`
+      : `Review the whole change: git diff ${base}...HEAD`;
+    await status(ctx, w, `Review round ${round} running`);
+    rmSync(tf(w, n, 'findings.json'), { force: true });
+    await step(ctx, w, `review-${n}`, 'review', `${brief(w)}\n\nReview round ${round}. ${scope}\n\nVerify: ${check.text}\n\nWrite the findings to .runner/turn-${n}/findings.json.`);
+    review = { round, head: await must('git', ['rev-parse', 'HEAD'], w.dir), findings: parseFindings(tf(w, n, 'findings.json')) };
+    put(tf(w, n, 'review.json'), JSON.stringify(review));
   }
-  t.fixFrom = fixFrom;
-  ctx.save();
-  return `Review round ${round} found problems your change caused. Fix each one and its whole class, update .runner/PROOF.md, and end again with a change ending.\n${findingsJson}${formatComments(await newComments(ctx, t))}`;
+  const open = blocking(review.findings);
+  await status(ctx, w, `Review round ${round} done`, [reviewLog(w).at(-1), ...review.findings.map(describe)].join('\n'));
+  if (open.length === 0) return ship(ctx, w, n, ending);
+  const findingsJson = JSON.stringify(open, null, 2);
+  if (round < MAX_ROUNDS) {
+    return newTurn(ctx, w, { cause: 'findings', round }, `Review round ${round} found problems your change caused. Fix each one and its whole class, update .runner/PROOF.md, and end again with a change ending.\n${findingsJson}`);
+  }
+  // The judge may cut scope or ask Alex. It can never ship with a caused must-fix open.
+  // Its verdicts live beside the worktrees, out of the lead's worktree.
+  const judgeDir = path.join(ctx.config.worktreeRoot, '.judge');
+  if (window.some((k) => k < n && existsSync(path.join(judgeDir, `${w.key}-${k}.json`)))) {
+    return decide(ctx, w, n, { question: 'Caused must-fix findings are still open after the judge cut the scope. Cut more, or stop?', recommendation: 'Read the findings and the branch, then tell the lead.', options: [], context: open.map(describe).join('\n') });
+  }
+  const verdictFile = path.join(judgeDir, `${w.key}-${n}.json`);
+  let verdict = readJson<{ decision?: unknown; why?: unknown }>(verdictFile);
+  if (!verdict) {
+    mkdirSync(judgeDir, { recursive: true });
+    await status(ctx, w, `Judge running after ${round} review rounds`);
+    await step(ctx, w, `judge-${n}`, 'judge', `${brief(w)}\n\nDiff: git diff ${base}...HEAD\n\n${reviewLog(w).join('\n')}\n\nOpen findings this change caused:\n${findingsJson}\n\nWrite your verdict to ${verdictFile}.`);
+    verdict = readJson(verdictFile) ?? {};
+  }
+  if (!['cut', 'ask'].includes(verdict.decision as string) || typeof verdict.why !== 'string') {
+    rmSync(verdictFile, { force: true });
+    throw new Error(`the judge wrote no valid verdict to ${verdictFile}; it may only pick "cut" or "ask"`);
+  }
+  if (verdict.decision === 'ask') {
+    return decide(ctx, w, n, { question: `After ${round} review rounds, the judge asks for your call on the open findings.`, recommendation: verdict.why, options: [], context: open.map(describe).join('\n') });
+  }
+  return newTurn(ctx, w, { cause: 'cut', round }, `The judge read the open findings after ${round} review rounds and says cut scope: ${verdict.why}\n\nCut the scope so these findings no longer apply, update .runner/PROOF.md, and end again with a change ending. A fresh review round follows.\n${findingsJson}`);
 }
 
-/** Runs the lead until the ticket ships, reports, or waits on a Decision issue. A null input waits on a lead that is already running. */
-async function drive(ctx: Ctx, t: Ticket, input: string | null) {
+/** Acts on turn `n`'s ending. Each action checks Linear or GitHub first, so running it twice does no harm. */
+async function consume(ctx: Ctx, w: Work, n: number) {
+  await startNote(ctx, w);
+  const ending = readEnding(readOr(tf(w, n, 'exit'))?.trim() ?? null, readOr(tf(w, n, 'ending.json')), proof(w));
+  if ('error' in ending) {
+    return decide(ctx, w, n, {
+      question: `The lead stopped without a valid ending: ${ending.error}. What should it do?`,
+      recommendation: 'Watch or quiz the session, then answer with what the lead should do next. Marking this issue Done resumes it with your comments.',
+      options: [],
+    });
+  }
+  if (ending.kind === 'report') {
+    await postOnce(ctx, w, ending.body);
+    await ctx.linear.update(w.id, 'Done', true);
+    await status(ctx, w, 'Done: the lead posted a report');
+    return webhook(ctx, w, 'done');
+  }
+  if (ending.kind === 'decision') {
+    const { kind: _, ...ask } = ending;
+    return decide(ctx, w, n, ask);
+  }
+  return gate(ctx, w, n, ending);
+}
+
+/**
+ * Creates or reuses the worktree, claims the ticket, and makes its first turn. A ticket delegated again gets a new
+ * turn in the same session. False when it handed the ticket back.
+ */
+async function start(ctx: Ctx, w: Work, again: boolean) {
   try {
-    for (;;) {
-      if (input !== null) {
-        await status(ctx, t, 'Lead running');
-        await launch(ctx, t, input);
-      }
-      const code = await waitForLead(ctx, t);
-      const ending = parseEnding(readOr(path.join(t.dir, '.runner', 'ending.json')), proof(t.dir));
-      if ('error' in ending) {
-        await decide(ctx, t, {
-          question: `The lead stopped without a valid ending: ${ending.error} (Pi exit code ${code}). What should it do?`,
-          recommendation: 'Watch or quiz the session, then answer with what the lead should do next. Closing this issue resumes it with your comments.',
-          options: [],
-        });
-        return;
-      }
-      if (ending.kind === 'report') {
-        t.seen.push(await ctx.linear.comment(t.id, ending.body));
-        await ctx.linear.update(t.id, 'Done', true);
-        await status(ctx, t, 'Done: the lead posted a report');
-        finish(ctx, t);
-        await webhook(ctx, t, 'done');
-        return;
-      }
-      if (ending.kind === 'decision') return void (await decide(ctx, t, ending));
-      input = await gate(ctx, t, ending);
-      if (input === null) return;
-    }
+    await worktree(ctx.config.repos[w.repo], w);
   } catch (error) {
+    await postOnce(ctx, w, `The runner could not start this ticket, so it handed it back.\n\n${message(error)}`);
+    await ctx.linear.update(w.id, 'Todo', true);
+    return false;
+  }
+  if (!sessionId(w)) put(rf(w, 'session-id'), randomUUID());
+  await ctx.linear.update(w.id, 'In Progress');
+  if (newest(w) === 0) await newTurn(ctx, w, { cause: 'task' }, brief(w));
+  else if (again) await newTurn(ctx, w, { cause: 'again' }, `This ticket was delegated to you again.\n\n${brief(w)}\n\nCheck where the work stands in this worktree.`);
+  return true;
+}
+
+/** Takes a ticket step by step until it waits on Alex, leaves In Progress, or has nothing new to do. */
+async function drive(ctx: Ctx, w: Work, fromTodo = false) {
+  try {
+    if (fromTodo && !(await live(w)) && !(await start(ctx, w, true))) return;
+  } catch (error) {
+    return console.error(`${w.key}: start failed`, error);
+  }
+  for (;;) {
+    const seen = await observe(w, await live(w), (n) => ctx.linear.findMarked(marker('decision', w.key, n)));
     try {
-      await decide(ctx, t, {
-        question: 'The runner hit an error on this ticket. What should happen?',
-        recommendation: 'Fix the cause, then close this issue. The runner resumes the lead with your comments.',
-        options: [],
-        context: error instanceof Error ? error.message : String(error),
-      });
-    } catch (reportError) {
-      console.error(`${t.key}: could not report failure`, error, reportError);
+      switch (seen.kind) {
+        case 'start':
+          if (!(await start(ctx, w, false))) return;
+          break;
+        case 'launch':
+        case 'relaunch':
+          await launch(ctx, w, seen.turn, seen.kind === 'relaunch');
+          break;
+        case 'running':
+          await waitForLead(ctx, w, newest(w));
+          break;
+        case 'consume':
+          await consume(ctx, w, seen.turn);
+          // A new turn means more work. Otherwise the ticket finished, shipped, or waits on its Decision issue.
+          if (newest(w) === seen.turn) return;
+          break;
+        case 'answer': {
+          const answers = await ctx.linear.comments(seen.decision.id);
+          const replies = answers.length ? answers.map((c) => `- ${c.user?.name ?? 'unknown'}: ${c.body}`).join('\n') : 'No comments.';
+          await newTurn(ctx, w, { cause: 'answer', decision: seen.decision.id }, `Your Decision issue ${seen.decision.identifier} (${seen.decision.url}) is Done. The comments on it:\n${replies}\n\nCarry on from here.`);
+          break;
+        }
+        case 'stop':
+          await postOnce(ctx, w, `${seen.decision.identifier} was canceled, so the runner stopped ${w.key} and handed it back. The worktree \`${w.dir}\` and branch \`${w.branch}\` stay. Delegate the ticket again to start a new lead turn on them.`);
+          await ctx.linear.update(w.id, 'Todo', true);
+          return;
+        case 'waiting':
+          return;
+      }
+    } catch (error) {
+      if (seen.kind !== 'consume') return console.error(`${w.key}: ${seen.kind} failed; the next poll tries again`, error);
+      try {
+        await decide(ctx, w, seen.turn, {
+          question: 'The runner hit an error on this ticket. What should happen?',
+          recommendation: 'Fix the cause, then mark this issue Done. The runner resumes the lead with your comments.',
+          options: [],
+          context: message(error),
+        });
+      } catch (reportError) {
+        console.error(`${w.key}: could not report failure`, error, reportError);
+      }
+      return;
     }
   }
 }
 
-async function begin(ctx: Ctx, issue: Issue, label: string) {
+/** The ticket's worktree is the shortest folder named for its key, so a title change or a quiz worktree does not move it. */
+export function workFor(config: Config, issue: Issue): Work | null {
+  const repo = issue.labels.nodes.map((l) => l.name).find((name) => Object.hasOwn(config.repos, name));
+  if (!repo) return null;
   const description = issue.description ?? '';
   const line = (key: string) => new RegExp(`^${key}:\\s*(\\S+)`, 'im').exec(description)?.[1];
+  const prefix = `job-${issue.identifier.toLowerCase()}-`;
+  const existing = existsSync(config.worktreeRoot) ? readdirSync(config.worktreeRoot).filter((name) => name.startsWith(prefix)).sort((a, b) => a.length - b.length)[0] : undefined;
   const slug = issue.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40).replace(/^-+|-+$/g, '');
-  const branch = `job/${issue.identifier.toLowerCase()}-${slug}`;
-  const t: Ticket = {
-    id: issue.id, key: issue.identifier, title: issue.title, url: issue.url, description, repo: label, branch,
-    dir: path.join(ctx.config.worktreeRoot, branch.replaceAll('/', '-')), sessionId: randomUUID(),
-    models: { lead: line('(?:Lead|Implement) model') ?? ctx.config.models.lead, review: line('Review model') ?? ctx.config.models.review },
-    seen: [], launches: 0, reviews: 0, verifyFails: 0, open: [], judged: false, log: [],
+  const folder = existing ?? `${prefix}${slug}`;
+  return {
+    id: issue.id, key: issue.identifier, title: issue.title, url: issue.url, description, repo,
+    branch: `job/${folder.slice(4)}`, dir: path.join(config.worktreeRoot, folder),
+    models: { lead: line('(?:Lead|Implement) model') ?? config.models.lead, review: line('Review model') ?? config.models.review },
   };
-  ctx.tickets.set(t.id, t);
-  try {
-    await worktree(ctx.config.repos[label], branch, t.dir);
-    await ctx.linear.update(t.id, 'In Progress');
-  } catch (error) {
-    ctx.tickets.delete(t.id);
-    ctx.save();
-    await ctx.linear.comment(t.id, `The runner could not start this ticket, so it handed it back.\n\n${error instanceof Error ? error.message : String(error)}`);
-    await ctx.linear.update(t.id, 'Todo', true);
-    return;
-  }
-  await drive(ctx, t, `${brief(t)}${formatComments(await newComments(ctx, t))}`);
-}
-
-function loadState(file: string): Map<string, Ticket> {
-  const saved = readOr(file);
-  return new Map(saved ? (JSON.parse(saved).tickets as Ticket[]).map((t) => [t.id, t]) : []);
 }
 
 /** The free memory percentage from macOS `memory_pressure -Q`, or 100 where that tool does not exist. */
@@ -572,77 +766,55 @@ async function freeMemory(): Promise<number> {
 export async function main(argv: string[], config: Config, fetchFn: typeof fetch = fetch) {
   const dryRun = argv.includes('--dry-run');
   const once = dryRun || argv.includes('--once');
-  const tickets = loadState(config.stateFile);
-  const save = () => {
-    if (dryRun) return;
-    mkdirSync(path.dirname(config.stateFile), { recursive: true });
-    writeFileSync(config.stateFile, `${JSON.stringify({ tickets: [...tickets.values()] }, null, 2)}\n`);
-  };
-  const ctx: Ctx = { config, linear: linearClient(config, fetchFn), fetchFn, tickets, save };
-  const running = new Map<string, Promise<void>>();
   let said = new Set<string>();
   let next = new Set<string>();
   /** Logs a line once while it stays true, so a blocked queue does not repeat itself every poll. */
   const say = (line: string) => { if (!said.has(line)) console.log(line); next.add(line); };
-  const track = (id: string, work: Promise<void>) => running.set(id, work.finally(() => running.delete(id)));
+  const ctx: Ctx = { config, linear: linearClient(config, fetchFn), fetchFn };
+  const running = new Map<string, { work: Work; done: Promise<void> }>();
+  const track = (w: Work, fromTodo = false) => running.set(w.id, { work: w, done: drive(ctx, w, fromTodo).finally(() => running.delete(w.id)) });
   if (dryRun) console.log(`Config: ${JSON.stringify(config, null, 2)}`);
-  try {
-    for (const issue of await ctx.linear.issues('In Progress')) {
-      const t = tickets.get(issue.id);
-      if (t?.decision) continue;
-      const live = t && (await run(bin('tmux'), ['has-session', '-t', session(t.key)], process.cwd())).code === 0;
-      if (dryRun) {
-        console.log(`${live ? 'Would wait on its live lead' : t ? 'Would resume its lead' : 'Would reset to Todo'}: ${issue.identifier} ${issue.title}`);
-      } else if (live) {
-        track(t.id, drive(ctx, t, null));
-      } else if (t) {
-        track(t.id, drive(ctx, t, `The runner restarted while you worked. Check where the work stands in this worktree, finish it, and end with .runner/ending.json.${formatComments(await newComments(ctx, t))}`));
-      } else {
-        await ctx.linear.update(issue.id, 'Todo');
-        await ctx.linear.comment(issue.id, 'The runner restarted while this ticket ran and had no session to resume, so it went back to Todo.');
-      }
-    }
-  } catch (error) {
-    console.error('restart recovery failed', error);
-  }
   for (;;) {
     try {
       const free = await freeMemory();
-      const screenTaken = () => [...running.keys()].some((id) => needsScreen(tickets.get(id)?.description ?? ''));
-      const block = (description: string) => startBlock({ running: running.size, maxLeads: config.maxLeads, freeMemory: free, minFreeMemory: config.minFreeMemoryPercent, needsScreen: needsScreen(description), screenTaken: screenTaken() });
-      const waiting = [...tickets.values()].filter((t) => t.decision && !running.has(t.id));
-      const stateTypes = new Map(await Promise.all(waiting.map(async (t) => [t.id, await ctx.linear.stateType(t.decision!.id)] as const)));
-      for (const t of answered(waiting, stateTypes)) {
-        const reason = block(t.description);
-        if (dryRun || reason) { say(`${reason ? `Not resuming yet (${reason})` : 'Would resume'}: ${t.key}, answered in ${t.decision!.identifier}`); continue; }
-        const decision = t.decision!;
-        const answers = await ctx.linear.comments(decision.id);
-        delete t.decision;
-        save();
-        const replies = answers.length ? answers.map((c) => `- ${c.user?.name ?? 'unknown'}: ${c.body}`).join('\n') : 'No comments.';
-        track(t.id, drive(ctx, t, `Your Decision issue ${decision.identifier} (${decision.url}) is closed (${stateTypes.get(t.id)}). The comments on it:\n${replies}\n\nCarry on from here and end with .runner/ending.json.${formatComments(await newComments(ctx, t))}`));
+      const block = (w: Work) => startBlock({
+        running: running.size, maxLeads: config.maxLeads, freeMemory: free, minFreeMemory: config.minFreeMemoryPercent,
+        needsScreen: needsScreen(w.description), screenTaken: [...running.values()].some((r) => needsScreen(r.work.description)),
+      });
+      // Tickets already ours: reconcile each from Linear, tmux and its worktree.
+      for (const issue of await ctx.linear.issues('In Progress')) {
+        if (running.has(issue.id)) continue;
+        const w = workFor(config, issue);
+        if (!w) { say(`Skipping ${issue.identifier}: no repo label`); continue; }
+        const seen = await observe(w, await live(w), (n) => ctx.linear.findMarked(marker('decision', w.key, n)));
+        const needsSlot = ['start', 'launch', 'relaunch', 'answer'].includes(seen.kind);
+        const reason = needsSlot ? block(w) : null;
+        if (dryRun) console.log(`${w.key}: ${seen.kind}${reason ? ` (waits: ${reason})` : ''}`);
+        else if (seen.kind === 'waiting') await ctx.linear.link(seen.decision, w.id);
+        else if (reason) say(`Not continuing ${w.key} yet: ${reason}`);
+        else track(w);
       }
       for (const issue of await ctx.linear.issues('Todo')) {
         if (running.has(issue.id)) continue;
-        const label = issue.labels.nodes.map((l) => l.name).find((name) => Object.hasOwn(config.repos, name));
-        const reason = block(issue.description ?? '');
+        const w = workFor(config, issue);
+        const reason = w && block(w);
         if (dryRun) {
-          console.log(!label ? `Would skip ${issue.identifier}: no repo label` : reason ? `Would wait (${reason}): ${issue.identifier}` : `Would pick up ${issue.identifier} (${label}): ${issue.title}`);
-        } else if (!label) {
+          console.log(!w ? `Would skip ${issue.identifier}: no repo label` : reason ? `Would wait (${reason}): ${issue.identifier}` : `Would pick up ${issue.identifier} (${w.repo}): ${issue.title}`);
+        } else if (!w) {
           await ctx.linear.comment(issue.id, `No repo label, so the runner skipped this. Add one of ${Object.keys(config.repos).join(', ')} and delegate it again.`);
           await ctx.linear.update(issue.id, null, true);
         } else if (reason) {
           say(`Not starting ${issue.identifier} yet: ${reason}`);
           if (!reason.includes('screen')) break;
         } else {
-          track(issue.id, begin(ctx, issue, label));
+          track(w, true);
         }
       }
     } catch (error) {
       console.error('poll failed', error);
     }
     [said, next] = [next, new Set()];
-    if (once) return void (await Promise.all(running.values()));
+    if (once) return void (await Promise.all([...running.values()].map((r) => r.done)));
     await sleep(config.pollSeconds * 1000);
   }
 }

@@ -22,7 +22,7 @@ Prove behavior on the running thing: run the feature, command or test, and paste
 
 ## End
 
-Pi exits when your turn ends, and the runner then reads `.runner/ending.json`. So never end a turn to ask something in chat: write the file, then stop. Write exactly one kind:
+Pi exits when your turn ends, and the runner then reads the ending file named at the end of the runner's message, `.runner/turn-<n>/ending.json`. So never end a turn to ask something in chat: write the file, then stop. Write exactly one kind:
 
 - Report, for questions and research. Answer first, then evidence:
   `{"kind": "report", "body": "..."}`

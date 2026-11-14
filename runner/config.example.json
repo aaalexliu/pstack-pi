@@ -15,7 +15,7 @@
   "pollSeconds": 30,
   "maxLeads": 2,
   "minFreeMemoryPercent": 20,
+  "stallMinutes": 30,
   "host": "build-mac",
-  "worktreeRoot": "/Users/you/dev/job-worktrees",
-  "stateFile": "/Users/you/.config/job-runner/state.json"
+  "worktreeRoot": "/Users/you/dev/job-worktrees"
 }
