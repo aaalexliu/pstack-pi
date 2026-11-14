@@ -10,6 +10,37 @@ Linear says whose move it is:
 - An issue assigned to you is your move. The runner assigns you only Decision issues, never work tickets.
 - An issue with neither owes nobody a move.
 
+## The runner keeps no state
+
+The runner has no state file and no memory between polls. Each poll it works out every ticket's next step from four sources of truth, and each step checks the truth again before it acts, so a crash at any point only means the next poll repeats a check:
+
+| Source | What it says |
+| --- | --- |
+| Linear | Which tickets are ours (`Todo` or `In Progress`, delegated to `runnerUser`), and each turn's Decision issue and its comments |
+| GitHub | Whether the branch already has an open or merged PR |
+| tmux | Whether the lead's session, `=KEY`, is live |
+| The worktree's `.runner/` | The session id, the turn folders, and the last comment the lead got |
+
+Every file the runner writes there is written to a temp file, flushed, and renamed into place.
+
+### Turns
+
+Each lead turn is a folder, `.runner/turn-N/`. The runner builds the folder aside, with `input.md` (the message, ending with the path to write the ending to) and `cause.json` (what made the turn: the task, review findings and their round, a cut, a failed verify, or the Decision issue Alex answered), then renames it into place. So a new turn appears whole or not at all.
+
+The newest turn is the live one, and every older one counts as consumed. Making a new turn is therefore the only way the runner moves past an ending, and one cause can never make two turns: once the answer turn exists, the answered turn is no longer the newest.
+
+For the newest turn, the runner:
+
+1. Waits on it while its tmux session is live.
+2. Starts Pi on it only when it has no `exit` record, no `ending.json`, and no live session. If it has a `launched` record, Pi stopped with the runner (a reboot), so the runner sends the same turn again with a note saying so.
+3. Otherwise acts on its ending, after looking for the turn's Decision issue.
+
+### Decision issues are found by a marker
+
+Each Decision issue's description ends with a marker such as `runner-decision ALE-93 turn 3 end`, and the runner finds a turn's Decision issue by searching for that text. It still adds a `blocks` link to the work ticket for you to see, but it never reads the link to decide whether a Decision issue exists: creating the issue and linking it are two writes, and a crash between them would make it file a second issue for the same ask.
+
+[model/Runner.tla](model/Runner.tla) is a TLC model of one ticket under these rules. With [model/Runner.cfg](model/Runner.cfg), five rules hold: no merge over a caused must-fix, one PR, one Decision issue per ask, no replayed turn, and every answer reaches the lead. [model/RunnerTwoStep.cfg](model/RunnerTwoStep.cfg) finds a Decision issue through its link instead, and TLC finds a second Decision issue for one ask in 6 steps. The model opens the PR before the first review; the runner reviews first, which keeps the same rules.
+
 ## What one ticket does
 
 The runner picks the oldest issue in the team that is in `Todo` and delegated to `runnerUser`. The first label that names a repo in the config picks the repo. If no label matches, the runner comments, clears the delegate, and skips the issue.
@@ -24,14 +55,16 @@ The [intake skill](../additions/skills/intake/SKILL.md) tells any session that f
 
 Then the runner:
 
-1. Creates a worktree from `origin/<base>` on the branch `job/<issue key>-<title slug>`, for example `job/ale-58-suggest-close-matches`, and sets the issue to `In Progress`.
-2. Starts the lead: `tmux new-session -d -s <KEY>` running `pi --session-id <uuid> "<ticket and comments>"` in the worktree, with the [lead prompt](prompts/lead.md). The environment sets `PI_SUBAGENT_AUTO_EXIT=1` and loads pstack-pi's `subagent-done.ts`, so Pi exits when the lead's turn ends. It also writes an activity file to `.runner/activity.json`.
+1. Reuses the ticket's worktree, or creates one from `origin/<base>` on the branch `job/<issue key>-<title slug>`, for example `job/ale-58-suggest-close-matches`. It finds the worktree by the issue key, so a title change does not move it. It never removes a worktree or resets a branch. It writes `.runner/session-id`, sets the issue to `In Progress`, and makes turn 1 from the ticket and its comments.
+2. Starts the lead: `tmux new-session -d -s <KEY>` running `pi --session-id <uuid> @.runner/turn-N/input.md` in the worktree, with the [lead prompt](prompts/lead.md). The environment sets `PI_SUBAGENT_AUTO_EXIT=1` and loads pstack-pi's `subagent-done.ts`, so Pi exits when the lead's turn ends. It also writes an activity file to `.runner/activity.json`. When Pi exits, the launch script writes its exit code to `turn-N/exit`.
 3. While the lead runs, posts its `.runner/start.md` as a comment and pastes new human comments on the ticket into the session.
-4. When Pi exits, reads `.runner/ending.json` and acts on it.
+4. When Pi has exited, acts on `turn-N/ending.json`.
+
+A ticket that is delegated again from `Todo` gets a new turn in the same session and worktree.
 
 ## Endings
 
-The lead ends by writing `.runner/ending.json` with one of three kinds:
+The lead ends a turn by writing `.runner/turn-N/ending.json` with one of three kinds:
 
 | Kind | Fields | What the runner does |
 | --- | --- | --- |
@@ -39,54 +72,70 @@ The lead ends by writing `.runner/ending.json` with one of three kinds:
 | `change` | `full_suite`, `full_suite_why`, plus a non-empty `.runner/PROOF.md` | Runs the gate below. |
 | `decision` | `question`, `recommendation`, up to 3 `options` of `{option, pick_this_if}`, optional `context` | Files a Decision issue. |
 
-A missing or invalid ending is itself a Decision issue that names what was wrong.
+The runner accepts an ending only when Pi exited with code 0. A missing or invalid ending, or a nonzero exit, is itself a Decision issue that names the problem.
 
 ### Decision issues and answers
 
-A Decision issue is a new issue assigned to `decisionAssignee`, marked as blocking the work ticket. It holds one question, the recommendation first, and the options. The work ticket stays `In Progress` and delegated to the runner. The lead has exited, so the ticket holds no lead slot while it waits.
+A Decision issue is a new issue assigned to `decisionAssignee`, linked as blocking the work ticket. It holds one question, the recommendation first, the options, and the marker. The work ticket stays `In Progress` and delegated to the runner. The lead has exited, so the ticket holds no lead slot while it waits.
 
-The runner saves each waiting ticket (key, session id, worktree, Decision issue) in `stateFile`. Each poll, it checks the Decision issues. When one is `Done` or `Canceled`, the runner resumes the lead in a new tmux session with the same name, running `pi --session-id <same uuid> "<the comments on the Decision issue>"`. So answer in a comment, then close the issue.
+What Alex does on the Decision issue:
 
-The runner also files a Decision issue when it cannot go on: a change with no commits, a repo with no `.agents/verify`, a verify that still fails after 3 tries, a judge that asks, or any error.
+| Action | What the runner does |
+| --- | --- |
+| Comments while it is open | Nothing yet. The runner reads comments only when the issue closes. |
+| Marks it Done | Makes an answer turn with every comment on the issue, and starts the same Pi session on it. Review rounds count from this turn again. |
+| Cancels it | Comments that it stopped, sets the work ticket to `Todo`, and clears the delegate. The worktree and branch stay. Delegating the ticket again starts a new turn on them. |
+| Reopens it after the answer turn exists | Nothing. That turn is consumed. |
+
+The runner also files a Decision issue when it cannot go on: a change with no commits, a repo with no `.agents/verify`, a verify that still fails after 3 tries, auto-merge that GitHub will not turn on, a judge that asks, or any error while it handles an ending.
 
 ### The gate for a change
 
 1. Commit the tree. A change with no commits on the branch becomes a Decision issue.
-2. Run `.agents/verify`. If it fails, resume the lead with the output, without a review. After 3 failures, file a Decision issue.
-3. Run a review step: a fresh `pi -p` with [prompts/review.md](prompts/review.md) on `models.review`, which writes `.runner/findings-<round>.json`. Round 1 reviews the whole change. Later rounds review only the latest fix. A finding blocks only when `must_fix` and `caused_by_change` are both true.
-4. With no blocking findings, ship. Otherwise resume the same lead session with the findings, and go back to step 1 when it ends again.
-5. At round 3 with blocking findings still open, run a judge: a fresh `pi -p` with [prompts/judge.md](prompts/judge.md) that writes `.runner/judge.json` as `{decision, why}`.
-   - `ship` ships with the open findings listed as known gaps in the PR.
-   - `cut` resumes the lead once to cut scope. If that fix still has blocking findings, the runner files a Decision issue.
+2. Run `.agents/verify`. If it fails, make a new turn with the output, without a review. After 3 failures, file a Decision issue.
+3. Run a review step: a fresh `pi -p` with [prompts/review.md](prompts/review.md) on `models.review`, which writes `turn-N/findings.json`. The runner saves the result as `turn-N/review.json`, so a repeat after a crash reuses it. Round 1 reviews the whole change. Later rounds review only the latest fix. A finding blocks only when `must_fix` and `caused_by_change` are both true.
+4. With no blocking findings, ship. Otherwise make a new turn with the findings, in the same Pi session.
+5. At round 3 with blocking findings still open, run a judge: a fresh `pi -p` with [prompts/judge.md](prompts/judge.md). It writes its verdict, `{decision, why}`, to `<worktreeRoot>/.judge/<KEY>-<turn>.json`, outside the lead's worktree.
+   - `cut` makes a new turn telling the lead what to cut. A fresh review round follows. If that round still has blocking findings, the runner files a Decision issue.
    - `ask` files a Decision issue.
 
-To ship, the runner pushes the branch and opens a PR whose body holds the issue, `PROOF.md`, the review log, and the verify result. If the lead set `full_suite` and the repo has a `fullSuiteLabel`, it adds that label. With `automerge`, it runs `gh pr merge --auto --squash`, or merges directly when auto-merge is not available. Then it sets `In Review` and clears the delegate.
+   The judge cannot ship. Any other verdict is an error and becomes a Decision issue. Nothing merges with a caused must-fix open.
 
-The runner never reads model prose. It reads only `ending.json`, the findings files, and `judge.json`.
+To ship, the runner looks for an open or merged PR on the branch, and opens one only if there is none. The PR body holds the issue, `PROOF.md`, the review log, and the verify result. If the lead set `full_suite` and the repo has a `fullSuiteLabel`, it adds that label. With `automerge`, it runs `gh pr merge --auto --squash`, which waits for the required checks. If GitHub will not turn on auto-merge, the runner never merges directly: unless the PR is already merged, it files a Decision issue. Then it sets `In Review` and clears the delegate.
+
+The runner never reads model prose. It reads only `ending.json`, the findings files, and the judge's verdict.
 
 ## The `.agents/verify` contract
 
 A repo opts in by adding an executable `.agents/verify` at its root. The runner runs it from the worktree root before each review. Exit 0 means pass. A person runs the same file the same way before pushing, so the runner and the person agree on what "green" means.
 
-Verify fails closed. A repo with no executable `.agents/verify` does not merge, and the ticket waits on a Decision issue. Set `"ciGate": true` on the repo to say its required CI checks are the gate instead. The runner then only turns on auto-merge, and files a Decision issue if GitHub refuses.
+Verify fails closed. A repo with no executable `.agents/verify` does not merge, and the ticket waits on a Decision issue. Set `"ciGate": true` on the repo to say its required CI checks are the gate instead. The runner then only turns on auto-merge.
 
 This repo's [.agents/verify](../.agents/verify) runs the `TESTING.md` gate for skill text and non-packed tests, plus the runner tests.
 
 ## The status comment
 
-Each ticket gets one runner comment, edited in place at each step, so Linear does not notify you for every step. It shows the state, the host, the tmux session, the Pi session id, the worktree, and three commands:
+Each ticket gets one runner comment, edited in place at each step, so Linear does not notify you for every step. It shows the state, the host, the tmux session, the Pi session id, the worktree, and three commands. Every word in them is quoted for both the local and the remote shell, so paths with spaces or quotes work:
 
 | Command | What it does |
 | --- | --- |
-| `ssh -t <host> tmux attach -t <KEY>` | Watch or steer the lead. What you type reaches it as a steering message. |
-| `ssh -t <host> 'touch <worktree>/.runner/takeover && tmux attach -t <KEY>'` | Take over. Auto-exit stays off until you quit Pi. |
+| `ssh -t <host> 'tmux attach -t =<KEY>'` | Watch or steer the lead. What you type reaches it as a steering message. |
+| `ssh -t <host> 'touch <worktree>/.runner/takeover && tmux attach -t =<KEY>'` | Take over. Auto-exit stays off until you quit Pi. |
 | `ssh -t <host> 'cd <worktree> && git worktree add -B <branch>-quiz <worktree>-quiz HEAD && cd <worktree>-quiz && tmux new -s <KEY>-quiz pi --fork <session id>'` | Quiz a fork of the lead in its own worktree, without touching the lead. |
+
+### Comments on a running ticket
+
+The runner pastes new human comments into the live session with tmux bracketed paste, then presses Enter. It records the last comment it handed over in `.runner/delivered.json`, and only after every tmux step succeeds. A comment it could not paste stays undelivered and goes into the next turn's input.
 
 ### Typing into a lead
 
 Auto-exit closes Pi whenever an agent turn ends normally, whoever started the turn. So if you type into a running lead, Pi exits as soon as the turn that answers you ends. Pressing Escape aborts the turn and keeps Pi open, but the next prompt you send ends the same way. If the lead wrote no ending by then, the runner files a Decision issue saying so.
 
 To keep the session, touch `.runner/takeover` first, as the take-over command does. When Pi exits with that file present and no ending, the launch script starts Pi again on the same session without auto-exit. When you quit Pi, the runner reads the ending. Tell the lead to write one before you quit, or the runner files a Decision issue.
+
+### A quiet lead
+
+While a lead runs, the runner reads `.runner/activity.json`. When nothing has changed for `stallMinutes`, it says so in the status comment and files one issue per turn, marked `runner-stall <KEY> turn N end`, with the commands to watch the lead or stop its session. It does not stop the lead. If you stop the session, the runner starts the same turn again.
 
 ## Shared resources
 
@@ -96,14 +145,7 @@ Before it starts or resumes a lead, the runner checks three limits, and logs onc
 - On macOS, no lead starts while `memory_pressure -Q` reports less than `minFreeMemoryPercent` free. The kernel's pressure level is too blunt for this: a 48 GB Mac reported level 2 (warn) with 42% free.
 - At most one running ticket has `Needs: screen`.
 
-## Restart
-
-On start, the runner looks at each `In Progress` issue delegated to it:
-
-- A ticket waiting on a Decision issue keeps waiting.
-- A ticket with a live tmux session keeps running, and the runner waits for it again.
-- A ticket with a saved session id resumes, with a message that the runner restarted.
-- Any other ticket goes back to `Todo` with a comment.
+Run one runner per Linear team. launchd starts one instance; the runner takes no lock of its own.
 
 ## Config
 
@@ -122,15 +164,15 @@ The runner reads `~/.config/job-runner/config.json`, or the file named by `JOB_R
 | `pollSeconds` | Seconds between polls, and between checks on a running lead. Default 30 |
 | `maxLeads` | Leads that run at once. Default 2 |
 | `minFreeMemoryPercent` | No lead starts while less memory than this is free. Default 20 |
+| `stallMinutes` | Minutes without lead activity before the runner flags it. Default 30 |
 | `host` | The host name the status comment uses for `ssh`. Default: this Mac's name |
-| `worktreeRoot` | The directory for ticket worktrees |
-| `stateFile` | Where the runner saves its tickets. Default `~/.config/job-runner/state.json` |
+| `worktreeRoot` | The directory for ticket worktrees, and for the judge's verdicts in `.judge/` |
 
 `JOB_RUNNER_PI`, `JOB_RUNNER_GH`, `JOB_RUNNER_TMUX`, and `JOB_RUNNER_MEMORY_PRESSURE` replace those binaries. The tests use them for stubs.
 
 ## Run it
 
-Check the config and the queue first. `--dry-run` reads Linear, prints the resolved config and what it would do, and exits. It writes nothing to Linear, git, tmux, the state file, or `pi`:
+Check the config and the queue first. `--dry-run` reads Linear, git worktrees, and tmux, prints the resolved config and each ticket's next step, and exits. It writes nothing:
 
 ```sh
 node runner/runner.ts --dry-run
@@ -156,4 +198,4 @@ The `PATH` in the plist must reach `node` 24 or later, `pi`, `gh`, `git`, and `t
 node --test runner/*.test.ts
 ```
 
-The tests use a fake Linear behind an injected `fetch`, stub `pi`, `gh`, `tmux` and `memory_pressure` scripts, and real git repos in a temp directory. They make no network calls.
+The tests use a fake Linear behind an injected `fetch`, stub `pi`, `gh`, `tmux` and `memory_pressure` scripts, and real git repos in a temp directory. They make no network calls. To check the model, run TLC on `model/Runner.tla` with each `.cfg` file.
