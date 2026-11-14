@@ -4,7 +4,7 @@ import { appendFileSync, closeSync, existsSync, fsyncSync, mkdirSync, openSync, 
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createDueRoutines, type Routine } from './routines.ts';
+import { createDueRoutines, parseSchedule, type Routine } from './routines.ts';
 
 export type Repo = { path: string; base: string };
 export type Config = {
@@ -60,6 +60,7 @@ export function loadConfig(file: string): Config {
     if (!raw[key]) throw new Error(`${file}: missing "${key}"`);
   }
   if (!raw.models.lead || !raw.models.review) throw new Error(`${file}: "models" needs "lead" and "review"`);
+  for (const r of raw.routines ?? []) parseSchedule(r.schedule);
   return { thinking: 'high', pollSeconds: 30, maxLeads: 2, minFreeMemoryPercent: 20, stallMinutes: 30, host: os.hostname().replace(/\.local$/, ''), ...raw };
 }
 

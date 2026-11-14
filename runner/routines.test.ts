@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { createDueRoutines, lastDue, parseSchedule } from './routines.ts';
+import { loadConfig } from './runner.ts';
 
 process.env.TZ = 'America/New_York';
 const due = (schedule: string, now: string) => lastDue(schedule, new Date(now)).toString().slice(0, 21);
@@ -23,12 +27,13 @@ test('parseSchedule accepts real clock times and weekdays only', () => {
   for (const bad of ['daily 24:00', 'daily 05:60', 'daily 5:00', 'weekly Fun 05:00', 'every 6h', 'every 0h', 'hourly']) assert.throws(() => parseSchedule(bad), /Bad routine schedule/, bad);
 });
 
-test('a bad schedule stops the runner before any Linear call', async () => {
-  const linear = fakeLinear();
-  let code: number | undefined;
-  await createDueRoutines({ ...config, routines: [{ ...routine, schedule: 'daily 24:00' }] }, linear.fetchFn, new Date(), ((c: number) => { code = c; }) as never);
-  assert.equal(code, 1);
-  assert.equal(linear.calls, 0);
+test('loadConfig refuses a bad routine schedule, so the runner and --dry-run both stop at start', () => {
+  const file = path.join(mkdtempSync(path.join(os.tmpdir(), 'routines-')), 'config.json');
+  const base = { linearTokenCommand: 'true', team: 'ALE', runnerUser: 'runner', decisionAssignee: 'Alex', repos: {}, models: { lead: 'a', review: 'b' }, worktreeRoot: '/tmp' };
+  writeFileSync(file, JSON.stringify({ ...base, routines: [{ ...routine, schedule: 'daily 24:00' }] }));
+  assert.throws(() => loadConfig(file), /Bad routine schedule/);
+  writeFileSync(file, JSON.stringify({ ...base, routines: [routine] }));
+  assert.equal(loadConfig(file).routines?.length, 1);
 });
 
 type Fake = { description: string; state: string; archived?: boolean; input?: Record<string, unknown> };
@@ -47,6 +52,7 @@ function fakeLinear(o: { failSearchFor?: string; refuse?: boolean } = {}) {
       assert.match(variables.mark, /^runner-routine \S+ \d{4}-\d\d-\d\dT[\d:.]+Z$/);
       data = { issues: { nodes: issues.filter((i) => i.description.includes(variables.mark) && (!i.archived || query.includes('includeArchived: true'))) } };
     } else if (query.includes('Ids')) {
+      assert.match(query, /issueLabels\(filter: \{ name: \{ eq: \$label \}, or: \[\{ team: \{ key: \{ eq: \$team \} \} \}, \{ team: \{ null: true \} \}\] \}\)/);
       data = { teams: { nodes: [{ id: 't', states: { nodes: [{ id: 's', name: 'Todo' }] } }] }, users: { nodes: [{ id: 'u' }] }, issueLabels: { nodes: [{ id: 'l' }] } };
     } else {
       if (!o.refuse) issues.push({ description: variables.input.description, state: 'Todo', input: variables.input });

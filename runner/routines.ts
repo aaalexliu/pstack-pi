@@ -24,11 +24,10 @@ const pad = (n: number) => String(n).padStart(2, '0');
 
 /**
  * Creates one Todo issue, delegated to the runner, for each routine's latest due run that has no issue yet.
- * A bad schedule stops the runner. Otherwise it never throws: a failing routine is logged and the poll goes on.
+ * `loadConfig` has already checked every schedule. It never throws: a failing routine is logged and the poll goes on.
  */
-export async function createDueRoutines(config: Setup, fetchFn: typeof fetch, now = new Date(), exit = process.exit) {
+export async function createDueRoutines(config: Setup, fetchFn: typeof fetch, now = new Date()) {
   const routines = config.routines ?? [];
-  try { routines.forEach((r) => parseSchedule(r.schedule)); } catch (error) { console.error(String(error)); return exit(1); }
   const gql = async <T>(query: string, variables: Record<string, unknown>): Promise<T> => {
     const token = execFileSync('/bin/sh', ['-c', config.linearTokenCommand], { encoding: 'utf8' }).trim();
     const res = await fetchFn('https://api.linear.app/graphql', {
