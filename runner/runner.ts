@@ -21,7 +21,9 @@ export type Config = {
   host: string;
   worktreeRoot: string;
 };
-type Comment = { id: string; body: string; createdAt: string; user: { name: string } | null };
+type Comment = { id: string; body: string; createdAt: string; user: { name: string; app?: boolean } | null; botActor?: { name: string } | null };
+/** Only a person's comment counts as Alex acting: not the runner, its leads, or any other app or bot. */
+const human = (c: Comment) => !!c.user && !c.user.app && !c.botActor;
 type Issue = { id: string; identifier: string; title: string; description: string | null; url: string; createdAt: string; state: { type: string }; labels: { nodes: { name: string }[] } };
 /** A sub-issue of a ticket. One assigned to `decisionAssignee` is a Decision issue: Alex owes a move on it. */
 export type Child = { id: string; identifier: string; title: string; url: string; createdAt: string; completedAt: string | null; canceledAt: string | null; assignee: { name: string } | null };
@@ -117,7 +119,7 @@ function linearClient(config: Config, fetchFn: typeof fetch) {
     async ticket(id: string): Promise<Ticket | null> {
       type Wire = { state: { type: string }; delegate: { name: string } | null; comments: { nodes: Comment[] }; children: { nodes: Child[] } };
       const found = (await gql<{ issues: { nodes: Wire[] } }>(
-        `query IssueById($id: ID!) { issues(first: 1, filter: { id: { eq: $id } }) { nodes { state { type } delegate { name } comments(first: 100) { nodes { id body createdAt user { name } } } children(first: 50) { nodes { ${CHILD} } } } } }`,
+        `query IssueById($id: ID!) { issues(first: 1, filter: { id: { eq: $id } }) { nodes { state { type } delegate { name } comments(first: 100) { nodes { id body createdAt user { name app } botActor { name } } } children(first: 50) { nodes { ${CHILD} } } } } }`,
         { id },
       )).issues.nodes[0];
       if (!found) return null;
@@ -214,7 +216,7 @@ export function nextMove(config: Config, ticket: Ticket, started: string | null)
     ...(started === null || ticket.state === 'unstarted' ? ['The ticket was delegated to you.'] : []),
     ...ticket.children.filter((c) => isDecision(config, c) && after(closedAt(c)!))
       .map((c) => `Alex ${c.completedAt ? 'closed' : 'canceled'} ${c.identifier} (${c.title}): ${c.url}`),
-    ...ticket.comments.filter((c) => c.user?.name !== config.runnerUser && after(c.createdAt))
+    ...ticket.comments.filter((c) => human(c) && after(c.createdAt))
       .map((c) => `${c.user?.name ?? 'Someone'} commented: ${c.body}`),
   ];
   return news.length ? { kind: 'start', news } : { kind: 'decide' };
@@ -404,6 +406,9 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void) {
         needsScreen: needsScreen(w.description), screenTaken: running.some((r) => needsScreen(r.w.description)),
       });
       if (reason) { say(`Not starting ${w.key} yet: ${reason}`); continue; }
+      // Moving a Todo ticket to In Progress consumes the delegation before the start is recorded, so a crash
+      // anywhere after it can only lead to a Decision issue, never a second start (model/Ticket.tla, NoSpin).
+      if (ticket.state === 'unstarted') await linear.setState(w.id, 'In Progress');
       try {
         await launch(ctx, w, move.news);
       } catch (error) {
@@ -411,7 +416,6 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void) {
         continue;
       }
       running.push({ w, ticket, live: true });
-      if (ticket.state === 'unstarted') await linear.setState(w.id, 'In Progress');
       await status(ctx, w, ticket, 'Lead running');
     } catch (error) {
       console.error(`${w.key}: failed; the next poll tries again`, error);

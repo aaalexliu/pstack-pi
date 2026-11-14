@@ -1,12 +1,12 @@
 # Job runner
 
-The job runner starts a Pi lead for each Linear issue delegated to its app user, and wakes it when you act. The lead does the rest: it builds, opens small PRs, gets each one reviewed by a separate Pi session, merges after CI, asks you through Decision issues, and closes the ticket. The runner is one TypeScript file with no dependencies. It is not part of the Pi package, and `npm pack` leaves it out.
+The job runner starts a Pi lead for each Linear issue delegated to its app user that is in `Todo` or a started state and carries a repo label from the config, and wakes it when you act. The lead does the rest: it builds, opens small PRs, gets each one reviewed by a separate Pi session, merges after CI, asks you through Decision issues, and closes the ticket. The runner is one TypeScript file with no dependencies. It is not part of the Pi package, and `npm pack` leaves it out.
 
 ## What the runner does
 
 The runner keeps process only where a stopped or absent model cannot act for itself. It makes two writes:
 
-1. **Start or resume the lead**, only when you acted after the lead's last start: you delegated the ticket (it sits in `Todo`), closed a Decision issue (Done or Canceled), or commented on the ticket.
+1. **Start or resume the lead**, only when you acted after the lead's last start: you delegated the ticket (it sits in `Todo`), closed a Decision issue (Done or Canceled), or commented on the ticket as a person (comments by apps and bots do not count). The runner moves a `Todo` ticket to `In Progress` before it records the start, so a crash can never count one delegation twice.
 2. **File a Decision issue** when the lead stopped and nothing is open to wait for.
 
 It remembers one fact per ticket: when it last started the lead, in `<worktree>/.runner/started`. Everything else it reads from Linear and tmux each poll.
@@ -51,9 +51,11 @@ To audit, delegate a ticket whose description says `Follow <prompts>/audit.md` (
 - no `runner-review` record exists, or the newest one came after `mergedAt`;
 - the record's `head` is not the merged head commit;
 - `caused_must_fix` is above 0;
-- `session_id` equals `asked_by`, or no file exists at `session_path`;
+- the record does not trace to a separate review session: `session_id` equals `asked_by`, or the file at `session_path` is missing, has another id, or is not a review of this PR's head (lead and reviewer share a `gh` login, so this is not proof of who posted);
 - `round` is above 3 with no Decision sub-issue on the ticket;
-- a check on the head commit was red at merge.
+- a check on the merged head was not green as of `mergedAt`, from timestamped check runs and statuses, or green cannot be proven.
+
+It pages through the window and says when coverage is incomplete.
 
 It posts a report comment on its ticket, moves it to Done, and files a Decision issue only if something is flagged. If flags repeat, add enforcement in GitHub (required checks, a required review from a bot identity), not in the runner.
 

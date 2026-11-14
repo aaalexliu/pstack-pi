@@ -6,7 +6,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { commands, main, nextMove, put, quietMinutes, renderStatus, startBlock, type Child, type Config, type Ticket } from './runner.ts';
 
-type FakeComment = { id: string; body: string; createdAt: string; user: { name: string } };
+type FakeComment = { id: string; body: string; createdAt: string; user: { name: string; app?: boolean }; botActor?: { name: string } | null };
 type FakeIssue = {
   id: string; identifier: string; title: string; description: string; url: string; createdAt: string;
   team: string; state: string; delegate: string | null; assignee: string | null; parent: string | null; labels: string[]; comments: FakeComment[];
@@ -81,12 +81,15 @@ else if (args[0] === 'kill-session') process.exit(1);
   /** Ids Linear no longer finds by id, as for an issue deleted mid-poll. */
   const gone = new Set<string>();
   const ops: string[] = [];
+  /** Linear operations that fail once, the next time they run. */
+  const faults: string[] = [];
   writeFileSync(file('token'), 'test-token\n');
   const fakeFetch = async (_url: string | URL | Request, init?: RequestInit) => {
     assert.equal(new Headers(init?.headers).get('Authorization'), 'Bearer test-token');
     const { query, variables: v } = JSON.parse(String(init?.body));
     const op = /^(?:query|mutation) (\w+)/.exec(query)?.[1] ?? '';
     ops.push(op);
+    if (faults.includes(op)) { faults.splice(faults.indexOf(op), 1); throw new Error(`injected ${op} failure`); }
     const find = (id: string) => issues.find((i) => i.id === id)!;
     const data = (value: unknown) => Response.json({ data: value });
     if (op === 'Issues') {
@@ -108,7 +111,7 @@ else if (args[0] === 'kill-session') process.exit(1);
       return data({ issueUpdate: { success: true } });
     }
     if (op === 'Comment') {
-      find(v.input.issueId).comments.push({ id: `comment-${++nextId}`, body: v.input.body, createdAt: new Date().toISOString(), user: { name: RUNNER } });
+      find(v.input.issueId).comments.push({ id: `comment-${++nextId}`, body: v.input.body, createdAt: new Date().toISOString(), user: { name: RUNNER, app: true } });
       return data({ commentCreate: { success: true } });
     }
     if (op === 'EditComment') {
@@ -125,7 +128,7 @@ else if (args[0] === 'kill-session') process.exit(1);
   };
   const dirOf = (n: number) => path.join(config.worktreeRoot, `job-ale-${n}-job-number-${n}`);
   return {
-    config, ops, root, repo, dirOf, gone,
+    config, ops, faults, root, repo, dirOf, gone,
     run: async (...argv: string[]) => { await new Promise((r) => setTimeout(r, 5)); await main(argv, config, fakeFetch as typeof fetch); },
     leads: () => lines(file('pi.log')).map((line) => JSON.parse(line)),
     tmux: () => lines(file('tmux.log')).map((line) => JSON.parse(line) as string[]),
@@ -210,6 +213,32 @@ test('a human comment after the last start wakes the lead; the runner\'s own com
   assert.match(t.leads()[1].input, /- Alex commented: Use the blue icon\./);
   await t.run('--once');
   assert.equal(t.leads().length, 2);
+});
+
+test('NoSpin across a crash: a Todo ticket whose move to In Progress fails is started once, not on every poll', async () => {
+  const job = issue(1);
+  const t = setup([job]);
+  t.faults.push('State');
+  const error = console.error;
+  console.error = () => {};
+  try {
+    await t.run('--once');
+    await t.run('--once');
+    await t.run('--once');
+  } finally { console.error = error; }
+  assert.equal(t.leads().length, 1);
+  assert.equal(t.decisions().length, 1, 'the stopped lead gets one Decision issue');
+});
+
+test('comments from apps and bots do not wake the lead', async () => {
+  const job = issue(1);
+  const t = setup([job]);
+  await t.run('--once');
+  job.comments.push({ id: 'b1', body: 'Deployed preview.', createdAt: later(), user: { name: 'GitHub', app: true } });
+  job.comments.push({ id: 'b2', body: 'Linked a PR.', createdAt: later(), user: { name: 'Integration' }, botActor: { name: 'GitHub' } });
+  await t.run('--once');
+  assert.equal(t.leads().length, 1);
+  assert.equal(t.decisions().length, 1);
 });
 
 test('a ticket the lead moved to Done is left alone; one Linear moved to In Review is still watched', async () => {
@@ -330,7 +359,7 @@ test('nextMove follows the model: wait on an open Decision, start on news, else 
   assert.equal(nextMove(cfg, ticket({ children: [child({ assignee: null })] }), started).kind, 'decide', 'a sub-issue not assigned to Alex is not a Decision');
   assert.equal(nextMove(cfg, ticket({ children: [child({ completedAt: '2026-01-01T00:00:00Z' })] }), started).kind, 'decide', 'an answer older than the start is old news');
   assert.equal(nextMove(cfg, ticket({ children: [child({ canceledAt: '2026-01-03T00:00:00Z' })] }), started).kind, 'start');
-  assert.equal(nextMove(cfg, ticket({ comments: [{ id: 'x', body: 'b', createdAt: '2026-01-03T00:00:00Z', user: { name: RUNNER } }] }), started).kind, 'decide');
+  assert.equal(nextMove(cfg, ticket({ comments: [{ id: 'x', body: 'b', createdAt: '2026-01-03T00:00:00Z', user: { name: RUNNER, app: true } }] }), started).kind, 'decide');
 });
 
 const shells = ['sh', 'zsh'].filter((shell) => { try { execFileSync(shell, ['-c', 'true']); return true; } catch { return false; } });
