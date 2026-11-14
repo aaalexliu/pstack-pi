@@ -15,20 +15,21 @@ test('production contains exactly the reviewed copied and adapted workflow set',
   const inventory = await checkContent({ root, manifest, lock });
   assert.equal(lock.commit, 'c742dd61706fbacc1b95f1a20b7b988cf096ce6c');
   assert.equal(inventory.bySource.size, 573);
-  assert.equal(inventory.byDestination.size, 132);
+  assert.equal(inventory.byDestination.size, 133);
   assert.equal(inventory.byAgentName.size, 3);
   assert.deepEqual(inventory.byAgentName.get('comment-sicko')?.tools, ['read', 'grep', 'find', 'ls']);
   assert.deepEqual(inventory.byAgentName.get('general-purpose')?.tools, ['read', 'grep', 'find', 'ls']);
   assert.deepEqual(inventory.byAgentName.get('poteto-agent')?.tools, ['read', 'grep', 'find', 'ls', 'bash', 'edit', 'write']);
-  assert.equal(inventory.bySkillName.size, 58);
+  assert.equal(inventory.bySkillName.size, 59);
   assert.deepEqual([...inventory.byDestination].filter(([, record]) => record.disposition.kind === 'addition').map(([destination]) => destination).sort(), [
     'additions/agents/general-purpose.md',
     'additions/skills/alex-show-me/SKILL.md',
     'additions/skills/alex-show-me/references/humanlayer-license.md',
     'additions/skills/deeper/SKILL.md',
+    'additions/skills/intake/SKILL.md',
     'additions/skills/list-writing/SKILL.md',
   ]);
-  for (const name of ['alex-show-me', 'deeper', 'list-writing']) assert.equal(inventory.bySkillName.get(name)?.destination, `additions/skills/${name}/SKILL.md`);
+  for (const name of ['alex-show-me', 'deeper', 'intake', 'list-writing']) assert.equal(inventory.bySkillName.get(name)?.destination, `additions/skills/${name}/SKILL.md`);
   const upstreamEntrypoints = manifest.files.filter((file) => /^skills\/[^/]+\/SKILL\.md$/u.test(file.source));
   assert.equal(upstreamEntrypoints.length, 58);
   const omittedSkills = ['skills/ketchup-video/SKILL.md', 'skills/poteto-help/SKILL.md', 'skills/sharpen/SKILL.md'];
@@ -79,5 +80,5 @@ test('production contains exactly the reviewed copied and adapted workflow set',
       assert.match(actual.toString('utf8'), /^disable-model-invocation: true$/mu);
     }
   }
-  assert.deepEqual([...inventory.bySkillName.values()].filter((skill) => !skill.disabled).map((skill) => skill.name), ['list-writing']);
+  assert.deepEqual([...inventory.bySkillName.values()].filter((skill) => !skill.disabled).map((skill) => skill.name).sort(), ['intake', 'list-writing']);
 });
