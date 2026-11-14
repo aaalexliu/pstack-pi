@@ -33,6 +33,7 @@
     "skills": [
       "additions/skills/alex-show-me/SKILL.md",
       "additions/skills/deeper/SKILL.md",
+      "additions/skills/intake/SKILL.md",
       "additions/skills/list-writing/SKILL.md",
       "skills/architect/SKILL.md",
       "skills/arena/SKILL.md",
@@ -104,6 +105,7 @@
     "additions/skills/alex-show-me/SKILL.md",
     "additions/skills/alex-show-me/references/humanlayer-license.md",
     "additions/skills/deeper/SKILL.md",
+    "additions/skills/intake/SKILL.md",
     "additions/skills/list-writing/SKILL.md",
     "agents/comment-sicko.md",
     "agents/poteto-agent.md",
