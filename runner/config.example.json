@@ -4,11 +4,8 @@
   "runnerUser": "job runner",
   "decisionAssignee": "Your Name",
   "repos": {
-    "web-app": { "path": "/Users/you/dev/web-app", "base": "main", "automerge": false, "fullSuiteLabel": "full-suite" },
-    "dotfiles": { "path": "/Users/you/dev/dotfiles", "base": "main", "automerge": true, "ciGate": true }
-  },
-  "webhooks": {
-    "desk": { "url": "https://bot.example.com/job-result", "keyFile": "/Users/you/.config/job-runner/desk.key" }
+    "web-app": { "path": "/Users/you/dev/web-app", "base": "main" },
+    "dotfiles": { "path": "/Users/you/dev/dotfiles", "base": "main" }
   },
   "models": { "lead": "anthropic/claude-opus-4-5", "review": "openai/gpt-5.5" },
   "thinking": "high",
