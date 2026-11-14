@@ -10,18 +10,18 @@ Page through GitHub search until it is exhausted:
 
 ```sh
 gh api --paginate -X GET search/issues -f q="repo:<owner/name> is:pr is:merged merged:>=<since>" -f per_page=100 \
-  --jq '.total_count, (.items[].number)'
+  --jq '"total_count=\(.total_count)", (.items[].number)'
 ```
 
-Search returns at most 1000 results. If `total_count` is above 1000, audit what you got and say at the top of the report that coverage is incomplete, with both numbers.
+The `total_count=` line repeats on each page; the bare numbers are PRs. Search returns at most 1000 results. If `total_count` is above 1000, audit what you got and say at the top of the report that coverage is incomplete, with both numbers.
 
 For each number:
 
 ```sh
-gh pr view <n> -R <owner/name> --json number,url,body,headRefOid,mergedAt,reviews
+gh pr view <n> -R <owner/name> --json number,url,body,headRefName,headRefOid,mergedAt,reviews
 ```
 
-Keep the PRs whose body has `Fixes <TEAM>-<n>` or `Part of <TEAM>-<n>`, where `<TEAM>` is the team in the start message.
+Audit every PR whose head branch starts with `job/` (the runner made it) or whose body has `Fixes <TEAM>-<n>` or `Part of <TEAM>-<n>`, where `<TEAM>` is the team in the start message. Flag a `job/` PR whose body names no ticket that way; its ticket key is in the branch name, `job/<team>-<n>-...`.
 
 ## 2. Find the review record
 
@@ -36,7 +36,13 @@ In `reviews`, a record is a review whose `body` starts with the line `runner-rev
    - `session_id` differs from `asked_by`;
    - a file exists at `session_path`;
    - its first line is a `session` entry whose `id` equals `session_id`;
-   - its first `user` message starts with `Review PR <this PR's url>` and names the record's `head` sha and `asked_by`.
+   - its first user message (the first entry with `type` `message` and `message.role` `user`) starts with `Review PR <this PR's url>` and names the record's `head` sha and `asked_by`. Print it with:
+
+     ```sh
+     jq -r 'select(.type=="message" and .message.role=="user") | .message.content[].text' <session_path> | head -1
+     ```
+
+   Run the audit on the runner host: `session_path` is a path there. If no record's `session_path` exists on this host, report this check once as "cannot check", not as a flag per PR.
 
    This shows a review session was started for this head. It does not prove who posted the record: lead and reviewer post with the same `gh` login.
 5. The record's `round` is above 3 and the ticket has no Decision sub-issue. Check with:

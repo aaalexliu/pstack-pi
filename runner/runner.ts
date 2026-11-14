@@ -133,7 +133,10 @@ function linearClient(config: Config, fetchFn: typeof fetch) {
         'query State($team: String!, $name: String!) { workflowStates(filter: { team: { key: { eq: $team } }, name: { eq: $name } }) { nodes { id } } }',
         { team: config.team, name: state },
       );
-      await gql('mutation Update($id: String!, $input: IssueUpdateInput!) { issueUpdate(id: $id, input: $input) { success } }', { id, input: { stateId: workflowStates.nodes[0]?.id } });
+      const stateId = workflowStates.nodes[0]?.id;
+      if (!stateId) throw new Error(`Linear team ${config.team} has no state named "${state}"`);
+      const { issueUpdate } = await gql<{ issueUpdate: { success: boolean } }>('mutation Update($id: String!, $input: IssueUpdateInput!) { issueUpdate(id: $id, input: $input) { success } }', { id, input: { stateId } });
+      if (!issueUpdate.success) throw new Error(`Linear did not move ${id} to ${state}`);
     },
     async clearDelegate(id: string) {
       await gql('mutation Update($id: String!, $input: IssueUpdateInput!) { issueUpdate(id: $id, input: $input) { success } }', { id, input: { delegateId: null } });
@@ -216,7 +219,7 @@ export function nextMove(config: Config, ticket: Ticket, started: string | null)
     ...(started === null || ticket.state === 'unstarted' ? ['The ticket was delegated to you.'] : []),
     ...ticket.children.filter((c) => isDecision(config, c) && after(closedAt(c)!))
       .map((c) => `Alex ${c.completedAt ? 'closed' : 'canceled'} ${c.identifier} (${c.title}): ${c.url}`),
-    ...ticket.comments.filter((c) => human(c) && after(c.createdAt))
+    ...ticket.comments.filter((c) => human(c) && c.user?.name !== config.runnerUser && after(c.createdAt))
       .map((c) => `${c.user?.name ?? 'Someone'} commented: ${c.body}`),
   ];
   return news.length ? { kind: 'start', news } : { kind: 'decide' };
@@ -284,9 +287,7 @@ async function launch(ctx: Ctx, w: Work, news: string[]) {
   if (!sessionId(w)) put(rf(w, 'session-id'), randomUUID());
   put(rf(w, 'input.md'), startMessage(ctx, w, news));
   for (const file of ['takeover', 'held']) rmSync(rf(w, file), { force: true });
-  // The lead gets no subagent tools, so its reviewer is a `pi -p` with a real session id and file. In a real run a
-  // lead used background subagents, which auto-exit killed, then blocking_subagent, whose reviewer had no session id.
-  const pi = (...extra: string[]) => [bin('pi'), '--session-id', sessionId(w), '-e', AUTO_EXIT, '--exclude-tools', 'subagent,subagent_resume,blocking_subagent',
+  const pi = (...extra: string[]) => [bin('pi'), '--session-id', sessionId(w), '-e', AUTO_EXIT,
     '--model', w.models.lead, '--thinking', ctx.config.thinking, '--append-system-prompt', path.join(PROMPTS, 'lead.md'), ...extra].map(sh).join(' ');
   const keep = KEEP_ENV.filter((name) => process.env[name]).map((name) => `export ${name}=${sh(process.env[name]!)}`);
   put(rf(w, 'lead.sh'), [

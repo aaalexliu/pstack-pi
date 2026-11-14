@@ -26,7 +26,7 @@ The runner does nothing for you but start you. You own the PRs, the review, the 
 ## The merge gate, for every PR
 
 1. Run `.agents/verify` if the repo has one. Fix failures before review.
-2. Get a review from a separate Pi session with fresh context. Never review your own PR. Run it with `pi -p` from bash, with a bash timeout of at least 900 seconds; the command returns once the reviewer has posted its record. Subagent tools are off for you; never call `subagent_done` while you wait. Use a new uuid for each round:
+2. Get a review from a separate Pi session with fresh context, and wait for its result before you end your turn: Pi exits when your turn ends, and a reviewer still running in the background dies with it. Never review your own PR. Use `pi -p` from bash with the review prompt, a bash timeout of at least 900 seconds, and a new uuid for each round; it leaves the session file the record names. pstack-pi's `blocking_subagent` runs with `--no-session` today, so it cannot give the record a `session_path` yet.
 
    ```sh
    pi -p --session-id "$(uuidgen | tr A-Z a-z)" --name "review KEY PR <n> round <r>" --model <review model> \

@@ -6,7 +6,7 @@ The job runner starts a Pi lead for each Linear issue delegated to its app user 
 
 The runner keeps process only where a stopped or absent model cannot act for itself. It makes two writes:
 
-1. **Start or resume the lead**, only when you acted after the lead's last start: you delegated the ticket (it sits in `Todo`), closed a Decision issue (Done or Canceled), or commented on the ticket as a person (comments by apps and bots do not count). The runner moves a `Todo` ticket to `In Progress` before it records the start, so a crash can never count one delegation twice.
+1. **Start or resume the lead**, only when you acted after the lead's last start: you delegated the ticket (it sits in `Todo`), closed a Decision issue (Done or Canceled), or commented on the ticket as a person (comments by apps and bots do not count). The runner moves a `Todo` ticket to `In Progress` before it records the start, so a crash can never count one delegation twice; at worst it files a Decision issue instead of starting.
 2. **File a Decision issue** when the lead stopped and nothing is open to wait for.
 
 It remembers one fact per ticket: when it last started the lead, in `<worktree>/.runner/started`. Everything else it reads from Linear and tmux each poll.
@@ -46,7 +46,7 @@ The runner enforces none of this. The audit prompt checks it after the fact.
 
 To audit, delegate a ticket whose description says `Follow <prompts>/audit.md` (the lead gets the prompts folder in its start message) and names the repos, for example `Repos: owner/web-app`.
 
-[prompts/audit.md](prompts/audit.md) has the lead list merged PRs that name a ticket, with the exact `gh` and Linear queries, and flag each one where:
+[prompts/audit.md](prompts/audit.md) has the lead list merged PRs on `job/` branches or naming a ticket (flagging a `job/` PR that names none), with the exact `gh` and Linear queries, and flag each one where:
 
 - no `runner-review` record exists, or the newest one came after `mergedAt`;
 - the record's `head` is not the merged head commit;

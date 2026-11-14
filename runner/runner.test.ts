@@ -6,7 +6,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { commands, main, nextMove, put, quietMinutes, renderStatus, startBlock, type Child, type Config, type Ticket } from './runner.ts';
 
-type FakeComment = { id: string; body: string; createdAt: string; user: { name: string; app?: boolean }; botActor?: { name: string } | null };
+type FakeComment = { id: string; body: string; createdAt: string; user: { name: string; app?: boolean } | null; botActor?: { name: string } | null };
 type FakeIssue = {
   id: string; identifier: string; title: string; description: string; url: string; createdAt: string;
   team: string; state: string; delegate: string | null; assignee: string | null; parent: string | null; labels: string[]; comments: FakeComment[];
@@ -19,6 +19,12 @@ const ALEX = 'Alex Example';
 const git = (cwd: string, ...args: string[]) => execFileSync('git', args, { cwd, encoding: 'utf8' }).trim();
 const lines = (file: string) => (existsSync(file) ? readFileSync(file, 'utf8').trim().split('\n').filter(Boolean) : []);
 /** Now. `run` waits a few ms first, so a fact made here is older than the next lead start. */
+/** A comment with only the fields the query names, as Linear returns it. */
+const asQueried = ({ botActor, user, ...c }: FakeComment, query: string) => ({
+  ...c,
+  ...(/botActor \{ name \}/.test(query) ? { botActor: botActor ?? null } : {}),
+  user: user && (/user \{ name app \}/.test(query) ? user : { name: user.name }),
+});
 const later = () => new Date().toISOString();
 
 function issue(n: number, fields: Partial<FakeIssue> = {}): FakeIssue {
@@ -48,7 +54,7 @@ const args = process.argv.slice(2);
 const at = args.find((a) => a.startsWith('@'));
 fs.appendFileSync(${JSON.stringify(file('pi.log'))}, JSON.stringify({
   input: at ? fs.readFileSync(at.slice(1), 'utf8') : '', model: args[args.indexOf('--model') + 1], session: args[args.indexOf('--session-id') + 1],
-  cwd: process.cwd(), extension: args[args.indexOf('-e') + 1], excluded: args[args.indexOf('--exclude-tools') + 1], autoExit: process.env.PI_SUBAGENT_AUTO_EXIT, token: process.env.LINEAR_TOKEN,
+  cwd: process.cwd(), extension: args[args.indexOf('-e') + 1], autoExit: process.env.PI_SUBAGENT_AUTO_EXIT, token: process.env.LINEAR_TOKEN,
   piVars: Object.keys(process.env).filter((k) => /^(PI|PSTACK)_/.test(k)).sort(),
 }) + '\\n');
 `, { mode: 0o755 });
@@ -80,6 +86,8 @@ else if (args[0] === 'kill-session') process.exit(1);
   let nextId = 0;
   /** Ids Linear no longer finds by id, as for an issue deleted mid-poll. */
   const gone = new Set<string>();
+  /** State names the fake team does not have. */
+  const missingStates = new Set<string>();
   const ops: string[] = [];
   /** Linear operations that fail once, the next time they run. */
   const faults: string[] = [];
@@ -98,11 +106,11 @@ else if (args[0] === 'kill-session') process.exit(1);
     if (op === 'IssueById') {
       const i = issues.find((x) => x.id === v.id && !gone.has(x.id));
       return data({ issues: { nodes: i ? [{
-        state: { type: TYPES[i.state] }, delegate: i.delegate ? { name: i.delegate } : null, comments: { nodes: i.comments },
+        state: { type: TYPES[i.state] }, delegate: i.delegate ? { name: i.delegate } : null, comments: { nodes: i.comments.map((c) => asQueried(c, query)) },
         children: { nodes: issues.filter((c) => c.parent === i.id).map((c) => ({ ...c, assignee: c.assignee ? { name: c.assignee } : null })) },
       }] : [] } });
     }
-    if (op === 'State') return data({ workflowStates: { nodes: [{ id: `state-${v.name}` }] } });
+    if (op === 'State') return data({ workflowStates: { nodes: missingStates.has(v.name) ? [] : [{ id: `state-${v.name}` }] } });
     if (op === 'Team') return data({ teams: { nodes: [{ id: 'team-ale' }] } });
     if (op === 'User') return data({ users: { nodes: v.name === ALEX ? [{ id: 'user-alex' }] : [] } });
     if (op === 'Update') {
@@ -128,7 +136,7 @@ else if (args[0] === 'kill-session') process.exit(1);
   };
   const dirOf = (n: number) => path.join(config.worktreeRoot, `job-ale-${n}-job-number-${n}`);
   return {
-    config, ops, faults, root, repo, dirOf, gone,
+    config, ops, faults, root, repo, dirOf, gone, missingStates,
     run: async (...argv: string[]) => { await new Promise((r) => setTimeout(r, 5)); await main(argv, config, fakeFetch as typeof fetch); },
     leads: () => lines(file('pi.log')).map((line) => JSON.parse(line)),
     tmux: () => lines(file('tmux.log')).map((line) => JSON.parse(line) as string[]),
@@ -150,7 +158,6 @@ test('a delegated ticket starts one lead in tmux with the session, auto-exit, th
   assert.equal(lead.session, readFileSync(path.join(dir, '.runner', 'session-id'), 'utf8'));
   assert.equal(lead.cwd, realpathSync(dir));
   assert.equal(lead.autoExit, '1');
-  assert.equal(lead.excluded, 'subagent,subagent_resume,blocking_subagent', 'the reviewer must be a pi -p session');
   assert.ok(lead.extension.endsWith('subagent-done.ts') && existsSync(lead.extension));
   assert.equal(lead.token, 'test-token');
   assert.deepEqual(lead.piVars, ['PI_AUTH_PROFILE', 'PI_SUBAGENT_ACTIVITY_FILE', 'PI_SUBAGENT_AUTO_EXIT', 'PI_SUBAGENT_ID'], 'outer PI_* and PSTACK_* are gone, digits included');
@@ -230,12 +237,24 @@ test('NoSpin across a crash: a Todo ticket whose move to In Progress fails is st
   assert.equal(t.decisions().length, 1, 'the stopped lead gets one Decision issue');
 });
 
+test('a team with no "In Progress" state starts no lead, so a Todo ticket cannot spin', async () => {
+  const t = setup([issue(1)]);
+  t.missingStates.add('In Progress');
+  const error = console.error;
+  console.error = () => {};
+  try {
+    await t.run('--once');
+    await t.run('--once');
+  } finally { console.error = error; }
+  assert.equal(t.leads().length, 0);
+});
+
 test('comments from apps and bots do not wake the lead', async () => {
   const job = issue(1);
   const t = setup([job]);
   await t.run('--once');
   job.comments.push({ id: 'b1', body: 'Deployed preview.', createdAt: later(), user: { name: 'GitHub', app: true } });
-  job.comments.push({ id: 'b2', body: 'Linked a PR.', createdAt: later(), user: { name: 'Integration' }, botActor: { name: 'GitHub' } });
+  job.comments.push({ id: 'b2', body: 'Linked a PR.', createdAt: later(), user: null, botActor: { name: 'GitHub' } });
   await t.run('--once');
   assert.equal(t.leads().length, 1);
   assert.equal(t.decisions().length, 1);
