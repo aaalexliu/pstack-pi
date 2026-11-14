@@ -11,7 +11,7 @@ The runner keeps process only where a stopped or absent model cannot act for its
 
 It remembers one fact per ticket: when it last started the lead, in `<worktree>/.runner/started`. Everything else it reads from Linear and tmux each poll.
 
-Each poll, for each issue delegated to `runnerUser` in `Todo` or `In Progress`, oldest first:
+Each poll, for each open issue delegated to `runnerUser` (`Todo`, or any started state such as `In Progress` or `In Review`):
 
 ```text
 lead live in tmux                     -> leave it; file a Decision issue if it went quiet for stallMinutes
@@ -20,17 +20,17 @@ you acted after the lead's last start -> start the lead (if a slot is free) and 
 else                                  -> file a Decision issue: "the lead stopped with nothing open to wait for"
 ```
 
-A ticket the lead moved out of `In Progress` (Done, In Review, Canceled) is no longer the runner's.
+A ticket marked Done or Canceled, or with its delegate cleared, is no longer the runner's. `In Review` still is: Linear's GitHub link moves a ticket there when the lead opens its first PR, long before the work is done.
 
 ### Decision issues
 
 A Decision issue is a sub-issue of the ticket assigned to `decisionAssignee`. The runner files its own with `parentId` in the one `issueCreate` call, so no crash can leave it unfindable, and finds them as open children. The lead files them the same way. A sub-issue assigned to anyone else does not block the ticket.
 
-Closing a Decision issue, Done or Canceled, wakes the lead in the same Pi session with your comments. To stop the work instead, move the ticket out of `In Progress`.
+Closing a Decision issue, Done or Canceled, wakes the lead in the same Pi session with your comments. To stop the work instead, mark the ticket Done or Canceled, or clear its delegate.
 
 ### The lead
 
-The runner starts `pi --session-id <uuid> @.runner/input.md` with [prompts/lead.md](prompts/lead.md) in a detached tmux session named for the ticket, in the ticket's worktree. `input.md` holds the ticket, the Linear ids the lead needs, the review model and prompt, and what you did since its last start. Pi loads pstack-pi's `subagent-done.ts` with `PI_SUBAGENT_AUTO_EXIT=1`, so it exits when its turn ends, and writes activity to `.runner/activity.json` for the stall check.
+The runner starts `pi --session-id <uuid> @.runner/input.md` with [prompts/lead.md](prompts/lead.md) in a detached tmux session named for the ticket, in the ticket's worktree. `input.md` holds the ticket, the Linear ids the lead needs, the review model, the prompts folder, and what you did since its last start. Pi loads pstack-pi's `subagent-done.ts` with `PI_SUBAGENT_AUTO_EXIT=1`, so it exits when its turn ends, and writes activity to `.runner/activity.json` for the stall check.
 
 The launch script drops every `PI_*` and `PSTACK_*` variable the tmux server holds from another session, digits in names included, keeping only `PI_AUTH_PROFILE` and `PI_CODING_AGENT_DIR`. It runs `linearTokenCommand` itself and exports the token as `LINEAR_TOKEN`, so the token never lands on disk and the lead posts to Linear as the runner's app user. The lead calls Linear's GraphQL API with `curl`, and GitHub with the host's `gh` login.
 
@@ -40,24 +40,24 @@ The launch script drops every `PI_*` and `PSTACK_*` variable the tmux server hol
 
 The reviewer follows [prompts/review.md](prompts/review.md) and posts its own record on the PR with `gh pr review --comment` (GitHub refuses an approval from the PR's author). Its first lines are `runner-review v1`, `verdict`, `caused_must_fix`, `head`, `round`, `agent`, `model`, `session_id`, `session_path`, `session_title` and `asked_by`, one per line; the findings follow as JSON.
 
-The runner enforces none of this. [audit.ts](audit.ts) checks it after the fact.
+The runner enforces none of this. The audit prompt checks it after the fact.
 
 ## The audit
 
-```sh
-node runner/audit.ts owner/repo [owner/other] [--limit 100]
-```
+To audit, delegate a ticket whose description says `Follow <prompts>/audit.md` (the lead gets the prompts folder in its start message) and names the repos, for example `Repos: owner/web-app`.
 
-For each merged PR whose body names a ticket of `team` with `Fixes` or `Part of`, it flags:
+[prompts/audit.md](prompts/audit.md) has the lead list merged PRs that name a ticket, with the exact `gh` and Linear queries, and flag each one where:
 
-- no `runner-review` record, or the newest one came after `mergedAt`;
+- no `runner-review` record exists, or the newest one came after `mergedAt`;
 - the record's `head` is not the merged head commit;
-- `caused_must_fix` above 0;
-- `session_id` equal to `asked_by`, or no file at `session_path` on this Mac;
-- `round` above 3 with no Decision sub-issue on the ticket;
-- a check on the head commit red at merge.
+- `caused_must_fix` is above 0;
+- `session_id` equals `asked_by`, or no file exists at `session_path`;
+- `round` is above 3 with no Decision sub-issue on the ticket;
+- a check on the head commit was red at merge.
 
-It exits 1 when it flags anything. Run it by hand or weekly. If flags appear, add enforcement in GitHub (required checks, a required review from a bot identity), not in the runner.
+It posts a report comment on its ticket, moves it to Done, and files a Decision issue only if something is flagged. If flags repeat, add enforcement in GitHub (required checks, a required review from a bot identity), not in the runner.
+
+Routines that file tickets like this on a schedule will come in a later change.
 
 ## The model
 
@@ -79,8 +79,8 @@ The model leaves out:
 
 - the stall check, lead slots, memory and the screen limit;
 - comments as news (it has one `news` flag for any act of yours);
-- PRs, review, CI and merge, which the runner no longer touches; the audit covers them;
-- a ticket you take out of `In Progress` while the lead runs;
+- PRs, review, CI and merge, which the runner no longer touches; the audit prompt covers them;
+- a ticket you close or take back while the lead runs;
 - the launch failing, which files a Decision issue like a stopped lead.
 
 ## Shared resources

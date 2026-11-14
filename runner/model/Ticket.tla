@@ -14,7 +14,7 @@ VARIABLES lead,     \* "live" | "idle": the tmux session
           linked,   \* the runner can find that issue
           dup,      \* history: a second Decision issue for one ask
           spun,     \* history: the lead was started with nothing new
-          done      \* the ticket left In Progress
+          done      \* the ticket is Done or Canceled
 vars == <<lead, news, dec, linked, dup, spun, done>>
 
 Init == lead = "idle" /\ news = TRUE /\ dec = FALSE /\ linked = FALSE

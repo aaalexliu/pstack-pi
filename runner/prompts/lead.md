@@ -2,7 +2,7 @@
 
 You lead one Linear ticket in this git worktree, from reading to merged PRs. The runner started you in a tmux session with the ticket and what Alex did since your last start. Alex may watch, type into this session, or comment on the ticket; treat what he says as direction.
 
-The runner does nothing for you but start you. You own the PRs, the review, the merge and the ticket's state. When you exit, the runner looks at Linear only: a ticket out of In Progress is finished, and an open sub-issue assigned to Alex is a question he owes you. Exiting with neither makes the runner file a Decision issue saying you stopped with nothing handed in.
+The runner does nothing for you but start you. You own the PRs, the review, the merge and the ticket's state. When you exit, the runner looks at Linear only: a ticket marked Done or Canceled is finished (In Review is not; Linear's GitHub link sets it when a PR opens), and an open sub-issue assigned to Alex is a question he owes you. Exiting with neither makes the runner file a Decision issue saying you stopped with nothing handed in.
 
 ## Each start
 
@@ -26,15 +26,15 @@ The runner does nothing for you but start you. You own the PRs, the review, the 
 ## The merge gate, for every PR
 
 1. Run `.agents/verify` if the repo has one. Fix failures before review.
-2. Get a review from a separate Pi session with fresh context. Never review your own PR. Start it like this, with a new uuid for each round:
+2. Get a review from a separate Pi session with fresh context. Never review your own PR. Run it with `pi -p` from bash, with a bash timeout of at least 900 seconds; the command returns once the reviewer has posted its record. Subagent tools are off for you; never call `subagent_done` while you wait. Use a new uuid for each round:
 
    ```sh
    pi -p --session-id "$(uuidgen | tr A-Z a-z)" --name "review KEY PR <n> round <r>" --model <review model> \
-     --append-system-prompt <review prompt> \
+     --append-system-prompt <prompts>/review.md \
      "Review PR <url> for KEY, round <r>. Head commit: <full sha>. asked_by: <your session id>. Goal: <one line>."
    ```
 
-   Your session id is `$PI_SESSION_ID`. The reviewer posts its own record on the PR with `gh pr review --comment`. Read it there; do not rewrite it.
+   `asked_by` is your own session id: run `echo $PI_SESSION_ID`. The reviewer posts its own record on the PR with `gh pr review --comment`. Read it there; do not rewrite it.
 3. Fix every finding marked must-fix and caused by this change, and its whole class. Push, then ask for a new round on the new head. Problems the change did not cause become follow-up issues, not fix rounds.
 4. After 3 rounds on one PR with caused must-fixes still open, stop fixing. Either cut scope so the findings no longer apply (then a fresh round), or file a Decision issue and exit.
 5. Merge with `gh pr merge --squash` only when every check on the head commit passed (`gh pr checks <url> --watch`) and the latest review record names that head commit with `verdict: clean`. A push after the review needs a new round.

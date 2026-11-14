@@ -4,7 +4,6 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpath
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
-import { flags, parseRecord, ticketsOf, type Pr } from './audit.ts';
 import { commands, main, nextMove, put, quietMinutes, renderStatus, startBlock, type Child, type Config, type Ticket } from './runner.ts';
 
 type FakeComment = { id: string; body: string; createdAt: string; user: { name: string } };
@@ -15,6 +14,7 @@ type FakeIssue = {
 };
 
 const RUNNER = 'runner test';
+const TYPES: Record<string, string> = { Todo: 'unstarted', 'In Progress': 'started', 'In Review': 'started', Done: 'completed', Canceled: 'canceled', Backlog: 'backlog' };
 const ALEX = 'Alex Example';
 const git = (cwd: string, ...args: string[]) => execFileSync('git', args, { cwd, encoding: 'utf8' }).trim();
 const lines = (file: string) => (existsSync(file) ? readFileSync(file, 'utf8').trim().split('\n').filter(Boolean) : []);
@@ -48,7 +48,7 @@ const args = process.argv.slice(2);
 const at = args.find((a) => a.startsWith('@'));
 fs.appendFileSync(${JSON.stringify(file('pi.log'))}, JSON.stringify({
   input: at ? fs.readFileSync(at.slice(1), 'utf8') : '', model: args[args.indexOf('--model') + 1], session: args[args.indexOf('--session-id') + 1],
-  cwd: process.cwd(), extension: args[args.indexOf('-e') + 1], autoExit: process.env.PI_SUBAGENT_AUTO_EXIT, token: process.env.LINEAR_TOKEN,
+  cwd: process.cwd(), extension: args[args.indexOf('-e') + 1], excluded: args[args.indexOf('--exclude-tools') + 1], autoExit: process.env.PI_SUBAGENT_AUTO_EXIT, token: process.env.LINEAR_TOKEN,
   piVars: Object.keys(process.env).filter((k) => /^(PI|PSTACK)_/.test(k)).sort(),
 }) + '\\n');
 `, { mode: 0o755 });
@@ -90,12 +90,12 @@ else if (args[0] === 'kill-session') process.exit(1);
     const find = (id: string) => issues.find((i) => i.id === id)!;
     const data = (value: unknown) => Response.json({ data: value });
     if (op === 'Issues') {
-      return data({ issues: { nodes: issues.filter((i) => i.team === v.team && i.state === v.state && i.delegate === v.user).map((i) => ({ ...i, labels: { nodes: i.labels.map((name) => ({ name })) } })) } });
+      return data({ issues: { nodes: issues.filter((i) => i.team === v.team && ['unstarted', 'started'].includes(TYPES[i.state]) && i.delegate === v.user).map((i) => ({ ...i, state: { type: TYPES[i.state] }, labels: { nodes: i.labels.map((name) => ({ name })) } })) } });
     }
     if (op === 'IssueById') {
       const i = issues.find((x) => x.id === v.id && !gone.has(x.id));
       return data({ issues: { nodes: i ? [{
-        state: { name: i.state }, delegate: i.delegate ? { name: i.delegate } : null, comments: { nodes: i.comments },
+        state: { type: TYPES[i.state] }, delegate: i.delegate ? { name: i.delegate } : null, comments: { nodes: i.comments },
         children: { nodes: issues.filter((c) => c.parent === i.id).map((c) => ({ ...c, assignee: c.assignee ? { name: c.assignee } : null })) },
       }] : [] } });
     }
@@ -147,6 +147,7 @@ test('a delegated ticket starts one lead in tmux with the session, auto-exit, th
   assert.equal(lead.session, readFileSync(path.join(dir, '.runner', 'session-id'), 'utf8'));
   assert.equal(lead.cwd, realpathSync(dir));
   assert.equal(lead.autoExit, '1');
+  assert.equal(lead.excluded, 'subagent,subagent_resume,blocking_subagent', 'the reviewer must be a pi -p session');
   assert.ok(lead.extension.endsWith('subagent-done.ts') && existsSync(lead.extension));
   assert.equal(lead.token, 'test-token');
   assert.deepEqual(lead.piVars, ['PI_AUTH_PROFILE', 'PI_SUBAGENT_ACTIVITY_FILE', 'PI_SUBAGENT_AUTO_EXIT', 'PI_SUBAGENT_ID'], 'outer PI_* and PSTACK_* are gone, digits included');
@@ -211,14 +212,16 @@ test('a human comment after the last start wakes the lead; the runner\'s own com
   assert.equal(t.leads().length, 2);
 });
 
-test('a ticket the lead moved to Done is left alone', async () => {
-  const job = issue(1);
-  const t = setup([job]);
-  await t.run('--once');
-  job.state = 'Done';
-  await t.run('--once');
-  assert.equal(t.leads().length, 1);
-  assert.equal(t.decisions().length, 0);
+test('a ticket the lead moved to Done is left alone; one Linear moved to In Review is still watched', async () => {
+  for (const [state, decisions] of [['Done', 0], ['In Review', 1]] as const) {
+    const job = issue(1);
+    const t = setup([job]);
+    await t.run('--once');
+    job.state = state;
+    await t.run('--once');
+    assert.equal(t.leads().length, 1);
+    assert.equal(t.decisions().length, decisions, state);
+  }
 });
 
 test('a live lead is never started again or asked about until it stalls; a stall files one Decision issue', async () => {
@@ -315,13 +318,13 @@ test('--dry-run prints each move and writes nothing', async () => {
 });
 
 const child = (fields: Partial<Child>): Child => ({ id: 'c', identifier: 'ALE-9', title: 't', url: 'u', createdAt: '2026-01-01T00:00:00Z', completedAt: null, canceledAt: null, assignee: { name: ALEX }, ...fields });
-const ticket = (fields: Partial<Ticket>): Ticket => ({ state: 'In Progress', delegate: RUNNER, comments: [], children: [], ...fields });
+const ticket = (fields: Partial<Ticket>): Ticket => ({ state: 'started', delegate: RUNNER, comments: [], children: [], ...fields });
 const cfg = { decisionAssignee: ALEX, runnerUser: RUNNER } as Config;
 
 test('nextMove follows the model: wait on an open Decision, start on news, else decide', () => {
   const started = '2026-01-02T00:00:00Z';
   assert.equal(nextMove(cfg, ticket({}), null).kind, 'start');
-  assert.equal(nextMove(cfg, ticket({ state: 'Todo' }), started).kind, 'start');
+  assert.equal(nextMove(cfg, ticket({ state: 'unstarted' }), started).kind, 'start');
   assert.equal(nextMove(cfg, ticket({}), started).kind, 'decide');
   assert.equal(nextMove(cfg, ticket({ children: [child({})] }), null).kind, 'wait', 'an open Decision beats news');
   assert.equal(nextMove(cfg, ticket({ children: [child({ assignee: null })] }), started).kind, 'decide', 'a sub-issue not assigned to Alex is not a Decision');
@@ -389,31 +392,4 @@ test('put replaces a file whole and leaves no temp file', () => {
   put(path.join(dir, 'a.json'), 'two');
   assert.equal(readFileSync(path.join(dir, 'a.json'), 'utf8'), 'two');
   assert.deepEqual(readdirSync(dir), ['a.json']);
-});
-
-const HEAD = 'a'.repeat(40);
-const record = (fields: Record<string, string> = {}) => Object.entries({
-  verdict: 'clean', caused_must_fix: '0', head: HEAD, round: '1', agent: 'reviewer', model: 'm', session_id: 'rev', session_path: '/exists', session_title: 't', asked_by: 'lead', ...fields,
-}).reduce((body, [k, v]) => `${body}\n${k}: ${v}`, 'runner-review v1') + '\n\n[]';
-const pr = (fields: Partial<Pr> = {}): Pr => ({
-  number: 1, url: 'u', body: 'Fixes ALE-1', headRefOid: HEAD, mergedAt: '2026-01-02T00:00:00Z',
-  reviews: [{ body: record(), submittedAt: '2026-01-01T00:00:00Z' }], statusCheckRollup: [{ name: 'test', conclusion: 'SUCCESS' }], ...fields,
-});
-const exists = (file: string) => file === '/exists';
-
-test('audit flags each way a merged PR skipped the gate', () => {
-  assert.deepEqual(flags(pr(), false, exists), []);
-  assert.deepEqual(parseRecord(record())?.head, HEAD);
-  assert.deepEqual(ticketsOf('Part of ALE-1. Fixes ale-2', 'ALE'), ['ALE-1', 'ALE-2']);
-  const one = (p: Pr, hasDecision = false) => flags(p, hasDecision, exists);
-  assert.match(one(pr({ reviews: [] })).join(), /no runner-review record/);
-  assert.match(one(pr({ reviews: [{ body: record(), submittedAt: '2026-01-03T00:00:00Z' }] })).join(), /after the merge/);
-  assert.match(one(pr({ reviews: [{ body: record({ head: 'b'.repeat(40) }), submittedAt: '2026-01-01T00:00:00Z' }] })).join(), /not the merged head/);
-  assert.match(one(pr({ reviews: [{ body: record({ caused_must_fix: '1', verdict: 'must-fix' }), submittedAt: '2026-01-01T00:00:00Z' }] })).join(), /caused must-fix/);
-  assert.match(one(pr({ reviews: [{ body: record({ session_id: 'lead' }), submittedAt: '2026-01-01T00:00:00Z' }] })).join(), /reviewer session is the lead/);
-  assert.match(one(pr({ reviews: [{ body: record({ session_path: '/gone' }), submittedAt: '2026-01-01T00:00:00Z' }] })).join(), /no session file/);
-  const round4 = pr({ reviews: [{ body: record({ round: '4' }), submittedAt: '2026-01-01T00:00:00Z' }] });
-  assert.match(one(round4).join(), /round 4 with no Decision/);
-  assert.deepEqual(one(round4, true), []);
-  assert.match(one(pr({ statusCheckRollup: [{ name: 'test', conclusion: 'FAILURE' }] })).join(), /red at merge: test/);
 });

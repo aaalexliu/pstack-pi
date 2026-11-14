@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { appendFileSync, closeSync, existsSync, fsyncSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, writeSync } from 'node:fs';
+import { appendFileSync, closeSync, existsSync, fsyncSync, mkdirSync, openSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, writeSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -22,10 +22,10 @@ export type Config = {
   worktreeRoot: string;
 };
 type Comment = { id: string; body: string; createdAt: string; user: { name: string } | null };
-type Issue = { id: string; identifier: string; title: string; description: string | null; url: string; createdAt: string; labels: { nodes: { name: string }[] } };
+type Issue = { id: string; identifier: string; title: string; description: string | null; url: string; createdAt: string; state: { type: string }; labels: { nodes: { name: string }[] } };
 /** A sub-issue of a ticket. One assigned to `decisionAssignee` is a Decision issue: Alex owes a move on it. */
 export type Child = { id: string; identifier: string; title: string; url: string; createdAt: string; completedAt: string | null; canceledAt: string | null; assignee: { name: string } | null };
-/** What Linear says about a ticket this poll. */
+/** What Linear says about a ticket this poll. `state` is the state type: `unstarted` for Todo, `started` for In Progress or In Review. */
 export type Ticket = { state: string; delegate: string | null; comments: Comment[]; children: Child[] };
 /** A ticket as the runner sees it this poll. */
 export type Work = { id: string; key: string; title: string; url: string; description: string; repo: string; branch: string; dir: string; models: { lead: string; review: string } };
@@ -35,7 +35,7 @@ export type Move = { kind: 'wait'; on: Child } | { kind: 'start'; news: string[]
 
 const PROMPTS = fileURLToPath(new URL('./prompts/', import.meta.url));
 const AUTO_EXIT = fileURLToPath(new URL('../extensions/interactive-subagents/pi-extension/subagents/subagent-done.ts', import.meta.url));
-const ISSUE_FIELDS = 'id identifier title description url createdAt labels { nodes { name } }';
+const ISSUE_FIELDS = 'id identifier title description url createdAt state { type } labels { nodes { name } }';
 /** Pi variables a lead keeps from the runner's environment. Every other `PI_*` and `PSTACK_*` belongs to another session. */
 const KEEP_ENV = ['PI_AUTH_PROFILE', 'PI_CODING_AGENT_DIR'];
 const bin = (name: 'pi' | 'tmux' | 'memory_pressure') => process.env[`JOB_RUNNER_${name.toUpperCase()}`] ?? name;
@@ -102,23 +102,27 @@ function linearClient(config: Config, fetchFn: typeof fetch) {
   }
   const CHILD = 'id identifier title url createdAt completedAt canceledAt assignee { name }';
   return {
-    async issues(state: string): Promise<Issue[]> {
+    /**
+     * Open tickets delegated to the runner: Todo (unstarted) and any started state, such as In Progress or the
+     * In Review that Linear's GitHub link sets when a PR opens. Started ones come first, so they keep their slots.
+     */
+    async issues(): Promise<Issue[]> {
       const data = await gql<{ issues: { nodes: Issue[] } }>(
-        `query Issues($team: String!, $state: String!, $user: String!) { issues(first: 50, filter: { team: { key: { eq: $team } }, state: { name: { eq: $state } }, delegate: { name: { eq: $user } } }) { nodes { ${ISSUE_FIELDS} } } }`,
-        { team: config.team, state, user: config.runnerUser },
+        `query Issues($team: String!, $user: String!) { issues(first: 100, filter: { team: { key: { eq: $team } }, state: { type: { in: ["unstarted", "started"] } }, delegate: { name: { eq: $user } } }) { nodes { ${ISSUE_FIELDS} } } }`,
+        { team: config.team, user: config.runnerUser },
       );
-      return data.issues.nodes.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+      return data.issues.nodes.sort((a, b) => b.state.type.localeCompare(a.state.type) || a.createdAt.localeCompare(b.createdAt));
     },
     /** The ticket's state, comments and sub-issues in one read, or null when no issue has that id. */
     async ticket(id: string): Promise<Ticket | null> {
-      type Wire = { state: { name: string }; delegate: { name: string } | null; comments: { nodes: Comment[] }; children: { nodes: Child[] } };
+      type Wire = { state: { type: string }; delegate: { name: string } | null; comments: { nodes: Comment[] }; children: { nodes: Child[] } };
       const found = (await gql<{ issues: { nodes: Wire[] } }>(
-        `query IssueById($id: ID!) { issues(first: 1, filter: { id: { eq: $id } }) { nodes { state { name } delegate { name } comments(first: 100) { nodes { id body createdAt user { name } } } children(first: 50) { nodes { ${CHILD} } } } } }`,
+        `query IssueById($id: ID!) { issues(first: 1, filter: { id: { eq: $id } }) { nodes { state { type } delegate { name } comments(first: 100) { nodes { id body createdAt user { name } } } children(first: 50) { nodes { ${CHILD} } } } } }`,
         { id },
       )).issues.nodes[0];
       if (!found) return null;
       return {
-        state: found.state.name, delegate: found.delegate?.name ?? null,
+        state: found.state.type, delegate: found.delegate?.name ?? null,
         comments: found.comments.nodes.sort((a, b) => a.createdAt.localeCompare(b.createdAt)), children: found.children.nodes,
       };
     },
@@ -207,7 +211,7 @@ export function nextMove(config: Config, ticket: Ticket, started: string | null)
   if (open) return { kind: 'wait', on: open };
   const after = (at: string) => started === null || at > started;
   const news = [
-    ...(started === null || ticket.state === 'Todo' ? ['The ticket was delegated to you.'] : []),
+    ...(started === null || ticket.state === 'unstarted' ? ['The ticket was delegated to you.'] : []),
     ...ticket.children.filter((c) => isDecision(config, c) && after(closedAt(c)!))
       .map((c) => `Alex ${c.completedAt ? 'closed' : 'canceled'} ${c.identifier} (${c.title}): ${c.url}`),
     ...ticket.comments.filter((c) => c.user?.name !== config.runnerUser && after(c.createdAt))
@@ -261,7 +265,7 @@ function startMessage(ctx: Ctx, w: Work, news: string[]) {
     w.description,
     '',
     `Linear issue id: ${w.id}. Team: ${ctx.config.team}. File Decision issues as sub-issues assigned to ${ctx.config.decisionAssignee}.`,
-    `Branch: ${w.branch}. Base: ${ctx.config.repos[w.repo].base}. Review model: ${w.models.review}. Review prompt: ${path.join(PROMPTS, 'review.md')}.`,
+    `Branch: ${w.branch}. Base: ${ctx.config.repos[w.repo].base}. Review model: ${w.models.review}. Prompts: ${PROMPTS}.`,
     '',
     'Since your last start:',
     ...news.map((line) => `- ${line}`),
@@ -278,8 +282,10 @@ async function launch(ctx: Ctx, w: Work, news: string[]) {
   if (!sessionId(w)) put(rf(w, 'session-id'), randomUUID());
   put(rf(w, 'input.md'), startMessage(ctx, w, news));
   for (const file of ['takeover', 'held']) rmSync(rf(w, file), { force: true });
-  const pi = (...extra: string[]) => [bin('pi'), '--session-id', sessionId(w), '-e', AUTO_EXIT, '--model', w.models.lead, '--thinking', ctx.config.thinking,
-    '--append-system-prompt', path.join(PROMPTS, 'lead.md'), ...extra].map(sh).join(' ');
+  // The lead gets no subagent tools, so its reviewer is a `pi -p` with a real session id and file. In a real run a
+  // lead used background subagents, which auto-exit killed, then blocking_subagent, whose reviewer had no session id.
+  const pi = (...extra: string[]) => [bin('pi'), '--session-id', sessionId(w), '-e', AUTO_EXIT, '--exclude-tools', 'subagent,subagent_resume,blocking_subagent',
+    '--model', w.models.lead, '--thinking', ctx.config.thinking, '--append-system-prompt', path.join(PROMPTS, 'lead.md'), ...extra].map(sh).join(' ');
   const keep = KEEP_ENV.filter((name) => process.env[name]).map((name) => `export ${name}=${sh(process.env[name]!)}`);
   put(rf(w, 'lead.sh'), [
     '#!/bin/sh',
@@ -332,9 +338,9 @@ async function checkStall(ctx: Ctx, w: Work, ticket: Ticket) {
 async function decide(ctx: Ctx, w: Work, ticket: Ticket, why: string) {
   const c = commands(w, sessionId(w), ctx.config.host);
   const issue = await ctx.linear.fileDecision(w.id, `Decision for ${w.key}: ${why}`, [
-    `${why}. The ticket is still In Progress and delegated to the runner.`,
+    `${why}. The ticket is still open and delegated to the runner.`,
     `Read the ticket and its PRs, or quiz the lead with \`${c.quiz}\`. Comment what it should do, then close this issue (Done or Canceled). The runner starts the lead again with your comments.`,
-    `To stop the work instead, move ${w.key} out of In Progress first.`,
+    `To stop the work instead, mark ${w.key} Done or Canceled, or clear its delegate, first.`,
   ].join('\n\n'));
   await status(ctx, w, ticket, `Waiting on [${issue.identifier}](${issue.url}). The lead holds no slot.`);
 }
@@ -365,12 +371,12 @@ async function freeMemory(): Promise<number> {
   return Number(free);
 }
 
-/** One poll: every ticket delegated to the runner in Todo or In Progress, oldest first. */
+/** One poll: every open ticket delegated to the runner. */
 async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void) {
   const { config, linear } = ctx;
   const free = await freeMemory();
   const tickets: { w: Work; ticket: Ticket; live: boolean }[] = [];
-  for (const issue of [...(await linear.issues('In Progress')), ...(await linear.issues('Todo'))]) {
+  for (const issue of await linear.issues()) {
     const w = workFor(config, issue);
     if (!w) {
       if (dryRun) { console.log(`${issue.identifier}: no repo label`); continue; }
@@ -405,7 +411,7 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void) {
         continue;
       }
       running.push({ w, ticket, live: true });
-      if (ticket.state === 'Todo') await linear.setState(w.id, 'In Progress');
+      if (ticket.state === 'unstarted') await linear.setState(w.id, 'In Progress');
       await status(ctx, w, ticket, 'Lead running');
     } catch (error) {
       console.error(`${w.key}: failed; the next poll tries again`, error);
@@ -434,6 +440,6 @@ export async function main(argv: string[], config: Config, fetchFn: typeof fetch
   }
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   await main(process.argv.slice(2), loadConfig(process.env.JOB_RUNNER_CONFIG ?? path.join(os.homedir(), '.config', 'job-runner', 'config.json')));
 }
