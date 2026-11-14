@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { accessSync, appendFileSync, closeSync, constants, existsSync, fsyncSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync, writeSync } from 'node:fs';
+import { accessSync, appendFileSync, closeSync, constants, existsSync, fsyncSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -49,8 +49,12 @@ const AUTO_EXIT = fileURLToPath(new URL('../extensions/interactive-subagents/pi-
 const ISSUE_FIELDS = 'id identifier title description url createdAt labels { nodes { name } }';
 const RESTART_NOTE = 'The runner restarted while you worked on the message below. If you already acted on it, check where the work stands and carry on.';
 const bin = (name: 'pi' | 'gh' | 'tmux' | 'memory_pressure') => process.env[`JOB_RUNNER_${name.toUpperCase()}`] ?? name;
-/** Quotes one shell word. Plain words stay bare so the commands in the status comment stay readable. */
-export const sh = (value: string) => (/^[\w@%+=:,./-]+$/.test(value) ? value : `'${value.replaceAll("'", `'\\''`)}'`);
+/**
+ * Quotes one shell word. Plain words stay bare and simple ones get double quotes, so the status commands stay
+ * readable. A word that starts with `=` is always quoted: zsh expands `=word` to a command path.
+ */
+export const sh = (value: string) =>
+  /^[\w@%+:,./-][\w@%+=:,./-]*$/.test(value) ? value : /^[^"$`\\!]*$/.test(value) ? `"${value}"` : `'${value.replaceAll("'", `'\\''`)}'`;
 /** tmux matches `-t ALE-1` to `ALE-10` by prefix when `ALE-1` is gone. `=` asks for the exact name. */
 const session = (key: string) => `=${key}`;
 const pane = (key: string) => `=${key}:`;
@@ -122,6 +126,8 @@ function linearClient(config: Config, fetchFn: typeof fetch) {
     )).issues.nodes[0];
     return found ? decision(found) : null;
   };
+  const byId = async (id: string): Promise<Decision | null> =>
+    decision((await gql<{ issue: Found }>(`query IssueById($id: String!) { issue(id: $id) { ${ISSUE} } }`, { id })).issue);
   /** Adds the `blocks` link Alex sees in Linear. Nothing reads it to decide whether an issue exists. */
   const link = async (issue: Decision, workId: string) => {
     if (issue.blocks.includes(workId)) return;
@@ -165,7 +171,15 @@ function linearClient(config: Config, fetchFn: typeof fetch) {
       return data.issue.comments.nodes.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     },
     findMarked,
+    byId,
     link,
+    /** Whether the ticket is still In Progress and delegated to the runner. */
+    async ours(id: string) {
+      const { issue } = await gql<{ issue: { state: { name: string }; delegate: { name: string } | null } }>(
+        'query TicketState($id: String!) { issue(id: $id) { state { name } delegate { name } } }', { id },
+      );
+      return issue.state.name === 'In Progress' && issue.delegate?.name === config.runnerUser;
+    },
     /**
      * Files an issue assigned to `decisionAssignee`, with `mark` in its description, unless one with that mark exists.
      * The mark, not the link, says whether it exists: creating and linking are two writes, and a crash can fall between them.
@@ -390,8 +404,12 @@ async function newTurn(ctx: Ctx, w: Work, cause: Cause, input: string) {
   renameSync(temp, path.join(w.dir, '.runner', `turn-${n}`));
 }
 
-/** Starts the lead on turn `n` in a detached tmux session named for the ticket. Pi exits at the end of its turn (auto-exit). */
+/**
+ * Starts the lead on turn `n` in a detached tmux session named for the ticket. Pi exits at the end of its turn
+ * (auto-exit). False, and nothing done, when the ticket is no longer In Progress and delegated to the runner.
+ */
 async function launch(ctx: Ctx, w: Work, n: number, restart: boolean) {
+  if (!(await ctx.linear.ours(w.id))) return false;
   put(tf(w, n, 'launched'), new Date().toISOString());
   let inputFile = tf(w, n, 'input.md');
   let through = readJson<Cause>(tf(w, n, 'cause.json'))?.through;
@@ -424,6 +442,7 @@ async function launch(ctx: Ctx, w: Work, n: number, restart: boolean) {
   await run(bin('tmux'), ['kill-session', '-t', session(w.key)], w.dir);
   await must(bin('tmux'), ['new-session', '-d', '-s', w.key, '-x', '200', '-y', '50', '-c', w.dir, `sh ${sh(rf(w, 'lead.sh'))}`], w.dir);
   if (through) put(rf(w, 'delivered.json'), JSON.stringify(through));
+  return true;
 }
 
 const live = async (w: Pick<Work, 'key'>) => (await run(bin('tmux'), ['has-session', '-t', session(w.key)], process.cwd())).code === 0;
@@ -485,7 +504,7 @@ async function startNote(ctx: Ctx, w: Work) {
 async function step(ctx: Ctx, w: Work, name: string, prompt: 'review' | 'judge', input: string) {
   const args = ['-p', '--model', w.models.review, '--thinking', ctx.config.thinking, '--append-system-prompt', path.join(PROMPTS, `${prompt}.md`), input];
   const { code, out } = await run(bin('pi'), args, w.dir, STEP_TIMEOUT_MS);
-  writeFileSync(rf(w, `${name}.log`), out);
+  put(rf(w, `${name}.log`), out);
   if (code !== 0) throw new Error(`${name} step exited ${code}:\n${tail(out, 20)}`);
 }
 
@@ -505,10 +524,14 @@ async function webhook(ctx: Ctx, w: Work, state: 'ready' | 'done' | 'needs-decis
   }
 }
 
-/** Files turn `n`'s one Decision issue. Its marker finds it again, so a retry never files a second. */
+/**
+ * Files turn `n`'s one Decision issue and saves its id in `turn-N/decision.json`. The id finds it again; the marker
+ * covers a crash before the id is saved. Either way a retry never files a second.
+ */
 async function decide(ctx: Ctx, w: Work, n: number, ask: Ask) {
   const { title, body } = renderDecision(w, ask);
   const issue = await ctx.linear.fileIssue(w.id, title, body, marker('decision', w.key, n));
+  put(tf(w, n, 'decision.json'), JSON.stringify({ id: issue.id }));
   await status(ctx, w, `Waiting on [${issue.identifier}](${issue.url}). The lead has exited and holds no slot.`);
   await webhook(ctx, w, 'needs-decision');
 }
@@ -519,7 +542,9 @@ const reviewLog = (w: Work) => turns(w).flatMap((k) => {
   return r ? [`Review round ${r.round}: ${r.findings.length} findings, ${blocking(r.findings).length} caused must-fix.`] : [];
 });
 
+/** Opens or reuses the PR and turns on auto-merge. It does nothing if the ticket is no longer the runner's move. */
 async function ship(ctx: Ctx, w: Work, n: number, ending: Change) {
+  if (!(await ctx.linear.ours(w.id))) return;
   const repo = ctx.config.repos[w.repo];
   const gh = bin('gh');
   // Find a PR an earlier, interrupted run opened before opening another.
@@ -532,8 +557,9 @@ async function ship(ctx: Ctx, w: Work, n: number, ending: Change) {
       `## Proof\n\n${proof(w)}`,
       `## Review\n\n${reviewLog(w).join('\n')}\nVerify: ${hasVerify(w.dir) ? 'passed' : 'no .agents/verify; CI is the gate'}\nFull suite: ${ending.full_suite ? 'needed' : 'not needed'}. ${ending.full_suite_why}`,
     ].join('\n\n');
-    writeFileSync(rf(w, 'pr.md'), body);
-    await must('git', ['push', '--force', '-u', 'origin', w.branch], w.dir);
+    put(rf(w, 'pr.md'), body);
+    // With a lease, a commit someone else pushed to the branch stops the push instead of being overwritten.
+    await must('git', ['push', '--force-with-lease', '-u', 'origin', w.branch], w.dir);
     if (pr) await must(gh, ['pr', 'edit', pr.url, '--body-file', '.runner/pr.md'], w.dir);
     else {
       const created = await must(gh, ['pr', 'create', '--base', repo.base, '--head', w.branch, '--title', `${w.key}: ${w.title}`, '--body-file', '.runner/pr.md'], w.dir);
@@ -556,9 +582,10 @@ async function ship(ctx: Ctx, w: Work, n: number, ending: Change) {
       });
     }
   }
-  await ctx.linear.update(w.id, 'In Review', true);
+  // The state goes last: once it leaves In Progress, the runner no longer looks at the ticket.
   await status(ctx, w, `PR ${outcome}: ${pr.url}`, reviewLog(w).join('\n'));
   await webhook(ctx, w, 'ready', pr.url);
+  await ctx.linear.update(w.id, 'In Review', true);
 }
 
 /**
@@ -651,9 +678,9 @@ async function consume(ctx: Ctx, w: Work, n: number) {
   }
   if (ending.kind === 'report') {
     await postOnce(ctx, w, ending.body);
-    await ctx.linear.update(w.id, 'Done', true);
     await status(ctx, w, 'Done: the lead posted a report');
-    return webhook(ctx, w, 'done');
+    await webhook(ctx, w, 'done');
+    return ctx.linear.update(w.id, 'Done', true);
   }
   if (ending.kind === 'decision') {
     const { kind: _, ...ask } = ending;
@@ -675,11 +702,21 @@ async function start(ctx: Ctx, w: Work, again: boolean) {
     return false;
   }
   if (!sessionId(w)) put(rf(w, 'session-id'), randomUUID());
+  // The new turn comes before In Progress: it is what consumes the old ending. Otherwise a crash between the two
+  // leaves an In Progress ticket whose newest turn is the old one, and the runner acts on that again.
+  const last = newest(w);
+  const pending = last > 0 && readJson<Cause>(tf(w, last, 'cause.json'))?.cause === 'again' && !existsSync(tf(w, last, 'launched'));
+  if (last === 0) await newTurn(ctx, w, { cause: 'task' }, brief(w));
+  else if (again && !pending) await newTurn(ctx, w, { cause: 'again' }, `This ticket was delegated to you again.\n\n${brief(w)}\n\nCheck where the work stands in this worktree.`);
   await ctx.linear.update(w.id, 'In Progress');
-  if (newest(w) === 0) await newTurn(ctx, w, { cause: 'task' }, brief(w));
-  else if (again) await newTurn(ctx, w, { cause: 'again' }, `This ticket was delegated to you again.\n\n${brief(w)}\n\nCheck where the work stands in this worktree.`);
   return true;
 }
+
+/** Turn `n`'s Decision issue: by the id saved in `turn-N/decision.json`, else by its marker. */
+const decisionFor = (ctx: Ctx, w: Work) => async (n: number) => {
+  const saved = readJson<{ id: string }>(tf(w, n, 'decision.json'));
+  return saved ? ctx.linear.byId(saved.id) : ctx.linear.findMarked(marker('decision', w.key, n));
+};
 
 /** Takes a ticket step by step until it waits on Alex, leaves In Progress, or has nothing new to do. */
 async function drive(ctx: Ctx, w: Work, fromTodo = false) {
@@ -689,15 +726,16 @@ async function drive(ctx: Ctx, w: Work, fromTodo = false) {
     return console.error(`${w.key}: start failed`, error);
   }
   for (;;) {
-    const seen = await observe(w, await live(w), (n) => ctx.linear.findMarked(marker('decision', w.key, n)));
+    let seen: Observation | undefined;
     try {
+      seen = await observe(w, await live(w), decisionFor(ctx, w));
       switch (seen.kind) {
         case 'start':
           if (!(await start(ctx, w, false))) return;
           break;
         case 'launch':
         case 'relaunch':
-          await launch(ctx, w, seen.turn, seen.kind === 'relaunch');
+          if (!(await launch(ctx, w, seen.turn, seen.kind === 'relaunch'))) return;
           break;
         case 'running':
           await waitForLead(ctx, w, newest(w));
@@ -721,7 +759,7 @@ async function drive(ctx: Ctx, w: Work, fromTodo = false) {
           return;
       }
     } catch (error) {
-      if (seen.kind !== 'consume') return console.error(`${w.key}: ${seen.kind} failed; the next poll tries again`, error);
+      if (seen?.kind !== 'consume') return console.error(`${w.key}: ${seen?.kind ?? 'observe'} failed; the next poll tries again`, error);
       try {
         await decide(ctx, w, seen.turn, {
           question: 'The runner hit an error on this ticket. What should happen?',
@@ -772,7 +810,11 @@ export async function main(argv: string[], config: Config, fetchFn: typeof fetch
   const say = (line: string) => { if (!said.has(line)) console.log(line); next.add(line); };
   const ctx: Ctx = { config, linear: linearClient(config, fetchFn), fetchFn };
   const running = new Map<string, { work: Work; done: Promise<void> }>();
-  const track = (w: Work, fromTodo = false) => running.set(w.id, { work: w, done: drive(ctx, w, fromTodo).finally(() => running.delete(w.id)) });
+  const track = (w: Work, fromTodo = false) => running.set(w.id, {
+    work: w,
+    // One ticket's error must not stop the runner: log it, and the next poll looks again.
+    done: drive(ctx, w, fromTodo).catch((error) => console.error(`${w.key}: failed; the next poll tries again`, error)).finally(() => running.delete(w.id)),
+  });
   if (dryRun) console.log(`Config: ${JSON.stringify(config, null, 2)}`);
   for (;;) {
     try {
@@ -786,7 +828,7 @@ export async function main(argv: string[], config: Config, fetchFn: typeof fetch
         if (running.has(issue.id)) continue;
         const w = workFor(config, issue);
         if (!w) { say(`Skipping ${issue.identifier}: no repo label`); continue; }
-        const seen = await observe(w, await live(w), (n) => ctx.linear.findMarked(marker('decision', w.key, n)));
+        const seen = await observe(w, await live(w), decisionFor(ctx, w));
         const needsSlot = ['start', 'launch', 'relaunch', 'answer'].includes(seen.kind);
         const reason = needsSlot ? block(w) : null;
         if (dryRun) console.log(`${w.key}: ${seen.kind}${reason ? ` (waits: ${reason})` : ''}`);

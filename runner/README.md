@@ -21,7 +21,7 @@ The runner has no state file and no memory between polls. Each poll it works out
 | tmux | Whether the lead's session, `=KEY`, is live |
 | The worktree's `.runner/` | The session id, the turn folders, and the last comment the lead got |
 
-Every file the runner writes there is written to a temp file, flushed, and renamed into place.
+Every file the runner writes there is written to a temp file, flushed, and renamed into place. Before it starts a lead or ships, the runner reads the ticket again and does nothing if it is no longer `In Progress` and delegated to `runnerUser`. When it finishes a ticket, it sets the Linear state last, after the status comment and the webhook, because the runner stops looking at a ticket once it leaves `In Progress`.
 
 ### Turns
 
@@ -37,7 +37,7 @@ For the newest turn, the runner:
 
 ### Decision issues are found by a marker
 
-Each Decision issue's description ends with a marker such as `runner-decision ALE-93 turn 3 end`, and the runner finds a turn's Decision issue by searching for that text. It still adds a `blocks` link to the work ticket for you to see, but it never reads the link to decide whether a Decision issue exists: creating the issue and linking it are two writes, and a crash between them would make it file a second issue for the same ask.
+Each Decision issue's description ends with a marker such as `runner-decision ALE-93 turn 3 end`. Once filed, the runner saves the issue's id in `turn-N/decision.json` and finds it by that id; the marker search covers a crash before the id is saved. It still adds a `blocks` link to the work ticket for you to see, but it never reads the link to decide whether a Decision issue exists: creating the issue and linking it are two writes, and a crash between them would make it file a second issue for the same ask.
 
 [model/Runner.tla](model/Runner.tla) is a TLC model of one ticket under these rules. With [model/Runner.cfg](model/Runner.cfg), five rules hold: no merge over a caused must-fix, one PR, one Decision issue per ask, no replayed turn, and every answer reaches the lead. [model/RunnerTwoStep.cfg](model/RunnerTwoStep.cfg) finds a Decision issue through its link instead, and TLC finds a second Decision issue for one ask in 6 steps. The model opens the PR before the first review; the runner reviews first, which keeps the same rules.
 
@@ -101,7 +101,7 @@ The runner also files a Decision issue when it cannot go on: a change with no co
 
    The judge cannot ship. Any other verdict is an error and becomes a Decision issue. Nothing merges with a caused must-fix open.
 
-To ship, the runner looks for an open or merged PR on the branch, and opens one only if there is none. The PR body holds the issue, `PROOF.md`, the review log, and the verify result. If the lead set `full_suite` and the repo has a `fullSuiteLabel`, it adds that label. With `automerge`, it runs `gh pr merge --auto --squash`, which waits for the required checks. If GitHub will not turn on auto-merge, the runner never merges directly: unless the PR is already merged, it files a Decision issue. Then it sets `In Review` and clears the delegate.
+To ship, the runner looks for an open or merged PR on the branch, and opens one only if there is none. It pushes with `--force-with-lease`, so a commit someone else pushed to the branch stops the push instead of being overwritten. The PR body holds the issue, `PROOF.md`, the review log, and the verify result. If the lead set `full_suite` and the repo has a `fullSuiteLabel`, it adds that label. With `automerge`, it runs `gh pr merge --auto --squash`, which waits for the required checks. If GitHub will not turn on auto-merge, the runner never merges directly: unless the PR is already merged, it files a Decision issue. Then it sets `In Review` and clears the delegate.
 
 The runner never reads model prose. It reads only `ending.json`, the findings files, and the judge's verdict.
 
@@ -115,12 +115,12 @@ This repo's [.agents/verify](../.agents/verify) runs the `TESTING.md` gate for s
 
 ## The status comment
 
-Each ticket gets one runner comment, edited in place at each step, so Linear does not notify you for every step. It shows the state, the host, the tmux session, the Pi session id, the worktree, and three commands. Every word in them is quoted for both the local and the remote shell, so paths with spaces or quotes work:
+Each ticket gets one runner comment, edited in place at each step, so Linear does not notify you for every step. It shows the state, the host, the tmux session, the Pi session id, the worktree, and three commands. Every word in them is quoted for both the local and the remote shell, so paths with spaces or quotes work, and zsh does not expand `=<KEY>` to a command path:
 
 | Command | What it does |
 | --- | --- |
-| `ssh -t <host> 'tmux attach -t =<KEY>'` | Watch or steer the lead. What you type reaches it as a steering message. |
-| `ssh -t <host> 'touch <worktree>/.runner/takeover && tmux attach -t =<KEY>'` | Take over. Auto-exit stays off until you quit Pi. |
+| `ssh -t <host> 'tmux attach -t "=<KEY>"'` | Watch or steer the lead. What you type reaches it as a steering message. |
+| `ssh -t <host> 'touch <worktree>/.runner/takeover && tmux attach -t "=<KEY>"'` | Take over. Auto-exit stays off until you quit Pi. |
 | `ssh -t <host> 'cd <worktree> && git worktree add -B <branch>-quiz <worktree>-quiz HEAD && cd <worktree>-quiz && tmux new -s <KEY>-quiz pi --fork <session id>'` | Quiz a fork of the lead in its own worktree, without touching the lead. |
 
 ### Comments on a running ticket

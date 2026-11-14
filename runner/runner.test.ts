@@ -139,16 +139,26 @@ else if (command === 'pr merge' && fs.existsSync(${JSON.stringify(file('auto-fai
   const relations: { issueId: string; relatedIssueId: string; type: string }[] = [];
   const stateIds: Record<string, string> = Object.fromEntries(Object.keys(STATE_TYPES).map((name) => [`state-${name}`, name]));
   let nextId = 0;
+  /** Every Linear operation and webhook call, in order. `Update` carries the state it set. */
+  const ops: string[] = [];
+  /** Linear operations that fail once, the next time they run. */
+  const faults: string[] = [];
+  /** Code that runs just before a Linear operation, to change the fake world under the runner. */
+  const before: Record<string, () => void> = {};
   const fakeFetch = async (url: string | URL | Request, init?: RequestInit) => {
     const headers = new Headers(init?.headers);
     const request = JSON.parse(String(init?.body));
     if (String(url) !== 'https://api.linear.app/graphql') {
+      ops.push('webhook');
       hooks.push({ auth: headers.get('Authorization') ?? '', body: request });
       return Response.json({ ok: true });
     }
     assert.equal(headers.get('Authorization'), 'Bearer test-token');
     const { query, variables: v } = request;
-    const op = /^(?:query|mutation) (\w+)/.exec(query)?.[1];
+    const op = /^(?:query|mutation) (\w+)/.exec(query)?.[1] ?? '';
+    ops.push(op === 'Update' && v.input.stateId ? `Update:${stateIds[v.input.stateId]}` : op);
+    if (faults.includes(op)) { faults.splice(faults.indexOf(op), 1); throw new Error(`injected ${op} failure`); }
+    before[op]?.();
     const find = (id: string) => issues.find((i) => i.id === id)!;
     const toWire = (i: FakeIssue) => ({ ...i, labels: { nodes: i.labels.map((name) => ({ name })) } });
     const data = (value: unknown) => Response.json({ data: value });
@@ -174,6 +184,8 @@ else if (command === 'pr merge' && fs.existsSync(${JSON.stringify(file('auto-fai
     if (op === 'Comments') return data({ issue: { comments: { nodes: find(v.id).comments } } });
     const wireIssue = (i: FakeIssue) => ({ id: i.id, identifier: i.identifier, url: i.url, state: { type: STATE_TYPES[i.state] },
       relations: { nodes: relations.filter((r) => r.issueId === i.id).map((r) => ({ type: r.type, relatedIssue: { id: r.relatedIssueId } })) } });
+    if (op === 'IssueById') return data({ issue: wireIssue(find(v.id)) });
+    if (op === 'TicketState') { const i = find(v.id); return data({ issue: { state: { name: i.state }, delegate: i.delegate ? { name: i.delegate } : null } }); }
     if (op === 'FindMarked') return data({ issues: { nodes: issues.filter((i) => i.team === v.team && i.description.includes(v.mark)).slice(0, 1).map(wireIssue) } });
     if (op === 'CreateIssue') {
       assert.equal(v.input.teamId, 'team-ale');
@@ -189,7 +201,7 @@ else if (command === 'pr merge' && fs.existsSync(${JSON.stringify(file('auto-fai
   const calls = () => lines(file('pi.log')).map((line) => JSON.parse(line));
   const dirOf = (n: number) => path.join(config.worktreeRoot, `job-ale-${n}-job-number-${n}`);
   return {
-    config, hooks, relations, origin, root, file, dirOf,
+    config, hooks, relations, origin, root, file, dirOf, ops, faults, before, repo,
     run: (...argv: string[]) => main(argv, config, fakeFetch as typeof fetch),
     steps: () => calls().map((c) => c.step as string),
     leads: () => calls().filter((c) => c.step === 'lead'),
@@ -251,7 +263,7 @@ test('the lead runs in a tmux session named for the issue, with the saved sessio
   assert.equal(status.length, 1, 'one status comment, edited in place');
   assert.match(status[0].body, /^\*\*Runner:\*\* PR ready for review: https:\/\/github.com\/example\/repo\/pull\/7/);
   assert.ok(status[0].body.includes(`Session id: \`${lead.session}\``));
-  assert.ok(status[0].body.includes("ssh -t test-host 'tmux attach -t =ALE-1'"));
+  assert.ok(status[0].body.includes(`ssh -t test-host 'tmux attach -t "=ALE-1"'`));
   const create = t.gh().find((c) => c.startsWith('pr create'))!;
   assert.match(create, /--head job\/ale-1-job-number-1/);
   assert.match(git(t.origin, 'log', '--format=%s', 'job/ale-1-job-number-1'), /ALE-1: Job number 1/);
@@ -357,6 +369,90 @@ test('a Decision issue filed but never linked is found by its marker, linked, an
   assert.deepEqual(t.relations, [{ issueId: 'id-150', relatedIssueId: 'id-1', type: 'blocks' }]);
   assert.equal(job.state, 'In Progress');
   assert.deepEqual(t.steps(), []);
+});
+
+test('a ticket delegated again gets its new turn before it goes In Progress, so a failure in between cannot hand it back', async () => {
+  const job = issue(1);
+  const canceled = issue(150, { title: 'Decision for ALE-1: Which storage?', description: `Old ask.\n\n${marker('decision', 'ALE-1', 1)}`, state: 'Canceled', delegate: null, labels: [] });
+  const t = setup([job, canceled], { leads: [report], reviews: [] });
+  t.worktree(1, { 'session-id': 'session-1', 'turn-1/input.md': 'Do it.', 'turn-1/launched': 'x', 'turn-1/exit': '0', 'turn-1/ending.json': JSON.stringify(ask) });
+  t.faults.push('Comments');
+  const error = console.error;
+  console.error = () => {};
+  try { await t.run('--once'); } finally { console.error = error; }
+  assert.equal(job.state, 'Todo');
+  assert.equal(job.delegate, RUNNER);
+  await t.run('--once');
+  assert.match(t.leads()[0].input, /^This ticket was delegated to you again/);
+  assert.equal(job.state, 'Done');
+});
+
+test('a Linear error inside one ticket is logged, and the next poll carries on', async () => {
+  const job = issue(1);
+  const t = setup([job], { leads: [report], reviews: [] });
+  t.faults.push('FindMarked');
+  const logged: string[] = [];
+  const error = console.error;
+  console.error = (...args: unknown[]) => { logged.push(args.map(String).join(' ')); };
+  try { await t.run('--once'); } finally { console.error = error; }
+  assert.ok(logged.some((line) => line.includes('injected FindMarked failure')));
+  assert.equal(job.state, 'In Progress');
+  await t.run('--once');
+  assert.deepEqual(t.steps(), ['lead']);
+  assert.equal(job.state, 'Done');
+});
+
+test('the runner does not start a lead on a ticket that stopped being its move', async () => {
+  const job = issue(1, { state: 'In Progress' });
+  const t = setup([job], { leads: [report], reviews: [] });
+  t.worktree(1, { 'session-id': 'session-1', 'turn-1/input.md': 'Do it.' });
+  t.before.TicketState = () => { job.delegate = null; };
+  await t.run('--once');
+  assert.deepEqual(t.steps(), []);
+  assert.ok(!t.tmux().some((args) => args[0] === 'new-session'));
+});
+
+test('the runner does not push or open a PR for a ticket canceled during review', async () => {
+  const job = issue(1);
+  const t = setup([job], { leads: [change()], reviews: [[]] });
+  let checks = 0;
+  t.before.TicketState = () => { if (++checks === 2) job.state = 'Canceled'; };
+  await t.run('--once');
+  assert.deepEqual(t.steps(), ['lead', 'review']);
+  assert.ok(!t.gh().some((c) => c.startsWith('pr ')));
+  assert.equal(job.state, 'Canceled');
+});
+
+test('the Linear state is set last, after the status comment and the webhook', async () => {
+  for (const [lead, state] of [[change(), 'In Review'], [report, 'Done']] as const) {
+    const t = setup([issue(1)], { leads: [lead], reviews: [[]] });
+    await t.run('--once');
+    assert.deepEqual(t.ops.slice(-3), ['EditComment', 'webhook', `Update:${state}`]);
+  }
+});
+
+test('the push never overwrites a commit someone else pushed to the branch', async () => {
+  const job = issue(1);
+  const t = setup([job], { leads: [change()], reviews: [[]] });
+  const other = path.join(t.root, 'other');
+  execFileSync('git', ['clone', '-q', t.origin, other], { stdio: 'ignore' });
+  git(other, 'checkout', '-q', '-b', 'job/ale-1-job-number-1');
+  git(other, '-c', 'user.name=p', '-c', 'user.email=p@e', 'commit', '-q', '--allow-empty', '-m', 'a person pushed this');
+  git(other, 'push', '-q', 'origin', 'job/ale-1-job-number-1');
+  await t.run('--once');
+  assert.match(git(t.origin, 'log', '--format=%s', 'job/ale-1-job-number-1'), /a person pushed this/);
+  assert.ok(!t.gh().some((c) => c.startsWith('pr create')));
+  assert.match(t.decisions()[0].description, /stale info|rejected/);
+});
+
+test('a Decision issue is found by its saved id, even when the marker search misses it', async () => {
+  const job = issue(1, { state: 'In Progress' });
+  const filed = issue(150, { title: 'Decision for ALE-1: Which storage?', description: 'Marker lost.', delegate: null, labels: [] });
+  const t = setup([job, filed], { leads: [], reviews: [] });
+  t.worktree(1, { 'session-id': 'session-1', 'turn-1/input.md': 'Do it.', 'turn-1/launched': 'x', 'turn-1/exit': '0', 'turn-1/ending.json': JSON.stringify(ask), 'turn-1/decision.json': JSON.stringify({ id: 'id-150' }) });
+  await t.run('--once');
+  assert.deepEqual(t.decisions().map((d) => d.identifier), ['ALE-150']);
+  assert.ok(!t.ops.includes('CreateIssue'));
 });
 
 test('a Canceled Decision stops the ticket and hands it back instead of resuming the lead', async () => {
@@ -662,29 +758,40 @@ test('parseEnding and readEnding accept the three endings only from a Pi that ex
   assert.match((readEnding(null, good, '') as { error: string }).error, /without an exit record/);
 });
 
-test('status commands survive a worktree path with spaces and an apostrophe in a real shell', () => {
-  const root = mkdtempSync(path.join(os.tmpdir(), 'job-runner-quote-'));
-  const dir = path.join(root, "Work Projects", "it's", 'job-ale-7-x');
-  mkdirSync(dir, { recursive: true });
-  git(dir, 'init', '-q', '-b', 'job/ale-7-x');
-  git(dir, '-c', 'user.name=t', '-c', 'user.email=t@e', 'commit', '-q', '--allow-empty', '-m', 'init');
-  mkdirSync(path.join(dir, '.runner'));
-  const fakes = path.join(root, 'bin');
-  mkdirSync(fakes);
-  // ssh hands its command to the remote shell; this one runs it here.
-  writeFileSync(path.join(fakes, 'ssh'), '#!/bin/sh\nshift 2\nexec sh -c "$*"\n', { mode: 0o755 });
-  writeFileSync(path.join(fakes, 'tmux'), `#!/bin/sh\nprintf '%s\\n' "$@" > ${JSON.stringify(path.join(root, 'tmux-args'))}\n`, { mode: 0o755 });
-  const env = { ...process.env, PATH: `${fakes}:${process.env.PATH}` };
-  const c = commands({ key: 'ALE-7', dir, branch: 'job/ale-7-x' }, 'abc-123', 'mini');
-  execFileSync('sh', ['-c', c.takeOver], { env });
-  assert.ok(existsSync(path.join(dir, '.runner', 'takeover')));
-  assert.deepEqual(readFileSync(path.join(root, 'tmux-args'), 'utf8').trim().split('\n'), ['attach', '-t', '=ALE-7']);
-  execFileSync('sh', ['-c', c.quiz], { env, stdio: 'ignore' });
-  assert.equal(git(`${dir}-quiz`, 'rev-parse', '--abbrev-ref', 'HEAD'), 'job/ale-7-x-quiz');
-  assert.deepEqual(readFileSync(path.join(root, 'tmux-args'), 'utf8').trim().split('\n'), ['new', '-s', 'ALE-7-quiz', 'pi', '--fork', 'abc-123']);
+const shells = ['sh', 'zsh'].filter((shell) => { try { execFileSync(shell, ['-c', 'true']); return true; } catch { return false; } });
+for (const shell of ['sh', 'zsh']) {
+  test(`status commands survive a worktree path with spaces and an apostrophe when the remote shell is ${shell}`, { skip: !shells.includes(shell) && `${shell} is not installed` }, () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), 'job-runner-quote-'));
+    const dir = path.join(root, "Work Projects", "it's", 'job-ale-7-x');
+    mkdirSync(dir, { recursive: true });
+    git(dir, 'init', '-q', '-b', 'job/ale-7-x');
+    git(dir, '-c', 'user.name=t', '-c', 'user.email=t@e', 'commit', '-q', '--allow-empty', '-m', 'init');
+    mkdirSync(path.join(dir, '.runner'));
+    const fakes = path.join(root, 'bin');
+    mkdirSync(fakes);
+    // ssh hands its command to the remote shell; this one runs it here, in the shell under test.
+    writeFileSync(path.join(fakes, 'ssh'), `#!/bin/sh\nshift 2\nexec ${shell} -c "$*"\n`, { mode: 0o755 });
+    writeFileSync(path.join(fakes, 'tmux'), `#!/bin/sh\nprintf '%s\\n' "$@" > ${JSON.stringify(path.join(root, 'tmux-args'))}\n`, { mode: 0o755 });
+    const env = { ...process.env, PATH: `${fakes}:${process.env.PATH}` };
+    const tmuxArgs = () => readFileSync(path.join(root, 'tmux-args'), 'utf8').trim().split('\n');
+    const c = commands({ key: 'ALE-7', dir, branch: 'job/ale-7-x' }, 'abc-123', 'mini');
+    execFileSync('sh', ['-c', c.watch], { env });
+    assert.deepEqual(tmuxArgs(), ['attach', '-t', '=ALE-7']);
+    execFileSync('sh', ['-c', c.stop], { env });
+    assert.deepEqual(tmuxArgs(), ['kill-session', '-t', '=ALE-7']);
+    execFileSync('sh', ['-c', c.takeOver], { env });
+    assert.ok(existsSync(path.join(dir, '.runner', 'takeover')));
+    assert.deepEqual(tmuxArgs(), ['attach', '-t', '=ALE-7']);
+    execFileSync('sh', ['-c', c.quiz], { env, stdio: 'ignore' });
+    assert.equal(git(`${dir}-quiz`, 'rev-parse', '--abbrev-ref', 'HEAD'), 'job/ale-7-x-quiz');
+    assert.deepEqual(tmuxArgs(), ['new', '-s', 'ALE-7-quiz', 'pi', '--fork', 'abc-123']);
+  });
+}
+
+test('the status comment shows the commands', () => {
   const body = renderStatus({ key: 'ALE-7', dir: '/w/job-ale-7', branch: 'job/ale-7-x' }, 'abc-123', 'mini', 'Lead running');
   assert.equal(body.split('\n')[0], '**Runner:** Lead running');
-  assert.ok(body.includes("`ssh -t mini 'tmux attach -t =ALE-7'`"));
+  assert.ok(body.includes(`\`ssh -t mini 'tmux attach -t "=ALE-7"'\``));
 });
 
 test('renderDecision keeps the recommendation first, says what Done and Canceled do, and shortens long titles', () => {
