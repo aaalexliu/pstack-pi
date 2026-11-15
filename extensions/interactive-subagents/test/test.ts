@@ -2260,13 +2260,7 @@ describe("concurrency cap", () => {
       await withRunningChild(() => {
         const call = subagentDoneGuard();
         assert.equal(call()?.block, true);
-        const pollAbortKey = Symbol.for("pi-subagents/poll-abort-controller");
-        try {
-          call.shutdown();
-        } finally {
-          // Shutdown aborts the module's poll controller; later watchers need a live one.
-          (globalThis as any)[pollAbortKey] = new AbortController();
-        }
+        call.shutdown();
         assert.equal(call(), undefined);
       });
     });
