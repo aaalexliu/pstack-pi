@@ -11,6 +11,8 @@ export type AgentDefinition = {
   description: string;
   tools?: string[];
   model?: string;
+  /** A role from pstack-pi/models.json, tried before `model`. */
+  role?: string;
   systemPrompt: string;
 };
 
@@ -23,7 +25,7 @@ export const packageRoot = path.resolve(fileURLToPath(new URL('../..', import.me
 // `agents/` holds agents generated from upstream pstack. `additions/agents/` holds Pi-owned agents.
 export const bundledAgentsDirectories = [path.join(packageRoot, 'agents'), path.join(packageRoot, 'additions', 'agents')];
 
-type AgentFrontmatter = { name?: unknown; description?: unknown; tools?: unknown; model?: unknown };
+type AgentFrontmatter = { name?: unknown; description?: unknown; tools?: unknown; model?: unknown; role?: unknown };
 
 // Both `tools: read, bash` and `tools: [read, bash]` are in use.
 function parseToolList(value: unknown): string[] | undefined {
@@ -41,6 +43,7 @@ export function parseAgent(content: string): AgentDefinition {
     description: frontmatter.description,
     tools: parseToolList(frontmatter.tools),
     model: typeof frontmatter.model === 'string' ? frontmatter.model : undefined,
+    role: typeof frontmatter.role === 'string' ? frontmatter.role : undefined,
     systemPrompt: body.replaceAll('{{PSTACK_ROOT}}', packageRoot),
   };
 }

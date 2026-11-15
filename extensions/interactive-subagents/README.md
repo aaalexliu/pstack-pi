@@ -197,7 +197,8 @@ subagent({ name: "Designer", agent: "game-designer", cwd: "agents/game-designer"
 | `agent`                | string  | —              | Load defaults from agent definition                                                               |
 | `fork`                 | boolean | `false`        | Force the full-context fork mode for this spawn, overriding any agent `session-mode` frontmatter  |
 | `interactive`          | boolean | derived        | Mark this spawn as interactive (don't wake the parent on stall/recovery). Defaults to the agent's `interactive` frontmatter, otherwise the inverse of `auto-exit`. |
-| `model`                | string  | —              | Override agent's default model                                                                    |
+| `model`                | string  | —              | Override the role and the agent's default model                                                   |
+| `role`                 | string  | —              | pstack-pi model role from `<agent dir>/pstack-pi/models.json`, as `blocking_subagent` uses it     |
 | `systemPrompt`         | string  | —              | Append to system prompt                                                                           |
 | `skills`               | string  | —              | Comma-separated skill names                                                                       |
 | `tools`                | string  | —              | Comma-separated tool names                                                                        |
@@ -302,7 +303,7 @@ Place a `.md` file in `.pi/agents/` (project) or `~/.pi/agent/agents/` (global):
 ---
 name: my-agent
 description: Does something specific
-model: anthropic/claude-sonnet-4-6
+role: feature
 thinking: minimal
 tools: read, bash, edit, write
 session-mode: lineage-only
@@ -320,7 +321,8 @@ You are a specialized agent that does X...
 | ------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `name`        | string  | Agent name (used in `agent: "my-agent"`)                                                                                                                                                                                                                                    |
 | `description` | string  | Shown in `subagents_list` output                                                                                                                                                                                                                                            |
-| `model`       | string  | Default model (e.g. `anthropic/claude-sonnet-4-6`)                                                                                                                                                                                                                          |
+| `role`        | string  | pstack-pi model role (e.g. `review`), resolved through `<agent dir>/pstack-pi/models.json`. Tried before `model`; an unconfigured role falls through. |
+| `model`       | string  | Default model (e.g. `anthropic/claude-opus-5-5`). With neither, the child runs on the parent's model. |
 | `thinking`    | string  | Thinking level: `minimal`, `medium`, `high`                                                                                                                                                                                                                                 |
 | `tools`       | string  | Comma-separated **native pi tools only**: `read`, `bash`, `edit`, `write`, `grep`, `find`, `ls`                                                                                                                                                                             |
 | `skills`      | string  | Comma-separated skill names to auto-load                                                                                                                                                                                                                                    |

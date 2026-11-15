@@ -1,5 +1,9 @@
 import { afterEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { Check } from "typebox/value";
 import interactiveSubagents, * as subagentsModule from "../pi-extension/subagents/index.ts";
 import blockingSubagent, { childEnvironment } from "../../subagent/index.ts";
 
@@ -70,6 +74,63 @@ describe("delegation tools in pstack-pi processes", () => {
     const denied = subagentsModule.__test__.resolveDenyTools(null);
     for (const tool of [...SPAWNING_TOOLS, "blocking_subagent"]) assert.ok(denied.has(tool), tool);
     assert.ok(!subagentsModule.__test__.resolveDenyTools({ spawning: true } as any).has("blocking_subagent"));
+  });
+});
+
+describe("subagent role and model, shared with blocking_subagent", () => {
+  const api = () => (subagentsModule as any).__test__;
+  const parent = { provider: "parent", id: "model" };
+  let dir: string;
+  const savedDir = process.env.PI_CODING_AGENT_DIR;
+  afterEach(() => {
+    if (savedDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+    else process.env.PI_CODING_AGENT_DIR = savedDir;
+  });
+
+  it("resolves explicit model, call role, agent role, agent model, then the parent model", async () => {
+    dir = mkdtempSync(join(tmpdir(), "subagent-role-"));
+    mkdirSync(join(dir, "pstack-pi"));
+    writeFileSync(join(dir, "pstack-pi", "models.json"), JSON.stringify({ version: 1, roles: { review: "role/review:xhigh", scout: "role/scout" } }));
+    process.env.PI_CODING_AGENT_DIR = dir;
+    const resolve = (params: object, defs: object | null) => api().resolvePiChildModel(params, defs, parent);
+    assert.equal(await resolve({ model: "x/explicit", role: "scout" }, { role: "review" }), "x/explicit");
+    assert.equal(await resolve({ role: "scout" }, { role: "review" }), "role/scout");
+    assert.equal(await resolve({}, { role: "review", model: "a/b" }), "role/review:xhigh");
+    assert.equal(await resolve({}, { role: "judgment", model: "a/b" }), "a/b");
+    assert.equal(await resolve({}, { role: "judgment" }), "parent/model");
+    assert.equal(await resolve({}, null), "parent/model");
+  });
+
+  it("builds the child's --model argv from a configured role, the parent fallback, and a role's thinking suffix", async () => {
+    dir = mkdtempSync(join(tmpdir(), "subagent-argv-"));
+    mkdirSync(join(dir, "pstack-pi"));
+    writeFileSync(join(dir, "pstack-pi", "models.json"), JSON.stringify({ version: 1, roles: { review: "role/review:xhigh", judgment: "role/judgment" } }));
+    process.env.PI_CODING_AGENT_DIR = dir;
+    const argv = (params: object, defs: object | null) => api().piModelArgs(params, defs, parent);
+    assert.deepEqual(await argv({}, { role: "judgment", model: "old/pin", thinking: "medium" }), ["--model", "role/judgment:medium"]);
+    assert.deepEqual(await argv({}, { role: "review", thinking: "medium" }), ["--model", "role/review:xhigh"]);
+    assert.deepEqual(await argv({}, { thinking: "minimal" }), ["--model", "parent/model:minimal"]);
+    assert.deepEqual(await argv({ model: "x/explicit" }, { role: "review" }), ["--model", "x/explicit"]);
+    assert.deepEqual(await api().piModelArgs({}, null, undefined), []);
+  });
+
+  it("the subagent tool takes a role from the shared list", () => {
+    for (const name of CHILD_ENV) delete process.env[name];
+    const pi = fakePi();
+    const schemas: any[] = [];
+    interactiveSubagents({ ...pi.api, registerTool: (tool: any) => schemas.push(tool) });
+    const subagent = schemas.find((tool) => tool.name === "subagent");
+    assert.ok(Check(subagent.parameters, { name: "n", task: "t", role: "review" }));
+    assert.ok(!Check(subagent.parameters, { name: "n", task: "t", role: "nope" }));
+  });
+
+  it("bundled agents pin roles, not stale model ids", () => {
+    const defaults = (name: string) => api().loadAgentDefaults(name);
+    assert.deepEqual([defaults("reviewer").role, defaults("reviewer").model], ["review", undefined]);
+    assert.deepEqual([defaults("planner").role, defaults("planner").model], ["judgment", undefined]);
+    assert.deepEqual([defaults("scout").role, defaults("scout").model], ["scout", undefined]);
+    for (const name of ["worker", "visual-tester"]) assert.deepEqual([defaults(name).role, defaults(name).model], [undefined, undefined], name);
+    assert.equal(defaults("claude-code").model, "sonnet");
   });
 });
 

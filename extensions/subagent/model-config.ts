@@ -8,7 +8,7 @@ export const roles = [
   'how-explorer', 'how-explainer', 'how-critics', 'why-investigator', 'why-synthesizer',
   'reflect-tooling', 'reflect-judgment', 'reflect-divergent', 'reflect-synthesizer',
   'arena-runner', 'arena-cross-judge', 'swarm-worker', 'architect-runner', 'interrogate-reviewer',
-  'no-comments', 'review', 'test', 'verify',
+  'no-comments', 'review', 'test', 'verify', 'scout',
 ] as const;
 export const roleSchema = Type.Enum(roles);
 export type Role = Static<typeof roleSchema>;
@@ -69,18 +69,26 @@ export async function loadModelConfig(agentDir: string): Promise<RoleConfig> {
 
 export type ModelSelection = { source: 'explicit' | 'role' | 'agent' | 'parent'; choice: ModelChoice };
 
-// Precedence: explicit model, then role, then the agent's own default, then the parent.
-// Pools rotate per role for the life of the extension instance.
+export function parseRole(value: string): Role {
+  if (!(roles as readonly string[]).includes(value)) throw new Error(`Unknown role: ${value}. Roles: ${roles.join(', ')}.`);
+  return value as Role;
+}
+
+// Precedence: explicit model, then the call's role, then the agent file's role, then the agent file's model, then the parent.
+// An unconfigured role falls through. Pools rotate per role for the life of the extension instance.
+// Both `blocking_subagent` and the interactive `subagent` tool resolve models here.
 export class ModelRouter {
   #cursors = new Map<Role, number>();
-  select({ config, role, model, agentModel }: { config: RoleConfig; role?: Role; model?: string; agentModel?: string }): ModelSelection {
+  select({ config, role, model, agentRole, agentModel }: { config: RoleConfig; role?: Role; model?: string; agentRole?: string; agentModel?: string }): ModelSelection {
     if (model !== undefined) return { source: 'explicit', choice: parseModelChoice(model) };
-    const assignment = role === undefined ? undefined : config.get(role);
-    if (assignment?.kind === 'single') return { source: 'role', choice: assignment.choice };
-    if (assignment?.kind === 'pool' && role !== undefined) {
-      const index = this.#cursors.get(role) ?? 0;
-      this.#cursors.set(role, (index + 1) % assignment.choices.length);
-      return { source: 'role', choice: assignment.choices[index % assignment.choices.length] };
+    for (const candidate of [role, agentRole === undefined ? undefined : parseRole(agentRole)]) {
+      const assignment = candidate === undefined ? undefined : config.get(candidate);
+      if (assignment?.kind === 'single') return { source: 'role', choice: assignment.choice };
+      if (assignment?.kind === 'pool' && candidate !== undefined) {
+        const index = this.#cursors.get(candidate) ?? 0;
+        this.#cursors.set(candidate, (index + 1) % assignment.choices.length);
+        return { source: 'role', choice: assignment.choices[index % assignment.choices.length] };
+      }
     }
     if (agentModel !== undefined) return { source: 'agent', choice: parseModelChoice(agentModel) };
     return { source: 'parent', choice: { kind: 'inheritParent' } };

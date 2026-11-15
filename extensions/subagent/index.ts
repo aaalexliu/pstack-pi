@@ -584,7 +584,7 @@ export function toolDescription(bundled: Pick<AgentConfig, 'name' | 'description
     `User and project agents override bundled ones by name. User agents live in ${path.join(getAgentDir(), 'agents')}.`,
     `To enable project-local agents in ${CONFIG_DIR_NAME}/agents, set agentScope: "both".`,
     `model accepts inherit-parent or provider/model-id. role selects a configured model from ${modelConfigPath(getAgentDir())}; roles: ${roles.join(', ')}.`,
-    'Explicit model overrides role, then the agent default, then the parent model. thinking sets the child reasoning level for the call. Children cannot delegate.',
+    'Explicit model overrides role, then the agent file\'s role, then its model, then the parent model. thinking sets the child reasoning level for the call. Children cannot delegate.',
     'Single result text starts with `resolved-model: provider/model-id` from the child response, or `resolved-model: unknown`. That line is the resolved identity. The requested selector is not.',
     'Every child keeps a Pi session file in PI_CODING_AGENT_SESSION_DIR or else Pi\'s default session folder for its cwd, and the result adds `session-id: <id>` and `session-path: <absolute path>` lines after resolved-model.',
     'Inside cmux or tmux, the child runs as a real Pi in the subagents layout the user can watch and steer.',
@@ -682,12 +682,12 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
           return { content: [{ type: 'text', text: `Unknown agent "${params.agent}". Available agents: ${listAgents()}` }], details: makeDetails([]) };
         }
         const config = await loadModelConfig(getAgentDir());
-        const selection = router.select({ config, role: params.role, model: params.model, agentModel: agent.model });
+        const selection = router.select({ config, role: params.role, model: params.model, agentRole: agent.role, agentModel: agent.model });
         const inherits = selection.choice.kind === 'inheritParent';
         const resolved: ResolvedTask = {
           agent, task: params.task, cwd: params.cwd ?? ctx.cwd,
           model: inherits ? defaults.model : formatModelChoice(selection.choice),
-          modelSource: selection.source, thinking: params.thinking ?? (inherits ? defaults.thinkingLevel : undefined), role: params.role,
+          modelSource: selection.source, thinking: params.thinking ?? (inherits ? defaults.thinkingLevel : undefined), role: params.role ?? agent.role,
         };
 
         if ((agentScope === 'project' || agentScope === 'both') && (params.confirmProjectAgents ?? true) && ctx.hasUI && !ctx.isProjectTrusted()) {

@@ -50,6 +50,7 @@ import {
 import { DEFAULT_SUBAGENTS_CONFIG, loadSubagentsConfig, type SubagentsConfig } from "./config.ts";
 import { bundledAgentsDirectories as pstackAgentDirs, packageRoot as pstackRoot } from "../../../subagent/agents.ts";
 import { SPAWNING_TOOLS as PSTACK_SPAWNING_TOOLS } from "../../../subagent/index.ts";
+import { formatModelChoice, loadModelConfig, ModelRouter, roleSchema } from "../../../subagent/model-config.ts";
 import {
   getSubagentActivityFile,
   readSubagentActivityFile,
@@ -99,7 +100,8 @@ const SubagentParams = Type.Object({
   systemPrompt: Type.Optional(
     Type.String({ description: "Appended to system prompt (role instructions)" }),
   ),
-  model: Type.Optional(Type.String({ description: "Model override (overrides agent default)" })),
+  model: Type.Optional(Type.String({ description: "Model override (overrides role and agent default)" })),
+  role: Type.Optional(roleSchema),
   skills: Type.Optional(
     Type.String({ description: "Comma-separated skills (overrides agent default)" }),
   ),
@@ -136,6 +138,8 @@ type SubagentSessionMode = "standalone" | "lineage-only" | "fork";
 
 interface AgentDefaults {
   model?: string;
+  /** pstack-pi: a role from pstack-pi/models.json, tried before `model`. */
+  role?: string;
   tools?: string;
   skills?: string;
   thinking?: string;
@@ -268,6 +272,7 @@ function parseAgentDefinition(content: string, fallbackName: string): AgentDefin
     name: getFrontmatterValue(frontmatter, "name") ?? fallbackName,
     description: getFrontmatterValue(frontmatter, "description"),
     model: getFrontmatterValue(frontmatter, "model"),
+    role: getFrontmatterValue(frontmatter, "role"),
     tools: getFrontmatterList(frontmatter, "tools"),
     systemPromptMode:
       systemPromptMode === "replace"
@@ -1110,6 +1115,8 @@ export const __test__ = {
   formatWidgetRightLabel,
   observeRunningSubagent,
   resolveDenyTools,
+  resolvePiChildModel,
+  piModelArgs,
   resolveInterruptTarget,
   requestSubagentInterrupt,
   handleSubagentInterrupt,
@@ -1133,6 +1140,38 @@ function startWidgetRefresh() {
   (globalThis as any)[WIDGET_INTERVAL_KEY] = widgetInterval;
 }
 
+// pstack-pi: a Pi child's model comes from the same lookup blocking_subagent uses: explicit model,
+// the call's role, the agent file's role, the agent file's model, then the parent's model.
+const modelRouter = new ModelRouter();
+async function resolvePiChildModel(
+  params: { model?: string; role?: (typeof SubagentParams.static)["role"] },
+  agentDefs: AgentDefaults | null,
+  parentModel: { provider: string; id: string } | undefined,
+): Promise<string | undefined> {
+  const selection = modelRouter.select({
+    config: await loadModelConfig(getAgentConfigDir()),
+    role: params.role,
+    model: params.model,
+    agentRole: agentDefs?.role,
+    agentModel: agentDefs?.model,
+  });
+  if (selection.choice.kind === "pinned") return formatModelChoice(selection.choice);
+  return parentModel ? `${parentModel.provider}/${parentModel.id}` : undefined;
+}
+
+/** pstack-pi: the `--model` argv for a Pi child. A role choice's thinking suffix such as `:xhigh` wins over the agent's `thinking`. */
+async function piModelArgs(
+  params: { model?: string; role?: (typeof SubagentParams.static)["role"] },
+  agentDefs: AgentDefaults | null,
+  parentModel: { provider: string; id: string } | undefined,
+): Promise<string[]> {
+  const model = await resolvePiChildModel(params, agentDefs, parentModel);
+  if (!model) return [];
+  const thinking = agentDefs?.thinking;
+  const hasThinking = /:(off|minimal|low|medium|high|xhigh|max)$/.test(model);
+  return ["--model", thinking && !hasThinking ? `${model}:${thinking}` : model];
+}
+
 /**
  * Launch a subagent: creates the multiplexer pane, builds the command, and
  * sends it. Returns a RunningSubagent — does NOT poll.
@@ -1149,6 +1188,7 @@ async function launchSubagent(
       getSessionName(): string | undefined;
     };
     cwd: string;
+    model?: { provider: string; id: string };
   },
   options?: { surface?: string; autoExit?: boolean; systemPromptMode?: "append"; thinking?: string },
 ): Promise<RunningSubagent> {
@@ -1156,10 +1196,9 @@ async function launchSubagent(
   const id = Math.random().toString(16).slice(2, 10);
 
   const agentDefs = params.agent ? loadAgentDefaults(params.agent) : null;
-  const effectiveModel = params.model ?? agentDefs?.model;
+  const claudeModel = params.model ?? agentDefs?.model;
   const effectiveTools = params.tools ?? agentDefs?.tools;
   const effectiveSkills = params.skills ?? agentDefs?.skills;
-  const effectiveThinking = agentDefs?.thinking;
   const effectiveInteractive = resolveEffectiveInteractive(params, agentDefs);
   const autoExit = options?.autoExit ?? agentDefs?.autoExit;
 
@@ -1238,8 +1277,8 @@ async function launchSubagent(
       cmdParts.push("--plugin-dir", shellEscape(pluginDir));
     }
 
-    if (effectiveModel) {
-      cmdParts.push("--model", shellEscape(effectiveModel));
+    if (claudeModel) {
+      cmdParts.push("--model", shellEscape(claudeModel));
     }
 
     const sp = params.systemPrompt ?? agentDefs.body;
@@ -1306,10 +1345,8 @@ async function launchSubagent(
   const subagentDonePath = join(SUBAGENTS_DIR, "subagent-done.ts");
   parts.push("-e", shellEscape(subagentDonePath));
 
-  if (effectiveModel) {
-    const model = effectiveThinking ? `${effectiveModel}:${effectiveThinking}` : effectiveModel;
-    parts.push("--model", shellEscape(model));
-  }
+  const [modelFlag, model] = await piModelArgs(params, agentDefs, ctx.model);
+  if (modelFlag && model) parts.push(modelFlag, shellEscape(model));
   if (options?.thinking) parts.push("--thinking", shellEscape(options.thinking));
 
   // Pass agent body as system prompt via file to avoid shell escaping issues
@@ -1973,7 +2010,7 @@ export default function subagentsExtension(pi: ExtensionAPI) {
         const lines = list.map((a) => {
           const badge = a.source === "project" ? " (project)" : "";
           const desc = a.description ? ` — ${a.description}` : "";
-          const model = a.model ? ` [${a.model}]` : "";
+          const model = a.role ? ` [role ${a.role}]` : a.model ? ` [${a.model}]` : "";
           return `• ${a.name}${badge}${model}${desc}`;
         });
 
@@ -1992,7 +2029,7 @@ export default function subagentsExtension(pi: ExtensionAPI) {
         const lines = agents.map((a: any) => {
           const badge = a.source === "project" ? theme.fg("accent", " (project)") : "";
           const desc = a.description ? theme.fg("dim", ` — ${a.description}`) : "";
-          const model = a.model ? theme.fg("dim", ` [${a.model}]`) : "";
+          const model = a.role ? theme.fg("dim", ` [role ${a.role}]`) : a.model ? theme.fg("dim", ` [${a.model}]`) : "";
           return `  ${theme.fg("toolTitle", theme.bold(a.name))}${badge}${model}${desc}`;
         });
         return new Text(lines.join("\n"), 0, 0);
