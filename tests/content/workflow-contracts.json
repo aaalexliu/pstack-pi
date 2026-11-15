@@ -278,12 +278,15 @@
   "skills/poteto-mode/playbooks/opening-a-pr.md": {
     "upstream": {
       "ready never draft": "Open every PR ready, never as a draft.",
-      "conventional commits": "Conventional Commits `type(scope): subject`, no trailing period.",
-      "why section": "`## Why`: the problem and approach, 1\u20133 short sentences.",
       "babysit separate": "Opening a PR does not start a babysit.",
       "briefing body": "The PR body is a one-minute briefing, not a lab notebook, for a reviewer who has the diff."
     },
-    "pi": {}
+    "pi": {
+      "area titles": "**Titles.** Area, colon, then a plain sentence, no trailing period",
+      "impact why": "- `## Why`: impact first. Say who or what was hurt and how, then the cause",
+      "show-me what changed": "break the change down the way `/skill:show-me` would",
+      "short pasted proof": "- `## Verification`: paste short real proof, under about 10 lines"
+    }
   },
   "skills/poteto-mode/playbooks/orchestrate.md": {
     "upstream": {

@@ -25,8 +25,8 @@ The runner does nothing for you but start you. You own the PRs, the review, the 
 ## PRs
 
 - Prefer several small PRs. Your own PRs go one at a time; a sub-lead's PR may be open beside yours when the units do not touch the same code.
-- Each PR body names the ticket: `Fixes KEY` on the last PR, `Part of KEY` on the others. Add the proof.
-- Every PR body explains each new rule, check or term in plain words next to a small block that shows its logic (pseudocode, a call tree, or a before/after diff). Name each check as the code does, give a concrete case it guards against, and name the test that proves it.
+- Write each PR title and body in the style of the `poteto-mode` PR playbook (`playbooks/opening-a-pr.md`, Titles and Descriptions).
+- Each PR body names the ticket: `Fixes KEY` on the last PR, `Part of KEY` on the others.
 - Branch each PR from the latest base. Push with `git push --force-with-lease`.
 
 ## The merge gate, for every PR

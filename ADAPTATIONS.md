@@ -49,7 +49,7 @@ The manifest contains the exact ordered `find`, `replace`, and `count` values fo
 | `skills/poteto-mode/playbooks/feature.md` | Replace default models and nested delegation with parent-dispatched leaf implementation. |
 | `skills/poteto-mode/playbooks/hillclimb.md` | Replace the default hillclimb model with configured judgment roles; state the Autonomous Run wake gap instead of promising an absent playbook. |
 | `skills/poteto-mode/playbooks/multi-phase-plan.md` | Local task paths, model roles, bounded lanes, manual checker fallback, and parent-owned status/landing instead of cloud controls. Resolve Opening a PR to the bundled playbook. |
-| `skills/poteto-mode/playbooks/opening-a-pr.md` | Replace `/deslop` and Cursor skill commands with local slop inspection and `/skill:` paths; soften Task nesting to leaf-task worktree language; point the stack retarget at the local Shipping gates. |
+| `skills/poteto-mode/playbooks/opening-a-pr.md` | Replace `/deslop` and Cursor skill commands with local slop inspection and `/skill:` paths; soften Task nesting to leaf-task worktree language; point the stack retarget at the local Shipping gates; replace the PR title and Why, What changed and Verification rules with the one PR style (area-colon titles, impact-first Why, show-me What changed, short pasted proof). |
 | `skills/poteto-mode/playbooks/orchestrate.md` | Replace cloud workers, sub-coordinators, forks, and messages with local leaf tasks the parent coordinates, in bounded batches of parallel `blocking_subagent` calls with a finite `timeoutMs`. Keep the owner, kickoff, verifier, supervision, and reply contracts. |
 | `skills/poteto-mode/playbooks/perf-issue.md` | Use available surface-control tools and configured judgment roles instead of control-skill and default model ids. Retarget the Hillclimb cross-link to a same-directory path. |
 | `skills/poteto-mode/playbooks/prototype.md` | Use available surface-control tools instead of assuming a control skill. An observation proves only the contract it ran; rerun it after the contract changes. |
@@ -70,7 +70,7 @@ The manifest contains the exact ordered `find`, `replace`, and `count` values fo
 | `skills/statechart/references/render.md` | Paint the chart background from `--pele-bg`. Pele draws no full background, so in dark mode a browser showed the light title and edge-label boxes on a white canvas. |
 | `skills/swarm/SKILL.md` | Local leaf workers and Pi model roles instead of cloud fields; retain logical coverage across bounded batches of parallel calls. |
 | `skills/teach/SKILL.md` | Parent-owned research and available visual tools; keep teaching and progressive-diagram rules. The person is not in this code: workflow and one example first, then file and function names. |
-| `skills/technical-writing/SKILL.md` | Change one skill command to Pi syntax. |
+| `skills/technical-writing/SKILL.md` | Change one skill command to Pi syntax; allow short pasted proof in PR bodies and link long output. |
 | `skills/typescript-best-practices/SKILL.md` | Remove unsupported paths frontmatter. |
 | `skills/unslop/SKILL.md` | Reject a coined local name for a step or phase. Say what happens, or use a name the code, the docs, or the user already use. |
 | `skills/why/SKILL.md` | Parent owns Git/MCP searches and citation checks; leaf readers use supplied evidence. Remove Cursor task fields and defaults. Present the answer as a workflow and one concrete example before the evidence sections. A why question is not a change plan. |
