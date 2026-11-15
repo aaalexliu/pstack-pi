@@ -109,6 +109,19 @@ describe("subagent role and model", () => {
     assert.deepEqual(await api().piModelArgs({}, null, undefined), []);
   });
 
+  it("runs a child on the parent's model at the parent's thinking level unless the call or a pinned choice sets one", async () => {
+    dir = mkdtempSync(join(tmpdir(), "subagent-thinking-"));
+    mkdirSync(join(dir, "pstack-pi"));
+    writeFileSync(join(dir, "pstack-pi", "models.json"), JSON.stringify({ version: 1, roles: { review: "role/review:low", judgment: "role/judgment" } }));
+    process.env.PI_CODING_AGENT_DIR = dir;
+    const argv = (params: object, defs: object | null) => api().piModelArgs(params, defs, parent, "xhigh");
+    assert.deepEqual(await argv({}, null), ["--model", "parent/model:xhigh"]);
+    assert.deepEqual(await argv({ thinking: "low" }, null), ["--model", "parent/model"]);
+    assert.deepEqual(await argv({ role: "review" }, null), ["--model", "role/review:low"]);
+    assert.deepEqual(await argv({ role: "judgment" }, null), ["--model", "role/judgment"]);
+    assert.deepEqual(await argv({ model: "x/pinned:medium" }, null), ["--model", "x/pinned:medium"]);
+  });
+
   it("the subagent tool takes a role from the shared list", () => {
     for (const name of CHILD_ENV) delete process.env[name];
     const pi = fakePi();
@@ -232,6 +245,7 @@ describe("subagent with wait: true", () => {
       cwd: root,
       hasUI: false,
       model: { provider: "parent", id: "model" },
+      thinkingLevel: "xhigh",
       sessionManager: { getSessionFile: () => sessionFile, getSessionId: () => "parent-id", getSessionDir: () => root, getSessionName: () => undefined },
     };
     const call = (params: object, signal = new AbortController().signal) => tools.get("subagent").execute("call", params, signal, undefined, ctx);
@@ -264,6 +278,19 @@ describe("subagent with wait: true", () => {
     assert.ok(child.denied.split(",").includes("subagent"));
     assert.equal(result.isError, false);
     assert.equal(result.details.status, "finished");
+  });
+
+  it("gives a child on the parent's model the parent's thinking level, and the call's level wins", async () => {
+    const { call } = await setup();
+    const args = async (params: object) => {
+      const text: string = (await call({ name: "Level", task: "hello", wait: true, ...params })).content[0].text;
+      return JSON.parse(text.slice(text.indexOf("done ") + 5)).args as string[];
+    };
+    const inherited = await args({});
+    assert.equal(inherited[inherited.indexOf("--model") + 1], "parent/model:xhigh");
+    const explicit = await args({ thinking: "low" });
+    assert.equal(explicit[explicit.indexOf("--model") + 1], "parent/model");
+    assert.equal(explicit[explicit.indexOf("--thinking") + 1], "low");
   });
 
   it("stops a child that runs past timeoutMs, with its whole process group", async () => {

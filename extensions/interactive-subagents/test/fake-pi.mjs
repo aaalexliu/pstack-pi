@@ -21,7 +21,7 @@ if (verb === "HANG") {
     await new Promise((resolve) => setTimeout(resolve, Number(rest[0])));
     appendFileSync(rest[1], `end ${Date.now()}\n`);
   }
-  const model = flag("--model") ?? "fixture/model";
+  const model = (flag("--model") ?? "fixture/model").replace(/:[a-z]+$/, "");
   const capture = JSON.stringify({ args, cwd: process.cwd(), denied: process.env.PI_DENY_TOOLS, autoExit: process.env.PI_SUBAGENT_AUTO_EXIT, pid: process.pid });
   const lines = [
     { type: "session", version: 3, id: "child-session-id", cwd: process.cwd() },

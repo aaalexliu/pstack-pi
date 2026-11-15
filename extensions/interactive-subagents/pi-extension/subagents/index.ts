@@ -1173,11 +1173,11 @@ function startWidgetRefresh() {
 // pstack-pi: a Pi child's model comes from pstack-pi's model lookup: explicit model,
 // the call's role, the agent file's role, the agent file's model, then the parent's model.
 const modelRouter = new ModelRouter();
-async function resolvePiChildModel(
+async function selectPiChildModel(
   params: { model?: string; role?: (typeof SubagentParams.static)["role"] },
   agentDefs: AgentDefaults | null,
   parentModel: { provider: string; id: string } | undefined,
-): Promise<string | undefined> {
+): Promise<{ model: string | undefined; inherited: boolean }> {
   const selection = modelRouter.select({
     config: await loadModelConfig(getAgentConfigDir()),
     role: params.role,
@@ -1185,19 +1185,31 @@ async function resolvePiChildModel(
     agentRole: agentDefs?.role,
     agentModel: agentDefs?.model,
   });
-  if (selection.choice.kind === "pinned") return formatModelChoice(selection.choice);
-  return parentModel ? `${parentModel.provider}/${parentModel.id}` : undefined;
+  if (selection.choice.kind === "pinned") return { model: formatModelChoice(selection.choice), inherited: false };
+  return { model: parentModel ? `${parentModel.provider}/${parentModel.id}` : undefined, inherited: true };
 }
 
-/** pstack-pi: the `--model` argv for a Pi child. A role choice's thinking suffix such as `:xhigh` wins over the agent's `thinking`. */
-async function piModelArgs(
+async function resolvePiChildModel(
   params: { model?: string; role?: (typeof SubagentParams.static)["role"] },
   agentDefs: AgentDefaults | null,
   parentModel: { provider: string; id: string } | undefined,
+): Promise<string | undefined> {
+  return (await selectPiChildModel(params, agentDefs, parentModel)).model;
+}
+
+/**
+ * pstack-pi: the `--model` argv for a Pi child. A role choice's thinking suffix such as `:xhigh` wins over the agent's
+ * `thinking`. A child on the parent's model with no `thinking` from the call or agent runs at the parent's level.
+ */
+async function piModelArgs(
+  params: { model?: string; role?: (typeof SubagentParams.static)["role"]; thinking?: string },
+  agentDefs: AgentDefaults | null,
+  parentModel: { provider: string; id: string } | undefined,
+  parentThinking?: string,
 ): Promise<string[]> {
-  const model = await resolvePiChildModel(params, agentDefs, parentModel);
+  const { model, inherited } = await selectPiChildModel(params, agentDefs, parentModel);
   if (!model) return [];
-  const thinking = agentDefs?.thinking;
+  const thinking = agentDefs?.thinking ?? (inherited && !params.thinking ? parentThinking : undefined);
   const hasThinking = /:(off|minimal|low|medium|high|xhigh|max)$/.test(model);
   return ["--model", thinking && !hasThinking ? `${model}:${thinking}` : model];
 }
@@ -1219,6 +1231,7 @@ async function launchSubagent(
     };
     cwd: string;
     model?: { provider: string; id: string };
+    thinkingLevel?: string;
   },
   options?: { surface?: string; autoExit?: boolean; systemPromptMode?: "append"; thinking?: string; headless?: boolean },
 ): Promise<RunningSubagent> {
@@ -1386,7 +1399,7 @@ async function launchSubagent(
   const subagentDonePath = join(SUBAGENTS_DIR, "subagent-done.ts");
   args.push("-e", subagentDonePath);
 
-  args.push(...await piModelArgs(params, agentDefs, ctx.model));
+  args.push(...await piModelArgs(params, agentDefs, ctx.model, ctx.thinkingLevel));
   if (options?.thinking) args.push("--thinking", options.thinking);
 
   // Pass agent body as system prompt via file to avoid shell escaping issues
