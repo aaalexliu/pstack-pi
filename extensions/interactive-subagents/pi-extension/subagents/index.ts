@@ -12,6 +12,7 @@ import {
   mkdirSync,
   copyFileSync,
   unlinkSync,
+  rmSync,
 } from "node:fs";
 import { homedir } from "node:os";
 import {
@@ -27,7 +28,11 @@ import {
   renameCurrentTab,
   renameWorkspace,
   readScreen,
+  interpretExitSidecar,
+  type PollResult,
 } from "./cmux.ts";
+import { spawnHeadless, waitForHeadlessExit } from "./headless.ts";
+import type { ChildProcess } from "node:child_process";
 
 import {
   findLastAssistantMessage,
@@ -125,6 +130,15 @@ const SubagentParams = Type.Object({
       description:
         "Mark the subagent as interactive (long-running, user drives the conversation in its own pane). When true, the main session is not woken by status transitions (stalled/recovered) for this subagent. If omitted, falls back to the agent's `interactive` frontmatter, otherwise the inverse of `auto-exit` (agents that auto-exit are autonomous and get stall pings; agents that don't are interactive and stay quiet).",
     }),
+  ),
+  wait: Type.Optional(
+    Type.Boolean({
+      description:
+        "pstack-pi: wait for the child to finish and return its result in this tool call, starting with resolved-model:, session-id: and session-path: lines. Several wait calls in one message run side by side. Default false: return at once and deliver the result later as a new turn.",
+    }),
+  ),
+  timeoutMs: Type.Optional(
+    Type.Integer({ minimum: 1, description: "pstack-pi: with wait, stop the child after this many milliseconds." }),
   ),
   resumeSessionId: Type.Optional(
     Type.String({
@@ -555,6 +569,8 @@ interface RunningSubagent {
     error?: string;
   };
   abortController?: AbortController;
+  /** pstack-pi: the print-mode process of a child launched with no multiplexer. Its surface is "". */
+  proc?: ChildProcess;
   cli?: string;
   sentinelFile?: string;
   statusState: SubagentStatusState;
@@ -1023,6 +1039,11 @@ function handleSubagentInterrupt(
     };
   }
 
+  if (!running.surface) {
+    const error = `Subagent "${running.name}" runs headless with no pane, so it has no turn to interrupt.`;
+    return { content: [{ type: "text" as const, text: error }], details: { error, id: running.id, name: running.name } };
+  }
+
   const now = Date.now();
   observeRunningSubagent(running, now);
 
@@ -1190,7 +1211,7 @@ async function launchSubagent(
     cwd: string;
     model?: { provider: string; id: string };
   },
-  options?: { surface?: string; autoExit?: boolean; systemPromptMode?: "append"; thinking?: string },
+  options?: { surface?: string; autoExit?: boolean; systemPromptMode?: "append"; thinking?: string; headless?: boolean },
 ): Promise<RunningSubagent> {
   const startTime = Date.now();
   const id = Math.random().toString(16).slice(2, 10);
@@ -1225,9 +1246,13 @@ async function launchSubagent(
 
   // Use pre-created surface (parallel mode) or create a new one.
   // For new surfaces, pause briefly so the shell is ready before sending the command.
+  const headless = options?.headless === true;
+  if (headless && agentDefs?.cli === "claude") {
+    throw new Error(`Agent "${params.agent}" runs Claude Code, which needs a terminal multiplexer. ${muxSetupHint()}`);
+  }
   const surfacePreCreated = !!options?.surface;
-  const surface = options?.surface ?? createSurface(params.name, cmuxPlacement(ctx));
-  if (!surfacePreCreated) {
+  const surface = headless ? "" : options?.surface ?? createSurface(params.name, cmuxPlacement(ctx));
+  if (!surfacePreCreated && !headless) {
     await new Promise<void>((resolve) => setTimeout(resolve, getShellReadyDelayMs()));
   }
 
@@ -1338,16 +1363,14 @@ async function launchSubagent(
 
   // ── Pi CLI path ──
 
-  // Build pi command
-  const parts: string[] = ["pi"];
-  parts.push("--session", shellEscape(subagentSessionFile));
+  // Build pi argv
+  const args: string[] = ["--session", subagentSessionFile];
 
   const subagentDonePath = join(SUBAGENTS_DIR, "subagent-done.ts");
-  parts.push("-e", shellEscape(subagentDonePath));
+  args.push("-e", subagentDonePath);
 
-  const [modelFlag, model] = await piModelArgs(params, agentDefs, ctx.model);
-  if (modelFlag && model) parts.push(modelFlag, shellEscape(model));
-  if (options?.thinking) parts.push("--thinking", shellEscape(options.thinking));
+  args.push(...await piModelArgs(params, agentDefs, ctx.model));
+  if (options?.thinking) args.push("--thinking", options.thinking);
 
   // Pass agent body as system prompt via file to avoid shell escaping issues
   // with multiline content. Pi's --append-system-prompt and --system-prompt
@@ -1364,40 +1387,39 @@ async function launchSubagent(
     const syspromptPath = join(artifactDir, `context/${spSafeName || "subagent"}-sysprompt-${spTimestamp}.md`);
     mkdirSync(dirname(syspromptPath), { recursive: true });
     writeFileSync(syspromptPath, identity, "utf8");
-    parts.push(flag, shellEscape(syspromptPath));
+    args.push(flag, syspromptPath);
   }
 
   const toolAllowlist = buildSubagentToolAllowlist(effectiveTools);
   if (toolAllowlist) {
-    parts.push("--tools", shellEscape(toolAllowlist));
+    args.push("--tools", toolAllowlist);
   }
 
-  // Build env prefix: denied tools + subagent identity + config dir propagation
-  const envParts: string[] = [];
+  // Child env: denied tools + subagent identity + config dir propagation
+  const env: Record<string, string> = {};
 
   // If the target cwd has its own .pi/agent/, use that as the config root.
   // Otherwise propagate the current/global agent dir.
   if (localAgentDir && existsSync(localAgentDir)) {
-    envParts.push(`PI_CODING_AGENT_DIR=${shellEscape(localAgentDir)}`);
+    env.PI_CODING_AGENT_DIR = localAgentDir;
   } else if (process.env.PI_CODING_AGENT_DIR) {
-    envParts.push(`PI_CODING_AGENT_DIR=${shellEscape(process.env.PI_CODING_AGENT_DIR)}`);
+    env.PI_CODING_AGENT_DIR = process.env.PI_CODING_AGENT_DIR;
   }
 
   if (denySet.size > 0) {
-    envParts.push(`PI_DENY_TOOLS=${shellEscape([...denySet].join(","))}`);
+    env.PI_DENY_TOOLS = [...denySet].join(",");
   }
-  envParts.push(`PI_SUBAGENT_NAME=${shellEscape(params.name)}`);
+  env.PI_SUBAGENT_NAME = params.name;
   if (params.agent) {
-    envParts.push(`PI_SUBAGENT_AGENT=${shellEscape(params.agent)}`);
+    env.PI_SUBAGENT_AGENT = params.agent;
   }
   if (autoExit) {
-    envParts.push(`PI_SUBAGENT_AUTO_EXIT=1`);
+    env.PI_SUBAGENT_AUTO_EXIT = "1";
   }
-  envParts.push(`PI_SUBAGENT_SESSION=${shellEscape(subagentSessionFile)}`);
-  envParts.push(`PI_SUBAGENT_ID=${shellEscape(id)}`);
-  envParts.push(`PI_SUBAGENT_ACTIVITY_FILE=${shellEscape(activityFile)}`);
-  envParts.push(`PI_SUBAGENT_SURFACE=${shellEscape(surface)}`);
-  const envPrefix = envParts.join(" ") + " ";
+  env.PI_SUBAGENT_SESSION = subagentSessionFile;
+  env.PI_SUBAGENT_ID = id;
+  env.PI_SUBAGENT_ACTIVITY_FILE = activityFile;
+  if (surface) env.PI_SUBAGENT_SURFACE = surface;
 
   // Pass task and skill prompts to the sub-agent.
   // Only full-context fork mode gets a direct task argument because it already
@@ -1421,36 +1443,11 @@ async function launchSubagent(
     taskArg = `@${artifactPath}`;
   }
 
-  for (const promptArg of buildPiPromptArgs({
+  args.push(...buildPiPromptArgs({
     effectiveSkills,
     taskDelivery: launchBehavior.taskDelivery,
     taskArg,
-  })) {
-    parts.push(shellEscape(promptArg));
-  }
-
-  // Resolve cwd — param overrides agent default, supports absolute and relative paths.
-  // This was already computed above so session placement, PI_CODING_AGENT_DIR, and cd agree.
-  const cdPrefix = effectiveCwd ? `cd ${shellEscape(effectiveCwd)} && ` : "";
-
-  const piCommand = cdPrefix + envPrefix + parts.join(" ");
-  const command = `${piCommand}; echo '__SUBAGENT_DONE_'$?'__'`;
-  const launchScriptName = `${(params.name || "subagent")
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "") || "subagent"}-${id}.sh`;
-  const launchScriptFile = join(artifactDir, "subagent-scripts", launchScriptName);
-  sendLongCommand(surface, command, {
-    scriptPath: launchScriptFile,
-    scriptPreamble: [
-      `# Subagent launch script for ${params.name}`,
-      `# Generated: ${new Date().toISOString()}`,
-      `# Session: ${subagentSessionFile}`,
-      `# Surface: ${surface}`,
-    ].join("\n"),
-  });
+  }));
 
   const running: RunningSubagent = {
     id,
@@ -1460,7 +1457,6 @@ async function launchSubagent(
     surface,
     startTime,
     sessionFile: subagentSessionFile,
-    launchScriptFile,
     activityFile,
     interactive: effectiveInteractive,
     statusState: createStatusState({
@@ -1468,6 +1464,34 @@ async function launchSubagent(
       startTimeMs: startTime,
     }),
   };
+
+  if (headless) {
+    // pstack-pi: no multiplexer, so the child runs in print mode in its own process group.
+    running.proc = spawnHeadless(args, { cwd: targetCwdForSession, env: { ...process.env, ...env } });
+  } else {
+    // Resolve cwd — param overrides agent default, supports absolute and relative paths.
+    // This was already computed above so session placement, PI_CODING_AGENT_DIR, and cd agree.
+    const cdPrefix = effectiveCwd ? `cd ${shellEscape(effectiveCwd)} && ` : "";
+    const envPrefix = Object.entries(env).map(([name, value]) => `${name}=${shellEscape(value)}`).join(" ") + " ";
+    const piCommand = cdPrefix + envPrefix + ["pi", ...args.map(shellEscape)].join(" ");
+    const command = `${piCommand}; echo '__SUBAGENT_DONE_'$?'__'`;
+    const launchScriptName = `${(params.name || "subagent")
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "") || "subagent"}-${id}.sh`;
+    running.launchScriptFile = join(artifactDir, "subagent-scripts", launchScriptName);
+    sendLongCommand(surface, command, {
+      scriptPath: running.launchScriptFile,
+      scriptPreamble: [
+        `# Subagent launch script for ${params.name}`,
+        `# Generated: ${new Date().toISOString()}`,
+        `# Session: ${subagentSessionFile}`,
+        `# Surface: ${surface}`,
+      ].join("\n"),
+    });
+  }
 
   runningSubagents.set(id, running);
   return running;
@@ -1499,6 +1523,22 @@ function copyClaudeSession(sentinelFile: string): string | null {
   }
 }
 
+/** pstack-pi: wait for a headless child, then read its `.exit` sidecar the way pollForExit does. */
+async function watchHeadless(proc: ChildProcess, signal: AbortSignal, sessionFile: string): Promise<PollResult> {
+  const exit = await waitForHeadlessExit(proc, signal);
+  if (exit.aborted) throw new Error("Aborted while waiting for subagent to finish");
+  const exitFile = `${sessionFile}.exit`;
+  if (existsSync(exitFile)) {
+    try {
+      const sidecar = interpretExitSidecar(JSON.parse(readFileSync(exitFile, "utf8")));
+      rmSync(exitFile, { force: true });
+      if (sidecar.reason !== "done" || exit.exitCode === 0) return sidecar;
+    } catch {}
+  }
+  const stderr = exit.stderr.trim();
+  return { reason: "sentinel", exitCode: exit.exitCode, ...(exit.exitCode !== 0 && stderr ? { errorMessage: stderr } : {}) };
+}
+
 async function watchSubagent(
   running: RunningSubagent,
   signal: AbortSignal,
@@ -1506,14 +1546,17 @@ async function watchSubagent(
   const { name, task, surface, startTime, sessionFile } = running;
 
   try {
-    const result = await pollForExit(surface, AbortSignal.any([signal, getModuleAbortSignal()]), {
-      interval: 1000,
-      sessionFile,
-      sentinelFile: running.sentinelFile,
-      onTick() {
-        observeRunningSubagent(running);
-      },
-    });
+    const stop = AbortSignal.any([signal, getModuleAbortSignal()]);
+    const result = running.proc
+      ? await watchHeadless(running.proc, stop, sessionFile)
+      : await pollForExit(surface, stop, {
+        interval: 1000,
+        sessionFile,
+        sentinelFile: running.sentinelFile,
+        onTick() {
+          observeRunningSubagent(running);
+        },
+      });
 
     const elapsed = Math.floor((Date.now() - startTime) / 1000);
 
@@ -1613,17 +1656,20 @@ async function watchSubagent(
     };
   } finally {
     // A pane that fails to close must not cost the parent the child's report.
-    try {
-      closeSurface(surface);
-    } catch {}
+    if (surface) {
+      try {
+        closeSurface(surface);
+      } catch {}
+    }
     runningSubagents.delete(running.id);
     spawnSlots.release(running.name);
   }
 }
 
 /**
- * pstack-pi: run one auto-exiting child in a pane, holding a spawn slot, and
- * wait for its result. `blocking_subagent` calls this inside cmux or tmux.
+ * pstack-pi: run one auto-exiting child, holding a spawn slot, and wait for its
+ * result. The child opens in a pane inside a multiplexer and runs headless
+ * outside one. `subagent` with `wait: true` and `blocking_subagent` call this.
  * An abort while waiting for a slot returns a cancelled result.
  */
 export async function runSubagentInPane(
@@ -1646,7 +1692,7 @@ export async function runSubagentInPane(
   }
   let running: RunningSubagent;
   try {
-    running = await launch(params, ctx, { autoExit: true, systemPromptMode: "append", thinking });
+    running = await launch(params, ctx, { autoExit: true, systemPromptMode: "append", thinking, headless: !isMuxAvailable() });
   } catch (error) {
     spawnSlots.release(params.name);
     throw error;
@@ -1657,6 +1703,68 @@ export async function runSubagentInPane(
     return await watch(running, signal);
   } finally {
     updateWidget();
+  }
+}
+
+/** pstack-pi: the lines a waiting parent checks: the model the child really ran, and its session file. */
+function sessionIdentityLines(sessionFile: string | undefined): string {
+  let model: string | undefined;
+  let sessionId: string | undefined;
+  if (sessionFile && existsSync(sessionFile)) {
+    for (const entry of getNewEntries(sessionFile, 0)) {
+      if (entry.type === "session") sessionId = entry.id;
+      const message = entry.type === "message" ? (entry as { message?: { role?: string; provider?: unknown; model?: unknown } }).message : undefined;
+      if (message?.role === "assistant" && typeof message.provider === "string" && typeof message.model === "string") {
+        model = `${message.provider}/${message.model}`;
+      }
+    }
+  }
+  const session = sessionId
+    ? `session-id: ${sessionId}\nsession-path: ${sessionFile}\n`
+    : "session: none saved, the child exited before writing its session file\n";
+  return `resolved-model: ${model ?? "unknown"}\n${session}\n`;
+}
+
+/**
+ * pstack-pi: `subagent` with `wait: true`. Runs the child to the end, honoring
+ * `timeoutMs`, and returns its result as this tool call's result.
+ */
+async function runSubagentAndWait(
+  params: typeof SubagentParams.static,
+  ctx: Parameters<typeof launchSubagent>[1],
+  signal: AbortSignal | undefined,
+  run = runSubagentInPane,
+) {
+  const stop = new AbortController();
+  const onAbort = () => stop.abort("user");
+  if (signal?.aborted) onAbort();
+  signal?.addEventListener("abort", onAbort, { once: true });
+  const deadline = params.timeoutMs === undefined ? undefined : setTimeout(() => stop.abort("timeout"), params.timeoutMs);
+  try {
+    const result = await run(params, ctx, stop.signal);
+    if (stop.signal.reason === "user") throw new Error("Subagent was aborted");
+    const failed = stop.signal.aborted || result.exitCode !== 0 || Boolean(result.error || result.errorMessage || result.paneClosed || result.ping);
+    const body = stop.signal.reason === "timeout"
+      ? `Sub-agent "${params.name}" timed out after ${params.timeoutMs} ms.`
+      : result.ping
+        ? `Sub-agent "${params.name}" asked for help: ${result.ping.message}`
+        : failed ? resolveResultPresentation(result, params.name) : result.summary;
+    return {
+      content: [{ type: "text" as const, text: sessionIdentityLines(result.sessionFile) + body }],
+      details: {
+        name: params.name,
+        task: params.task,
+        agent: params.agent,
+        status: failed ? "failed" : "finished",
+        exitCode: result.exitCode,
+        elapsed: result.elapsed,
+        sessionFile: result.sessionFile,
+      },
+      isError: failed,
+    };
+  } finally {
+    clearTimeout(deadline);
+    signal?.removeEventListener("abort", onAbort);
   }
 }
 
@@ -1715,28 +1823,126 @@ export default function subagentsExtension(pi: ExtensionAPI) {
 
   const shouldRegister = (name: string) => !deniedTools.has(name);
 
+  // Launches the child, in a pane or headless, and delivers its result later as a steer message.
+  const launchInBackground = withSpawnSlot(pi, async (_toolCallId, params: typeof SubagentParams.static, _signal, _onUpdate, ctx) => {
+    const running = await launchSubagent(params, ctx, isMuxAvailable() ? undefined : { headless: true, autoExit: true });
+
+    // Create a separate AbortController for the watcher
+    // (the tool's signal completes when we return)
+    const watcherAbort = new AbortController();
+    running.abortController = watcherAbort;
+
+    // Start widget refresh and status supervision when the first agent launches
+    startWidgetRefresh();
+    startStatusRefresh(pi);
+
+    // Fire-and-forget: start watching in background
+    watchSubagent(running, watcherAbort.signal)
+      .then((result) => {
+        updateWidget(); // reflect removal from Map immediately
+
+        if (result.ping) {
+          // Subagent is requesting help — steer a ping message with session path for resume
+          const sessionRef = `\n\nSession: ${result.sessionFile}\nResume: pi --session ${result.sessionFile}`;
+          pi.sendMessage(
+            {
+              customType: "subagent_ping",
+              content: `Sub-agent "${result.ping.name}" needs help (${formatElapsed(result.elapsed)}):\n\n${result.ping.message}${sessionRef}`,
+              display: true,
+              details: {
+                name: result.ping.name,
+                message: result.ping.message,
+                agent: running.agent,
+                sessionFile: result.sessionFile,
+              },
+            },
+            { triggerTurn: true, deliverAs: "steer" },
+          );
+          return;
+        }
+
+        const presentation = resolveResultPresentation(result, running.name);
+
+        pi.sendMessage(
+          {
+            customType: "subagent_result",
+            content: presentation,
+            display: true,
+            details: {
+              name: running.name,
+              task: running.task,
+              agent: running.agent,
+              exitCode: result.exitCode,
+              elapsed: result.elapsed,
+              sessionFile: result.sessionFile,
+              ...(result.errorMessage ? { errorMessage: result.errorMessage } : {}),
+              ...(result.claudeSessionId ? { claudeSessionId: result.claudeSessionId } : {}),
+            },
+          },
+          { triggerTurn: true, deliverAs: "steer" },
+        );
+      })
+      .catch((err) => {
+        updateWidget();
+        pi.sendMessage(
+          {
+            customType: "subagent_result",
+            content: `Sub-agent "${running.name}" error: ${err?.message ?? String(err)}`,
+            display: true,
+            details: { name: running.name, task: running.task, error: err?.message },
+          },
+          { triggerTurn: true, deliverAs: "steer" },
+        );
+      });
+
+    // Return immediately
+    return {
+      content: [
+        {
+          type: "text",
+          text:
+            `Sub-agent "${params.name}" launched and is now running in the background. ` +
+            `Do NOT generate or assume any results — you have no idea what the sub-agent will do or produce. ` +
+            `The results will be delivered to you automatically as a steer message when the sub-agent finishes. ` +
+            `Until then, move on to other work or tell the user you're waiting.`,
+        },
+      ],
+      details: {
+        id: running.id,
+        name: params.name,
+        task: params.task,
+        agent: params.agent,
+        sessionFile: running.sessionFile,
+        launchScriptFile: running.launchScriptFile,
+        status: "started",
+      },
+    };
+  });
+
   // ── subagent tool ──
   if (shouldRegister("subagent"))
     pi.registerTool({
       name: "subagent",
       label: "Subagent",
       description:
-        "Spawn a sub-agent in a dedicated terminal multiplexer pane. " +
-        "This is a fire-and-forget async tool: the call returns immediately with only an acknowledgement. " +
+        "Spawn a sub-agent in a dedicated terminal multiplexer pane, or as a headless process when there is no multiplexer. " +
+        "With wait: true the call blocks until the sub-agent finishes and returns its result, after resolved-model:, session-id: and session-path: lines; use it for lookups and answers you need before your next step, and make several wait calls in one message to run them side by side. " +
+        "Without wait, this is a fire-and-forget async tool: the call returns immediately with only an acknowledgement. " +
         "When the sub-agent finishes, the harness AUTOMATICALLY delivers its result as a steer message that wakes you up and starts a new turn — you do not need to do anything to receive it. " +
         "DO NOT write polling loops, sleep/wait commands, tail/watch scripts, or repeatedly read session/log files to detect completion. DO NOT call subagents_list or any other tool to 'check' status. All of that is wasted work — the harness handles delivery for you. " +
         "DO NOT fabricate, assume, or summarize results after calling this tool. " +
         "After spawning, either end your turn immediately, or work on other independent tasks (including spawning more subagents in parallel). The harness will wake you with the result when it is ready.",
       promptSnippet:
-        "Spawn a sub-agent in a dedicated terminal multiplexer pane. " +
-        "This is a fire-and-forget async tool: the call returns immediately with only an acknowledgement. " +
+        "Spawn a sub-agent in a dedicated terminal multiplexer pane, or as a headless process when there is no multiplexer. " +
+        "With wait: true the call blocks until the sub-agent finishes and returns its result, after resolved-model:, session-id: and session-path: lines; use it for lookups and answers you need before your next step, and make several wait calls in one message to run them side by side. " +
+        "Without wait, this is a fire-and-forget async tool: the call returns immediately with only an acknowledgement. " +
         "When the sub-agent finishes, the harness AUTOMATICALLY delivers its result as a steer message that wakes you up and starts a new turn — you do not need to do anything to receive it. " +
         "DO NOT write polling loops, sleep/wait commands, tail/watch scripts, or repeatedly read session/log files to detect completion. DO NOT call subagents_list or any other tool to 'check' status. All of that is wasted work — the harness handles delivery for you. " +
         "DO NOT fabricate, assume, or summarize results after calling this tool. " +
         "After spawning, either end your turn immediately, or work on other independent tasks (including spawning more subagents in parallel). The harness will wake you with the result when it is ready.",
       parameters: SubagentParams,
 
-      execute: withSpawnSlot(pi, async (_toolCallId, params, _signal, _onUpdate, ctx) => {
+      async execute(toolCallId, params, signal, onUpdate, ctx) {
         // Prevent self-spawning (e.g. planner spawning another planner)
         const currentAgent = process.env.PI_SUBAGENT_AGENT;
         if (params.agent && currentAgent && params.agent === currentAgent) {
@@ -1751,11 +1957,6 @@ export default function subagentsExtension(pi: ExtensionAPI) {
           };
         }
 
-        // Validate prerequisites
-        if (!isMuxAvailable()) {
-          return muxUnavailableResult();
-        }
-
         if (!ctx.sessionManager.getSessionFile()) {
           return {
             content: [
@@ -1768,100 +1969,9 @@ export default function subagentsExtension(pi: ExtensionAPI) {
           };
         }
 
-        // Launch the subagent (creates pane, sends command)
-        const running = await launchSubagent(params, ctx);
-
-        // Create a separate AbortController for the watcher
-        // (the tool's signal completes when we return)
-        const watcherAbort = new AbortController();
-        running.abortController = watcherAbort;
-
-        // Start widget refresh and status supervision when the first agent launches
-        startWidgetRefresh();
-        startStatusRefresh(pi);
-
-        // Fire-and-forget: start watching in background
-        watchSubagent(running, watcherAbort.signal)
-          .then((result) => {
-            updateWidget(); // reflect removal from Map immediately
-
-            if (result.ping) {
-              // Subagent is requesting help — steer a ping message with session path for resume
-              const sessionRef = `\n\nSession: ${result.sessionFile}\nResume: pi --session ${result.sessionFile}`;
-              pi.sendMessage(
-                {
-                  customType: "subagent_ping",
-                  content: `Sub-agent "${result.ping.name}" needs help (${formatElapsed(result.elapsed)}):\n\n${result.ping.message}${sessionRef}`,
-                  display: true,
-                  details: {
-                    name: result.ping.name,
-                    message: result.ping.message,
-                    agent: running.agent,
-                    sessionFile: result.sessionFile,
-                  },
-                },
-                { triggerTurn: true, deliverAs: "steer" },
-              );
-              return;
-            }
-
-            const presentation = resolveResultPresentation(result, running.name);
-
-            pi.sendMessage(
-              {
-                customType: "subagent_result",
-                content: presentation,
-                display: true,
-                details: {
-                  name: running.name,
-                  task: running.task,
-                  agent: running.agent,
-                  exitCode: result.exitCode,
-                  elapsed: result.elapsed,
-                  sessionFile: result.sessionFile,
-                  ...(result.errorMessage ? { errorMessage: result.errorMessage } : {}),
-                  ...(result.claudeSessionId ? { claudeSessionId: result.claudeSessionId } : {}),
-                },
-              },
-              { triggerTurn: true, deliverAs: "steer" },
-            );
-          })
-          .catch((err) => {
-            updateWidget();
-            pi.sendMessage(
-              {
-                customType: "subagent_result",
-                content: `Sub-agent "${running.name}" error: ${err?.message ?? String(err)}`,
-                display: true,
-                details: { name: running.name, task: running.task, error: err?.message },
-              },
-              { triggerTurn: true, deliverAs: "steer" },
-            );
-          });
-
-        // Return immediately
-        return {
-          content: [
-            {
-              type: "text",
-              text:
-                `Sub-agent "${params.name}" launched and is now running in the background. ` +
-                `Do NOT generate or assume any results — you have no idea what the sub-agent will do or produce. ` +
-                `The results will be delivered to you automatically as a steer message when the sub-agent finishes. ` +
-                `Until then, move on to other work or tell the user you're waiting.`,
-            },
-          ],
-          details: {
-            id: running.id,
-            name: params.name,
-            task: params.task,
-            agent: params.agent,
-            sessionFile: running.sessionFile,
-            launchScriptFile: running.launchScriptFile,
-            status: "started",
-          },
-        };
-      }),
+        if (params.wait) return runSubagentAndWait(params, ctx, signal);
+        return launchInBackground(toolCallId, params, signal, onUpdate, ctx);
+      },
 
       renderCall(args, theme) {
         const partialArgs = args as Record<string, unknown>;
@@ -1911,6 +2021,18 @@ export default function subagentsExtension(pi: ExtensionAPI) {
             0,
             0,
           );
+        }
+
+        if (details?.status === "finished" || details?.status === "failed") {
+          const failed = details.status === "failed";
+          const header =
+            theme.fg(failed ? "error" : "success", failed ? "✗" : "✓") +
+            " " +
+            theme.fg("toolTitle", theme.bold(name)) +
+            theme.fg("dim", ` — ${details.status} (${formatElapsed(details.elapsed ?? 0)})`);
+          if (!_opts.expanded) return new Text(header, 0, 0);
+          const text = typeof result.content[0]?.text === "string" ? result.content[0].text : "";
+          return new Text(header + "\n" + theme.fg("toolOutput", text), 0, 0);
         }
 
         if (details?.status === "queued") {

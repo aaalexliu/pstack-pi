@@ -1,11 +1,13 @@
 import { afterEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { Check } from "typebox/value";
 import interactiveSubagents, * as subagentsModule from "../pi-extension/subagents/index.ts";
 import blockingSubagent, { childEnvironment } from "../../subagent/index.ts";
+import { isMuxAvailable } from "../pi-extension/subagents/cmux.ts";
 
 const SPAWNING_TOOLS = ["subagent", "subagent_interrupt", "subagent_resume", "subagents_list"];
 const CHILD_ENV = ["PI_SUBAGENT_NAME", "PI_DENY_TOOLS"] as const;
@@ -171,7 +173,7 @@ describe("runSubagentInPane, the runner blocking_subagent uses", () => {
       async (_params, _ctx, given) => { options = given; return running; },
       async () => ({ name: "child", task: "do it", summary: "done", exitCode: 0, elapsed: 0 }));
     assert.equal(result.summary, "done");
-    assert.deepEqual(options, { autoExit: true, systemPromptMode: "append", thinking: "low" });
+    assert.deepEqual(options, { autoExit: true, systemPromptMode: "append", thinking: "low", headless: !isMuxAvailable() });
   });
 
   it("frees its slot when the launch fails", async () => {
@@ -191,6 +193,124 @@ describe("runSubagentInPane, the runner blocking_subagent uses", () => {
       assert.equal(Boolean(seen), hasUI);
       clearInterval((globalThis as any)[timer]);
       (globalThis as any)[timer] = null;
+    }
+  });
+});
+
+describe("subagent with wait: true", () => {
+  const fakePiScript = join(dirname(fileURLToPath(import.meta.url)), "fake-pi.mjs");
+  const ENV = ["PI_SUBAGENT_MUX", "TMUX", "PI_CODING_AGENT_DIR"] as const;
+  const savedEnv = Object.fromEntries(ENV.map((name) => [name, process.env[name]]));
+  const savedScript = process.argv[1];
+  let root: string;
+
+  /** A root Pi with no multiplexer whose children are the fake Pi. */
+  async function setup() {
+    for (const name of CHILD_ENV) delete process.env[name];
+    root = mkdtempSync(join(tmpdir(), "subagent-wait-"));
+    process.env.PI_SUBAGENT_MUX = "tmux";
+    delete process.env.TMUX;
+    process.env.PI_CODING_AGENT_DIR = join(root, "agent");
+    process.argv[1] = fakePiScript;
+    const tools = new Map<string, any>();
+    const messages: any[] = [];
+    const pi = { ...fakePi().api, registerTool: (tool: any) => tools.set(tool.name, tool), sendMessage: (message: any) => messages.push(message) };
+    interactiveSubagents(pi);
+    const sessionFile = join(root, "parent.jsonl");
+    writeFileSync(sessionFile, "");
+    const ctx = {
+      cwd: root,
+      hasUI: false,
+      model: { provider: "parent", id: "model" },
+      sessionManager: { getSessionFile: () => sessionFile, getSessionId: () => "parent-id", getSessionDir: () => root, getSessionName: () => undefined },
+    };
+    const call = (params: object, signal = new AbortController().signal) => tools.get("subagent").execute("call", params, signal, undefined, ctx);
+    return { call, messages };
+  }
+
+  afterEach(() => {
+    process.argv[1] = savedScript;
+    for (const name of ENV) {
+      if (savedEnv[name] === undefined) delete process.env[name];
+      else process.env[name] = savedEnv[name];
+    }
+    (subagentsModule as any).__test__.spawnSlots.clear();
+  });
+
+  it("outside cmux and tmux runs the child headless and returns its result with the model and session lines", async () => {
+    const { call } = await setup();
+    const result = await call({ name: "Look", task: "hello", wait: true });
+    const text: string = result.content[0].text;
+    const [model, id, path] = text.split("\n");
+    assert.equal(model, "resolved-model: parent/model");
+    assert.equal(id, "session-id: child-session-id");
+    assert.match(path, /^session-path: .*\.jsonl$/);
+    assert.ok(existsSync(path.slice("session-path: ".length)));
+    const child = JSON.parse(text.slice(text.indexOf("done ") + 5));
+    assert.equal(child.args[0], "-p");
+    assert.equal(child.autoExit, "1");
+    assert.ok(child.denied.split(",").includes("subagent"));
+    assert.equal(result.isError, false);
+    assert.equal(result.details.status, "finished");
+  });
+
+  it("stops a child that runs past timeoutMs, with its whole process group", async () => {
+    const { call } = await setup();
+    const pidFile = join(root, "pid");
+    const result = await call({ name: "Stuck", task: `HANG ${pidFile}`, wait: true, timeoutMs: 500 });
+    assert.equal(result.isError, true);
+    assert.match(result.content[0].text, /timed out after 500 ms/);
+    const pid = Number(readFileSync(pidFile, "utf8"));
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.throws(() => process.kill(pid, 0), /ESRCH/);
+  });
+
+  it("reports a child that exits non-zero as an error, with its stderr", async () => {
+    const { call } = await setup();
+    const result = await call({ name: "Broken", task: "FAIL", wait: true });
+    assert.equal(result.isError, true);
+    assert.match(result.content[0].text, /child exploded/);
+  });
+
+  it("throws when the parent aborts, and kills the child", async () => {
+    const { call } = await setup();
+    const pidFile = join(root, "pid");
+    const stop = new AbortController();
+    const pending = call({ name: "Stuck", task: `HANG ${pidFile}`, wait: true }, stop.signal);
+    while (!existsSync(pidFile)) await new Promise((resolve) => setTimeout(resolve, 20));
+    stop.abort();
+    await assert.rejects(pending, /aborted/);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.throws(() => process.kill(Number(readFileSync(pidFile, "utf8")), 0), /ESRCH/);
+  });
+
+  it("runs two wait calls side by side", async () => {
+    const { call } = await setup();
+    const logs = [join(root, "a.log"), join(root, "b.log")];
+    const results = await Promise.all(logs.map((log, i) => call({ name: `Slow ${i}`, task: `SLOW 400 ${log}`, wait: true })));
+    for (const result of results) assert.equal(result.isError, false);
+    const times = logs.map((log) => Object.fromEntries(readFileSync(log, "utf8").trim().split("\n").map((line) => line.split(" ")).map(([k, v]) => [k, Number(v)])));
+    assert.ok(times[0].start < times[1].end && times[1].start < times[0].end, JSON.stringify(times));
+  });
+
+  it("without wait, launches headless and delivers the result later as a new turn", async () => {
+    const { call, messages } = await setup();
+    const result = await call({ name: "Background", task: "hello" });
+    assert.equal(result.details.status, "started");
+    const deadline = Date.now() + 5000;
+    while (messages.length === 0 && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.equal(messages[0]?.customType, "subagent_result");
+    assert.match(messages[0].content, /completed[\s\S]*done /);
+  });
+
+  it("refuses subagent_interrupt for a headless child, which has no pane", () => {
+    const api = (subagentsModule as any).__test__;
+    api.runningSubagents.set("h", { id: "h", name: "Headless", surface: "", statusState: {} });
+    try {
+      const result = api.handleSubagentInterrupt({ id: "h" }, () => assert.fail("sent Escape"));
+      assert.match(result.content[0].text, /headless/);
+    } finally {
+      api.runningSubagents.delete("h");
     }
   });
 });

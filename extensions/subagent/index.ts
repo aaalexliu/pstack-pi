@@ -234,26 +234,8 @@ async function writePromptToTempFile(agentName: string, prompt: string): Promise
   return { dir: tmpDir, filePath };
 }
 
-// Run the same Pi that is running us, never whatever `pi` is first in PATH.
-export function getPiInvocation(args: string[]): { command: string; args: string[] } {
-  const currentScript = process.argv[1];
-  const isBunVirtualScript = currentScript?.startsWith('/$bunfs/root/');
-  if (currentScript && !isBunVirtualScript && fs.existsSync(currentScript)) {
-    return { command: process.execPath, args: [currentScript, ...args] };
-  }
-  const execName = path.basename(process.execPath).toLowerCase();
-  if (!/^(node|bun)(\.exe)?$/.test(execName)) return { command: process.execPath, args };
-  return { command: 'pi', args };
-}
-
-// The child is a detached session leader, so -pid reaches everything it spawned.
-export function killProcessGroup(pid: number, signal: NodeJS.Signals): void {
-  try { process.kill(-pid, signal); }
-  catch (error) {
-    if (error instanceof Error && 'code' in error && error.code === 'ESRCH') return;
-    try { process.kill(pid, signal); } catch { /* already gone */ }
-  }
-}
+import { getPiInvocation, killProcessGroup } from '../interactive-subagents/pi-extension/subagents/headless.ts';
+export { getPiInvocation, killProcessGroup };
 
 export interface ChildSpawnOptions {
   cwd: string;
