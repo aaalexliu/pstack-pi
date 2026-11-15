@@ -713,10 +713,10 @@
       "source": "skills/poteto-mode/playbooks/opening-a-pr.md",
       "blob": "4a92c501f184ea24392d59a9889ce2f08e8e9201",
       "mode": "100644",
-      "adaptationSha256": "afb1fc3224235eb2823c184ea4732a0df98ac8c1817776cda4ee3330bd6fd25b",
+      "adaptationSha256": "b3d0a797971fedcc38192067fb81032074abf02a8450e2e7ac9347e0bd3e8ee7",
       "output": {
         "destination": "skills/poteto-mode/playbooks/opening-a-pr.md",
-        "sha256": "646f94f80856bf9aa89ca064a83b79f333ef53b60fbf8ef5ad13945bf0d1a265",
+        "sha256": "7b74cd95d1f76d2b1517148a9dacad63e01c4dc26ef8214f1ea5c2663cf4db1e",
         "mode": "100644"
       }
     },

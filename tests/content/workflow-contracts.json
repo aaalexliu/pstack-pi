@@ -285,7 +285,10 @@
       "area titles": "**Titles.** Area, colon, then a plain sentence, no trailing period",
       "impact why": "- `## Why`: impact first. Say who or what was hurt and how, then the cause",
       "show-me what changed": "break the change down the way `/skill:show-me` would",
-      "short pasted proof": "- `## Verification`: paste short real proof, under about 10 lines"
+      "short pasted proof": "- `## Verification`: paste short real proof, under about 10 lines",
+      "tldr first sentence": "The first sentence is the TL;DR.",
+      "case and test": "with a concrete case it guards against and the test that proves it",
+      "risk in scope": "Add what it could break and why that is safe"
     }
   },
   "skills/poteto-mode/playbooks/orchestrate.md": {

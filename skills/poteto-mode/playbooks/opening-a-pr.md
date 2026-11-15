@@ -14,9 +14,7 @@ Invoked at the end of every other playbook.
 
 - `## Why`: impact first. Say who or what was hurt and how, then the cause, in 1–3 short sentences. The first sentence is the TL;DR. No SHAs, rebase genealogy, or "based on main" preamble.
 - `## What changed`: break the change down the way `/skill:show-me` would: a small diagram, call tree, pseudocode, or before/after diff, plus 1–3 short bullets. Explain each new rule, check, or term in plain words, named as the code names it, with a concrete case it guards against and the test that proves it. Name both sides of a rename or retarget.
-- `## Scope`: always. 1–3 short items on what it covers and what it deliberately leaves out (a follow-up, a known gap). No symbols, paths, or file-by-file essay.
-- `## Tradeoffs`: only rejected alternatives a reviewer would otherwise ask about. Skip when there was no real choice.
-- `## Blast Radius`: 1–2 sentences on who or what it touches and why that is safe or risky. If main is red, state the cost of leaving it red.
+- `## Scope`: 1–3 short items on what it covers and what it deliberately leaves out (a follow-up, a known gap). Add what it could break and why that is safe, and any rejected alternative a reviewer would ask about. If main is red, state the cost of leaving it red. No symbols, paths, or file-by-file essay.
 - `## Verification`: paste short real proof, under about 10 lines: the command and what it printed. Link anything longer. Perf: one primary number with its unit, `before → after`, and a link for the rest. No metric tables.
 
 After the sections, attach videos or screenshots when they prove a claim. Full SHAs, swarm or arena lane recitals, lever-correction essays, file-by-file checklists, and "CLEAN" verdicts go in a linked artifact, not the body.

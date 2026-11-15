@@ -115,3 +115,12 @@ test('small reference repairs leave every other upstream byte intact', async () 
     assert.deepEqual(entry.transforms, [{ find: before, replace: after, count: 1 }]);
   }
 });
+
+test('the PR playbook keeps only the four agreed body sections, in order', async () => {
+  const playbook = await read('skills/poteto-mode/playbooks/opening-a-pr.md');
+  const headings = [...playbook.matchAll(/^- `## ([^`]+)`/gmu)].map(([, name]) => name);
+  assert.deepEqual(headings, ['Why', 'What changed', 'Scope', 'Verification']);
+  for (const removed of ['## Tradeoffs', '## Blast Radius', 'Conventional Commits `type(scope)', '`## Scope`: always']) {
+    assert.ok(!playbook.includes(removed), removed);
+  }
+});
