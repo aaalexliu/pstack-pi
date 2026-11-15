@@ -165,7 +165,7 @@ Every task entry, and the call itself, accepts optional `cwd`, `model`, `role`, 
 
 What this package adds to the example:
 
-- Bundled agents. `general-purpose`, `poteto-agent`, and `comment-sicko` ship in `agents/`. A file with the same name in `~/.pi/agent/agents` overrides a bundled one. Project agents under `.pi/agents` appear only with `agentScope: "both"` or `"project"`, and an untrusted project asks for confirmation in interactive mode. `{{PSTACK_ROOT}}` in an agent body resolves to the installed package root.
+- Bundled agents. `general-purpose`, `poteto-agent`, `comment-sicko`, `pr-reviewer` and `sub-lead` ship in `agents/` and `additions/agents/`. A file with the same name in `~/.pi/agent/agents` overrides a bundled one. Project agents under `.pi/agents` appear only with `agentScope: "both"` or `"project"`, and an untrusted project asks for confirmation in interactive mode. `{{PSTACK_ROOT}}` in an agent body resolves to the installed package root.
 - Model routing. `model` is `inherit-parent` or an exact `provider/model-id`; `role` picks from `~/.pi/agent/pstack-pi/models.json`. See Model routing.
 - A depth guard. The child receives `PSTACK_SUBAGENT_DEPTH=1`; at depth one or more the subagent extension registers nothing and the interactive extension registers no spawning tools, so children cannot delegate. Explicit agent tool lists also include `pstack_todo`, so a child can report its own checklist.
 - Process groups. Each child is a detached session leader. Abort, `timeoutMs`, and parent shutdown send `SIGTERM` to the whole group, then `SIGKILL` after three seconds. Parent shutdown waits up to one second for children to exit and discards any result that arrives during shutdown.
@@ -342,6 +342,7 @@ Pi-owned files live in `additions/`, apart from the 573 upstream paths, and ship
 | --- | --- |
 | `additions/agents/general-purpose.md` | Gives `blocking_subagent` one read-only delegate without turning on deferred upstream agents. |
 | `additions/agents/pr-reviewer.md` | Gives `blocking_subagent` a reviewer that can read a PR and post its record with `gh`, for [job runner](runner/README.md) leads. |
+| `additions/agents/sub-lead.md` | Builds one unit of a [job runner](runner/README.md) ticket through the lead's merge gate, with auto-exit on and no spawning tools. |
 | `additions/skills/deeper/SKILL.md` | Turns a task into a deeper prompt. It predates upstream `sharpen`, which the manifest omits in its favor. |
 | `additions/skills/alex-show-me/` | Adapts the MIT-licensed `show-me` skill from [humanlayer/skills](https://github.com/humanlayer/skills) with bug views and set nodes. Ships the license notice in `references/humanlayer-license.md`. |
 | `additions/skills/intake/SKILL.md` | Tells any session that files a ticket for an agent to write Goal, Reference and Not doing, then delegate it. The [job runner](runner/README.md) leads read those headings. |
@@ -349,7 +350,7 @@ Pi-owned files live in `additions/`, apart from the 573 upstream paths, and ship
 
 Cursor distribution metadata, guides, branding assets, Cloud Automations, unbundled playbooks, and unsupported scripts remain omitted.
 55 of the 58 upstream main skill entrypoints are present, including the webhook-backed `make-bot-ui`, plus the Pi-owned `deeper`, `alex-show-me`, `intake`, and `list-writing` skills. `ADAPTATIONS.md` lists the three omitted skills and why. Missing external service capabilities remain explicit limits, not silently changed tasks.
-Two upstream agents have targeted Pi transforms. `general-purpose` and `pr-reviewer` ship from `additions/agents/`.
+Two upstream agents have targeted Pi transforms. `general-purpose`, `pr-reviewer` and `sub-lead` ship from `additions/agents/`.
 
 [0xrsydn/pstack-pi](https://github.com/0xrsydn/pstack-pi) and [kkgogogo17/pi-pstack](https://github.com/kkgogogo17/pi-pstack) are implementation references, not sources for shared content.
 The [aaalexliu/pstack-pi project](https://github.com/aaalexliu/pstack-pi) owns the Pi adaptations and package code.

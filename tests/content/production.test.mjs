@@ -15,16 +15,18 @@ test('production contains exactly the reviewed copied and adapted workflow set',
   const inventory = await checkContent({ root, manifest, lock });
   assert.equal(lock.commit, 'c742dd61706fbacc1b95f1a20b7b988cf096ce6c');
   assert.equal(inventory.bySource.size, 573);
-  assert.equal(inventory.byDestination.size, 134);
-  assert.equal(inventory.byAgentName.size, 4);
+  assert.equal(inventory.byDestination.size, 135);
+  assert.equal(inventory.byAgentName.size, 5);
   assert.deepEqual(inventory.byAgentName.get('comment-sicko')?.tools, ['read', 'grep', 'find', 'ls']);
   assert.deepEqual(inventory.byAgentName.get('general-purpose')?.tools, ['read', 'grep', 'find', 'ls']);
   assert.deepEqual(inventory.byAgentName.get('pr-reviewer')?.tools, ['read', 'grep', 'find', 'ls', 'bash']);
+  assert.deepEqual(inventory.byAgentName.get('sub-lead')?.tools, ['read', 'bash', 'edit', 'write']);
   assert.deepEqual(inventory.byAgentName.get('poteto-agent')?.tools, ['read', 'grep', 'find', 'ls', 'bash', 'edit', 'write']);
   assert.equal(inventory.bySkillName.size, 59);
   assert.deepEqual([...inventory.byDestination].filter(([, record]) => record.disposition.kind === 'addition').map(([destination]) => destination).sort(), [
     'additions/agents/general-purpose.md',
     'additions/agents/pr-reviewer.md',
+    'additions/agents/sub-lead.md',
     'additions/skills/alex-show-me/SKILL.md',
     'additions/skills/alex-show-me/references/humanlayer-license.md',
     'additions/skills/deeper/SKILL.md',

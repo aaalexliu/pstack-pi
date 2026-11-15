@@ -26,14 +26,13 @@ test('a lead started the way the runner starts it has both delegation tool sets'
   });
 });
 
-// The environment the `subagent` tool gives a `worker` child (agents/worker.md: spawning false, auto-exit,
-// deny-tools claude). A `pi -p` the sub-lead runs from bash inherits it, so a third level gets no delegation either.
-test('a worker sub-lead and a pi -p it starts have no delegation tools', async () => {
+// The environment the `subagent` tool gives a `sub-lead` child (additions/agents/sub-lead.md: spawning false, auto-exit). A `pi -p` the sub-lead runs from bash inherits it, so a third level gets no delegation either.
+test('a sub-lead and a pi -p it starts have no delegation tools', async () => {
   const final = 'sub-lead checked';
   await runPiSmoke({
     launchEnvironment: {
-      PI_DENY_TOOLS: 'subagent,subagent_interrupt,subagents_list,subagent_resume,claude',
-      PSTACK_SUBAGENT_DEPTH: '1', PI_SUBAGENT_NAME: 'unit-b', PI_SUBAGENT_AGENT: 'worker', PI_SUBAGENT_AUTO_EXIT: '1',
+      PI_DENY_TOOLS: 'subagent,subagent_interrupt,subagents_list,subagent_resume',
+      PSTACK_SUBAGENT_DEPTH: '1', PI_SUBAGENT_NAME: 'unit-b', PI_SUBAGENT_AGENT: 'sub-lead', PI_SUBAGENT_AUTO_EXIT: '1',
     },
     expectedRequests: 3, expectedText: final,
     fixture: { script: [
@@ -42,7 +41,7 @@ test('a worker sub-lead and a pi -p it starts have no delegation tools', async (
         assert.ok(toolNames(request).includes('bash'));
       } },
       { reply: { kind: 'text', text: 'nested reply' }, check: (request) => {
-        assert.ok(toolNames(request).includes('bash'), 'Nested pi -p reached the provider');
+        assert.ok(toolNames(request).includes('pstack_todo'), 'Nested pi -p loaded the package');
         for (const tool of delegation) assert.ok(!toolNames(request).includes(tool), `Nested pi -p lacks ${tool}`);
       } },
       { reply: { kind: 'text', text: final }, check: (request) => assert.match(toolResult(request, 'nested'), /nested reply/) },

@@ -12,7 +12,7 @@ You review one pull request made for a Linear ticket. You run in your own Pi ses
 
 ## Post the record
 
-Post it yourself with `gh pr review <url> --comment --body-file <file>`. GitHub refuses an approval from the PR's author, so it is always a comment review. Fill each field from facts: `echo "$PI_SESSION_ID $PI_SESSION_FILE $PI_PROVIDER/$PI_MODEL"` prints your session id, session file and model. `session_title` is the `--name` you were started with, or `none` if you had none. `asked_by` and `trigger` come from the task; for a rebase, add the base sha the task names, as `trigger: rebase onto <sha>`. The first lines, exactly in this order:
+Post it yourself with `gh pr review <url> --comment --body-file <file>`. GitHub refuses an approval from the PR's author, so it is always a comment review. Fill each field from facts: `echo "$PI_SESSION_ID $PI_SESSION_FILE $PI_PROVIDER/$PI_MODEL"` prints your session id, session file and model. `session_title` is the `--name` you were started with, or `none` if you had none. `asked_by` and `trigger` come from the task. The first lines, exactly in this order:
 
 ```text
 runner-review v1
@@ -20,7 +20,7 @@ verdict: clean
 caused_must_fix: 0
 head: <full 40-character sha you reviewed>
 round: <round from the task>
-trigger: <first, fix or rebase, from the task>
+trigger: <first, fix or rebase onto <full base sha>, from the task>
 agent: reviewer
 model: <provider/model>
 session_id: <your session id>
