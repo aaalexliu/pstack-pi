@@ -9,6 +9,8 @@ import { createDueRoutines, parseSchedule, type Routine } from './routines.ts';
 export type Repo = { path: string; base: string };
 export type Config = {
   linearTokenCommand: string;
+  /** Optional. Prints a GitHub token; the lead and its subagents get it as GH_TOKEN. */
+  ghTokenCommand?: string;
   team: string;
   runnerUser: string;
   decisionAssignee: string;
@@ -38,7 +40,7 @@ type Ctx = { config: Config; linear: ReturnType<typeof linearClient> };
 export type Move = { kind: 'wait'; on: Child } | { kind: 'start'; news: string[] } | { kind: 'decide' };
 
 const PROMPTS = fileURLToPath(new URL('./prompts/', import.meta.url));
-const AUTO_EXIT = fileURLToPath(new URL('../extensions/interactive-subagents/pi-extension/subagents/subagent-done.ts', import.meta.url));
+const SUBAGENT_DONE = fileURLToPath(new URL('../extensions/interactive-subagents/pi-extension/subagents/subagent-done.ts', import.meta.url));
 const ISSUE_FIELDS = 'id identifier title description url createdAt state { type } labels { nodes { name } }';
 /** Pi variables a lead keeps from the runner's environment. Every other `PI_*` and `PSTACK_*` belongs to another session. */
 const KEEP_ENV = ['PI_AUTH_PROFILE', 'PI_CODING_AGENT_DIR'];
@@ -112,11 +114,25 @@ function linearClient(config: Config, fetchFn: typeof fetch) {
      * In Review that Linear's GitHub link sets when a PR opens. Started ones come first, so they keep their slots.
      */
     async issues(): Promise<Issue[]> {
-      const data = await gql<{ issues: { nodes: Issue[] } }>(
-        `query Issues($team: String!, $user: String!) { issues(first: 100, filter: { team: { key: { eq: $team } }, state: { type: { in: ["unstarted", "started"] } }, delegate: { name: { eq: $user } } }) { nodes { ${ISSUE_FIELDS} } } }`,
-        { team: config.team, user: config.runnerUser },
+      const nodes: Issue[] = [];
+      for (let after: string | null = null; ;) {
+        const page: { issues: { nodes: Issue[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } } } = await gql(
+          `query Issues($team: String!, $user: String!, $after: String) { issues(first: 100, after: $after, filter: { team: { key: { eq: $team } }, state: { type: { in: ["unstarted", "started"] } }, delegate: { name: { eq: $user } } }) { nodes { ${ISSUE_FIELDS} } pageInfo { hasNextPage endCursor } } }`,
+          { team: config.team, user: config.runnerUser, after },
+        );
+        nodes.push(...page.issues.nodes);
+        if (!page.issues.pageInfo.hasNextPage) break;
+        after = page.issues.pageInfo.endCursor;
+      }
+      return nodes.sort((a, b) => b.state.type.localeCompare(a.state.type) || a.createdAt.localeCompare(b.createdAt));
+    },
+    /** Whether the ticket with this key is Done, Canceled or no longer delegated to the runner. Throws when Linear has no such ticket. */
+    async closed(key: string): Promise<boolean> {
+      const { issue } = await gql<{ issue: { state: { type: string }; delegate: { name: string } | null } | null }>(
+        'query IssueByKey($key: String!) { issue(id: $key) { state { type } delegate { name } } }', { key },
       );
-      return data.issues.nodes.sort((a, b) => b.state.type.localeCompare(a.state.type) || a.createdAt.localeCompare(b.createdAt));
+      if (!issue) throw new Error(`Linear has no ticket ${key}`);
+      return ['completed', 'canceled'].includes(issue.state.type) || issue.delegate?.name !== config.runnerUser;
     },
     /** The ticket's state, comments and sub-issues in one read, or null when no issue has that id. */
     async ticket(id: string): Promise<Ticket | null> {
@@ -188,7 +204,7 @@ export function renderStatus(w: Pick<Work, 'key' | 'dir' | 'branch'>, sessionId:
     `- Session id: \`${sessionId}\``,
     `- Worktree: \`${w.dir}\` on \`${w.branch}\``,
     `- Watch or steer: \`${c.watch}\``,
-    `- Take over (auto-exit stays off until you quit Pi): \`${c.takeOver}\``,
+    `- Take over (no stall issues until you quit Pi): \`${c.takeOver}\``,
     `- Quiz a fork: \`${c.quiz}\``,
   ].join('\n');
 }
@@ -282,28 +298,31 @@ function startMessage(ctx: Ctx, w: Work, news: string[]) {
 
 /**
  * Starts or resumes the lead in a detached tmux session named for the ticket, and saves the start time.
- * Pi exits when its turn ends (auto-exit). The launch script drops every Pi variable the tmux server holds from
- * another session, and reads the Linear token itself, so the token never lands on disk.
+ * Pi runs until the lead calls `subagent_done`; the extension also writes the activity file.
+ * The launch script drops every Pi variable the tmux server holds from another session, and reads the tokens itself,
+ * so they never land on disk. It mirrors both into the tmux session, so windows the lead's subagents open match it.
  */
 async function launch(ctx: Ctx, w: Work, news: string[]) {
   await worktree(ctx.config.repos[w.repo], w);
   if (!sessionId(w)) put(rf(w, 'session-id'), randomUUID());
   put(rf(w, 'input.md'), startMessage(ctx, w, news));
   for (const file of ['takeover', 'held']) rmSync(rf(w, file), { force: true });
-  const pi = (...extra: string[]) => [bin('pi'), '--session-id', sessionId(w), '-e', AUTO_EXIT,
+  const pi = (...extra: string[]) => [bin('pi'), '--session-id', sessionId(w), '-e', SUBAGENT_DONE,
     '--model', w.models.lead, '--thinking', ctx.config.thinking, '--append-system-prompt', path.join(PROMPTS, 'lead.md'), ...extra].map(sh).join(' ');
-  const keep = KEEP_ENV.filter((name) => process.env[name]).map((name) => `export ${name}=${sh(process.env[name]!)}`);
+  const keep = KEEP_ENV.filter((name) => process.env[name]);
+  const tmuxEnv = `${sh(bin('tmux'))} set-environment -t ${sh(session(w.key))}`;
+  const tokens = [['LINEAR_TOKEN', ctx.config.linearTokenCommand], ...(ctx.config.ghTokenCommand ? [['GH_TOKEN', ctx.config.ghTokenCommand]] : [])];
   put(rf(w, 'lead.sh'), [
     '#!/bin/sh',
     `cd ${sh(w.dir)} || exit 1`,
     `export PATH=${sh(process.env.PATH ?? '')}`,
     '# The tmux server keeps the environment of whoever started it. Drop Pi variables from another session.',
-    "for v in $(env | sed -n 's/^\\(PI_[A-Za-z0-9_]*\\)=.*/\\1/p; s/^\\(PSTACK_[A-Za-z0-9_]*\\)=.*/\\1/p'); do unset \"$v\"; done",
-    ...keep,
-    `LINEAR_TOKEN=$(${ctx.config.linearTokenCommand}) || exit 1`,
-    'export LINEAR_TOKEN',
-    `PI_SUBAGENT_AUTO_EXIT=1 PI_SUBAGENT_ID=${sh(w.key)} PI_SUBAGENT_ACTIVITY_FILE=${sh(rf(w, 'activity.json'))} ${pi(`@${rf(w, 'input.md')}`)}`,
-    '# A person who touched .runner/takeover keeps the session, without auto-exit, until they quit Pi.',
+    `for v in $(env | sed -n 's/^\\(PI_[A-Za-z0-9_]*\\)=.*/\\1/p; s/^\\(PSTACK_[A-Za-z0-9_]*\\)=.*/\\1/p'); do unset "$v"; ${tmuxEnv} -r "$v"; done`,
+    ...keep.map((name) => `export ${name}=${sh(process.env[name]!)}`),
+    ...tokens.flatMap(([name, command]) => [`${name}=$(${command}) || exit 1`, `export ${name}`]),
+    ...[...keep, ...tokens.map(([name]) => name)].map((name) => `${tmuxEnv} ${name} "$${name}"`),
+    `PI_SUBAGENT_ID=${sh(w.key)} PI_SUBAGENT_ACTIVITY_FILE=${sh(rf(w, 'activity.json'))} ${pi(`@${rf(w, 'input.md')}`)}`,
+    '# A person who touched .runner/takeover keeps the session, with no stall issues, until they quit Pi.',
     `if [ -f .runner/takeover ]; then mv .runner/takeover .runner/held; ${pi()}; rm -f .runner/held; fi`,
     '',
   ].join('\n'));
@@ -314,28 +333,38 @@ async function launch(ctx: Ctx, w: Work, news: string[]) {
 
 const live = async (w: Pick<Work, 'key'>) => (await run(bin('tmux'), ['has-session', '-t', session(w.key)], process.cwd())).code === 0;
 
-/** Minutes since the lead last did anything, from its activity file, or since it started. */
-export function quietMinutes(w: Pick<Work, 'dir'>, now = Date.now()) {
+/**
+ * When, in ms, the lead's tmux session last did anything: the lead's activity file, output in any of its windows
+ * (`windowActivity`, in ms, so a working subagent counts), or the start. 0 when none is known.
+ */
+export function lastActivity(w: Pick<Work, 'dir'>, windowActivity = 0) {
   const started = lastStart(w);
-  let last = started ? Date.parse(started) : 0;
+  let last = Math.max(started ? Date.parse(started) : 0, windowActivity);
   try { last = Math.max(last, JSON.parse(readFileSync(rf(w, 'activity.json'), 'utf8')).updatedAt ?? 0); } catch { /* no activity yet */ }
-  return last ? Math.floor((now - last) / 60000) : 0;
+  return last;
+}
+
+/** The newest output time, in ms, of any window in the ticket's tmux session. */
+async function windowActivity(w: Pick<Work, 'key' | 'dir'>) {
+  const { out } = await run(bin('tmux'), ['list-windows', '-t', session(w.key), '-F', '#{window_activity}'], w.dir);
+  return Math.max(0, ...out.split('\n').map(Number).filter(Number.isFinite)) * 1000;
 }
 
 /**
- * Files a Decision issue for a live lead quiet for `stallMinutes`, unless one was filed since it went quiet.
- * It does not stop the lead.
+ * A live lead belongs to the lead: the runner never starts, restarts or kills it. When its session has been quiet
+ * for `stallMinutes`, the runner files one Decision issue per quiet stretch saying how to attach. Nothing else.
  */
 async function checkStall(ctx: Ctx, w: Work, ticket: Ticket) {
-  if (existsSync(rf(w, 'held'))) return;
-  const quiet = quietMinutes(w);
+  if (existsSync(rf(w, 'held')) || existsSync(rf(w, 'takeover'))) return;
+  const last = lastActivity(w, await windowActivity(w));
+  const quiet = last ? Math.floor((Date.now() - last) / 60000) : 0;
   if (quiet < ctx.config.stallMinutes) return;
-  const quietSince = new Date(Date.now() - quiet * 60000 - 60000).toISOString();
+  const quietSince = new Date(last).toISOString();
   if (ticket.children.some((c) => isDecision(ctx.config, c) && c.createdAt >= quietSince)) return;
   const c = commands(w, sessionId(w), ctx.config.host);
   const issue = await ctx.linear.fileDecision(w.id, `Check ${w.key}: the lead looks stuck`, [
-    `The lead has shown no activity for ${quiet} minutes and still holds a lead slot.`,
-    `Watch it with \`${c.watch}\`. If it is stuck, stop it with \`${c.stop}\`. Comment what it should do and close this issue; the runner then starts it again.`,
+    `The lead's tmux session has shown no activity for ${quiet} minutes and still holds a lead slot.`,
+    `Attach with \`${c.watch}\` and tell it what to do, or stop it with \`${c.stop}\`; the runner then starts it again in the same session with your comments. The runner does not touch a live lead, so comments alone reach it only after it exits.`,
   ].join('\n\n'));
   await status(ctx, w, ticket, `Lead quiet for ${quiet} minutes; asked in [${issue.identifier}](${issue.url}). It still holds a slot.`);
 }
@@ -377,12 +406,35 @@ async function freeMemory(): Promise<number> {
   return Number(free);
 }
 
+/**
+ * Kills the tmux session of a ticket the runner started that is no longer open: Done, Canceled, or no longer
+ * delegated to the runner. The only time the runner kills a lead. It kills only a session with a runner worktree
+ * that recorded a start, and only after Linear confirms that one ticket is closed; on any doubt it leaves it.
+ */
+async function reapClosed(ctx: Ctx, open: Issue[]) {
+  const keys = new Set(open.map((i) => i.identifier));
+  const folders = existsSync(ctx.config.worktreeRoot) ? readdirSync(ctx.config.worktreeRoot) : [];
+  const { out } = await run(bin('tmux'), ['list-sessions', '-F', '#{session_name}'], process.cwd());
+  for (const name of out.split('\n')) {
+    if (!new RegExp(`^${ctx.config.team}-\\d+$`).test(name) || keys.has(name)) continue;
+    const prefix = `job-${name.toLowerCase()}-`;
+    if (!folders.some((f) => f.startsWith(prefix) && existsSync(path.join(ctx.config.worktreeRoot, f, '.runner', 'started')))) continue;
+    try {
+      if (await ctx.linear.closed(name)) await run(bin('tmux'), ['kill-session', '-t', session(name)], process.cwd());
+    } catch (error) {
+      console.error(`${name}: could not confirm the ticket is closed, so its session stays`, error);
+    }
+  }
+}
+
 /** One poll: every open ticket delegated to the runner. */
 async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void) {
   const { config, linear } = ctx;
   const free = await freeMemory();
   const tickets: { w: Work; ticket: Ticket; live: boolean }[] = [];
-  for (const issue of await linear.issues()) {
+  const issues = await linear.issues();
+  if (!dryRun) await reapClosed(ctx, issues);
+  for (const issue of issues) {
     const w = workFor(config, issue);
     if (!w) {
       if (dryRun) { console.log(`${issue.identifier}: no repo label`); continue; }

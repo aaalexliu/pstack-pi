@@ -20,6 +20,10 @@ you acted after the lead's last start -> start the lead (if a slot is free) and 
 else                                  -> file a Decision issue: "the lead stopped with nothing open to wait for"
 ```
 
+A live lead belongs to the lead: the runner never starts, restarts or kills it. Your comments and Decision answers reach it when you attach and type, or after it exits, since the next start carries them. Quiet means no output in any window of the ticket's tmux session (an idle Pi does not redraw, and a working subagent window counts) and no event in `.runner/activity.json`. A lead quiet for `stallMinutes`, most often one that ended its turn and forgot `subagent_done`, gets one "the lead looks stuck" Decision issue per quiet stretch, with the commands to attach or stop it. It still holds its slot. No issue is filed while `.runner/takeover` or `.runner/held` exists.
+
+The runner kills a ticket's tmux session only when it started that lead (the ticket has a runner worktree with `.runner/started`) and Linear, asked about that one ticket, says it is Done, Canceled, or no longer delegated to `runnerUser`. On any Linear error it leaves the session alone.
+
 A ticket marked Done or Canceled, or with its delegate cleared, is no longer the runner's. `In Review` still is: Linear's GitHub link moves a ticket there when the lead opens its first PR, long before the work is done.
 
 ### Decision issues
@@ -30,13 +34,13 @@ Closing a Decision issue, Done or Canceled, wakes the lead in the same Pi sessio
 
 ### The lead
 
-The runner starts `pi --session-id <uuid> @.runner/input.md` with [prompts/lead.md](prompts/lead.md) in a detached tmux session named for the ticket, in the ticket's worktree. `input.md` holds the ticket, the Linear ids the lead needs, the review model, the prompts folder, and what you did since its last start. Pi loads pstack-pi's `subagent-done.ts` with `PI_SUBAGENT_AUTO_EXIT=1`, so it exits when its turn ends, and writes activity to `.runner/activity.json` for the stall check.
+The runner starts `pi --session-id <uuid> @.runner/input.md` with [prompts/lead.md](prompts/lead.md) in a detached tmux session named for the ticket, in the ticket's worktree. `input.md` holds the ticket, the Linear ids the lead needs, the review model, the prompts folder, and what you did since its last start. Pi loads pstack-pi's `subagent-done.ts` without `PI_SUBAGENT_AUTO_EXIT`, so ending a turn does not end the session: the lead can wait for its own subagents, such as a reviewer started with the `subagent` tool. It exits when it calls `subagent_done`, once its ending is in place: the last PR merged and the ticket Done, the report posted and the ticket Done, or a Decision issue filed with nothing left running. The extension also writes activity to `.runner/activity.json` for the stall check.
 
-The launch script drops every `PI_*` and `PSTACK_*` variable the tmux server holds from another session, digits in names included, keeping only `PI_AUTH_PROFILE` and `PI_CODING_AGENT_DIR`. It runs `linearTokenCommand` itself and exports the token as `LINEAR_TOKEN`, so the token never lands on disk and the lead posts to Linear as the runner's app user. The lead calls Linear's GraphQL API with `curl`, and GitHub with the host's `gh` login.
+The launch script drops every `PI_*` and `PSTACK_*` variable the tmux server holds from another session, digits in names included, keeping only `PI_AUTH_PROFILE` and `PI_CODING_AGENT_DIR`. It runs `linearTokenCommand` itself and exports the token as `LINEAR_TOKEN`, so the token never lands on disk and the lead posts to Linear as the runner's app user. With `ghTokenCommand` set, it exports `GH_TOKEN` the same way; otherwise `gh` uses the host's login. It mirrors the unsets and exports into the tmux session with `tmux set-environment`, so windows the lead's subagents open get the same environment. The lead calls Linear's GraphQL API with `curl`, and GitHub with `gh`; the prompt forbids `gh auth switch`, `gh auth login` and `gh auth setup-git`.
 
 ### The merge gate lives in the lead prompt
 
-[prompts/lead.md](prompts/lead.md) tells the lead to open small PRs, one at a time, each naming the ticket (`Fixes KEY` on the last, `Part of KEY` on the others); run `.agents/verify`; get a review from a separate `pi -p` session with fresh context; fix caused must-fixes; after 3 rounds on one PR cut scope or file a Decision issue; and merge only after CI passes and the latest review names the head commit with `verdict: clean`. After its last PR merges, the lead moves the ticket to Done itself, so it does not depend on Linear's GitHub link.
+[prompts/lead.md](prompts/lead.md) tells the lead to open small PRs, one at a time, each naming the ticket (`Fixes KEY` on the last, `Part of KEY` on the others); run `.agents/verify`; get a review from a separate Pi session with fresh context (the `subagent` tool or `pi -p`); fix caused must-fixes; after 3 rounds on one PR cut scope or file a Decision issue; and merge only after CI passes and the latest review names the head commit with `verdict: clean`. After its last PR merges, the lead moves the ticket to Done itself, so it does not depend on Linear's GitHub link.
 
 The reviewer follows [prompts/review.md](prompts/review.md) and posts its own record on the PR with `gh pr review --comment` (GitHub refuses an approval from the PR's author). Its first lines are `runner-review v1`, `verdict`, `caused_must_fix`, `head`, `round`, `agent`, `model`, `session_id`, `session_path`, `session_title` and `asked_by`, one per line; the findings follow as JSON.
 
@@ -97,7 +101,7 @@ Run one runner per Linear team.
 
 ## The status comment
 
-Each ticket gets one runner comment, edited in place: the state, the host, the tmux session, the Pi session id, the worktree, and commands to watch the lead (`tmux attach`), take it over (touch `.runner/takeover` first, so auto-exit stays off until you quit Pi), or quiz a fork of it in its own worktree.
+Each ticket gets one runner comment, edited in place: the state, the host, the tmux session, the Pi session id, the worktree, and commands to watch the lead (`tmux attach`), take it over (touch `.runner/takeover` first, so no stall issue is filed until you quit Pi; if the lead exits first, a second Pi starts under `.runner/held`), or quiz a fork of it in its own worktree.
 
 ## Ticket lines
 
@@ -113,6 +117,7 @@ The runner reads `~/.config/job-runner/config.json`, or the file named by `JOB_R
 | Field | Meaning |
 | --- | --- |
 | `linearTokenCommand` | A shell command that prints a Linear token for the runner's app user. The lead gets the same token |
+| `ghTokenCommand` | Optional. A shell command that prints a GitHub token; the lead and its subagents get it as `GH_TOKEN` |
 | `team` | The Linear team key, such as `ENG` |
 | `runnerUser` | The app user's name as Linear shows it on the delegate field |
 | `decisionAssignee` | The person Decision issues go to |
@@ -122,7 +127,7 @@ The runner reads `~/.config/job-runner/config.json`, or the file named by `JOB_R
 | `pollSeconds` | Seconds between polls. Default 30 |
 | `maxLeads` | Leads that run at once. Default 2 |
 | `minFreeMemoryPercent` | No lead starts while less memory than this is free. Default 20 |
-| `stallMinutes` | Minutes without lead activity before the runner asks. Default 30 |
+| `stallMinutes` | Minutes without activity in the lead's tmux session before the runner asks. Default 30 |
 | `host` | The host name the status comment uses for `ssh`. Default: this Mac's name |
 | `worktreeRoot` | The directory for ticket worktrees |
 | `routines` | Optional scheduled tickets: `{name, schedule, repo, title, prompt}`. See below |
