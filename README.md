@@ -64,10 +64,10 @@ Every skill except `intake`, `list-writing`, and `principles` keeps `disable-mod
 
 `/skill:statechart` runs its bundled `scripts/statechart` command. That command needs Node 22.18 to 22.x, Node 23.6 or later, Bun 1.1.5 or later, or Deno 2.0 or later, plus `mise`. Its first run downloads TLC and Java through mise. Rendering a chart to SVG uses the npm package `pele@1.9.0`, installed outside your repo. Node will not run the TypeScript scripts from a `node_modules` folder, so use the Git install above.
 
-The package ships 125 generated skill and support files, two generated agents, six Pi-owned files under `additions/`, twenty-nine extension modules, 22 files from the interactive-subagents subtree, and the root package files.
+The package ships 125 generated skill and support files, two generated agents, six Pi-owned files under `additions/`, twenty-seven extension modules, 22 files from the interactive-subagents subtree, and the root package files.
 It registers `pstack_config`, `pstack_papercut`, `pstack_sessions`, `pstack_todo`, and, at root depth, `blocking_subagent`, `subagent`, `subagent_resume`, `subagent_interrupt`, and `subagents_list`.
 The delegation extension owns one `session_shutdown` hook that stops live children and a `tool_result` hook that preserves progress details when a call throws. Its `execute` result marks failed calls with `isError`. The papercut journal owns a `tool_execution_start` hook and a `tool_result` hook that append a one-line measurement to other tools' results. When `read` fails with ENOENT, a `tool_result` hook appends up to 10 existing paths from the nearest existing parent folder. It ranks the first missing path segment, same stem with other extensions first, then names within edit distance 3, and marks folders with a trailing `/`. The requested file name is added only when it exactly names a folder there. When Pi cuts `bash` output at its cap and saves the full output to a file, a `tool_result` hook replaces Pi's tail-only view with the first and last halves of that file. Each half holds at most half of Pi's byte cap and half of its line cap, and cuts on a line break unless whole lines would fill less than half of its byte budget; then it splits a long line on a character boundary. A marker between them names the file and the omitted lines and bytes. The exit status line stays at the end. A `tool_call` hook blocks a `bash` call that runs `grep -r` or `grep -R` without `--exclude-dir`, or `find` from `~`, `/`, or a folder above home without `-maxdepth` of 3 or less, and tells the agent to use `rg` or `git grep` instead. It reads each command in a pipeline or list, subshells, `sh -c` scripts, and `$(...)` or backtick substitutions, even inside double quotes. It skips other quoted text, comments, and heredoc bodies. A `cd` moves the commands after it, unless it runs in a child shell. The title extension owns an `input` hook that names the session in the background. The recap extension owns an `agent_settled` hook that starts its idle timer. The media extension records cited files after a TUI reply and draws a media entry under it.
-Todo and Poteto Mode state follow the active session branch through versioned custom entries. The package registers `/pstack`, `/pstack-export`, `/subagents`, `/pstack-cmux`, `/papercuts`, `/recap`, `/media`, and the interactive extension's `/plan`, `/iterate`, and `/subagent`, but no prompts, themes, or blanket approval hooks.
+Todo and Poteto Mode state follow the active session branch through versioned custom entries. The package registers `/pstack`, `/pstack-export`, `/subagents`, `/papercuts`, `/recap`, `/media`, and the interactive extension's `/plan`, `/iterate`, and `/subagent`, but no prompts, themes, or blanket approval hooks.
 
 `/pstack-export [path.html]` runs stock Pi HTML export (`pi --export`) for the current session, then injects a sticky token time series for the active branch. Bars jump to the first entry in that local-time minute. Scroll on the transcript updates the current bucket. Without a path it writes `pi-session-<session>.html` in the cwd.
 
@@ -217,21 +217,9 @@ node scripts/demo-subagents.mjs
 
 `--quick` shortens the wait; `--overlap` runs two separate simultaneous calls; `/quit` exits. Fixture responses are not actual review findings.
 
-### Optional cmux transcript tabs
+### Children in cmux or tmux
 
-Transcript tabs default to off. Use `/pstack-cmux on` to activate them, `/pstack-cmux off` to deactivate them, and `/pstack-cmux status` to check the setting. The commands save `cmuxTabs` in `<Pi agent dir>/pstack-pi/settings.json`, normally `~/.pi/agent/pstack-pi/settings.json`:
-
-```json
-{"version":1,"cmuxTabs":true}
-```
-
-The setting persists across sessions and applies to newly started subagents without a reload. Turning it off leaves existing tabs and agents running. It does not disable the inline cards or cmux sidebar status.
-
-When enabled, transcript tabs open in the existing pane containing the parent Pi surface. Both `CMUX_WORKSPACE_ID` and `CMUX_SURFACE_ID` must be set. Each allocation resolves the parent's current pane, so new tabs follow the parent if you move it. Parallel tasks and chain steps use the same rule. Transcript tabs never create splits or take keyboard focus. cmux may select the newest tab in a background pane.
-
-If cmux cannot resolve the parent surface in its workspace, that transcript tab is skipped. The extension never falls back to the focused pane or creates a replacement pane. Delegation continues without the tab.
-
-Tabs show completed assistant messages, tool calls, tool results, and final status. They are read-only transcripts, not interactive Pi sessions. Closing a tab does not stop its child. Completed tabs remain for inspection; their followers stop, and the text stays in terminal scrollback. Private transcript files are removed when the parent session shuts down or reloads. Missing or failed cmux commands do not prevent delegation.
+Inside cmux or tmux, a single-mode `blocking_subagent` child opens as a real Pi in the same `agents: <session>` layout the `subagent` tool uses, so you can watch and steer it. The parent still waits for it and reads its reply and model from the child's session file, so its reply always names `session-id` and `session-path`. Parallel tasks and chain steps still run headless. Closing a child's pane ends it as a failure. Outside a multiplexer, or in a session with no session file, children run headless with `pi --mode json -p`.
 
 Limits worth knowing: a child's own detached, `SIGTERM`-ignoring processes are outside its process group and are not tracked, the same as Pi's bash tool. Delegation needs macOS or Linux for process groups.
 

@@ -1,6 +1,6 @@
 import { afterEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
-import interactiveSubagents from "../pi-extension/subagents/index.ts";
+import interactiveSubagents, * as subagentsModule from "../pi-extension/subagents/index.ts";
 import blockingSubagent from "../../subagent/index.ts";
 
 const SPAWNING_TOOLS = ["subagent", "subagent_interrupt", "subagent_resume", "subagents_list"];
@@ -69,5 +69,66 @@ describe("delegation tools in pstack-pi processes", () => {
     const spawning = toolsWith({ PSTACK_SUBAGENT_DEPTH: "1", PI_SUBAGENT_NAME: "Planner" }).tools;
     for (const tool of SPAWNING_TOOLS) assert.ok(spawning.includes(tool), tool);
     assert.ok(!spawning.includes("blocking_subagent"));
+  });
+});
+
+describe("runSubagentInPane, the runner blocking_subagent uses", () => {
+  const key = Symbol.for("pstack-pi/interactive-subagents/pane-runner");
+  const slots = () => (subagentsModule as any).__test__.spawnSlots;
+  const params = { name: "child", task: "do it" };
+  const ctx = {} as any;
+  const running = { id: "x", name: "child" } as any;
+  afterEach(() => slots().clear());
+
+  async function start(hasUI: boolean) {
+    const pi = fakePi();
+    interactiveSubagents(pi.api);
+    for (const handler of pi.handlers.get("session_start") ?? []) await handler({}, { hasUI, ui: { setWidget() {} } });
+    return pi;
+  }
+
+  it("is the live module's runner, so blocking children share the subagent tool's slots", { timeout: 2000 }, async () => {
+    await start(false);
+    const published = (globalThis as any)[key];
+    assert.equal(published.runSubagentInPane, subagentsModule.runSubagentInPane);
+    for (let i = 0; i < 4; i++) slots().take(`tool-${i}`);
+    const stop = new AbortController();
+    const pending = published.runSubagentInPane(params, ctx, stop.signal, undefined, () => assert.fail("launched past the cap"));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.deepEqual(slots().waiting.map((entry: { name: string }) => entry.name), ["child"]);
+    stop.abort();
+    assert.equal((await pending).error, "cancelled");
+    assert.equal(slots().held, 4);
+    assert.deepEqual(slots().waiting, []);
+  });
+
+  it("launches with auto-exit, the append system prompt, and the thinking level", async () => {
+    await start(false);
+    let options: unknown;
+    const result = await subagentsModule.runSubagentInPane(params, ctx, new AbortController().signal, "low",
+      async (_params, _ctx, given) => { options = given; return running; },
+      async () => ({ name: "child", task: "do it", summary: "done", exitCode: 0, elapsed: 0 }));
+    assert.equal(result.summary, "done");
+    assert.deepEqual(options, { autoExit: true, systemPromptMode: "append", thinking: "low" });
+  });
+
+  it("frees its slot when the launch fails", async () => {
+    await start(false);
+    await assert.rejects(subagentsModule.runSubagentInPane(params, ctx, new AbortController().signal, undefined,
+      async () => { throw new Error("no pane"); }), /no pane/);
+    assert.equal(slots().held, 0);
+  });
+
+  it("starts the widget timer only when the parent has a UI", async () => {
+    const timer = Symbol.for("pi-subagents/widget-interval");
+    for (const hasUI of [false, true]) {
+      await start(hasUI);
+      let seen: unknown;
+      await subagentsModule.runSubagentInPane(params, ctx, new AbortController().signal, undefined, async () => running,
+        async () => { seen = (globalThis as any)[timer]; return { name: "child", task: "do it", summary: "done", exitCode: 0, elapsed: 0 }; });
+      assert.equal(Boolean(seen), hasUI);
+      clearInterval((globalThis as any)[timer]);
+      (globalThis as any)[timer] = null;
+    }
   });
 });

@@ -600,12 +600,20 @@ function createSpawnSlots(getLimit: () => number) {
       return waiting.map(({ name, since }) => ({ name, since }));
     },
     /** Position 0 holds a slot now. Position n >= 1 holds one once `ready` resolves. */
-    take(name = "subagent"): { position: number; ready: Promise<void> } {
+    take(name = "subagent"): { position: number; ready: Promise<void>; cancel(): boolean } {
       if (waiting.length === 0 && held.length < getLimit()) {
         held.push({ name, since: Date.now() });
-        return { position: 0, ready: Promise.resolve() };
+        return { position: 0, ready: Promise.resolve(), cancel: () => false };
       }
-      return { position: waiting.length + 1, ready: new Promise<void>((start) => waiting.push({ name, since: Date.now(), start })) };
+      const entry = { name, since: Date.now(), start: () => {} };
+      const ready = new Promise<void>((start) => { entry.start = start; waiting.push(entry); });
+      // True when the waiter was dropped. False when it already holds a slot, which the caller must release.
+      const cancel = () => {
+        const index = waiting.indexOf(entry);
+        if (index !== -1) waiting.splice(index, 1);
+        return index !== -1;
+      };
+      return { position: waiting.length, ready, cancel };
     },
     /** Free the slot held under `name`, or the oldest one when no name matches. */
     release(name?: string) {
@@ -1147,7 +1155,7 @@ async function launchSubagent(
     };
     cwd: string;
   },
-  options?: { surface?: string },
+  options?: { surface?: string; autoExit?: boolean; systemPromptMode?: "append"; thinking?: string },
 ): Promise<RunningSubagent> {
   const startTime = Date.now();
   const id = Math.random().toString(16).slice(2, 10);
@@ -1158,6 +1166,7 @@ async function launchSubagent(
   const effectiveSkills = params.skills ?? agentDefs?.skills;
   const effectiveThinking = agentDefs?.thinking;
   const effectiveInteractive = resolveEffectiveInteractive(params, agentDefs);
+  const autoExit = options?.autoExit ?? agentDefs?.autoExit;
 
   const sessionFile = ctx.sessionManager.getSessionFile();
   if (!sessionFile) throw new Error("No session file");
@@ -1206,15 +1215,15 @@ async function launchSubagent(
   // Build the task message
   // Only full-context fork mode inherits prior conversation state.
   // Blank-session modes need the wrapper instructions and artifact-backed handoff.
-  const modeHint = agentDefs?.autoExit
+  const modeHint = autoExit
     ? "Complete your task autonomously."
     : "Complete your task. When finished, call the subagent_done tool. The user can interact with you at any time.";
-  const summaryInstruction = agentDefs?.autoExit
+  const summaryInstruction = autoExit
     ? "Your FINAL assistant message should summarize what you accomplished."
     : "Your FINAL assistant message (before calling subagent_done or before the user exits) should summarize what you accomplished.";
   const denySet = resolveDenyTools(agentDefs);
   const identity = agentDefs?.body ?? params.systemPrompt ?? null;
-  const systemPromptMode = agentDefs?.systemPromptMode;
+  const systemPromptMode = agentDefs?.systemPromptMode ?? options?.systemPromptMode;
   const identityInSystemPrompt = systemPromptMode && identity;
   const roleBlock = identity && !identityInSystemPrompt ? `\n\n${identity}` : "";
   const fullTask = inheritsConversationContext
@@ -1306,6 +1315,7 @@ async function launchSubagent(
     const model = effectiveThinking ? `${effectiveModel}:${effectiveThinking}` : effectiveModel;
     parts.push("--model", shellEscape(model));
   }
+  if (options?.thinking) parts.push("--thinking", shellEscape(options.thinking));
 
   // Pass agent body as system prompt via file to avoid shell escaping issues
   // with multiline content. Pi's --append-system-prompt and --system-prompt
@@ -1350,7 +1360,7 @@ async function launchSubagent(
   if (params.agent) {
     envParts.push(`PI_SUBAGENT_AGENT=${shellEscape(params.agent)}`);
   }
-  if (agentDefs?.autoExit) {
+  if (autoExit) {
     envParts.push(`PI_SUBAGENT_AUTO_EXIT=1`);
   }
   envParts.push(`PI_SUBAGENT_SESSION=${shellEscape(subagentSessionFile)}`);
@@ -1581,11 +1591,58 @@ async function watchSubagent(
   }
 }
 
+/**
+ * pstack-pi: run one auto-exiting child in a pane, holding a spawn slot, and
+ * wait for its result. `blocking_subagent` calls this inside cmux or tmux.
+ * An abort while waiting for a slot returns a cancelled result.
+ */
+export async function runSubagentInPane(
+  params: typeof SubagentParams.static,
+  ctx: Parameters<typeof launchSubagent>[1],
+  signal: AbortSignal,
+  thinking?: string,
+  launch = launchSubagent,
+  watch = watchSubagent,
+): Promise<SubagentResult> {
+  const cancelled = { name: params.name, task: params.task, summary: "Subagent cancelled.", exitCode: 1, elapsed: 0, error: "cancelled" };
+  const ticket = spawnSlots.take(params.name);
+  const aborted = new Promise<"aborted">((resolve) => {
+    if (signal.aborted) resolve("aborted");
+    signal.addEventListener("abort", () => resolve("aborted"), { once: true });
+  });
+  if ((await Promise.race([aborted, ticket.ready.then(() => "ready" as const)])) === "aborted") {
+    if (!ticket.cancel()) spawnSlots.release(params.name);
+    return cancelled;
+  }
+  let running: RunningSubagent;
+  try {
+    running = await launch(params, ctx, { autoExit: true, systemPromptMode: "append", thinking });
+  } catch (error) {
+    spawnSlots.release(params.name);
+    throw error;
+  }
+  // Without a UI the widget timer never stops and would keep a print-mode parent alive.
+  if (latestCtx?.hasUI) startWidgetRefresh();
+  try {
+    return await watch(running, signal);
+  } finally {
+    updateWidget();
+  }
+}
+
+/**
+ * Pi loads each extension in its own module copy, so `blocking_subagent` cannot
+ * import this file and share its slots, widget, and list. The live extension
+ * publishes its runner here instead.
+ */
+export const PANE_RUNNER_KEY = Symbol.for("pstack-pi/interactive-subagents/pane-runner");
+
 export default function subagentsExtension(pi: ExtensionAPI) {
   // Capture the UI context for widget updates
   pi.on("session_start", (_event, ctx) => {
     latestCtx = ctx;
   });
+  (globalThis as any)[PANE_RUNNER_KEY] = { isMuxAvailable, runSubagentInPane };
 
   // Clean up on session shutdown
   pi.on("session_shutdown", (_event, _ctx) => {
