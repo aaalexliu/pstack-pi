@@ -307,7 +307,11 @@ export default function (pi: ExtensionAPI) {
       "Call this tool when you have completed your task. " +
       "It will close this session and return your results to the main session. " +
       "Your LAST assistant message before calling this becomes the summary returned to the caller.",
-    parameters: Type.Object({}),
+    parameters: Type.Object({
+      abandon_children: Type.Optional(
+        Type.Boolean({ description: "Exit even though sub-agents you started are still live. Their results are lost." }),
+      ),
+    }),
     async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
       const sessionFile = process.env.PI_SUBAGENT_SESSION;
       recorder.subagentDone();
