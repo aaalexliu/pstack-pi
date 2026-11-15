@@ -341,6 +341,7 @@ Pi-owned files live in `additions/`, apart from the 573 upstream paths, and ship
 | File | Why it exists |
 | --- | --- |
 | `additions/agents/general-purpose.md` | Gives `blocking_subagent` one read-only delegate without turning on deferred upstream agents. |
+| `additions/agents/pr-reviewer.md` | Gives `blocking_subagent` a reviewer that can read a PR and post its record with `gh`, for [job runner](runner/README.md) leads. |
 | `additions/skills/deeper/SKILL.md` | Turns a task into a deeper prompt. It predates upstream `sharpen`, which the manifest omits in its favor. |
 | `additions/skills/alex-show-me/` | Adapts the MIT-licensed `show-me` skill from [humanlayer/skills](https://github.com/humanlayer/skills) with bug views and set nodes. Ships the license notice in `references/humanlayer-license.md`. |
 | `additions/skills/intake/SKILL.md` | Tells any session that files a ticket for an agent to write Goal, Reference and Not doing, then delegate it. The [job runner](runner/README.md) leads read those headings. |
@@ -348,7 +349,7 @@ Pi-owned files live in `additions/`, apart from the 573 upstream paths, and ship
 
 Cursor distribution metadata, guides, branding assets, Cloud Automations, unbundled playbooks, and unsupported scripts remain omitted.
 55 of the 58 upstream main skill entrypoints are present, including the webhook-backed `make-bot-ui`, plus the Pi-owned `deeper`, `alex-show-me`, `intake`, and `list-writing` skills. `ADAPTATIONS.md` lists the three omitted skills and why. Missing external service capabilities remain explicit limits, not silently changed tasks.
-Two upstream agents have targeted Pi transforms. The third agent, `general-purpose`, ships from `additions/agents/`.
+Two upstream agents have targeted Pi transforms. `general-purpose` and `pr-reviewer` ship from `additions/agents/`.
 
 [0xrsydn/pstack-pi](https://github.com/0xrsydn/pstack-pi) and [kkgogogo17/pi-pstack](https://github.com/kkgogogo17/pi-pstack) are implementation references, not sources for shared content.
 The [aaalexliu/pstack-pi project](https://github.com/aaalexliu/pstack-pi) owns the Pi adaptations and package code.

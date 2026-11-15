@@ -11,7 +11,8 @@ The runner does nothing for you but start you. You own the PRs, the review, the 
 
 ## Build
 
-- Build in this session, in one thread. Use helpers only to answer a question, with a fresh context. Never give a helper code to write.
+- Split the work into units you can verify alone. Build a unit yourself, or hand it to a sub-lead: the `subagent` tool with agent `worker` (it exits when done and cannot start subagents), in its own git worktree and branch. A sub-lead builds, opens its PR, gets its own fresh review and passes the same merge gate as you. It exits when its turn ends, so tell it to block on every wait (`pi -p` for its reviewer, `gh pr checks --watch` for CI) and never end a turn until its PR is merged or it is stuck. Sub-leads cannot start leads. A unit is done only when its PR is merged: if a sub-lead returns before that, resume it with `subagent_resume` or finish the unit yourself. Wait for every sub-lead before you end.
+- Stay in the ticket's repo. A ticket about agent tooling (pstack-pi, agent-memory, agent-orchestration, dotfiles) may change any of those repos when the work calls for it; a ticket for a project such as Bao or Genesis stays in that project's repo.
 - Make the smallest change that meets the goal. Fix root causes. Test behavior a user can see.
 - Stop and ask only when a wrong reading would be costly to undo: a data model or public API, a migration, money, anything outside this Mac (publishing, messages, accounts), or a choice later work builds on. Decide the rest yourself and say what you decided.
 - If two fixes built on the same premise fail, test the premise before a third.
@@ -19,19 +20,19 @@ The runner does nothing for you but start you. You own the PRs, the review, the 
 
 ## PRs
 
-- Prefer several small PRs, one open at a time. Open the next only after the last one merged.
+- Prefer several small PRs. Your own PRs go one at a time; a sub-lead's PR may be open beside yours when the units do not touch the same code.
 - Each PR body names the ticket: `Fixes KEY` on the last PR, `Part of KEY` on the others. Add the proof.
 - Branch each PR from the latest base. Push with `git push --force-with-lease`.
 
 ## The merge gate, for every PR
 
 1. Run `.agents/verify` if the repo has one. Fix failures before review.
-2. Get a review from a separate Pi session with fresh context, and wait for its result. Never review your own PR. Start the reviewer with the `subagent` tool, giving it the review prompt and model, then end your turn; its result arrives as a new message. Or use `pi -p` from bash with a bash timeout of at least 900 seconds and a new uuid for each round:
+2. Get a review from a separate Pi session with fresh context, and wait for its result. Never review your own PR. By default call `blocking_subagent` with agent `pr-reviewer`, role `review` (or `model: <review model>` when the start message names one), `keepSession: true`, and a task that says to follow `<prompts>/review.md`, then names the PR, KEY, round, trigger, full head sha, `asked_by` and the goal. The trigger is `first`, `fix` (after fixing findings) or `rebase` (say `after rebase onto <base sha>`); a rebase gets a full round too. Its reply gives `session-id:` and `session-path:`; check the record on the PR names the same session. Alternatives: the `subagent` tool, then end your turn until its result arrives; or `pi -p` from bash with a bash timeout of at least 900 seconds and a new uuid for each round:
 
    ```sh
    pi -p --session-id "$(uuidgen | tr A-Z a-z)" --name "review KEY PR <n> round <r>" --model <review model> \
      --append-system-prompt <prompts>/review.md \
-     "Review PR <url> for KEY, round <r>. Head commit: <full sha>. asked_by: <your session id>. Goal: <one line>."
+     "Review PR <url> for KEY, round <r>, trigger <first|fix|rebase onto <base sha>>. Head commit: <full sha>. asked_by: <your session id>. Goal: <one line>."
    ```
 
    `asked_by` is your own session id: run `echo $PI_SESSION_ID`. The reviewer posts its own record on the PR with `gh pr review --comment`. Read it there; do not rewrite it.

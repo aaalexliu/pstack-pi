@@ -14,7 +14,7 @@ const agentFile = (name, extra = '', body = `Prompt for ${name}.`) => `---\nname
 
 test('bundled agents parse with their tool lists and prompts', () => {
   const agents = bundledAgents();
-  assert.deepEqual(agents.map((a) => a.name).sort(), ['comment-sicko', 'general-purpose', 'poteto-agent']);
+  assert.deepEqual(agents.map((a) => a.name).sort(), ['comment-sicko', 'general-purpose', 'poteto-agent', 'pr-reviewer']);
   assert.ok(agents.every((a) => a.source === 'bundled' && bundledAgentsDirectories.some((dir) => a.filePath.startsWith(dir + path.sep)) && a.systemPrompt.trim()));
   assert.deepEqual(agents.find((a) => a.name === 'poteto-agent')?.tools, ['read', 'grep', 'find', 'ls', 'bash', 'edit', 'write']);
   assert.equal(agents.find((a) => a.name === 'general-purpose')?.filePath, path.join(repoRoot, 'additions/agents/general-purpose.md'));
@@ -61,11 +61,11 @@ test('discovery layers bundled, user, and project agents by name and skips broke
 
   const user = discoverAgents(project, 'user', { userDir });
   assert.equal(user.projectAgentsDir, path.join(root, 'project', '.pi', 'agents'));
-  assert.deepEqual(user.agents.map((a) => `${a.name}:${a.source}`).sort(), ['comment-sicko:bundled', 'general-purpose:user', 'poteto-agent:bundled', 'reviewer:user']);
+  assert.deepEqual(user.agents.map((a) => `${a.name}:${a.source}`).sort(), ['comment-sicko:bundled', 'general-purpose:user', 'poteto-agent:bundled', 'pr-reviewer:bundled', 'reviewer:user']);
   assert.equal(user.agents.find((a) => a.name === 'general-purpose')?.systemPrompt.trim(), 'USER OVERRIDE');
 
   const both = discoverAgents(project, 'both', { userDir });
-  assert.deepEqual(both.agents.map((a) => `${a.name}:${a.source}`).sort(), ['comment-sicko:bundled', 'general-purpose:user', 'local:project', 'poteto-agent:bundled', 'reviewer:project']);
+  assert.deepEqual(both.agents.map((a) => `${a.name}:${a.source}`).sort(), ['comment-sicko:bundled', 'general-purpose:user', 'local:project', 'poteto-agent:bundled', 'pr-reviewer:bundled', 'reviewer:project']);
   assert.equal(both.agents.find((a) => a.name === 'reviewer')?.systemPrompt.trim(), 'PROJECT OVERRIDE');
 
   const projectOnly = discoverAgents(project, 'project', { userDir });
@@ -73,5 +73,5 @@ test('discovery layers bundled, user, and project agents by name and skips broke
 
   const none = discoverAgents(root, 'both', { userDir: path.join(root, 'missing') });
   assert.equal(none.projectAgentsDir, null);
-  assert.deepEqual(none.agents.map((a) => a.source), ['bundled', 'bundled', 'bundled']);
+  assert.deepEqual(none.agents.map((a) => a.source), ['bundled', 'bundled', 'bundled', 'bundled']);
 });

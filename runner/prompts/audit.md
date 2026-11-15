@@ -25,7 +25,7 @@ Audit every PR whose head branch starts with `job/` (the runner made it) or whos
 
 ## 2. Find the review record
 
-In `reviews`, a record is a review whose `body` starts with the line `runner-review v1`. The lines after it are `field: value` until the first blank line: `verdict`, `caused_must_fix`, `head`, `round`, `agent`, `model`, `session_id`, `session_path`, `session_title`, `asked_by`. "The record" below means the newest one with `submittedAt` at or before `mergedAt`.
+In `reviews`, a record is a review whose `body` starts with the line `runner-review v1`. The lines after it are `field: value` until the first blank line: `verdict`, `caused_must_fix`, `head`, `round`, `trigger` (missing in older records), `agent`, `model`, `session_id`, `session_path`, `session_title`, `asked_by`. "The record" below means the newest one with `submittedAt` at or before `mergedAt`.
 
 ## 3. Flag a PR for each check it fails
 
