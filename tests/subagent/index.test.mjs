@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -307,6 +307,28 @@ test('keepSession follows PI_CODING_AGENT_SESSION_DIR', async (t) => {
   const result = await f.execute({ agent: 'general-purpose', task: 'x', keepSession: true });
   const [id, file] = sessionOf(result.content[0].text);
   assert.equal(path.dirname(file), custom);
+  assert.deepEqual(await header(file), { type: 'session', version: 3, id, cwd: f.cwd });
+});
+
+test('keepSession expands ~ in PI_CODING_AGENT_SESSION_DIR as Pi does', async (t) => {
+  const f = await fixture(t);
+  const previousHome = process.env.HOME;
+  process.env.HOME = f.root;
+  process.env.PI_CODING_AGENT_SESSION_DIR = '~/tilde-sessions';
+  t.after(() => { delete process.env.PI_CODING_AGENT_SESSION_DIR; process.env.HOME = previousHome; });
+  const [id, file] = sessionOf((await f.execute({ agent: 'general-purpose', task: 'x', keepSession: true })).content[0].text);
+  assert.equal(path.dirname(file), path.join(f.root, 'tilde-sessions'));
+  assert.equal((await header(file)).id, id);
+});
+
+test('keepSession with a symlinked cwd uses the folder a real Pi child would, keyed by the real path', async (t) => {
+  const f = await fixture(t);
+  const link = path.join(f.root, 'link');
+  await symlink(f.cwd, link);
+  const ctx = { ...f.ctx, cwd: link };
+  const result = await f.tool.execute('call', { agent: 'general-purpose', task: 'x', keepSession: true }, f.abort.signal, undefined, ctx);
+  const [id, file] = sessionOf(result.content[0].text);
+  assert.equal(path.dirname(file), path.join(f.agentDir, 'sessions', `--${f.cwd.slice(1).replaceAll('/', '-')}--`));
   assert.deepEqual(await header(file), { type: 'session', version: 3, id, cwd: f.cwd });
 });
 

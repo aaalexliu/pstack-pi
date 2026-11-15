@@ -337,8 +337,10 @@ export interface ResolvedTask {
 
 // Pass the child an explicit folder so the parent knows where to look: PI_CODING_AGENT_SESSION_DIR, else Pi's default per-cwd folder.
 export function childSessionDir(cwd: string, env: NodeJS.ProcessEnv = process.env): string {
-  if (env.PI_CODING_AGENT_SESSION_DIR) return path.resolve(cwd, env.PI_CODING_AGENT_SESSION_DIR);
+  // The child's process.cwd() is the real path, so Pi keys its default folder by that, not by a symlinked cwd.
   const real = fs.realpathSync(cwd);
+  const custom = env.PI_CODING_AGENT_SESSION_DIR;
+  if (custom) return path.resolve(real, custom === '~' || custom.startsWith('~/') ? path.join(os.homedir(), custom.slice(1)) : custom);
   return path.join(getAgentDir(), 'sessions', `--${real.replace(/^[/\\]/, '').replace(/[/\\:]/g, '-')}--`);
 }
 
