@@ -14,5 +14,8 @@
   "minFreeMemoryPercent": 20,
   "stallMinutes": 30,
   "host": "build-mac",
-  "worktreeRoot": "/Users/you/dev/job-worktrees"
+  "worktreeRoot": "/Users/you/dev/job-worktrees",
+  "routines": [
+    { "name": "runner-audit", "schedule": "daily 05:00", "repo": "dotfiles", "title": "Audit runner PRs", "prompt": "Follow runner/prompts/audit.md" }
+  ]
 }
