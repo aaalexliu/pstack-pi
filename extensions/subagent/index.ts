@@ -6,7 +6,7 @@
  *   - inside cmux or tmux, each child runs as a real Pi in the interactive subagents' layout
  *   - bundled agents shipped with this package, overridable by user and project agents
  *   - `model` and `role` per task, routed through <agent dir>/pstack-pi/models.json
- *   - a depth guard so children cannot delegate again
+ *   - children are leaves: they get PI_DENY_TOOLS with every spawning tool, which both extensions honor
  *   - each child owns a detached process group; abort or timeout kills the whole group
  *   - the task travels over stdin and the system prompt over a 0600 file, not argv
  *
@@ -41,25 +41,27 @@ const COLLAPSED_ITEM_COUNT = 10;
 const STDERR_CAP = 16 * 1024;
 export const TERM_GRACE_MS = 3000;
 export const SHUTDOWN_GRACE_MS = 1000;
-export const DEPTH_VARIABLE = 'PSTACK_SUBAGENT_DEPTH';
 export const TOOL_NAME = 'blocking_subagent';
 
 // ---------------------------------------------------------------------------
-// Depth guard
+// Spawning rule
 // ---------------------------------------------------------------------------
 
-export function parentDepth(env: NodeJS.ProcessEnv = process.env): number {
-  const raw = env[DEPTH_VARIABLE];
-  if (raw === undefined || raw === '') return 0;
-  const value = Number(raw);
-  return Number.isSafeInteger(value) && value >= 0 ? value : Number.MAX_SAFE_INTEGER;
+/** Tools that start another agent. The interactive extension builds its `SPAWNING_TOOLS` from this list. */
+export const SPAWNING_TOOLS = [TOOL_NAME, 'subagent', 'subagent_interrupt', 'subagents_list', 'subagent_resume'];
+
+/** Tool names in PI_DENY_TOOLS, the one rule both delegation extensions honor. */
+export function deniedTools(env: NodeJS.ProcessEnv = process.env): Set<string> {
+  return new Set((env.PI_DENY_TOOLS ?? '').split(',').map((name) => name.trim()).filter(Boolean));
 }
 
+// A child is a leaf: it inherits the parent's denied tools plus every spawning tool.
 // A child's transcript belongs to the parent's turn. Without PI_MEMORY_EXIT_SUMMARY=0,
 // pi-memory spends a model call on every child exit and writes the summary into the
 // daily log that each new session loads.
-export function childEnvironment(depth: number, inherited: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
-  return { ...inherited, PI_MEMORY_EXIT_SUMMARY: '0', [DEPTH_VARIABLE]: String(depth + 1) };
+export function childEnvironment(inherited: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const denied = new Set([...deniedTools(inherited), ...SPAWNING_TOOLS]);
+  return { ...inherited, PI_MEMORY_EXIT_SUMMARY: '0', PI_DENY_TOOLS: [...denied].join(',') };
 }
 
 // ---------------------------------------------------------------------------
@@ -412,9 +414,8 @@ export async function runPaneAgent({ resolved, runPane, ctx, signal, timeoutMs }
 
 type OnUpdateCallback = (partial: AgentToolResult<SubagentDetails>) => void;
 
-export async function runSingleAgent({ resolved, depth, signal, timeoutMs, onUpdate, onEvent, makeDetails, spawnChild = spawnDetachedChild, registry, termGraceMs = TERM_GRACE_MS }: {
+export async function runSingleAgent({ resolved, signal, timeoutMs, onUpdate, onEvent, makeDetails, spawnChild = spawnDetachedChild, registry, termGraceMs = TERM_GRACE_MS }: {
   resolved: ResolvedTask;
-  depth: number;
   signal: AbortSignal | undefined;
   timeoutMs: number | undefined;
   onUpdate: OnUpdateCallback | undefined;
@@ -454,7 +455,7 @@ export async function runSingleAgent({ resolved, depth, signal, timeoutMs, onUpd
 
     let stopCause: 'user' | 'timeout' | undefined;
     const exitCode = await new Promise<number>((resolve) => {
-      const proc = spawnChild(getPiInvocation(args), { cwd, env: childEnvironment(depth) });
+      const proc = spawnChild(getPiInvocation(args), { cwd, env: childEnvironment() });
       registry?.track(proc);
       observe({ type: 'child_started' });
       emitUpdate();
@@ -620,8 +621,7 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
   /** Pane launcher; null forces the headless path. Defaults to the interactive subagents' launcher inside a multiplexer. */
   runPane?: PaneRunner | null;
 } = {}) {
-  const depth = parentDepth(env);
-  if (depth >= 1) return;
+  if (deniedTools(env).has(TOOL_NAME)) return;
 
   const router = new ModelRouter();
   const registry = new ChildRegistry();
@@ -725,7 +725,7 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
         } else {
           await headlessSlots.acquire(signal);
           try {
-            result = await runSingleAgent({ resolved, depth, signal, timeoutMs: params.timeoutMs, onUpdate, makeDetails, spawnChild, registry, termGraceMs, onEvent: observe });
+            result = await runSingleAgent({ resolved, signal, timeoutMs: params.timeoutMs, onUpdate, makeDetails, spawnChild, registry, termGraceMs, onEvent: observe });
           } finally {
             headlessSlots.release();
           }

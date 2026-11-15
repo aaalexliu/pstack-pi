@@ -65,7 +65,7 @@ export async function listTestFiles(root = repository) {
 // Tests describe a root Pi. An agent that runs them from inside a subagent
 // must not hand them its child markers.
 const testEnvironment = Object.fromEntries(Object.entries(process.env).filter(([name]) =>
-  name !== "PSTACK_SUBAGENT_DEPTH" && !name.startsWith("PI_SUBAGENT_") && name !== "PI_DENY_TOOLS"));
+  !name.startsWith("PI_SUBAGENT_") && name !== "PI_DENY_TOOLS"));
 
 /** @param {string[]} args @param {string[]} files */
 function runNodeTest(args, files) {

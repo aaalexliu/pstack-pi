@@ -1,10 +1,10 @@
 import { afterEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import interactiveSubagents, * as subagentsModule from "../pi-extension/subagents/index.ts";
-import blockingSubagent from "../../subagent/index.ts";
+import blockingSubagent, { childEnvironment } from "../../subagent/index.ts";
 
 const SPAWNING_TOOLS = ["subagent", "subagent_interrupt", "subagent_resume", "subagents_list"];
-const CHILD_ENV = ["PSTACK_SUBAGENT_DEPTH", "PI_SUBAGENT_NAME", "PI_DENY_TOOLS"] as const;
+const CHILD_ENV = ["PI_SUBAGENT_NAME", "PI_DENY_TOOLS"] as const;
 const saved = Object.fromEntries(CHILD_ENV.map((name) => [name, process.env[name]]));
 
 function fakePi() {
@@ -49,7 +49,7 @@ describe("delegation tools in pstack-pi processes", () => {
   });
 
   it("gives a blocking_subagent child neither, and does no UI work there", async () => {
-    const { tools, handlers } = toolsWith({ PSTACK_SUBAGENT_DEPTH: "1" });
+    const { tools, handlers } = toolsWith({ PI_DENY_TOOLS: childEnvironment({}).PI_DENY_TOOLS });
     for (const tool of [...SPAWNING_TOOLS, "blocking_subagent"]) assert.ok(!tools.includes(tool), tool);
 
     const uiCalls: string[] = [];
@@ -59,16 +59,17 @@ describe("delegation tools in pstack-pi processes", () => {
   });
 
   it("gives an interactive child neither unless its agent says spawning: true", () => {
-    const denied = toolsWith({
-      PSTACK_SUBAGENT_DEPTH: "1",
-      PI_SUBAGENT_NAME: "Scout",
-      PI_DENY_TOOLS: SPAWNING_TOOLS.join(","),
-    }).tools;
+    const denied = toolsWith({ PI_SUBAGENT_NAME: "Scout", PI_DENY_TOOLS: [...SPAWNING_TOOLS, "blocking_subagent"].join(",") }).tools;
     for (const tool of [...SPAWNING_TOOLS, "blocking_subagent"]) assert.ok(!denied.includes(tool), tool);
 
-    const spawning = toolsWith({ PSTACK_SUBAGENT_DEPTH: "1", PI_SUBAGENT_NAME: "Planner" }).tools;
-    for (const tool of SPAWNING_TOOLS) assert.ok(spawning.includes(tool), tool);
-    assert.ok(!spawning.includes("blocking_subagent"));
+    const spawning = toolsWith({ PI_SUBAGENT_NAME: "Planner" }).tools;
+    for (const tool of [...SPAWNING_TOOLS, "blocking_subagent"]) assert.ok(spawning.includes(tool), tool);
+  });
+
+  it("denies blocking_subagent with the other spawning tools when an agent file has no spawning: true", () => {
+    const denied = subagentsModule.__test__.resolveDenyTools(null);
+    for (const tool of [...SPAWNING_TOOLS, "blocking_subagent"]) assert.ok(denied.has(tool), tool);
+    assert.ok(!subagentsModule.__test__.resolveDenyTools({ spawning: true } as any).has("blocking_subagent"));
   });
 });
 

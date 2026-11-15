@@ -6,7 +6,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
-import subagentExtension, { DEPTH_VARIABLE, MAX_CONCURRENCY, TERM_GRACE_MS, childEnvironment, createSlots, observedModelId, parentDepth } from '../../extensions/subagent/index.ts';
+import subagentExtension, { MAX_CONCURRENCY, SPAWNING_TOOLS, TERM_GRACE_MS, childEnvironment, createSlots, observedModelId } from '../../extensions/subagent/index.ts';
 import { bundledAgents } from '../../extensions/subagent/agents.ts';
 import { roles } from '../../extensions/subagent/model-config.ts';
 import { Check } from 'typebox/value';
@@ -61,10 +61,10 @@ async function fixture(t, options) {
   const cwd = path.join(root, 'work');
   await mkdir(path.join(agentDir, 'agents'), { recursive: true });
   await mkdir(cwd);
-  const previous = { agentDir: process.env.PI_CODING_AGENT_DIR, tmpdir: process.env.TMPDIR, depth: process.env[DEPTH_VARIABLE] };
+  const previous = { agentDir: process.env.PI_CODING_AGENT_DIR, tmpdir: process.env.TMPDIR, denied: process.env.PI_DENY_TOOLS };
   process.env.PI_CODING_AGENT_DIR = agentDir;
   process.env.TMPDIR = root;
-  delete process.env[DEPTH_VARIABLE];
+  delete process.env.PI_DENY_TOOLS;
   const abort = new AbortController();
   /** @type {import('node:child_process').ChildProcess[]} */
   const live = [];
@@ -86,7 +86,7 @@ async function fixture(t, options) {
         try { process.kill(child.pid, 'SIGKILL'); } catch { /* already gone */ }
       }
     }
-    for (const [key, value] of /** @type {[string, string | undefined][]} */ ([['PI_CODING_AGENT_DIR', previous.agentDir], ['TMPDIR', previous.tmpdir], [DEPTH_VARIABLE, previous.depth]])) {
+    for (const [key, value] of /** @type {[string, string | undefined][]} */ ([['PI_CODING_AGENT_DIR', previous.agentDir], ['TMPDIR', previous.tmpdir], ['PI_DENY_TOOLS', previous.denied]])) {
       if (value === undefined) delete process.env[key]; else process.env[key] = value;
     }
     await rm(root, { recursive: true, force: true });
@@ -118,13 +118,13 @@ async function untilGone(pids, ms) {
   return pids.filter(alive);
 }
 
-test('depth guard: a child Pi registers nothing, the root registers the tool and both hooks', () => {
-  assert.equal(parentDepth({}), 0);
-  assert.equal(parentDepth({ [DEPTH_VARIABLE]: '1' }), 1);
-  assert.ok(parentDepth({ [DEPTH_VARIABLE]: 'garbage' }) >= 1, 'Unreadable depth disables delegation');
-  assert.equal(childEnvironment(0, { PATH: '/bin' })[DEPTH_VARIABLE], '1');
-  assert.equal(childEnvironment(0, { PI_MEMORY_EXIT_SUMMARY: '1' }).PI_MEMORY_EXIT_SUMMARY, '0', 'Children never write pi-memory exit summaries');
-  for (const depth of ['1', '01', '7', 'x']) assert.deepEqual(registration({ env: { [DEPTH_VARIABLE]: depth } }).tools, []);
+test('spawning rule: a Pi denied blocking_subagent registers nothing, the root registers the tool and both hooks', () => {
+  assert.deepEqual(childEnvironment({ PATH: '/bin' }).PI_DENY_TOOLS?.split(','), SPAWNING_TOOLS);
+  assert.equal(childEnvironment({ PI_DENY_TOOLS: 'bash, subagent' }).PI_DENY_TOOLS, 'bash,subagent,blocking_subagent,subagent_interrupt,subagents_list,subagent_resume');
+  assert.equal(childEnvironment({ PI_MEMORY_EXIT_SUMMARY: '1' }).PI_MEMORY_EXIT_SUMMARY, '0', 'Children never write pi-memory exit summaries');
+  for (const denied of ['blocking_subagent', ' bash , blocking_subagent ', SPAWNING_TOOLS.join(',')]) assert.deepEqual(registration({ env: { PI_DENY_TOOLS: denied } }).tools, []);
+  assert.equal(registration({ env: { PSTACK_SUBAGENT_DEPTH: '1' } }).tools.length, 1, 'Depth no longer gates the tool');
+  assert.equal(registration({ env: { PI_DENY_TOOLS: 'subagent,bash' } }).tools.length, 1);
   const { tools, handlers } = registration({ env: {} });
   assert.equal(tools[0].name, 'blocking_subagent');
   assert.deepEqual([...handlers.keys()].sort(), ['session_shutdown', 'tool_result']);
@@ -145,7 +145,7 @@ test('registered tool description lists bundled capabilities without inferring t
   assert.ok(!general.tools?.includes('write') && !general.tools?.includes('edit'));
 });
 
-test('single mode runs the bundled agent in a detached child with prompt file, stdin task, depth, and parent model', async (t) => {
+test('single mode runs the bundled agent in a detached child with prompt file, stdin task, denied spawning tools, and parent model', async (t) => {
   const f = await fixture(t);
   const task = 'Summarize @file with --flags and unicode ✓';
   /** @type {ToolResult[]} */
@@ -162,7 +162,7 @@ test('single mode runs the bundled agent in a detached child with prompt file, s
   assert.match(result.content[0].text, /^resolved-model: fixture\/model\n/);
   const capture = JSON.parse(childOutput(result.content[0].text));
   assert.equal(capture.task, task);
-  assert.equal(capture.depth, '1');
+  assert.deepEqual(capture.denied?.split(','), SPAWNING_TOOLS);
   assert.equal(capture.memoryExitSummary, '0');
   assert.equal(capture.cwd, f.cwd);
   assert.equal(capture.promptMode, 0o600);

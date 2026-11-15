@@ -49,7 +49,7 @@ import {
 } from "./status.ts";
 import { DEFAULT_SUBAGENTS_CONFIG, loadSubagentsConfig, type SubagentsConfig } from "./config.ts";
 import { bundledAgentsDirectories as pstackAgentDirs, packageRoot as pstackRoot } from "../../../subagent/agents.ts";
-import { parentDepth } from "../../../subagent/index.ts";
+import { SPAWNING_TOOLS as PSTACK_SPAWNING_TOOLS } from "../../../subagent/index.ts";
 import {
   getSubagentActivityFile,
   readSubagentActivityFile,
@@ -163,13 +163,8 @@ interface ListedAgentDefinition extends AgentDefinition {
   source: AgentSource;
 }
 
-/** Tools that are gated by `spawning: false` */
-const SPAWNING_TOOLS = new Set([
-  "subagent",
-  "subagent_interrupt",
-  "subagents_list",
-  "subagent_resume",
-]);
+/** Tools that are gated by `spawning: false`. pstack-pi: includes `blocking_subagent`. */
+const SPAWNING_TOOLS = new Set(PSTACK_SPAWNING_TOOLS);
 
 /**
  * Resolve the effective set of denied tool names from agent defaults.
@@ -1354,8 +1349,6 @@ async function launchSubagent(
   if (denySet.size > 0) {
     envParts.push(`PI_DENY_TOOLS=${shellEscape([...denySet].join(","))}`);
   }
-  // pstack-pi hides its `blocking_subagent` tool at depth 1 and deeper.
-  envParts.push(`PSTACK_SUBAGENT_DEPTH=1`);
   envParts.push(`PI_SUBAGENT_NAME=${shellEscape(params.name)}`);
   if (params.agent) {
     envParts.push(`PI_SUBAGENT_AGENT=${shellEscape(params.agent)}`);
@@ -1682,11 +1675,6 @@ export default function subagentsExtension(pi: ExtensionAPI) {
       .map((s) => s.trim())
       .filter(Boolean),
   );
-  // A pstack-pi blocking_subagent child is a leaf. Only this extension's own
-  // children carry PI_SUBAGENT_NAME and their agent's spawning choice.
-  if (parentDepth() >= 1 && !process.env.PI_SUBAGENT_NAME) {
-    for (const tool of SPAWNING_TOOLS) deniedTools.add(tool);
-  }
 
   const shouldRegister = (name: string) => !deniedTools.has(name);
 
@@ -2140,7 +2128,6 @@ export default function subagentsExtension(pi: ExtensionAPI) {
           resumeEnvParts.push(`PI_CODING_AGENT_DIR=${shellEscape(process.env.PI_CODING_AGENT_DIR)}`);
         }
         resumeEnvParts.push(`PI_DENY_TOOLS=${shellEscape([...resolveDenyTools(null)].join(","))}`);
-        resumeEnvParts.push(`PSTACK_SUBAGENT_DEPTH=1`);
         resumeEnvParts.push(`PI_SUBAGENT_NAME=${shellEscape(name)}`);
         resumeEnvParts.push(`PI_SUBAGENT_SESSION=${shellEscape(params.sessionPath)}`);
         resumeEnvParts.push(`PI_SUBAGENT_ID=${shellEscape(id)}`);

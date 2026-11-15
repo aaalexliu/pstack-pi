@@ -11,7 +11,7 @@
 
 `test:fast` runs the sync, content, pstack, subagent, profiles, title, recap, media, interactive-subagents, and Pi harness test files in one Node test invocation. Files keep separate processes and run concurrently. It skips packed real-Pi tests. `npm test` runs that same set, then the packed tests without repeating the harness tests.
 
-`scripts/run-tests.mjs` discovers test files. New files under `tests/pi/` default to the packed suite unless listed in `PI_UNIT_TESTS`. It also runs the interactive-subagents subtree's files listed in `SUBTREE_TESTS`. It drops `PSTACK_SUBAGENT_DEPTH`, `PI_SUBAGENT_*`, and `PI_DENY_TOOLS` from the test environment, so tests run from inside a subagent still see a root Pi.
+`scripts/run-tests.mjs` discovers test files. New files under `tests/pi/` default to the packed suite unless listed in `PI_UNIT_TESTS`. It also runs the interactive-subagents subtree's files listed in `SUBTREE_TESTS`. It drops `PI_SUBAGENT_*` and `PI_DENY_TOOLS` from the test environment, so tests run from inside a subagent still see a root Pi.
 
 `npm run check` runs `typecheck`, `sync:check`, `check:content`, and `npm test` in that order. CI runs the same command in the checkout and in a clean Git archive with no `.git` directory.
 
@@ -32,7 +32,7 @@ Run the full check when a change affects any of:
 - `extensions/subagent/**`, `extensions/interactive-subagents/**`, or `extensions/pstack/**` runtime behavior
 - packed tests under `tests/pi/**`, their shared harness, or test orchestration such as `scripts/run-tests.mjs`
 - dependencies, the supported Pi/Node versions, pack membership, package exposure, or profile isolation
-- timeouts, parallelism, the depth guard, `pi` resolution on `PATH`, or parent signal handling
+- timeouts, parallelism, the spawning rule, `pi` resolution on `PATH`, or parent signal handling
 - live progress, card, or usage reporting through real Pi
 
 Use `npm run test:pi` for focused iteration on those paths. A passing full check need not run again after a prose-only follow-up; run the docs-only checks on the final tree instead. Do not reuse a previous result after changing code, package metadata, or executable test inputs.
