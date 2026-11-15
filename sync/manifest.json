@@ -964,7 +964,7 @@
         },
         {
           "find": "(evidence stays, per the skill).",
-          "replace": "(evidence stays, per the skill). If the run changed `.agents/verify`, end with one no-argument run and keep its output: each step PASS, or SKIP with its prerequisite, and the evidence directory it names.",
+          "replace": "(evidence stays, per the skill). If the run changed `.agents/verify`, end with one no-argument run and keep its output as printed, with the evidence directory it names. A FAIL left in it must be a product gap from triage, reported as one and never turned into PASS or SKIP.",
           "count": 1
         },
         {

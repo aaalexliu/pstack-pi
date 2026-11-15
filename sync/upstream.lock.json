@@ -543,10 +543,10 @@
       "source": "skills/maintain-verification-skill/SKILL.md",
       "blob": "a2680b91fead45a0b4963d8c367a854956bea59d",
       "mode": "100644",
-      "adaptationSha256": "83f82373de17693258a4ce09256dc6c162e3e522c52f7ef5fa6e3df0172b41fd",
+      "adaptationSha256": "bb05fd74f895f1e51f4f94722e2c604212817c4a0c397455b93c68d15f959507",
       "output": {
         "destination": "skills/maintain-verification-skill/SKILL.md",
-        "sha256": "1566223f3985aab61655fabacf778e4e46fac920661d827303e081211c83fc74",
+        "sha256": "fca077a720e46c44fdf094062c6c13a80b8f18cf5eef1dba61a2e9fb2fd5a85f",
         "mode": "100644"
       }
     },
