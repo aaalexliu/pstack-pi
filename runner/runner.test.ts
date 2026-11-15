@@ -55,7 +55,7 @@ const at = args.find((a) => a.startsWith('@'));
 fs.appendFileSync(${JSON.stringify(file('pi.log'))}, JSON.stringify({
   input: at ? fs.readFileSync(at.slice(1), 'utf8') : '', model: args[args.indexOf('--model') + 1], session: args[args.indexOf('--session-id') + 1],
   cwd: process.cwd(), extension: args[args.indexOf('-e') + 1], autoExit: process.env.PI_SUBAGENT_AUTO_EXIT, token: process.env.LINEAR_TOKEN, ghToken: process.env.GH_TOKEN,
-  piVars: Object.keys(process.env).filter((k) => /^(PI|PSTACK)_/.test(k)).sort(),
+  piVars: Object.keys(process.env).filter((k) => /^(PI|PSTACK|CMUX)_/.test(k)).sort(),
 }) + '\\n');
 `, { mode: 0o755 });
   // Fake tmux: runs a new session to completion. live.json names a lead that is still running.
@@ -78,7 +78,7 @@ else if (args[0] === 'list-windows') { try { process.stdout.write(fs.readFileSyn
   writeFileSync(file('memory_pressure'), `#!/bin/sh\necho "System-wide memory free percentage: $(cat ${JSON.stringify(file('free'))} 2>/dev/null || echo 60)%"\n`, { mode: 0o755 });
   Object.assign(process.env, {
     JOB_RUNNER_PI: file('pi'), JOB_RUNNER_TMUX: file('tmux'), JOB_RUNNER_MEMORY_PRESSURE: file('memory_pressure'),
-    PI_SUBAGENT_NAME: 'outer session', PI_X2_TOKEN: 'outer', PSTACK_9: 'outer', PI_AUTH_PROFILE: 'kept',
+    PI_SUBAGENT_NAME: 'outer session', PI_X2_TOKEN: 'outer', PSTACK_9: 'outer', CMUX_SURFACE_ID: 'outer', PI_AUTH_PROFILE: 'kept',
   });
 
   const config: Config = {
@@ -181,7 +181,7 @@ test('a delegated ticket starts one lead in tmux with the session, the subagent_
   assert.equal(lead.autoExit, undefined, 'the lead decides when to exit');
   assert.ok(lead.extension.endsWith('subagent-done.ts') && existsSync(lead.extension));
   assert.equal(lead.token, 'test-token');
-  assert.deepEqual(lead.piVars, ['PI_AUTH_PROFILE', 'PI_SUBAGENT_ACTIVITY_FILE', 'PI_SUBAGENT_ID'], 'outer PI_* and PSTACK_* are gone, digits included');
+  assert.deepEqual(lead.piVars, ['PI_AUTH_PROFILE', 'PI_SUBAGENT_ACTIVITY_FILE', 'PI_SUBAGENT_ID'], 'outer PI_*, PSTACK_* and CMUX_* are gone, digits included');
   assert.ok(!readFileSync(path.join(dir, '.runner', 'lead.sh'), 'utf8').includes('test-token'), 'the token never lands on disk');
   assert.match(lead.input, /^Issue ALE-1: Job number 1[\s\S]*Linear issue id: id-1\.[\s\S]*- The ticket was delegated to you\./);
   assert.deepEqual(t.tmux().find((a) => a[0] === 'new-session')!.slice(0, 4), ['new-session', '-d', '-s', 'ALE-1']);
@@ -539,7 +539,7 @@ test('on a real tmux server, a window the lead opens gets its tokens and none of
     await new Promise((r) => setTimeout(r, 200));
     const env = readFileSync(out, 'utf8').split('\n');
     for (const line of ['LINEAR_TOKEN=test-token', 'GH_TOKEN=GH-SECRET', 'PI_AUTH_PROFILE=kept']) assert.ok(env.includes(line), line);
-    assert.deepEqual(env.filter((l) => /^(PI_SUBAGENT_NAME|PI_X2_TOKEN|PSTACK_9)=/.test(l)), []);
+    assert.deepEqual(env.filter((l) => /^(PI_SUBAGENT_NAME|PI_X2_TOKEN|PSTACK_9|CMUX_SURFACE_ID)=/.test(l)), []);
   } finally {
     try { execFileSync('tmux', ['-L', socket, 'kill-server'], { stdio: 'ignore' }); } catch { /* already gone */ }
   }
@@ -563,7 +563,7 @@ test('GH_TOKEN from ghTokenCommand reaches the lead, and the lead environment is
   assert.equal(lead.ghToken, 'GH-SECRET');
   assert.ok(!readFileSync(path.join(t.dirOf(1), '.runner', 'lead.sh'), 'utf8').includes('GH-SECRET'), 'the token never lands on disk');
   const env = t.tmux().filter((a) => a[0] === 'set-environment').map((a) => a.slice(1).join(' '));
-  for (const line of ['-t =ALE-1 GH_TOKEN GH-SECRET', '-t =ALE-1 LINEAR_TOKEN test-token', '-t =ALE-1 PI_AUTH_PROFILE kept', '-t =ALE-1 -r PI_SUBAGENT_NAME', '-t =ALE-1 -r PSTACK_9']) {
+  for (const line of ['-t =ALE-1 GH_TOKEN GH-SECRET', '-t =ALE-1 LINEAR_TOKEN test-token', '-t =ALE-1 PI_AUTH_PROFILE kept', '-t =ALE-1 -r PI_SUBAGENT_NAME', '-t =ALE-1 -r PSTACK_9', '-t =ALE-1 -r CMUX_SURFACE_ID']) {
     assert.ok(env.includes(line), `subagent windows get: ${line}`);
   }
 });
