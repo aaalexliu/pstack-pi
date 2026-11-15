@@ -121,3 +121,9 @@ test('a Linear call that hangs times out, so the poll goes on to tickets', async
   await createDueRoutines(config, hang, new Date('2026-03-10T06:00:00'), 50);
   assert.ok(Date.now() - started < 2000);
 });
+
+test('a token command that hangs times out too', async () => {
+  const started = Date.now();
+  await createDueRoutines({ ...config, linearTokenCommand: 'sleep 5' }, fakeLinear().fetchFn, new Date('2026-03-10T06:00:00'), 100);
+  assert.ok(Date.now() - started < 2000);
+});

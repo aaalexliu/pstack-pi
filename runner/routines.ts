@@ -30,7 +30,7 @@ const pad = (n: number) => String(n).padStart(2, '0');
 export async function createDueRoutines(config: Setup, fetchFn: typeof fetch, now = new Date(), timeoutMs = 30_000) {
   const routines = config.routines ?? [];
   const gql = async <T>(query: string, variables: Record<string, unknown>): Promise<T> => {
-    const token = execFileSync('/bin/sh', ['-c', config.linearTokenCommand], { encoding: 'utf8' }).trim();
+    const token = execFileSync('/bin/sh', ['-c', config.linearTokenCommand], { encoding: 'utf8', timeout: timeoutMs }).trim();
     const res = await fetchFn('https://api.linear.app/graphql', {
       method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ query, variables }),
       signal: AbortSignal.timeout(timeoutMs),
