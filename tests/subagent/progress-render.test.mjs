@@ -101,7 +101,7 @@ test('normal, long and Unicode rows fit narrow widths without dropping the card'
   }
 });
 
-test('long chains keep all structured rows but bound inline rows and prefer unfinished work', () => {
+test('long runs keep all structured rows but bound inline rows and prefer unfinished work', () => {
   const snapshot = fixture(24, true);
   for (const row of snapshot.tasks.slice(0, 18)) { row.state = 'succeeded'; row.endedAt = snapshot.updatedAt; }
   snapshot.tasks[18].state = 'running';
@@ -123,7 +123,7 @@ test('long chains keep all structured rows but bound inline rows and prefer unfi
   assert.match(progressCard(snapshot).lines.join('\n'), /#24 review/);
 });
 
-test('expanding a saved long-chain card exposes every task without using the latest inspector', () => {
+test('expanding a saved long-run card exposes every task without using the latest inspector', () => {
   const saved = JSON.parse(JSON.stringify({ progress: fixture(24) }));
   const collapsed = render(saved).render(100).join('\n');
   assert.match(collapsed, /tasks omitted/);
@@ -185,7 +185,7 @@ function inspectorFixture(t) {
   return { view, ctx, command: registered, notifications, renders: () => renders, throwRefresh: () => { throwRefresh = true; }, component: () => { assert.ok(component); return component; } };
 }
 
-test('/subagents opens without waiting for work, scrolls all chain rows, refreshes live, and closes without aborting', async (t) => {
+test('/subagents opens without waiting for work, scrolls all rows, refreshes live, and closes without aborting', async (t) => {
   const f = inspectorFixture(t);
   await f.command.handler('', f.ctx);
   assert.deepEqual(f.notifications, ['No blocking_subagent request yet.']);

@@ -217,12 +217,10 @@ test('thinking schema accepts only Pi levels at the call and task boundaries', (
   for (const thinking of ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']) {
     assert.equal(Check(tools[0].parameters, { agent: 'general-purpose', task: 'x', thinking }), true);
     assert.equal(Check(tools[0].parameters, { tasks: [{ agent: 'general-purpose', task: 'x', thinking }] }), true);
-    assert.equal(Check(tools[0].parameters, { chain: [{ agent: 'general-purpose', task: 'x', thinking }] }), true);
   }
   for (const params of [
     { agent: 'general-purpose', task: 'x', thinking: 'ultra' },
     { tasks: [{ agent: 'general-purpose', task: 'x', thinking: 'ultra' }] },
-    { chain: [{ agent: 'general-purpose', task: 'x', thinking: 'ultra' }] },
   ]) assert.equal(Check(tools[0].parameters, params), false);
 });
 
@@ -250,10 +248,10 @@ test('single thinking overrides inherited parent level and pinned model defaults
   }
 });
 
-test('parallel and chain thinking use per-item overrides over the call default', async (t) => {
+test('parallel thinking uses per-item overrides over the call default', async (t) => {
   const f = await fixture(t);
-  for (const mode of ['tasks', 'chain']) {
-    const result = await f.execute({ [mode]: [
+  {
+    const result = await f.execute({ tasks: [
       { agent: 'general-purpose', task: 'first' },
       { agent: 'general-purpose', task: 'second', thinking: 'high' },
     ], thinking: 'low', model: 'pinned/model' });
@@ -292,10 +290,6 @@ test('keepSession saves the child session and reports its id and path in every m
   }
   assert.notEqual(ids[0], ids[1]);
   assert.doesNotMatch(blocks[2], /^session/m);
-  const chain = await f.execute({ chain: [{ agent: 'general-purpose', task: 'a' }, { agent: 'general-purpose', task: 'b' }], keepSession: true });
-  const [chainId, chainFile] = sessionOf(chain.content[0].text);
-  assert.equal(chainId, chain.details.results[1].sessionId);
-  assert.equal((await header(chainFile)).id, chainId);
   assert.doesNotMatch((await f.execute({ agent: 'general-purpose', task: 'x' })).content[0].text, /^session/m);
 });
 
@@ -390,18 +384,12 @@ test('parallel mode keeps input order, caps concurrency, and reports one failure
   assert.match(allFailed.content[0].text, /\[general-purpose\] failed\nresolved-model: unknown\n\nchild exploded/);
 });
 
-test('chain mode substitutes {previous} and stops at the first failed step', async (t) => {
+test('chain mode is gone: a chain-only call names no mode and starts no child', async (t) => {
   const f = await fixture(t);
-  const ok = await f.execute({ chain: [{ agent: 'general-purpose', task: 'first' }, { agent: 'general-purpose', task: 'second after {previous}' }] });
-  assert.equal(ok.details.mode, 'chain');
-  assert.deepEqual(ok.details.results.map((r) => r.step), [1, 2]);
-  assert.match(ok.content[0].text, /^resolved-model: fixture\/model\n/);
-  const second = JSON.parse(childOutput(ok.content[0].text));
-  assert.ok(second.task.startsWith('second after {"args"'), second.task.slice(0, 40));
-  const stopped = await f.execute({ chain: [{ agent: 'general-purpose', task: 'FAIL early' }, { agent: 'general-purpose', task: 'never {previous}' }] });
-  assert.equal(stopped.details.results.length, 1);
-  assert.match(stopped.content[0].text, /Chain stopped at step 1 \(general-purpose\): PRIVATE_BOOM/);
-  assert.equal(stopped.isError, true);
+  const result = await f.execute({ chain: [{ agent: 'general-purpose', task: 'first' }, { agent: 'general-purpose', task: 'second {previous}' }] });
+  assert.match(result.content[0].text, /^Invalid parameters\. Provide exactly one mode\./);
+  assert.deepEqual(result.details.results, []);
+  assert.doesNotMatch(registration().tools[0].description, /chain|\{previous\}/);
 });
 
 test('a failed single result is an error result and a spawn failure is reported', async (t) => {
@@ -468,7 +456,7 @@ test('timeoutMs stops a stuck child and reports a failed result instead of throw
   assert.deepEqual(await untilGone([pid, grandchild], 1000), []);
 });
 
-test('progress keeps queued rows distinct, freezes completion, and marks skipped chain steps', async (t) => {
+test('progress keeps queued rows distinct, and freezes completion', async (t) => {
   const f = await fixture(t);
   const ready = Array.from({ length: 6 }, (_, index) => path.join(f.root, `ready-${index}.json`));
   const release = Array.from({ length: 6 }, (_, index) => path.join(f.root, `release-${index}`));
@@ -495,8 +483,6 @@ test('progress keeps queued rows distinct, freezes completion, and marks skipped
     assert.ok(result.details.progress?.endedAt);
     assert.ok(result.details.progress.tasks.every((row) => row.state === 'succeeded' && row.role === 'review'));
     assert.equal(result.details.progress.tasks[0].endedAt, snapshots.find((snapshot) => snapshot.tasks[0].state === 'succeeded')?.tasks[0].endedAt);
-    const chain = await f.execute({ chain: [{ agent: 'general-purpose', task: 'FAIL first' }, { agent: 'general-purpose', task: 'never {previous}' }] });
-    assert.deepEqual(chain.details.progress?.tasks.map((row) => row.state), ['failed', 'skipped']);
   } finally {
     f.abort.abort();
     await releaseAll();

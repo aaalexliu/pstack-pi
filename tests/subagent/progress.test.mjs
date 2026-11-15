@@ -125,7 +125,7 @@ test('quiet and long-run warnings are advisory, and completion freezes event age
   assert.doesNotMatch(taskLine(row(), now), /QUIET|LONG RUN/);
 });
 
-test('finish skips unstarted chain rows and fails running rows without terminal results', (t) => {
+test('finish skips unstarted rows and fails running rows without terminal results', (t) => {
   t.mock.method(Date, 'now', () => 0);
   const { run, latest } = fixture(12);
   run.started(0);
@@ -236,7 +236,7 @@ test('cmux publishes only the latest pending snapshot and never clears another s
   await other.close();
 });
 
-test('long chains bound sidebar writes and cleanup to eight task keys', async () => {
+test('long runs bound sidebar writes and cleanup to eight task keys', async () => {
   const { run, latest } = fixture(200);
   run.finish();
   /** @type {string[][]} */ const calls = [];
