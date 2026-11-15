@@ -10,9 +10,7 @@
  *   - each child owns a detached process group; abort or timeout kills the whole group
  *   - the task travels over stdin and the system prompt over a 0600 file, not argv
  *
- * Modes:
- *   - Single: { agent, task }
- *   - Parallel: { tasks: [{ agent, task }, ...] }
+ * One call runs one child: { agent, task }. Several calls in one message run side by side.
  */
 
 import { type ChildProcess, spawn } from 'node:child_process';
@@ -37,10 +35,9 @@ import { createProgressView, renderProgressResult } from './view.ts';
 import { type AgentConfig, type AgentScope, type AgentSource, bundledAgents, discoverAgents } from './agents.ts';
 import { formatModelChoice, loadModelConfig, ModelRouter, modelChoiceSchema, modelConfigPath, roleSchema, roles } from './model-config.ts';
 
-export const MAX_PARALLEL_TASKS = 8;
+/** Headless children running at once across all calls. Pane children use the interactive extension's slots. */
 export const MAX_CONCURRENCY = 4;
 const COLLAPSED_ITEM_COUNT = 10;
-const PER_TASK_OUTPUT_CAP = 50 * 1024;
 const STDERR_CAP = 16 * 1024;
 export const TERM_GRACE_MS = 3000;
 export const SHUTDOWN_GRACE_MS = 1000;
@@ -165,7 +162,6 @@ export interface SingleResult {
 }
 
 export interface SubagentDetails {
-  mode: 'single' | 'parallel';
   agentScope: AgentScope;
   projectAgentsDir: string | null;
   results: SingleResult[];
@@ -211,14 +207,6 @@ export function modelFacingText(observed: string | undefined, body: string, sess
   return `resolved-model: ${observed ?? 'unknown'}\n${sessionLines}\n${body}`;
 }
 
-function truncateParallelOutput(output: string): string {
-  const byteLength = Buffer.byteLength(output, 'utf8');
-  if (byteLength <= PER_TASK_OUTPUT_CAP) return output;
-  let truncated = output.slice(0, PER_TASK_OUTPUT_CAP);
-  while (Buffer.byteLength(truncated, 'utf8') > PER_TASK_OUTPUT_CAP) truncated = truncated.slice(0, -1);
-  return `${truncated}\n\n[Output truncated: ${byteLength - Buffer.byteLength(truncated, 'utf8')} bytes omitted. Full output preserved in tool details.]`;
-}
-
 type DisplayItem = { type: 'text'; text: string } | { type: 'toolCall'; name: string; args: Record<string, any> };
 
 function getDisplayItems(messages: Message[]): DisplayItem[] {
@@ -231,24 +219,6 @@ function getDisplayItems(messages: Message[]): DisplayItem[] {
     }
   }
   return items;
-}
-
-async function mapWithConcurrencyLimit<TIn, TOut>(items: TIn[], concurrency: number, fn: (item: TIn, index: number) => Promise<TOut>): Promise<TOut[]> {
-  if (items.length === 0) return [];
-  const limit = Math.max(1, Math.min(concurrency, items.length));
-  const results: TOut[] = new Array(items.length);
-  let nextIndex = 0;
-  const workers = new Array(limit).fill(null).map(async () => {
-    while (true) {
-      const current = nextIndex++;
-      if (current >= items.length) return;
-      results[current] = await fn(items[current], current);
-    }
-  });
-  const outcomes = await Promise.allSettled(workers);
-  const failure = outcomes.find((outcome) => outcome.status === 'rejected');
-  if (failure?.status === 'rejected') throw failure.reason;
-  return results;
 }
 
 // ---------------------------------------------------------------------------
@@ -586,30 +556,18 @@ export async function runSingleAgent({ resolved, depth, signal, timeoutMs, onUpd
 const thinkingSchema = Type.Union([
   Type.Literal('off'), Type.Literal('minimal'), Type.Literal('low'), Type.Literal('medium'),
   Type.Literal('high'), Type.Literal('xhigh'), Type.Literal('max'),
-], { description: 'Child reasoning level. Set for the job; overrides the inherited parent level. An item value overrides the call default.' });
+], { description: 'Child reasoning level. Set for the job; overrides the inherited parent level.' });
 
-const keepSessionSchema = Type.Boolean({ description: 'Keep the child\'s Pi session file instead of running with --no-session. The result then names its session-id and session-path. An item value overrides the call default.' });
-
-const taskFields = {
-  agent: Type.String({ description: 'Name of the agent to invoke' }),
-  task: Type.String({ description: 'Task to delegate to the agent' }),
-  cwd: Type.Optional(Type.String({ description: 'Working directory for the agent process' })),
-  model: Type.Optional(modelChoiceSchema),
-  role: Type.Optional(roleSchema),
-  thinking: Type.Optional(thinkingSchema),
-  keepSession: Type.Optional(keepSessionSchema),
-};
-const TaskItem = Type.Object(taskFields);
+const keepSessionSchema = Type.Boolean({ description: 'Keep the child\'s Pi session file instead of running with --no-session. The result then names its session-id and session-path.' });
 
 const SubagentParams = Type.Object({
-  agent: Type.Optional(Type.String({ description: 'Name of the agent to invoke (single mode)' })),
-  task: Type.Optional(Type.String({ description: 'Task to delegate (single mode)' })),
-  tasks: Type.Optional(Type.Array(TaskItem, { description: `Array of {agent, task} for parallel execution, at most ${MAX_PARALLEL_TASKS}` })),
+  agent: Type.String({ description: 'Name of the agent to invoke' }),
+  task: Type.String({ description: 'Task to delegate to the agent' }),
   model: Type.Optional(modelChoiceSchema),
   role: Type.Optional(roleSchema),
   thinking: Type.Optional(thinkingSchema),
   keepSession: Type.Optional(keepSessionSchema),
-  cwd: Type.Optional(Type.String({ description: 'Working directory for the agent process (single mode)' })),
+  cwd: Type.Optional(Type.String({ description: 'Working directory for the agent process' })),
   timeoutMs: Type.Optional(Type.Integer({ minimum: 1, description: 'Kill any child still running after this many milliseconds' })),
   agentScope: Type.Optional(Type.Union([Type.Literal('user'), Type.Literal('project'), Type.Literal('both')], {
     description: 'Which agent directories to use. Default "user" (bundled plus user agents). "both" adds project-local agents.',
@@ -627,16 +585,39 @@ export function toolDescription(bundled: Pick<AgentConfig, 'name' | 'description
   return [
     'Delegate tasks to specialized subagents with isolated context and wait for their results before you continue.',
     'Use it for read-only lookups and whenever you need the answer before your next step. For real work, prefer the non-blocking subagent tool, which opens a pane the user can watch and steer.',
-    'Modes: single (agent + task) and parallel (tasks array).',
+    'Each call runs one child. To run several at once, make several blocking_subagent calls in one message; at most four children run at a time and the rest wait.',
     listing,
     `User and project agents override bundled ones by name. User agents live in ${path.join(getAgentDir(), 'agents')}.`,
     `To enable project-local agents in ${CONFIG_DIR_NAME}/agents, set agentScope: "both".`,
     `model accepts inherit-parent or provider/model-id. role selects a configured model from ${modelConfigPath(getAgentDir())}; roles: ${roles.join(', ')}.`,
-    'Explicit model overrides role, then the agent default, then the parent model. thinking sets the child reasoning level per call or task; a task value overrides the call default. Children cannot delegate.',
-    'Single result text starts with `resolved-model: provider/model-id` from the child response, or `resolved-model: unknown`. Parallel results include that line in each task block. That line is the resolved identity. The requested selector is not.',
+    'Explicit model overrides role, then the agent default, then the parent model. thinking sets the child reasoning level for the call. Children cannot delegate.',
+    'Single result text starts with `resolved-model: provider/model-id` from the child response, or `resolved-model: unknown`. That line is the resolved identity. The requested selector is not.',
     'With keepSession: true, the child keeps a Pi session file in PI_CODING_AGENT_SESSION_DIR or else Pi\'s default session folder for its cwd, and the result adds `session-id: <id>` and `session-path: <absolute path>` lines after resolved-model.',
-    'Inside cmux or tmux, a single-mode child runs as a real Pi in the subagents layout the user can watch and steer; it always keeps its session file, so its reply always has the session lines.',
+    'Inside cmux or tmux, the child runs as a real Pi in the subagents layout the user can watch and steer; it always keeps its session file, so its reply always has the session lines.',
   ].join(' ');
+}
+
+/** A counting semaphore. Waiters start in call order; an abort while waiting rejects. */
+export function createSlots(limit: number) {
+  let active = 0;
+  const waiters: (() => void)[] = [];
+  return {
+    get active() { return active; },
+    async acquire(signal?: AbortSignal): Promise<void> {
+      if (signal?.aborted) throw new Error('Subagent was aborted');
+      if (active < limit) { active++; return; }
+      await new Promise<void>((resolve, reject) => {
+        const start = () => { signal?.removeEventListener('abort', cancel); active++; resolve(); };
+        const cancel = () => { waiters.splice(waiters.indexOf(start), 1); reject(new Error('Subagent was aborted')); };
+        waiters.push(start);
+        signal?.addEventListener('abort', cancel, { once: true });
+      });
+    },
+    release(): void {
+      active--;
+      waiters.shift()?.();
+    },
+  };
 }
 
 export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawnDetachedChild, env = process.env, termGraceMs = TERM_GRACE_MS, runPane }: {
@@ -651,6 +632,7 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
 
   const router = new ModelRouter();
   const registry = new ChildRegistry();
+  const headlessSlots = createSlots(MAX_CONCURRENCY);
   const view = createProgressView(pi);
   const pendingDetails = new Map<string, SubagentDetails>();
   const activeProgress = new Set<RunProgress>();
@@ -673,7 +655,7 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
     name: TOOL_NAME,
     label: 'Blocking subagent',
     description: toolDescription(bundledAgents()),
-    promptSnippet: 'Run subagents and wait for their results: read-only lookups, answers you need before continuing, roles, and parallel tasks',
+    promptSnippet: 'Run subagents and wait for their results: read-only lookups, answers you need before continuing, roles, and several children side by side',
     promptGuidelines: [
       'Use subagent, not blocking_subagent, by default for real work: it opens a pane the user can watch and steer, returns at once, and delivers the result later as a new turn.',
       'Use blocking_subagent for read-only lookups, for answers you need before your next step, and when no terminal multiplexer is available.',
@@ -699,123 +681,74 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
         };
         const discovery = discoverAgents(ctx.cwd, agentScope);
         const agents = discovery.agents;
-        const makeDetails = (mode: SubagentDetails['mode']) => (results: SingleResult[]): SubagentDetails => ({
-          mode, agentScope, projectAgentsDir: discovery.projectAgentsDir, results,
-        });
+        const makeDetails = (results: SingleResult[]): SubagentDetails => ({ agentScope, projectAgentsDir: discovery.projectAgentsDir, results });
         const listAgents = () => agents.map((a) => `${a.name} (${a.source})`).join(', ') || 'none';
 
-        const hasTasks = (params.tasks?.length ?? 0) > 0;
-        const hasSingle = Boolean(params.agent && params.task);
-        const mode: SubagentDetails['mode'] = hasTasks ? 'parallel' : 'single';
-        if (hasTasks === hasSingle) {
-          return { content: [{ type: 'text', text: `Invalid parameters. Provide exactly one mode.\nAvailable agents: ${listAgents()}` }], details: makeDetails('single')([]) };
+        const agent = agents.find((a) => a.name === params.agent);
+        if (!agent) {
+          return { content: [{ type: 'text', text: `Unknown agent "${params.agent}". Available agents: ${listAgents()}` }], details: makeDetails([]) };
         }
-        if (params.tasks && params.tasks.length > MAX_PARALLEL_TASKS) {
-          return { content: [{ type: 'text', text: `Too many parallel tasks (${params.tasks.length}). Max is ${MAX_PARALLEL_TASKS}.` }], details: makeDetails('parallel')([]) };
-        }
-
-        const requested = params.tasks ?? [{ agent: params.agent!, task: params.task!, cwd: params.cwd, model: params.model, role: params.role, thinking: params.thinking, keepSession: params.keepSession }];
         const config = await loadModelConfig(getAgentDir());
-        const resolvedTasks: ResolvedTask[] = [];
-        for (const item of requested) {
-          const agent = agents.find((a) => a.name === item.agent);
-          if (!agent) {
-            return { content: [{ type: 'text', text: `Unknown agent "${item.agent}". Available agents: ${listAgents()}` }], details: makeDetails(mode)([]) };
-          }
-          const selection = router.select({ config, role: item.role ?? params.role, model: item.model ?? params.model, agentModel: agent.model });
-          const inherits = selection.choice.kind === 'inheritParent';
-          resolvedTasks.push({
-            agent, task: item.task, cwd: item.cwd ?? params.cwd ?? ctx.cwd,
-            model: inherits ? defaults.model : formatModelChoice(selection.choice),
-            modelSource: selection.source, thinking: item.thinking ?? params.thinking ?? (inherits ? defaults.thinkingLevel : undefined), role: item.role ?? params.role,
-            keepSession: item.keepSession ?? params.keepSession,
-          });
-        }
+        const selection = router.select({ config, role: params.role, model: params.model, agentModel: agent.model });
+        const inherits = selection.choice.kind === 'inheritParent';
+        const resolved: ResolvedTask = {
+          agent, task: params.task, cwd: params.cwd ?? ctx.cwd,
+          model: inherits ? defaults.model : formatModelChoice(selection.choice),
+          modelSource: selection.source, thinking: params.thinking ?? (inherits ? defaults.thinkingLevel : undefined), role: params.role,
+          keepSession: params.keepSession,
+        };
 
         if ((agentScope === 'project' || agentScope === 'both') && (params.confirmProjectAgents ?? true) && ctx.hasUI && !ctx.isProjectTrusted()) {
-          const projectAgents = [...new Set(resolvedTasks.map((t) => t.agent).filter((a) => a.source === 'project'))];
-          if (projectAgents.length > 0) {
+          if (agent.source === 'project') {
             const ok = await ctx.ui.confirm('Run project-local agents?',
-              `Agents: ${projectAgents.map((a) => a.name).join(', ')}\nSource: ${discovery.projectAgentsDir ?? '(unknown)'}\n\nProject agents are repo-controlled. Only continue for trusted repositories.`);
-            if (!ok) return { content: [{ type: 'text', text: 'Canceled: project-local agents not approved.' }], details: makeDetails(mode)([]) };
+              `Agents: ${agent.name}\nSource: ${discovery.projectAgentsDir ?? '(unknown)'}\n\nProject agents are repo-controlled. Only continue for trusted repositories.`);
+            if (!ok) return { content: [{ type: 'text', text: 'Canceled: project-local agents not approved.' }], details: makeDetails([]) };
           }
         }
 
-        partial = { content: [{ type: 'text', text: '(starting...)' }], details: makeDetails(mode)([]) };
+        partial = { content: [{ type: 'text', text: '(starting...)' }], details: makeDetails([]) };
         view.begin(toolCallId);
-        progress = new RunProgress(resolvedTasks.map((task) => ({ agent: task.agent.name, task: task.task, role: task.role, model: task.model, thinking: task.thinking })), (value) => {
+        progress = new RunProgress([{ agent: agent.name, task: resolved.task, role: resolved.role, model: resolved.model, thinking: resolved.thinking }], (value) => {
           snapshot = value;
           view.publish(value, ctx, toolCallId);
           publish();
         });
         activeProgress.add(progress);
-        // A single child opens in the subagents layout when a multiplexer and a session file exist, else runs headless.
-        // Parallel stays headless until its future is decided.
-        const pane = mode !== 'single' ? null : runPane === undefined ? publishedPaneRunner() : runPane;
+        // The child opens in the subagents layout when a multiplexer and a session file exist, else runs headless.
+        // Both paths cap how many children run at once: the pane runner through its spawn slots, headless here.
+        const pane = runPane === undefined ? publishedPaneRunner() : runPane;
         const paneCtx = pane && ctx.sessionManager?.getSessionFile() ? ctx : undefined;
-        const run = async (resolved: ResolvedTask, update: OnUpdateCallback | undefined, index: number) => {
-          if (signal?.aborted) throw new Error('Subagent was aborted');
-          const observe = (event: unknown, result: SingleResult) => {
-            const type = (event as { type?: string } | null)?.type;
-            if (type === 'child_started') progress!.started(index);
-            else if (type === 'child_stopping') progress!.stopping(index);
-            else if (type === 'child_finished') progress!.result(index, result);
-            else progress!.event(index, event, result.usage);
-          };
-          if (pane && paneCtx) {
-            progress!.started(index);
-            const result = await runPaneAgent({ resolved, runPane: pane, ctx: paneCtx, signal, timeoutMs: params.timeoutMs });
-            observe({ type: 'child_finished' }, result);
-            return result;
-          }
-          return runSingleAgent({ resolved, depth, signal, timeoutMs: params.timeoutMs, onUpdate: update, makeDetails: makeDetails(mode), spawnChild, registry, termGraceMs, onEvent: observe });
+        const observe = (event: unknown, result: SingleResult) => {
+          const type = (event as { type?: string } | null)?.type;
+          if (type === 'child_started') progress!.started(0);
+          else if (type === 'child_stopping') progress!.stopping(0);
+          else if (type === 'child_finished') progress!.result(0, result);
+          else progress!.event(0, event, result.usage);
         };
-
-        if (mode === 'parallel') {
-          const allResults: SingleResult[] = resolvedTasks.map((t) => ({
-            agent: t.agent.name, agentSource: t.agent.source, task: t.task, exitCode: -1, messages: [], stderr: '', usage: zeroUsage(), model: t.model, modelSource: t.modelSource, thinking: t.thinking,
-          }));
-          const emitParallelUpdate = () => {
-            if (!onUpdate) return;
-            const running = allResults.filter((r) => r.exitCode === -1).length;
-            onUpdate({
-              content: [{ type: 'text', text: `Parallel: ${allResults.length - running}/${allResults.length} done, ${running} running...` }],
-              details: makeDetails('parallel')([...allResults]),
-            });
-          };
-          const results = await mapWithConcurrencyLimit(resolvedTasks, MAX_CONCURRENCY, async (resolved, index) => {
-            const result = await run(resolved, (partial) => {
-              if (partial.details?.results[0]) { allResults[index] = partial.details.results[0]; emitParallelUpdate(); }
-            }, index);
-            allResults[index] = result;
-            emitParallelUpdate();
-            return result;
-          });
-          const successCount = results.filter((r) => !isFailedResult(r)).length;
-          const summaries = results.map((r) => {
-            const status = isFailedResult(r) ? `failed${r.stopReason && r.stopReason !== 'stop' ? ` (${r.stopReason})` : ''}` : 'completed';
-            return `### [${r.agent}] ${status}\n${modelFacingText(r.observedModel, truncateParallelOutput(getResultOutput(r)), r)}`;
-          });
-          return {
-            content: [{ type: 'text', text: `Parallel: ${successCount}/${results.length} succeeded\n\n${summaries.join('\n\n---\n\n')}` }],
-            details: makeDetails('parallel')(results),
-          };
+        let result: SingleResult;
+        if (pane && paneCtx) {
+          progress.started(0);
+          result = await runPaneAgent({ resolved, runPane: pane, ctx: paneCtx, signal, timeoutMs: params.timeoutMs });
+          observe({ type: 'child_finished' }, result);
+        } else {
+          await headlessSlots.acquire(signal);
+          try {
+            result = await runSingleAgent({ resolved, depth, signal, timeoutMs: params.timeoutMs, onUpdate, makeDetails, spawnChild, registry, termGraceMs, onEvent: observe });
+          } finally {
+            headlessSlots.release();
+          }
         }
-
-        const result = await run(resolvedTasks[0], onUpdate, 0);
         if (isFailedResult(result)) {
-          return { content: [{ type: 'text', text: modelFacingText(result.observedModel, `Agent ${result.stopReason || 'failed'}: ${getResultOutput(result)}`, result) }], details: makeDetails('single')([result]) };
+          return { content: [{ type: 'text', text: modelFacingText(result.observedModel, `Agent ${result.stopReason || 'failed'}: ${getResultOutput(result)}`, result) }], details: makeDetails([result]) };
         }
-        return { content: [{ type: 'text', text: modelFacingText(result.observedModel, getFinalOutput(result.messages) || '(no output)', result) }], details: makeDetails('single')([result]) };
+        return { content: [{ type: 'text', text: modelFacingText(result.observedModel, getFinalOutput(result.messages) || '(no output)', result) }], details: makeDetails([result]) };
       };
       try {
         const result = await request();
         progress?.finish();
         const details = { ...result.details, ...(snapshot ? { progress: snapshot } : {}) };
         pendingDetails.delete(toolCallId);
-        const isError = result.details.results.length > 0 && (result.details.mode === 'parallel'
-          ? result.details.results.every(isFailedResult)
-          : result.details.results.some(isFailedResult));
+        const isError = result.details.results.some(isFailedResult);
         return { ...result, details, isError };
       } catch (error) {
         progress?.finish(error instanceof Error ? error.message : String(error));
@@ -832,15 +765,6 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
         const bits = [item.role && `role:${item.role}`, item.model && item.model].filter(Boolean);
         return bits.length ? theme.fg('muted', ` (${bits.join(', ')})`) : '';
       };
-      if (args.tasks && args.tasks.length > 0) {
-        let text = title + theme.fg('accent', `parallel (${args.tasks.length} tasks)`) + theme.fg('muted', ` [${scope}]`);
-        for (const t of args.tasks.slice(0, 3)) {
-          const preview = t.task.length > 40 ? `${t.task.slice(0, 40)}...` : t.task;
-          text += `\n  ${theme.fg('accent', t.agent)}${tag(t)}${theme.fg('dim', ` ${preview}`)}`;
-        }
-        if (args.tasks.length > 3) text += `\n  ${theme.fg('muted', `... +${args.tasks.length - 3} more`)}`;
-        return new Text(text, 0, 0);
-      }
       const preview = args.task ? (args.task.length > 60 ? `${args.task.slice(0, 60)}...` : args.task) : '...';
       return new Text(`${title}${theme.fg('accent', args.agent || '...')}${tag(args)}${theme.fg('muted', ` [${scope}]`)}\n  ${theme.fg('dim', preview)}`, 0, 0);
     },
@@ -880,15 +804,6 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
         if (usage) container.addChild(new Text(theme.fg('dim', usage), 0, 0));
       };
 
-      const aggregateUsage = (results: SingleResult[]) => {
-        const total = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, turns: 0 };
-        for (const r of results) {
-          total.input += r.usage.input; total.output += r.usage.output; total.cacheRead += r.usage.cacheRead;
-          total.cacheWrite += r.usage.cacheWrite; total.cost += r.usage.cost; total.turns += r.usage.turns;
-        }
-        return total;
-      };
-
       const collapsedTask = (r: SingleResult, header: string) => {
         const displayItems = getDisplayItems(r.messages);
         let text = header;
@@ -900,48 +815,18 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
         return text;
       };
 
-      if (details.mode === 'single' && details.results.length === 1) {
-        const r = details.results[0];
-        const isError = isFailedResult(r);
-        const icon = r.exitCode === -1 ? theme.fg('warning', '⏳') : isError ? theme.fg('error', '✗') : theme.fg('success', '✓');
-        let header = `${icon} ${theme.fg('toolTitle', theme.bold(r.agent))}${theme.fg('muted', ` (${r.agentSource})`)}`;
-        if (isError && r.stopReason) header += ` ${theme.fg('error', `[${r.stopReason}]`)}`;
-        if (expanded) {
-          const container = new Container();
-          expandedTask(container, r, header);
-          return container;
-        }
-        let text = collapsedTask(r, header);
-        if (getDisplayItems(r.messages).length > COLLAPSED_ITEM_COUNT) text += `\n${theme.fg('muted', '(Ctrl+O to expand)')}`;
-        return new Text(text, 0, 0);
-      }
-
-      const running = details.results.filter((r) => r.exitCode === -1).length;
-      const done = details.results.filter((r) => r.exitCode !== -1);
-      const successCount = done.filter((r) => !isFailedResult(r)).length;
-      const label = 'parallel ';
-      const icon = running > 0 ? theme.fg('warning', '⏳') : successCount === details.results.length ? theme.fg('success', '✓') : theme.fg('warning', '◐');
-      const status = running > 0 ? `${done.length}/${details.results.length} done, ${running} running` : `${successCount}/${details.results.length} tasks`;
-      const taskHeader = (r: SingleResult) => {
-        const rIcon = r.exitCode === -1 ? theme.fg('warning', '⏳') : isFailedResult(r) ? theme.fg('error', '✗') : theme.fg('success', '✓');
-        const reason = isFailedResult(r) && r.stopReason ? theme.fg('error', ` [${r.stopReason}]`) : '';
-        return `${theme.fg('muted', '─── ')}${theme.fg('accent', r.agent)} ${rIcon}${theme.fg('muted', ` (${r.agentSource})`)}${reason}`;
-      };
-
-      if (expanded && running === 0) {
+      const r = details.results[0];
+      const isError = isFailedResult(r);
+      const icon = r.exitCode === -1 ? theme.fg('warning', '⏳') : isError ? theme.fg('error', '✗') : theme.fg('success', '✓');
+      let header = `${icon} ${theme.fg('toolTitle', theme.bold(r.agent))}${theme.fg('muted', ` (${r.agentSource})`)}`;
+      if (isError && r.stopReason) header += ` ${theme.fg('error', `[${r.stopReason}]`)}`;
+      if (expanded) {
         const container = new Container();
-        container.addChild(new Text(`${icon} ${theme.fg('toolTitle', theme.bold(label))}${theme.fg('accent', status)}`, 0, 0));
-        for (const r of details.results) { container.addChild(new Spacer(1)); expandedTask(container, r, taskHeader(r)); }
-        const usage = formatUsageStats(aggregateUsage(details.results));
-        if (usage) { container.addChild(new Spacer(1)); container.addChild(new Text(theme.fg('dim', `Total: ${usage}`), 0, 0)); }
+        expandedTask(container, r, header);
         return container;
       }
-
-      let text = `${icon} ${theme.fg('toolTitle', theme.bold(label))}${theme.fg('accent', status)}`;
-      for (const r of details.results) text += `\n\n${collapsedTask(r, taskHeader(r))}`;
-      const usage = formatUsageStats(aggregateUsage(details.results));
-      if (usage) text += `\n\n${theme.fg('dim', `Total: ${usage}`)}`;
-      if (!expanded) text += `\n${theme.fg('muted', '(Ctrl+O to expand)')}`;
+      let text = collapsedTask(r, header);
+      if (getDisplayItems(r.messages).length > COLLAPSED_ITEM_COUNT) text += `\n${theme.fg('muted', '(Ctrl+O to expand)')}`;
       return new Text(text, 0, 0);
     },
   });

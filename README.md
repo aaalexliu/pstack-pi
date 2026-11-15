@@ -139,25 +139,22 @@ Aggregations always span every project because papercuts describe the tooling, n
 pstack-pi has two delegation tools. Pick by whether you need to wait.
 
 - `subagent` is the default for real work. It opens each child in a cmux or tmux pane you can watch and steer, returns at once, and delivers the result later as a new parent turn. It comes from [HazAT/pi-interactive-subagents](https://github.com/HazAT/pi-interactive-subagents), folded into `extensions/interactive-subagents/` with its own README. `subagent_resume`, `subagent_interrupt`, and `subagents_list` manage those children.
-- `blocking_subagent` waits for the answer. Use it for read-only lookups, for answers the parent needs before its next step, and outside a terminal multiplexer. It keeps roles and parallel tasks. Skills that run parallel review or judging panels use it.
+- `blocking_subagent` waits for the answer. Use it for read-only lookups, for answers the parent needs before its next step, and outside a terminal multiplexer. It keeps roles, and several calls in one message run side by side. Skills that run parallel review or judging panels use it.
 
 In cmux, interactive children of one parent share an `agents: <session>` workspace in a 2x2 grid. A parent runs at most four at once and queues the rest. Set `maxConcurrent` and `cmuxLayout` (`"grid"` or `"tabs"`) under `interactiveSubagents` in `<Pi agent dir>/pstack-pi/settings.json`. In tmux, each child is a window. Children of either tool get no delegation tools, unless an interactive child's agent says `spawning: true`; then it gets the interactive tools only. Interactive children can use this package's agents as well as the bundled `scout`, `worker`, `planner`, `reviewer`, `visual-tester`, and `claude-code`.
 
 The `blocking_subagent` tool is Pi's bundled subagent example (`examples/extensions/subagent`) plus a few additions.
-Each call spawns a separate `pi --mode json -p --no-session` process per task, so every child has its own context window.
-Set `keepSession: true` on the call or a task to keep that child's session file instead. The child then runs with `--session-id <uuid>` and an explicit `--session-dir`: `PI_CODING_AGENT_SESSION_DIR` when set, else Pi's default session folder for its `cwd`. The `sessionDir` setting does not apply. Its result adds `session-id: <id>` and `session-path: <absolute path>` lines after `resolved-model:`, so an audit can open the transcript. If the child exits before writing its session, the result says so instead.
+Each call spawns a separate `pi --mode json -p --no-session` process per call, so every child has its own context window.
+Set `keepSession: true` on the call to keep that child's session file instead. The child then runs with `--session-id <uuid>` and an explicit `--session-dir`: `PI_CODING_AGENT_SESSION_DIR` when set, else Pi's default session folder for its `cwd`. The `sessionDir` setting does not apply. Its result adds `session-id: <id>` and `session-path: <absolute path>` lines after `resolved-model:`, so an audit can open the transcript. If the child exits before writing its session, the result says so instead.
 
 ```json
 {"agent":"general-purpose","task":"Read src/index.ts and explain its exports."}
 ```
 
-Two modes, exactly one per call:
+Each call runs one child: `agent` and `task`. To run several children at once, make several `blocking_subagent` calls in one message; Pi runs them together. At most four children run at once across all calls, the rest wait for a slot: in a multiplexer through the `subagent` tool's spawn slots (`maxConcurrent`), and headless through a cap of four in this extension.
 
-- Single: `agent` and `task`.
-- Parallel: `tasks`, an array of 1-8 `{agent, task}` entries. At most four children run at once; results keep input order.
-
-Every task entry, and the call itself, accepts optional `cwd`, `model`, `role`, `thinking`, and `keepSession`. The call also accepts `timeoutMs`, `agentScope`, and `confirmProjectAgents`.
-`thinking` is `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`. Set it per task to match the job. A task value overrides the call default; an explicit value overrides the parent's thinking level. Pi clamps the requested level to the child's model capabilities.
+The call also accepts optional `cwd`, `model`, `role`, `thinking`, and `keepSession`. It also accepts `timeoutMs`, `agentScope`, and `confirmProjectAgents`.
+`thinking` is `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`. Set it per call to match the job. An explicit value overrides the parent's thinking level. Pi clamps the requested level to the child's model capabilities.
 `cwd` is any directory; a relative path resolves against the parent's working directory.
 `timeoutMs` kills any child still running after that many milliseconds and reports the task as failed with `Timed out after N ms`.
 
@@ -168,7 +165,7 @@ What this package adds to the example:
 - A depth guard. The child receives `PSTACK_SUBAGENT_DEPTH=1`; at depth one or more the subagent extension registers nothing and the interactive extension registers no spawning tools, so children cannot delegate. Explicit agent tool lists also include `pstack_todo`, so a child can report its own checklist.
 - Process groups. Each child is a detached session leader. Abort, `timeoutMs`, and parent shutdown send `SIGTERM` to the whole group, then `SIGKILL` after three seconds. Parent shutdown waits up to one second for children to exit and discards any result that arrives during shutdown.
 - Private inputs. The system prompt goes through a `0600` temp file with `--append-system-prompt` and the task through stdin, so neither appears in `ps`. The temp file is removed after the child exits.
-- Error results. `execute` returns `isError: true` when a single task fails or every parallel task fails. A parallel call with some failures stays a normal result that names each failure. The `tool_result` hook keeps progress details when a call throws.
+- Error results. `execute` returns `isError: true` when its child fails. Each call stands alone, so one failed call does not fail its siblings. The `tool_result` hook keeps progress details when a call throws.
 - The child is launched through the same Node binary and Pi entrypoint as the parent, never through `pi` on `PATH`.
 
 The child also receives `PI_MEMORY_EXIT_SUMMARY=0`, so [pi-memory](https://github.com/jayzeng/pi-memory) does not summarize each child transcript into the shared daily log when the child exits.
@@ -192,8 +189,8 @@ A file that fails to parse is skipped; the other agents in that directory still 
 
 ### Results
 
-The tool returns the child's final assistant text. Parallel results are joined as `### [agent] completed` or `### [agent] failed (reason)` sections, each capped at 50 KiB with the full text kept in `details`.
-`details` holds `mode`, `agentScope`, `projectAgentsDir`, and one entry per task with the agent, its source (`bundled`, `user`, `project`), the task, `exitCode`, every `message_end` message from the child, capped stderr, summed usage (`input`, `output`, `cacheRead`, `cacheWrite`, `cost`, `contextTokens`, `turns`), the resolved `model`, `modelSource` (`explicit`, `role`, `agent`, `parent`), and the requested `thinking` level when passed to Pi.
+The tool returns the child's final assistant text.
+`details` holds `agentScope`, `projectAgentsDir`, and one entry for the child with the agent, its source (`bundled`, `user`, `project`), the task, `exitCode`, every `message_end` message from the child, capped stderr, summed usage (`input`, `output`, `cacheRead`, `cacheWrite`, `cost`, `contextTokens`, `turns`), the resolved `model`, `modelSource` (`explicit`, `role`, `agent`, `parent`), and the requested `thinking` level when passed to Pi.
 A task fails when the child exits nonzero, is killed by a signal, or ends with `stopReason` `error` or `aborted`.
 `details.progress` stores the public status snapshot with the result. Live cards show role, selected/observed model, requested thinking level when set, state, elapsed time, last event, reported usage, todo counts, and current activity. Completed cards keep that metadata and preview the original result text. Ctrl+O expands the full result.
 
@@ -201,7 +198,7 @@ A task fails when the child exits nonzero, is killed by a signal, or ends with `
 
 Use `/subagents` for the latest request's tasks, public message previews, checklists, usage, and recent event summaries. Use `/subagents raw` for the same public snapshot as JSON, not the raw protocol or private thinking. Both views update live. `j`/`k`, arrows, PageUp/PageDown, and Home/End scroll; `q` or Esc closes the view without stopping work. Esc in the parent stops the batch.
 
-The collapsed card shows at most eight tasks and favors unfinished work. Ctrl+O also reveals every task's metadata in a longer run, even after reload. The inspector shows every task of the most recently started request; older overlapping calls cannot replace that view. Each call keeps its own inline card. There is no duplicate widget. In cmux, the sidebar shows up to eight tasks using keys owned by this Pi instance. A cmux error triggers best-effort removal of those keys instead of keeping stale running status.
+Each call's card shows its one child. Ctrl+O reveals the child's full metadata, even after reload. The inspector shows the most recently started call; older overlapping calls cannot replace that view. Each call keeps its own inline card. There is no duplicate widget. In cmux, the sidebar shows up to eight children using keys owned by this Pi instance. A cmux error triggers best-effort removal of those keys instead of keeping stale running status.
 
 Checklists are self-reported. A quiet warning after 60 seconds and a long-run warning after 10 minutes suggest checking the task; neither proves a loop or lack of progress. Usage can lag. Public previews and event history are bounded. This is not a process-tree monitor and does not find arbitrary shell-launched agents.
 
@@ -217,7 +214,7 @@ node scripts/demo-subagents.mjs
 
 ### Children in cmux or tmux
 
-Inside cmux or tmux, a single-mode `blocking_subagent` child opens as a real Pi in the same `agents: <session>` layout the `subagent` tool uses, so you can watch and steer it. The parent still waits for it and reads its reply and model from the child's session file, so its reply always names `session-id` and `session-path`. Parallel tasks still run headless. Closing a child's pane ends it as a failure. Outside a multiplexer, or in a session with no session file, children run headless with `pi --mode json -p`.
+Inside cmux or tmux, each `blocking_subagent` child opens as a real Pi in the same `agents: <session>` layout the `subagent` tool uses, so you can watch and steer it. The parent still waits for it and reads its reply and model from the child's session file, so its reply always names `session-id` and `session-path`. Closing a child's pane ends it as a failure. Outside a multiplexer, or in a session with no session file, children run headless with `pi --mode json -p`.
 
 Limits worth knowing: a child's own detached, `SIGTERM`-ignoring processes are outside its process group and are not tracked, the same as Pi's bash tool. Delegation needs macOS or Linux for process groups.
 

@@ -76,7 +76,6 @@ test('packed real parent delegates a file read to a bundled agent, then keeps ru
       const [end] = subagentEnds(run);
       assert.ok(end && end.isError === false);
       const details = /** @type {import('../../extensions/subagent/index.ts').SubagentDetails} */ (/** @type {any} */ (end.result).details);
-      assert.equal(details.mode, 'single');
       assert.equal(details.results.length, 1);
       const [result] = details.results;
       assert.equal(result.exitCode, 0);

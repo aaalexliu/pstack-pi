@@ -13,7 +13,7 @@
 - `delegate.test.mjs` proves a real parent delegating to real bundled, user, and poteto children, with exact child tool lists and no leftover prompt files. A child with host default tools gets neither `blocking_subagent` nor the interactive `subagent` tools.
 - `depth.test.mjs` proves the runner's two-level limit: a lead started like the runner starts it has `subagent` and `blocking_subagent`, and a `sub-lead` child, plus a `pi -p` it runs from bash, has neither.
 - `progress.test.mjs` proves live model, tool, checklist and usage metadata, persisted final snapshots, and timeout cards through packed Pi. Renderer tests under `tests/subagent/` cover scrolling, raw status, long runs, overlap, and reload. The demo script exercises the real terminal views.
-- `execution-safety.test.mjs` proves the depth guard, `timeoutMs`, simultaneous calls, eight parallel tasks with a four-child ceiling, fake `pi` in `PATH`, and parent `SIGTERM` and `SIGHUP` cleanup.
+- `execution-safety.test.mjs` proves the depth guard, `timeoutMs`, simultaneous calls, eight calls in one message with a four-child ceiling, fake `pi` in `PATH`, and parent `SIGTERM` and `SIGHUP` cleanup.
 
 Packed test files run serially in one process via `--experimental-test-isolation=none --test-concurrency=1`. This shares preparation without sharing test profiles. Non-packed files retain process isolation. Individual packed tests still run concurrent children. Explicit child tool lists include the agent's tools plus `pstack_todo`, never `blocking_subagent`.
 
@@ -27,7 +27,7 @@ The runner deletes its shared pack at suite teardown and on normal process exit.
 | Process polling | 100 ms interval, 1 second per `ps`, 1.5 seconds between polls |
 | Process samples | 512 |
 | Process table | 16,384 rows, 8 MiB per poll |
-| Live Pi processes | 2 by default; 3 for simultaneous calls; 5 for eight parallel tasks |
+| Live Pi processes | 2 by default; 3 for simultaneous calls; 5 for eight calls in one message |
 | Provider script | 16 steps maximum |
 | Provider request | 256 KiB |
 | Retained provider requests | 16 requests, 1 MiB total, memory only |

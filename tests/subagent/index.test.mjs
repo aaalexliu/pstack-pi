@@ -6,7 +6,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
-import subagentExtension, { DEPTH_VARIABLE, MAX_CONCURRENCY, TERM_GRACE_MS, childEnvironment, observedModelId, parentDepth } from '../../extensions/subagent/index.ts';
+import subagentExtension, { DEPTH_VARIABLE, MAX_CONCURRENCY, TERM_GRACE_MS, childEnvironment, createSlots, observedModelId, parentDepth } from '../../extensions/subagent/index.ts';
 import { bundledAgents } from '../../extensions/subagent/agents.ts';
 import { roles } from '../../extensions/subagent/model-config.ts';
 import { Check } from 'typebox/value';
@@ -152,7 +152,6 @@ test('single mode runs the bundled agent in a detached child with prompt file, s
   const updates = [];
   const result = await f.execute({ agent: 'general-purpose', task }, undefined, (partial) => { updates.push(partial); });
   const details = result.details;
-  assert.equal(details.mode, 'single');
   assert.equal(details.results[0].exitCode, 0);
   assert.equal(details.results[0].agentSource, 'bundled');
   assert.equal(details.results[0].modelSource, 'parent');
@@ -212,15 +211,13 @@ test('a role selector keeps its thinking suffix, and an explicit thinking level 
   assert.deepEqual((await argsOf({ agent: 'general-purpose', task: 'x', role: 'feature', thinking: 'low' })).slice(4, 8), ['--model', 'pinned/model:xhigh', '--thinking', 'low']);
 });
 
-test('thinking schema accepts only Pi levels at the call and task boundaries', () => {
+test('thinking schema accepts only Pi levels', () => {
   const { tools } = registration();
   for (const thinking of ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']) {
     assert.equal(Check(tools[0].parameters, { agent: 'general-purpose', task: 'x', thinking }), true);
-    assert.equal(Check(tools[0].parameters, { tasks: [{ agent: 'general-purpose', task: 'x', thinking }] }), true);
   }
   for (const params of [
     { agent: 'general-purpose', task: 'x', thinking: 'ultra' },
-    { tasks: [{ agent: 'general-purpose', task: 'x', thinking: 'ultra' }] },
   ]) assert.equal(Check(tools[0].parameters, params), false);
 });
 
@@ -248,31 +245,12 @@ test('single thinking overrides inherited parent level and pinned model defaults
   }
 });
 
-test('parallel thinking uses per-item overrides over the call default', async (t) => {
-  const f = await fixture(t);
-  {
-    const result = await f.execute({ tasks: [
-      { agent: 'general-purpose', task: 'first' },
-      { agent: 'general-purpose', task: 'second', thinking: 'high' },
-    ], thinking: 'low', model: 'pinned/model' });
-    assert.deepEqual(result.details.results.map((r) => r.thinking), ['low', 'high']);
-    assert.ok(result.details.progress);
-    assert.deepEqual(result.details.progress.tasks.map((r) => r.thinking), ['low', 'high']);
-    for (const [index, level] of ['low', 'high'].entries()) {
-      const content = result.details.results[index].messages.at(-1)?.content[0];
-      assert.ok(content && typeof content !== 'string' && content.type === 'text');
-      const args = JSON.parse(content.text).args;
-      assert.deepEqual(args.slice(0, 8), ['--mode', 'json', '-p', '--no-session', '--model', 'pinned/model', '--thinking', level]);
-    }
-  }
-});
-
 /** @param {string} text */
 const sessionOf = (text) => /^session-id: (\S+)\nsession-path: (\S+)$/m.exec(text)?.slice(1) ?? [];
 /** @param {string} file */
 const header = async (file) => JSON.parse((await readFile(file, 'utf8')).split('\n')[0]);
 
-test('keepSession saves the child session and reports its id and path in every mode', async (t) => {
+test('keepSession saves the child session and reports its id and path', async (t) => {
   const f = await fixture(t);
   const single = await f.execute({ agent: 'general-purpose', task: 'x', keepSession: true });
   const [id, file] = sessionOf(single.content[0].text);
@@ -280,16 +258,6 @@ test('keepSession saves the child session and reports its id and path in every m
   assert.equal(path.dirname(path.dirname(file)), path.join(f.agentDir, 'sessions'));
   assert.deepEqual(await header(file), { type: 'session', version: 3, id, cwd: f.cwd });
   assert.ok(!JSON.parse(childOutput(single.content[0].text)).args.includes('--no-session'));
-  const parallel = await f.execute({ tasks: [{ agent: 'general-purpose', task: 'a' }, { agent: 'general-purpose', task: 'b' }, { agent: 'general-purpose', task: 'c', keepSession: false }], keepSession: true });
-  const blocks = parallel.content[0].text.split('### ').slice(1);
-  const ids = [];
-  for (const block of blocks.slice(0, 2)) {
-    const [blockId, blockFile] = sessionOf(block);
-    assert.equal((await header(blockFile)).id, blockId);
-    ids.push(blockId);
-  }
-  assert.notEqual(ids[0], ids[1]);
-  assert.doesNotMatch(blocks[2], /^session/m);
   assert.doesNotMatch((await f.execute({ agent: 'general-purpose', task: 'x' })).content[0].text, /^session/m);
 });
 
@@ -350,46 +318,56 @@ test('resolved-model comes from the child response, not the requested selector',
   assert.doesNotMatch(missing.content[0].text, /requested\/selector/);
 });
 
-test('unknown agents, mixed modes, and too many tasks return guidance without spawning', async (t) => {
+test('unknown agents return guidance without spawning', async (t) => {
   const f = await fixture(t);
   const unknown = await f.execute({ agent: 'nope', task: 'x' });
   assert.match(unknown.content[0].text, /Unknown agent "nope".*general-purpose \(bundled\)/);
   assert.deepEqual(unknown.details.results, []);
-  assert.match((await f.execute({ agent: 'general-purpose', task: 'x', tasks: [{ agent: 'general-purpose', task: 'y' }] })).content[0].text, /exactly one mode/);
-  assert.match((await f.execute({ tasks: Array.from({ length: 9 }, () => ({ agent: 'general-purpose', task: 'y' })) })).content[0].text, /Too many parallel tasks \(9\)/);
   assert.equal(unknown.isError, false);
 });
 
-test('parallel mode keeps input order, caps concurrency, and reports one failure without failing the call', async (t) => {
+test('the schema takes one agent and task: tasks and chain arrays are gone', () => {
+  const { tools } = registration();
+  const params = tools[0].parameters;
+  assert.equal(Check(params, { agent: 'general-purpose', task: 'x' }), true);
+  assert.equal(Check(params, { tasks: [{ agent: 'general-purpose', task: 'x' }] }), false);
+  assert.equal(Check(params, { chain: [{ agent: 'general-purpose', task: 'x' }] }), false);
+  assert.equal(params.properties.tasks, undefined);
+  assert.equal(params.properties.chain, undefined);
+  assert.doesNotMatch(tools[0].description, /tasks array|chain|\{previous\}/);
+});
+
+test('separate calls run side by side, headless children share a cap of four, and one failure fails only its call', async (t) => {
   const f = await fixture(t);
   const log = path.join(f.root, 'overlap.log');
-  const tasks = [
-    { agent: 'general-purpose', task: `SLOW 300 ${log}` }, { agent: 'general-purpose', task: `SLOW 100 ${log}` }, { agent: 'poteto-agent', task: 'FAIL now' },
-    { agent: 'general-purpose', task: `SLOW 50 ${log}` }, { agent: 'general-purpose', task: `SLOW 200 ${log}` }, { agent: 'general-purpose', task: `SLOW 20 ${log}` },
-  ];
-  const result = await f.execute({ tasks });
-  assert.equal(result.details.mode, 'parallel');
-  assert.deepEqual(result.details.results.map((r) => r.task), tasks.map((task) => task.task));
-  assert.deepEqual(result.details.results.map((r) => r.exitCode), [0, 0, 0, 0, 0, 0]);
-  assert.deepEqual(result.details.results.map((r) => r.stopReason), ['stop', 'stop', 'error', 'stop', 'stop', 'stop']);
-  assert.match(result.content[0].text, /^Parallel: 5\/6 succeeded/);
-  assert.match(result.content[0].text, /### \[poteto-agent\] failed \(error\)\nresolved-model: fixture\/model\n\nPRIVATE_BOOM/);
+  const tasks = [`SLOW 300 ${log}`, `SLOW 100 ${log}`, 'FAIL now', `SLOW 50 ${log}`, `SLOW 200 ${log}`, `SLOW 20 ${log}`, `SLOW 80 ${log}`, `SLOW 60 ${log}`];
+  const results = await Promise.all(tasks.map((task) => f.execute({ agent: 'general-purpose', task })));
+  assert.deepEqual(results.map((r) => r.details.results[0].task), tasks);
+  assert.deepEqual(results.map((r) => r.isError), [false, false, true, false, false, false, false, false]);
+  assert.match(results[2].content[0].text, /^resolved-model: fixture\/model\n\nAgent error: PRIVATE_BOOM/);
   const events = (await readFile(log, 'utf8')).trim().split('\n').map((line) => line.split(' '));
   let live = 0; let peak = 0;
   for (const [kind] of events.sort((a, b) => Number(a[1]) - Number(b[1]))) { live += kind === 'start' ? 1 : -1; peak = Math.max(peak, live); }
   assert.ok(peak <= MAX_CONCURRENCY && peak >= 2, `peak concurrency ${peak}`);
-  assert.equal(result.isError, false, 'A partial failure is not an error result');
-  const allFailed = await f.execute({ tasks: [{ agent: 'general-purpose', task: 'FAIL a' }, { agent: 'general-purpose', task: 'EXIT2 b' }] });
-  assert.equal(allFailed.isError, true);
-  assert.match(allFailed.content[0].text, /\[general-purpose\] failed\nresolved-model: unknown\n\nchild exploded/);
 });
 
-test('chain mode is gone: a chain-only call names no mode and starts no child', async (t) => {
-  const f = await fixture(t);
-  const result = await f.execute({ chain: [{ agent: 'general-purpose', task: 'first' }, { agent: 'general-purpose', task: 'second {previous}' }] });
-  assert.match(result.content[0].text, /^Invalid parameters\. Provide exactly one mode\./);
-  assert.deepEqual(result.details.results, []);
-  assert.doesNotMatch(registration().tools[0].description, /chain|\{previous\}/);
+test('createSlots starts waiters in call order and an abort drops a waiter', async () => {
+  const slots = createSlots(1);
+  await slots.acquire();
+  /** @type {string[]} */
+  const order = [];
+  const controller = new AbortController();
+  const first = slots.acquire().then(() => order.push('first'));
+  const dropped = slots.acquire(controller.signal);
+  const second = slots.acquire().then(() => order.push('second'));
+  controller.abort();
+  await assert.rejects(dropped, /aborted/);
+  slots.release();
+  await realDelay(0);
+  slots.release();
+  await Promise.all([first, second]);
+  assert.deepEqual(order, ['first', 'second']);
+  assert.equal(slots.active, 1);
 });
 
 test('a failed single result is an error result and a spawn failure is reported', async (t) => {
@@ -456,60 +434,50 @@ test('timeoutMs stops a stuck child and reports a failed result instead of throw
   assert.deepEqual(await untilGone([pid, grandchild], 1000), []);
 });
 
-test('progress keeps queued rows distinct, and freezes completion', async (t) => {
+test('a call waiting for a headless slot shows queued until a slot frees, then freezes completion', async (t) => {
   const f = await fixture(t);
-  const ready = Array.from({ length: 6 }, (_, index) => path.join(f.root, `ready-${index}.json`));
-  const release = Array.from({ length: 6 }, (_, index) => path.join(f.root, `release-${index}`));
+  const count = MAX_CONCURRENCY + 1;
+  const ready = Array.from({ length: count }, (_, index) => path.join(f.root, `ready-${index}.json`));
+  const release = Array.from({ length: count }, (_, index) => path.join(f.root, `release-${index}`));
   const releaseAll = () => Promise.all(release.map((file) => writeFile(file, 'go').catch(() => {})));
   /** @type {import('../../extensions/subagent/progress.ts').ProgressSnapshot[]} */
-  const snapshots = [];
-  const pending = f.execute({ role: 'review', tasks: ready.map((file, index) => ({ agent: 'general-purpose', task: `WAIT ${file} ${release[index]}` })) }, undefined,
-    (partial) => { if (partial.details.progress) snapshots.push(structuredClone(partial.details.progress)); });
+  const lastSnapshots = [];
+  const pending = ready.map((file, index) => f.execute({ role: 'review', agent: 'general-purpose', task: `WAIT ${file} ${release[index]}` }, undefined,
+    (partial) => { if (partial.details.progress) lastSnapshots[index] = structuredClone(partial.details.progress); }));
   try {
     await Promise.all(ready.slice(0, MAX_CONCURRENCY).map(waitFor));
-    for (let tries = 0; tries < 200; tries++) {
-      if (snapshots.some((snapshot) => snapshot.tasks.some((row) => row.state === 'running') && snapshot.tasks.some((row) => row.state === 'queued'))) break;
-      await delay(25);
-    }
-    assert.ok(snapshots.some((snapshot) => snapshot.tasks.some((row) => row.state === 'running') && snapshot.tasks.some((row) => row.state === 'queued')));
+    await delay(100);
+    assert.equal(lastSnapshots[MAX_CONCURRENCY]?.tasks[0].state, 'queued');
+    await assert.rejects(readFile(ready[MAX_CONCURRENCY]), /ENOENT/);
     await writeFile(release[0], 'go');
-    for (let tries = 0; tries < 200; tries++) {
-      if (snapshots.some((snapshot) => snapshot.tasks[0].state === 'succeeded' && snapshot.tasks[1].state === 'running')) break;
-      await delay(25);
-    }
-    assert.ok(snapshots.some((snapshot) => snapshot.tasks[0].state === 'succeeded' && snapshot.tasks[1].state === 'running'));
+    await waitFor(ready[MAX_CONCURRENCY]);
     await releaseAll();
-    const result = await pending;
-    assert.ok(result.details.progress?.endedAt);
-    assert.ok(result.details.progress.tasks.every((row) => row.state === 'succeeded' && row.role === 'review'));
-    assert.equal(result.details.progress.tasks[0].endedAt, snapshots.find((snapshot) => snapshot.tasks[0].state === 'succeeded')?.tasks[0].endedAt);
+    const results = await Promise.all(pending);
+    for (const result of results) {
+      assert.ok(result.details.progress?.endedAt);
+      assert.ok(result.details.progress.tasks.every((row) => row.state === 'succeeded' && row.role === 'review'));
+    }
   } finally {
     f.abort.abort();
     await releaseAll();
-    await new Promise((/** @type {(value?: undefined) => void} */ resolve) => {
-      const timer = realSetTimeout(resolve, 2000);
-      pending.catch(() => {}).then(() => {
-        clearTimeout(timer);
-        resolve();
-      });
-    });
+    await Promise.race([Promise.allSettled(pending), new Promise((resolve) => realSetTimeout(resolve, 2000))]);
   }
 });
 
-test('aborted batches wait for all children and preserve terminal metadata through the error hook', { timeout: 5000 }, async (t) => {
+test('an aborted call waits for its child and preserves terminal metadata through the error hook', { timeout: 5000 }, async (t) => {
   const f = await fixture(t, { termGraceMs: 50 });
-  const markers = [path.join(f.root, 'first.json'), path.join(f.root, 'second.json')];
+  const marker = path.join(f.root, 'hang.json');
   const controller = new AbortController();
-  const pending = f.execute({ tasks: markers.map((marker, index) => ({ agent: 'general-purpose', task: `${index ? 'HANG-IGNORE' : 'HANG'} ${marker}` })) }, controller.signal);
-  const children = await Promise.all(markers.map(waitFor));
+  const pending = f.execute({ agent: 'general-purpose', task: `HANG-IGNORE ${marker}` }, controller.signal);
+  const { pid, grandchild } = await waitFor(marker);
   controller.abort();
   await assert.rejects(pending, /aborted/);
-  assert.deepEqual(await untilGone(children.flatMap(({ pid, grandchild }) => [pid, grandchild]), 500), []);
+  assert.deepEqual(await untilGone([pid, grandchild], 500), []);
   const hook = f.handlers.get('tool_result');
   const event = { toolName: 'blocking_subagent', toolCallId: 'call', isError: true };
   const saved = hook?.(event);
   assert.ok(saved.details.progress.endedAt);
-  assert.deepEqual(saved.details.progress.tasks.map((/** @type {{state: string}} */ row) => row.state), ['aborted', 'aborted']);
+  assert.deepEqual(saved.details.progress.tasks.map((/** @type {{state: string}} */ row) => row.state), ['aborted']);
   assert.equal(hook?.(event), undefined, 'Error metadata is consumed once');
 });
 

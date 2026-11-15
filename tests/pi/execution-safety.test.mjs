@@ -119,17 +119,18 @@ test('packed simultaneous delegates both run as separate children and leave unre
   });
 });
 
-test('packed parallel tasks run four at a time, keep input order, and one failure does not cancel siblings', { timeout: 25000 }, async (t) => {
+test('eight blocking_subagent calls in one message run four at a time and one failure does not cancel siblings', { timeout: 25000 }, async (t) => {
   const observer = observation(t, 5);
   const prompt = 'mixed-parallel-parent';
   const tasks = Array.from({ length: 8 }, (_, index) => ({ agent: 'general-purpose', task: `mixed-child-${index}` }));
   const arrived = new Set();
   /** @type {import('./concurrent-provider.mjs').ConcurrentRoute[]} */
   const routes = [{ marker: prompt, steps: [
-    { model: FIXTURE_MODEL, reply: { kind: 'tool', id: 'mixed', name: 'blocking_subagent', arguments: { tasks } } },
+    { model: FIXTURE_MODEL, reply: { kind: 'tools', calls: tasks.map((args, index) => ({ id: `mixed-${index}`, name: 'blocking_subagent', arguments: args })) } },
     { model: FIXTURE_MODEL, reply: { kind: 'text', text: 'Sibling isolation verified.' }, check: (payload) => {
       assert.equal(arrived.size, 8);
-      assert.match(result(payload, 'mixed'), /Parallel: 7\/8 succeeded/);
+      assert.match(result(payload, 'mixed-0'), /Agent error/);
+      for (const index of [1, 3, 4, 5, 6, 7]) assert.match(result(payload, `mixed-${index}`), new RegExp(`result-${index}`));
       assert.equal(observer.sample().length, 1, 'Child survived tool return');
     } },
   ] }, ...tasks.map((task, index) => {
@@ -153,13 +154,9 @@ test('packed parallel tasks run four at a time, keep input order, and one failur
   await runPiSmoke({ startFixture: () => startConcurrentProvider(routes), prompt, expectedRequests: 11, expectedText: 'Sibling isolation verified.', keepArtifacts: true,
     onSpawn: (pid) => observer.start(pid),
     verify: async (run) => {
-      const event = run.events.find((event) => event.type === 'tool_execution_end' && event.toolCallId === 'mixed');
-      assert.ok(event && event.isError === false, 'A partial failure stays a usable result');
-      const details = /** @type {import('../../extensions/subagent/index.ts').SubagentDetails} */ (/** @type {any} */ (event.result).details);
-      assert.equal(details.mode, 'parallel');
-      assert.deepEqual(details.results.map((r) => r.task), tasks.map((task) => task.task));
-      assert.deepEqual(details.results.map((r) => r.stopReason), ['error', 'stop', 'stop', 'stop', 'stop', 'stop', 'stop', 'stop']);
-      assert.deepEqual([...(/** @type {any} */ (event.result).content[0].text).matchAll(/### \[general-purpose\] (\w+)/g)].map((match) => match[1]), ['failed', 'completed', 'completed', 'completed', 'completed', 'completed', 'completed', 'completed']);
+      const ends = tasks.map((_, index) => run.events.find((event) => event.type === 'tool_execution_end' && event.toolCallId === `mixed-${index}`));
+      assert.deepEqual(ends.map((event) => event?.isError), [true, false, false, false, false, false, false, false]);
+      assert.deepEqual(ends.map((event) => /** @type {any} */ (event?.result).details.results[0].task), tasks.map((task) => task.task));
       assert.equal(observer.peakLivePi, 5);
       await verified(t, observer, run);
     },

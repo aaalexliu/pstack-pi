@@ -102,7 +102,7 @@ export async function startConcurrentProvider(routes) {
           return;
         }
         const calls = reply.kind === 'tools' ? reply.calls : reply.kind === 'tool' ? [reply] : [];
-        assert.ok(reply.kind === 'text' || calls.length > 0 && calls.length <= 4);
+        assert.ok(reply.kind === 'text' || calls.length > 0 && calls.length <= 8);
         const delta = reply.kind === 'text' ? { role: 'assistant', content: reply.text }
           : { role: 'assistant', tool_calls: calls.map((call, index) => ({ index, id: call.id, type: 'function', function: { name: call.name, arguments: JSON.stringify(call.arguments) } })) };
         const envelope = { id: `parallel-${state.requests}`, object: 'chat.completion.chunk', created: 1, model: step.model };
