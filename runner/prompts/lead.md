@@ -62,4 +62,4 @@ linear '{"query":"query($id:String!){issue(id:$id){identifier state{name} commen
 - Move the ticket: look up the state id with `workflowStates(filter: {team: {key: {eq: "<team>"}}, name: {eq: "Done"}})`, then `issueUpdate(id, input: {stateId})`.
 - Decision issue: `issueCreate(input: {teamId, parentId: "<issue id>", assigneeId, title, description})`. Get `teamId` from `issue(id) { team { id } }` and `assigneeId` from `users(filter: {name: {eq: "<name>"}})`.
 
-Use `gh` for GitHub; it is logged in already.
+Use `gh` for GitHub; it is logged in already, or `GH_TOKEN` picks the account. Never run `gh auth switch`, `gh auth login` or `gh auth setup-git`: they change the login for every session on this Mac.

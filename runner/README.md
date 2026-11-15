@@ -14,13 +14,15 @@ It remembers one fact per ticket: when it last started the lead, in `<worktree>/
 Each poll, for each open issue delegated to `runnerUser` (`Todo`, or any started state such as `In Progress` or `In Review`):
 
 ```text
-lead live in tmux                     -> leave it; once quiet for stallMinutes, treat it as stopped (below)
+lead live in tmux                     -> leave it; file a Decision issue if it went quiet for stallMinutes
 open Decision issue                   -> wait
 you acted after the lead's last start -> start the lead (if a slot is free) and save the start time
 else                                  -> file a Decision issue: "the lead stopped with nothing open to wait for"
 ```
 
-A live lead quiet for `stallMinutes` most often ended its turn and forgot `subagent_done`. The runner then waits on an open Decision issue, starts the lead again in the same session if you acted since its last start, and otherwise files one "the lead looks stuck" Decision issue. That issue blocks a second one until you close it, and closing it starts the lead again with your comments. You can also attach and type to it; that counts as activity.
+A live lead belongs to the lead: the runner never starts, restarts or kills it. Your comments and Decision answers reach it when you attach and type, or after it exits, since the next start carries them. Quiet means no output in any window of the ticket's tmux session (an idle Pi does not redraw, and a working subagent window counts) and no event in `.runner/activity.json`. A lead quiet for `stallMinutes`, most often one that ended its turn and forgot `subagent_done`, gets one "the lead looks stuck" Decision issue per quiet stretch, with the commands to attach or stop it. It still holds its slot. No issue is filed while `.runner/takeover` or `.runner/held` exists.
+
+The runner kills a ticket's tmux session only when the ticket is no longer open: Done, Canceled, or no longer delegated.
 
 A ticket marked Done or Canceled, or with its delegate cleared, is no longer the runner's. `In Review` still is: Linear's GitHub link moves a ticket there when the lead opens its first PR, long before the work is done.
 
@@ -34,7 +36,7 @@ Closing a Decision issue, Done or Canceled, wakes the lead in the same Pi sessio
 
 The runner starts `pi --session-id <uuid> @.runner/input.md` with [prompts/lead.md](prompts/lead.md) in a detached tmux session named for the ticket, in the ticket's worktree. `input.md` holds the ticket, the Linear ids the lead needs, the review model, the prompts folder, and what you did since its last start. Pi loads pstack-pi's `subagent-done.ts` without `PI_SUBAGENT_AUTO_EXIT`, so ending a turn does not end the session: the lead can wait for its own subagents, such as a reviewer started with the `subagent` tool. It exits when it calls `subagent_done`, once its ending is in place: the last PR merged and the ticket Done, the report posted and the ticket Done, or a Decision issue filed with nothing left running. The extension also writes activity to `.runner/activity.json` for the stall check.
 
-The launch script drops every `PI_*` and `PSTACK_*` variable the tmux server holds from another session, digits in names included, keeping only `PI_AUTH_PROFILE` and `PI_CODING_AGENT_DIR`. It runs `linearTokenCommand` itself and exports the token as `LINEAR_TOKEN`, so the token never lands on disk and the lead posts to Linear as the runner's app user. The lead calls Linear's GraphQL API with `curl`, and GitHub with the host's `gh` login.
+The launch script drops every `PI_*` and `PSTACK_*` variable the tmux server holds from another session, digits in names included, keeping only `PI_AUTH_PROFILE` and `PI_CODING_AGENT_DIR`. It runs `linearTokenCommand` itself and exports the token as `LINEAR_TOKEN`, so the token never lands on disk and the lead posts to Linear as the runner's app user. With `ghTokenCommand` set, it exports `GH_TOKEN` the same way; otherwise `gh` uses the host's login. It mirrors the unsets and exports into the tmux session with `tmux set-environment`, so windows the lead's subagents open get the same environment. The lead calls Linear's GraphQL API with `curl`, and GitHub with `gh`; the prompt forbids `gh auth switch`, `gh auth login` and `gh auth setup-git`.
 
 ### The merge gate lives in the lead prompt
 
@@ -99,7 +101,7 @@ Run one runner per Linear team.
 
 ## The status comment
 
-Each ticket gets one runner comment, edited in place: the state, the host, the tmux session, the Pi session id, the worktree, and commands to watch the lead (`tmux attach`), take it over (touch `.runner/takeover` first, so the runner leaves it alone until you quit Pi), or quiz a fork of it in its own worktree.
+Each ticket gets one runner comment, edited in place: the state, the host, the tmux session, the Pi session id, the worktree, and commands to watch the lead (`tmux attach`), take it over (touch `.runner/takeover` first, so no stall issue is filed until you quit Pi; if the lead exits first, a second Pi starts under `.runner/held`), or quiz a fork of it in its own worktree.
 
 ## Ticket lines
 
@@ -115,6 +117,7 @@ The runner reads `~/.config/job-runner/config.json`, or the file named by `JOB_R
 | Field | Meaning |
 | --- | --- |
 | `linearTokenCommand` | A shell command that prints a Linear token for the runner's app user. The lead gets the same token |
+| `ghTokenCommand` | Optional. A shell command that prints a GitHub token; the lead and its subagents get it as `GH_TOKEN` |
 | `team` | The Linear team key, such as `ENG` |
 | `runnerUser` | The app user's name as Linear shows it on the delegate field |
 | `decisionAssignee` | The person Decision issues go to |
@@ -124,7 +127,7 @@ The runner reads `~/.config/job-runner/config.json`, or the file named by `JOB_R
 | `pollSeconds` | Seconds between polls. Default 30 |
 | `maxLeads` | Leads that run at once. Default 2 |
 | `minFreeMemoryPercent` | No lead starts while less memory than this is free. Default 20 |
-| `stallMinutes` | Minutes without lead activity before the runner asks. Default 30 |
+| `stallMinutes` | Minutes without activity in the lead's tmux session before the runner asks. Default 30 |
 | `host` | The host name the status comment uses for `ssh`. Default: this Mac's name |
 | `worktreeRoot` | The directory for ticket worktrees |
 

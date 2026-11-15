@@ -1,5 +1,6 @@
 {
   "linearTokenCommand": "security find-generic-password -s linear-runner-token -w",
+  "ghTokenCommand": "gh auth token -u your-github-user",
   "team": "ENG",
   "runnerUser": "job runner",
   "decisionAssignee": "Your Name",

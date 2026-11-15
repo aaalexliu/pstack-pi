@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -35,7 +35,7 @@ function issue(n: number, fields: Partial<FakeIssue> = {}): FakeIssue {
   };
 }
 
-function setup(issues: FakeIssue[], options: { maxLeads?: number; stallMinutes?: number } = {}) {
+function setup(issues: FakeIssue[], options: { maxLeads?: number; stallMinutes?: number; ghTokenCommand?: string } = {}) {
   const root = mkdtempSync(path.join(os.tmpdir(), 'job-runner-test-'));
   const origin = path.join(root, 'origin.git');
   const repo = path.join(root, 'repo');
@@ -54,7 +54,7 @@ const args = process.argv.slice(2);
 const at = args.find((a) => a.startsWith('@'));
 fs.appendFileSync(${JSON.stringify(file('pi.log'))}, JSON.stringify({
   input: at ? fs.readFileSync(at.slice(1), 'utf8') : '', model: args[args.indexOf('--model') + 1], session: args[args.indexOf('--session-id') + 1],
-  cwd: process.cwd(), extension: args[args.indexOf('-e') + 1], autoExit: process.env.PI_SUBAGENT_AUTO_EXIT, token: process.env.LINEAR_TOKEN,
+  cwd: process.cwd(), extension: args[args.indexOf('-e') + 1], autoExit: process.env.PI_SUBAGENT_AUTO_EXIT, token: process.env.LINEAR_TOKEN, ghToken: process.env.GH_TOKEN,
   piVars: Object.keys(process.env).filter((k) => /^(PI|PSTACK)_/.test(k)).sort(),
 }) + '\\n');
 `, { mode: 0o755 });
@@ -70,6 +70,8 @@ const target = args[args.indexOf('-t') + 1]?.replace(/^=|:$/g, '');
 if (args[0] === 'new-session') { try { execFileSync('sh', ['-c', args.at(-1)], { cwd: args[args.indexOf('-c') + 1], stdio: 'ignore' }); } catch {} }
 else if (args[0] === 'has-session') process.exit(live.includes(target) ? 0 : 1);
 else if (args[0] === 'kill-session') process.exit(1);
+else if (args[0] === 'list-sessions') console.log(live.join('\\n'));
+else if (args[0] === 'list-windows') { try { process.stdout.write(fs.readFileSync(${JSON.stringify(file('windows'))}, 'utf8')); } catch {} }
 `, { mode: 0o755 });
   writeFileSync(file('memory_pressure'), `#!/bin/sh\necho "System-wide memory free percentage: $(cat ${JSON.stringify(file('free'))} 2>/dev/null || echo 60)%"\n`, { mode: 0o755 });
   Object.assign(process.env, {
@@ -82,6 +84,7 @@ else if (args[0] === 'kill-session') process.exit(1);
     repos: { 'pstack-pi': { path: repo, base: 'main' } },
     models: { lead: 'lead-model', review: 'review-model' }, thinking: 'high', pollSeconds: 0.01, maxLeads: options.maxLeads ?? 2,
     minFreeMemoryPercent: 20, stallMinutes: options.stallMinutes ?? 30, host: 'test-host', worktreeRoot: file('worktrees'),
+    ...(options.ghTokenCommand ? { ghTokenCommand: options.ghTokenCommand } : {}),
   };
   let nextId = 0;
   /** Ids Linear no longer finds by id, as for an issue deleted mid-poll. */
@@ -141,6 +144,8 @@ else if (args[0] === 'kill-session') process.exit(1);
     leads: () => lines(file('pi.log')).map((line) => JSON.parse(line)),
     tmux: () => lines(file('tmux.log')).map((line) => JSON.parse(line) as string[]),
     decisions: (parent = 'id-1') => issues.filter((i) => i.parent === parent),
+    /** Window activity times, in seconds, that the fake `tmux list-windows` prints. */
+    setWindows: (...seconds: number[]) => writeFileSync(file('windows'), seconds.join('\n')),
     setLive: (...keys: string[]) => writeFileSync(file('live.json'), JSON.stringify(keys)),
     setFreeMemory: (percent: number) => writeFileSync(file('free'), `${percent}\n`),
     /** Alex closes a Decision issue, after the lead's last start. */
@@ -272,34 +277,65 @@ test('a ticket the lead moved to Done is left alone; one Linear moved to In Revi
   }
 });
 
-test('a live lead is never started again or asked about until it goes quiet; then one Decision issue, and Alex reaches it', async () => {
+test('the runner never starts or kills a live lead, even after a comment or a closed Decision issue', async () => {
+  const job = issue(1, { state: 'In Progress' });
+  const t = setup([job], { stallMinutes: 5 });
+  await t.run('--once');
+  t.setLive('ALE-1');
+  job.comments.push({ id: 'c-1', body: 'Merge it and call subagent_done.', createdAt: later(), user: { name: ALEX } });
+  const asked = issue(50, { parent: 'id-1', assignee: ALEX, createdAt: later() });
+  t.close(asked);
+  const runner = path.join(t.dirOf(1), '.runner');
+  put(path.join(runner, 'started'), new Date(Date.now() - 20 * 60000).toISOString());
+  put(path.join(runner, 'takeover'), '');
+  await t.run('--once');
+  rmSync(path.join(runner, 'takeover'));
+  await t.run('--once');
+  await t.run('--once');
+  assert.equal(t.leads().length, 1, 'no restart');
+  assert.deepEqual(t.tmux().filter((a) => a[0] === 'new-session' || a[0] === 'kill-session').map((a) => a[0]), ['kill-session', 'new-session'], 'only the first start');
+});
+
+test('a quiet live lead gets one Decision issue per quiet stretch; takeover and a busy window hold it off', async () => {
   const job = issue(1, { state: 'In Progress' });
   const t = setup([job], { stallMinutes: 5 });
   await t.run('--once');
   t.setLive('ALE-1');
   await t.run('--once');
-  assert.equal(t.leads().length, 1);
   assert.equal(t.decisions().length, 0, 'a live, active lead is left alone');
-  const quiet = () => {
-    put(path.join(t.dirOf(1), '.runner', 'started'), new Date(Date.now() - 20 * 60000).toISOString());
-    put(path.join(t.dirOf(1), '.runner', 'activity.json'), JSON.stringify({ updatedAt: Date.now() - 10 * 60000 }));
-  };
-  quiet();
+  const runner = path.join(t.dirOf(1), '.runner');
+  put(path.join(runner, 'started'), new Date(Date.now() - 20 * 60000).toISOString());
+  put(path.join(runner, 'activity.json'), JSON.stringify({ updatedAt: Date.now() - 10 * 60000 }));
+  t.setWindows(Math.floor(Date.now() / 1000) - 60);
+  await t.run('--once');
+  assert.equal(t.decisions().length, 0, 'output in any window, such as a reviewer, counts as activity');
+  t.setWindows(Math.floor(Date.now() / 1000) - 10 * 60);
+  put(path.join(runner, 'takeover'), '');
+  await t.run('--once');
+  assert.equal(t.decisions().length, 0, 'a person took it over');
+  rmSync(path.join(runner, 'takeover'));
   await t.run('--once');
   await t.run('--once');
   const stalls = t.decisions();
-  assert.equal(stalls.length, 1, 'an idle lead that never called subagent_done gets one Decision issue per idle stretch');
+  assert.equal(stalls.length, 1, 'one per quiet stretch');
   assert.match(stalls[0].title, /Check ALE-1: the lead looks stuck/);
-  assert.match(stalls[0].description, /no activity for 10 minutes/);
-  assert.equal(t.leads().length, 1);
-  t.close(stalls[0]);
-  job.comments.push({ id: 'c-1', body: 'Merge it and call subagent_done.', createdAt: later(), user: { name: 'Alex Liu' } });
+  assert.match(stalls[0].description, /no activity for 10 minutes[\s\S]*tmux attach/);
+  stalls[0].createdAt = new Date(Date.now() - 30 * 60000).toISOString();
   await t.run('--once');
-  assert.equal(t.leads().length, 2, 'closing the issue starts the idle lead again');
-  const again = t.leads()[1];
-  assert.equal(again.session, t.leads()[0].session, 'in the same session');
-  assert.match(again.input, /Alex Liu commented: Merge it and call subagent_done\./);
-  assert.equal(t.decisions().length, 1);
+  assert.equal(t.decisions().length, 2, 'activity after the first issue, then quiet again: a new stretch, a new issue');
+  assert.equal(t.leads().length, 1);
+});
+
+test('the runner kills the tmux session of a ticket that is no longer open, and nothing else', async () => {
+  const job = issue(1, { state: 'In Progress' });
+  const t = setup([job, issue(2, { state: 'In Progress' })]);
+  await t.run('--once');
+  const before = t.tmux().length;
+  t.setLive('ALE-1', 'ALE-2', 'ALE-3x', 'other');
+  job.state = 'Done';
+  await t.run('--once');
+  assert.deepEqual(t.tmux().slice(before).filter((a) => a[0] === 'kill-session'), [['kill-session', '-t', '=ALE-1']]);
+  assert.equal(t.leads().length, 2);
 });
 
 test('lead slots: at most maxLeads run, a live lead holds its slot, and the runner says why once', async () => {
@@ -443,6 +479,19 @@ test('quietMinutes counts from the later of the lead start and the last activity
   assert.equal(quietMinutes({ dir }, now), 60);
   writeFileSync(path.join(dir, '.runner', 'activity.json'), JSON.stringify({ updatedAt: now - 7 * 60000 }));
   assert.equal(quietMinutes({ dir }, now), 7);
+  assert.equal(quietMinutes({ dir }, now, now - 2 * 60000), 2, 'output in any tmux window counts');
+});
+
+test('GH_TOKEN from ghTokenCommand reaches the lead, and the lead environment is mirrored into its tmux session', async () => {
+  const t = setup([issue(1)], { ghTokenCommand: 'echo gh-secret | tr a-z A-Z' });
+  await t.run('--once');
+  const [lead] = t.leads();
+  assert.equal(lead.ghToken, 'GH-SECRET');
+  assert.ok(!readFileSync(path.join(t.dirOf(1), '.runner', 'lead.sh'), 'utf8').includes('GH-SECRET'), 'the token never lands on disk');
+  const env = t.tmux().filter((a) => a[0] === 'set-environment').map((a) => a.slice(1).join(' '));
+  for (const line of ['-t =ALE-1 GH_TOKEN GH-SECRET', '-t =ALE-1 LINEAR_TOKEN test-token', '-t =ALE-1 PI_AUTH_PROFILE kept', '-t =ALE-1 -r PI_SUBAGENT_NAME', '-t =ALE-1 -r PSTACK_9']) {
+    assert.ok(env.includes(line), `subagent windows get: ${line}`);
+  }
 });
 
 test('put replaces a file whole and leaves no temp file', () => {
