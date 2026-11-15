@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -15,14 +15,14 @@ test('production contains exactly the reviewed copied and adapted workflow set',
   const inventory = await checkContent({ root, manifest, lock });
   assert.equal(lock.commit, 'c742dd61706fbacc1b95f1a20b7b988cf096ce6c');
   assert.equal(inventory.bySource.size, 573);
-  assert.equal(inventory.byDestination.size, 135);
+  assert.equal(inventory.byDestination.size, 136);
   assert.equal(inventory.byAgentName.size, 5);
   assert.deepEqual(inventory.byAgentName.get('comment-sicko')?.tools, ['read', 'grep', 'find', 'ls']);
   assert.deepEqual(inventory.byAgentName.get('general-purpose')?.tools, ['read', 'grep', 'find', 'ls']);
   assert.deepEqual(inventory.byAgentName.get('pr-reviewer')?.tools, ['read', 'grep', 'find', 'ls', 'bash']);
   assert.deepEqual(inventory.byAgentName.get('sub-lead')?.tools, ['read', 'bash', 'edit', 'write']);
   assert.deepEqual(inventory.byAgentName.get('poteto-agent')?.tools, ['read', 'grep', 'find', 'ls', 'bash', 'edit', 'write']);
-  assert.equal(inventory.bySkillName.size, 59);
+  assert.equal(inventory.bySkillName.size, 60);
   assert.deepEqual([...inventory.byDestination].filter(([, record]) => record.disposition.kind === 'addition').map(([destination]) => destination).sort(), [
     'additions/agents/general-purpose.md',
     'additions/agents/pr-reviewer.md',
@@ -32,8 +32,9 @@ test('production contains exactly the reviewed copied and adapted workflow set',
     'additions/skills/deeper/SKILL.md',
     'additions/skills/intake/SKILL.md',
     'additions/skills/list-writing/SKILL.md',
+    'additions/skills/principles/SKILL.md',
   ]);
-  for (const name of ['alex-show-me', 'deeper', 'intake', 'list-writing']) assert.equal(inventory.bySkillName.get(name)?.destination, `additions/skills/${name}/SKILL.md`);
+  for (const name of ['alex-show-me', 'deeper', 'intake', 'list-writing', 'principles']) assert.equal(inventory.bySkillName.get(name)?.destination, `additions/skills/${name}/SKILL.md`);
   const upstreamEntrypoints = manifest.files.filter((file) => /^skills\/[^/]+\/SKILL\.md$/u.test(file.source));
   assert.equal(upstreamEntrypoints.length, 58);
   const omittedSkills = ['skills/ketchup-video/SKILL.md', 'skills/poteto-help/SKILL.md', 'skills/sharpen/SKILL.md'];
@@ -84,5 +85,13 @@ test('production contains exactly the reviewed copied and adapted workflow set',
       assert.match(actual.toString('utf8'), /^disable-model-invocation: true$/mu);
     }
   }
-  assert.deepEqual([...inventory.bySkillName.values()].filter((skill) => !skill.disabled).map((skill) => skill.name).sort(), ['intake', 'list-writing']);
+  assert.deepEqual([...inventory.bySkillName.values()].filter((skill) => !skill.disabled).map((skill) => skill.name).sort(), ['intake', 'list-writing', 'principles']);
+});
+
+test('principles index lists every principle skill and only those', async () => {
+  const principles = (await readdir(path.join(root, 'skills'))).filter((name) => name.startsWith('principle-')).sort();
+  const index = await readFile(path.join(root, 'additions/skills/principles/SKILL.md'), 'utf8');
+  const listed = [...index.matchAll(/^- `(principle-[a-z-]+)`: .+ Read `skills\/\1\/SKILL\.md`\.$/gmu)].map((match) => match[1]).sort();
+  assert.equal(principles.length, 24);
+  assert.deepEqual(listed, principles);
 });
