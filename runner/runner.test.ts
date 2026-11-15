@@ -65,12 +65,14 @@ const { execFileSync } = require('node:child_process');
 const args = process.argv.slice(2);
 fs.appendFileSync(${JSON.stringify(file('tmux.log'))}, JSON.stringify(args) + '\\n');
 const liveFile = ${JSON.stringify(file('live.json'))};
+const tagsFile = ${JSON.stringify(file('tags.json'))};
 const live = fs.existsSync(liveFile) ? JSON.parse(fs.readFileSync(liveFile, 'utf8')) : [];
 const target = args[args.indexOf('-t') + 1]?.replace(/^=|:$/g, '');
-if (args[0] === 'new-session') { try { execFileSync('sh', ['-c', args.at(-1)], { cwd: args[args.indexOf('-c') + 1], stdio: 'ignore' }); } catch {} }
+if (args[0] === 'new-session') { if (fs.existsSync(liveFile.replace(/live\.json$/, 'live-on-start'))) fs.writeFileSync(liveFile, JSON.stringify([...live, args[args.indexOf('-s') + 1]])); try { execFileSync('sh', ['-c', args.at(-1)], { cwd: args[args.indexOf('-c') + 1], stdio: 'ignore' }); } catch {} }
 else if (args[0] === 'has-session') process.exit(live.includes(target) ? 0 : 1);
 else if (args[0] === 'kill-session') { if (!live.includes(target)) process.exit(1); fs.writeFileSync(liveFile, JSON.stringify(live.filter((k) => k !== target))); }
-else if (args[0] === 'list-sessions') console.log(live.join('\\n'));
+else if (args[0] === 'set-option') { if (!/^=.+:$/.test(args[args.indexOf('-t') + 1] ?? '') || fs.existsSync(tagsFile + '.fail')) { console.error('no such session'); process.exit(1); } const tags = fs.existsSync(tagsFile) ? JSON.parse(fs.readFileSync(tagsFile, 'utf8')) : {}; fs.writeFileSync(tagsFile, JSON.stringify({ ...tags, [target]: args.at(-1) })); }
+else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? JSON.parse(fs.readFileSync(tagsFile, 'utf8')) : {}; console.log(live.map((k) => k + ' ' + (tags[k] ?? '')).join('\\n')); }
 else if (args[0] === 'list-windows') { try { process.stdout.write(fs.readFileSync(${JSON.stringify(file('windows'))}, 'utf8')); } catch {} }
 `, { mode: 0o755 });
   writeFileSync(file('memory_pressure'), `#!/bin/sh\necho "System-wide memory free percentage: $(cat ${JSON.stringify(file('free'))} 2>/dev/null || echo 60)%"\n`, { mode: 0o755 });
@@ -109,11 +111,12 @@ else if (args[0] === 'list-windows') { try { process.stdout.write(fs.readFileSyn
       const page = open.slice(from, from + 100);
       return data({ issues: {
         nodes: page.map((i) => ({ ...i, state: { type: TYPES[i.state] }, labels: { nodes: i.labels.map((name) => ({ name })) } })),
-        pageInfo: { hasNextPage: from + 100 < open.length, endCursor: String(from + 100) },
+        pageInfo: { hasNextPage: from + 100 < open.length || faults.includes('NoCursor'), endCursor: faults.includes('NoCursor') ? null : String(from + 100) },
       } });
     }
     if (op === 'IssueByKey') {
       const i = issues.find((x) => x.identifier === v.key);
+      if (v.key === 'ALE-6') return data({ issue: null });
       if (!i) return Response.json({ errors: [{ message: 'Entity not found' }] });
       return data({ issue: { state: { type: TYPES[i.state] }, delegate: i.delegate ? { name: i.delegate } : null } });
     }
@@ -158,6 +161,8 @@ else if (args[0] === 'list-windows') { try { process.stdout.write(fs.readFileSyn
     /** Window activity times, in seconds, that the fake `tmux list-windows` prints. */
     setWindows: (...seconds: number[]) => writeFileSync(file('windows'), seconds.join('\n')),
     setLive: (...keys: string[]) => writeFileSync(file('live.json'), JSON.stringify(keys)),
+    /** Marks sessions as the runner's, as its `set-option @job-runner` does. */
+    tag: (...keys: string[]) => writeFileSync(file('tags.json'), JSON.stringify(Object.fromEntries(keys.map((k) => [k, k])))),
     setFreeMemory: (percent: number) => writeFileSync(file('free'), `${percent}\n`),
     /** Alex closes a Decision issue, after the lead's last start. */
     close: (d: FakeIssue, how: 'Done' | 'Canceled' = 'Done') => { d.state = how; d[how === 'Done' ? 'completedAt' : 'canceledAt'] = later(); },
@@ -340,19 +345,46 @@ test('a quiet live lead gets one Decision issue per quiet stretch; takeover and 
   assert.equal(t.leads().length, 1);
 });
 
-test('the runner kills only a session it started whose ticket Linear confirms is closed', async () => {
+test('the runner kills only a session it tagged whose ticket Linear confirms is closed, never a taken-over one', async () => {
   const many = Array.from({ length: 101 }, (_, k) => issue(k + 1, { state: 'In Progress' }));
   const t = setup([...many, issue(102, { state: 'In Progress', delegate: 'Someone else' })], { maxLeads: 0 });
-  for (const n of [1, 2, 101]) { mkdirSync(path.join(t.dirOf(n), '.runner'), { recursive: true }); put(path.join(t.dirOf(n), '.runner', 'started'), new Date().toISOString()); }
-  many[0].state = 'Done';
-  many[1].state = 'Done';
+  for (const [k, state] of [[0, 'Done'], [1, 'Done'], [3, 'Canceled'], [4, 'Done'], [5, 'Done'], [6, 'Done'], [7, 'Done']] as const) many[k].state = state;
+  many[2].delegate = null;
+  mkdirSync(path.join(t.dirOf(8), '.runner'), { recursive: true });
+  put(path.join(t.dirOf(8), '.runner', 'held'), '');
+  mkdirSync(path.join(t.dirOf(9), '.runner'), { recursive: true });
+  put(path.join(t.dirOf(9), '.runner', 'takeover'), '');
+  many[8].state = 'Done';
   t.faults.push('IssueByKey');
-  t.setLive('ALE-1', 'ALE-2', 'ALE-101', 'ALE-102', 'ALE-200', 'other');
+  t.setLive('ALE-1', 'ALE-2', 'ALE-3', 'ALE-4', 'ALE-5', 'ALE-6', 'ALE-7', 'ALE-8', 'ALE-9', 'ALE-101', 'ALE-102', 'ALE-200', 'other');
+  t.tag('ALE-1', 'ALE-2', 'ALE-3', 'ALE-4', 'ALE-6', 'ALE-8', 'ALE-9', 'ALE-101', 'ALE-200');
+  const live = () => JSON.parse(readFileSync(path.join(t.root, 'live.json'), 'utf8')).sort();
   await t.run('--once');
-  assert.deepEqual(JSON.parse(readFileSync(path.join(t.root, 'live.json'), 'utf8')).sort(), ['ALE-1', 'ALE-101', 'ALE-102', 'ALE-200', 'other'],
-    'ALE-2 dies; ALE-1 hit a Linear error and stays; an open lead past page one, a ticket the runner never started, and a foreign ALE session stay');
+  assert.deepEqual(live(), ['ALE-1', 'ALE-101', 'ALE-102', 'ALE-200', 'ALE-5', 'ALE-6', 'ALE-7', 'ALE-8', 'ALE-9', 'other'],
+    'Done ALE-2, undelegated ALE-3 and Canceled ALE-4 die; ALE-1 hit a Linear error; Done ALE-5 and ALE-7 are untagged; Linear has no ALE-6; a person holds ALE-8 and is taking over ALE-9; open, foreign and unknown sessions stay');
   await t.run('--once');
-  assert.deepEqual(JSON.parse(readFileSync(path.join(t.root, 'live.json'), 'utf8')).sort(), ['ALE-101', 'ALE-102', 'ALE-200', 'other']);
+  assert.ok(!live().includes('ALE-1'));
+});
+
+test('a lead the runner starts carries its tag, so it can be reaped later', async () => {
+  const t = setup([issue(1)]);
+  await t.run('--once');
+  assert.equal(JSON.parse(readFileSync(path.join(t.root, 'tags.json'), 'utf8'))['ALE-1'], 'ALE-1');
+});
+
+test('a session the runner cannot tag is stopped, not left running outside the kill rule', async () => {
+  const t = setup([issue(1)]);
+  writeFileSync(path.join(t.root, 'tags.json.fail'), '');
+  writeFileSync(path.join(t.root, 'live-on-start'), '');
+  await t.run('--once');
+  assert.deepEqual(JSON.parse(readFileSync(path.join(t.root, 'live.json'), 'utf8')), []);
+});
+
+test('a page that says more follows but gives no cursor fails the poll, and nothing starts or dies', async () => {
+  const t = setup([issue(1)]);
+  t.faults.push('NoCursor');
+  await t.run('--once');
+  assert.ok(!existsSync(path.join(t.root, 'tags.json')));
 });
 
 test('open tickets past the first page of 100 still start', async () => {
@@ -360,7 +392,6 @@ test('open tickets past the first page of 100 still start', async () => {
   await t.run('--once');
   assert.ok(t.leads().some((l) => l.input.startsWith('Issue ALE-101:')));
 });
-
 
 test('lead slots: at most maxLeads run, a live lead holds its slot, and the runner says why once', async () => {
   const t = setup([issue(1), issue(2), issue(3), issue(4)], { maxLeads: 2 });

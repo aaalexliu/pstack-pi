@@ -22,7 +22,7 @@ else                                  -> file a Decision issue: "the lead stoppe
 
 A live lead belongs to the lead: the runner never starts, restarts or kills it. Your comments and Decision answers reach it when you attach and type, or after it exits, since the next start carries them. Quiet means no output in any window of the ticket's tmux session (an idle Pi does not redraw, and a working subagent window counts) and no event in `.runner/activity.json`. A lead quiet for `stallMinutes`, most often one that ended its turn and forgot `subagent_done`, gets one "the lead looks stuck" Decision issue per quiet stretch, with the commands to attach or stop it. It still holds its slot. No issue is filed while `.runner/takeover` or `.runner/held` exists.
 
-The runner kills a ticket's tmux session only when it started that lead (the ticket has a runner worktree with `.runner/started`) and Linear, asked about that one ticket, says it is Done, Canceled, or no longer delegated to `runnerUser`. On any Linear error it leaves the session alone.
+The runner kills a ticket's tmux session only when it started that session (it tags each session it creates with the tmux option `@job-runner`), nobody holds it through `.runner/takeover` or `.runner/held`, and Linear, asked about that one ticket, says it is Done, Canceled, or no longer delegated to `runnerUser`. On any Linear error it leaves the session alone. Sessions started by a runner older than this tag are never reaped; stop them by hand with `tmux kill-session -t '=KEY'`.
 
 A ticket marked Done or Canceled, or with its delegate cleared, is no longer the runner's. `In Review` still is: Linear's GitHub link moves a ticket there when the lead opens its first PR, long before the work is done.
 
