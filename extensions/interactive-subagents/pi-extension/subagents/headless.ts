@@ -48,15 +48,14 @@ export function waitForHeadlessExit(
   return new Promise((resolve) => {
     let stderr = "";
     let aborted = false;
-    let killTimer: ReturnType<typeof setTimeout> | undefined;
     const stop = () => {
       if (aborted || proc.pid === undefined) return;
       aborted = true;
       killProcessGroup(proc.pid, "SIGTERM");
-      killTimer = setTimeout(() => killProcessGroup(proc.pid!, "SIGKILL"), termGraceMs);
+      setTimeout(() => killProcessGroup(proc.pid!, "SIGKILL"), termGraceMs);
     };
     const finish = (exitCode: number) => {
-      clearTimeout(killTimer);
+      // After an abort the SIGKILL stays scheduled: a descendant that ignores SIGTERM outlives the direct child.
       signal.removeEventListener("abort", stop);
       resolve({ exitCode, stderr, aborted });
     };

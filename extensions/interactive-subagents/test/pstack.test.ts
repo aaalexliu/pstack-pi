@@ -8,6 +8,7 @@ import { Check } from "typebox/value";
 import interactiveSubagents, * as subagentsModule from "../pi-extension/subagents/index.ts";
 import blockingSubagent, { childEnvironment } from "../../subagent/index.ts";
 import { isMuxAvailable } from "../pi-extension/subagents/cmux.ts";
+import { spawnHeadless, waitForHeadlessExit } from "../pi-extension/subagents/headless.ts";
 
 const SPAWNING_TOOLS = ["subagent", "subagent_interrupt", "subagent_resume", "subagents_list"];
 const CHILD_ENV = ["PI_SUBAGENT_NAME", "PI_DENY_TOOLS"] as const;
@@ -315,6 +316,29 @@ describe("subagent with wait: true", () => {
     while (messages.length === 0 && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 20));
     assert.equal(messages[0]?.customType, "subagent_result");
     assert.match(messages[0].content, /completed[\s\S]*done /);
+  });
+
+  it("kills a descendant that ignores SIGTERM after the grace period, even once the direct child is gone", async () => {
+    root = mkdtempSync(join(tmpdir(), "subagent-group-"));
+    const pidFile = join(root, "grandchild.pid");
+    const script = join(root, "parent.mjs");
+    writeFileSync(script, `import { spawn } from "node:child_process";
+const grandchild = spawn(process.execPath, ["-e", ${JSON.stringify(`process.on("SIGTERM", () => {}); require("fs").writeFileSync(${JSON.stringify(pidFile)}, String(process.pid)); setInterval(() => {}, 1000)`)}], { stdio: "ignore" });
+setInterval(() => {}, 1000);
+`);
+    process.argv[1] = script;
+    const proc = spawnHeadless([], { cwd: root, env: process.env });
+    await waitForFile(pidFile);
+    const pid = Number(readFileSync(pidFile, "utf8"));
+    const stop = new AbortController();
+    const exit = waitForHeadlessExit(proc, stop.signal, 200);
+    stop.abort();
+    assert.equal((await exit).aborted, true);
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    let alive = true;
+    try { process.kill(pid, 0); } catch { alive = false; }
+    if (alive) process.kill(pid, "SIGKILL");
+    assert.equal(alive, false, "the descendant outlived the grace period");
   });
 
   it("refuses subagent_interrupt for a headless child, which has no pane", () => {
