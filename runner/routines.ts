@@ -24,14 +24,16 @@ const pad = (n: number) => String(n).padStart(2, '0');
 
 /**
  * Creates one Todo issue, delegated to the runner, for each routine's latest due run that has no issue yet.
- * `loadConfig` has already checked every schedule. It never throws: a failing routine is logged and the poll goes on.
+ * `loadConfig` has already checked every schedule. It never throws, and each Linear call times out,
+ * so a failing or hanging routine is logged and the poll goes on.
  */
-export async function createDueRoutines(config: Setup, fetchFn: typeof fetch, now = new Date()) {
+export async function createDueRoutines(config: Setup, fetchFn: typeof fetch, now = new Date(), timeoutMs = 30_000) {
   const routines = config.routines ?? [];
   const gql = async <T>(query: string, variables: Record<string, unknown>): Promise<T> => {
     const token = execFileSync('/bin/sh', ['-c', config.linearTokenCommand], { encoding: 'utf8' }).trim();
     const res = await fetchFn('https://api.linear.app/graphql', {
       method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ query, variables }),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     const body = (await res.json()) as { data?: T; errors?: unknown };
     if (!res.ok || body.errors || !body.data) throw new Error(`Linear ${res.status}: ${JSON.stringify(body.errors ?? body)}`);

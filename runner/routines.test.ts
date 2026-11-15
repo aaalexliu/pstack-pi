@@ -112,3 +112,12 @@ test('nothing new before the due time', async () => {
   await createDueRoutines(config, linear.fetchFn, new Date('2026-03-11T04:59:00'));
   assert.equal(linear.issues.length, 1);
 });
+
+test('a Linear call that hangs times out, so the poll goes on to tickets', async () => {
+  const hang = ((_url: string, init: { signal: AbortSignal }) => new Promise((_resolve, reject) => {
+    init.signal?.addEventListener('abort', () => reject(init.signal.reason));
+  })) as unknown as typeof fetch;
+  const started = Date.now();
+  await createDueRoutines(config, hang, new Date('2026-03-10T06:00:00'), 50);
+  assert.ok(Date.now() - started < 2000);
+});
