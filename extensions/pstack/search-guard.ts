@@ -8,9 +8,10 @@ export const findHint = 'Blocked: `find` from `~` or `/` walks the whole home fo
 const maxFindDepth = 3;
 
 type Word = { text: string; quoted: boolean };
-type Segment = Word[];
+// A child runs in its own shell: a subshell, substitution, pipeline member, or background job. Its `cd` stays inside it.
+type Item = { kind: 'command'; words: Word[]; child: boolean } | { kind: 'child'; items: Item[] };
+type Parsed = { items: Item[]; end: number };
 
-const separators = new Set(['&&', '||', '|', '|&', ';', '&', '\n', '(', ')', '$(', '`', ';;']);
 const prefixWords = new Set(['!', '{', '}', 'if', 'then', 'elif', 'else', 'do', 'while', 'until', 'time', 'command', 'builtin', 'exec', 'nohup']);
 const optionPrefixes = new Set(['sudo', 'env', 'nice', 'stdbuf']);
 const xargsArgFlags = new Set(['-I', '-J', '-L', '-n', '-P', '-R', '-S', '-s', '-d', '-E', '-a']);
@@ -36,13 +37,15 @@ function readHeredocDelimiter(command: string, start: number): { delimiter: stri
   return delimiter ? { delimiter, strip, end: index } : undefined;
 }
 
-export function splitCommand(command: string): Segment[] {
-  const segments: Segment[] = [];
+// Parses until `closer` (`)` or a backtick) or the end, so each substitution and subshell becomes a child item.
+function parseScript(command: string, start: number, closer?: ')' | '`'): Parsed {
+  const items: Item[] = [];
   let words: Word[] = [];
   let text = '';
   let quoted = false;
   let started = false;
   let dropNext = false;
+  let piped = false;
   const heredocs: { delimiter: string; strip: boolean }[] = [];
 
   const endWord = (): void => {
@@ -54,17 +57,28 @@ export function splitCommand(command: string): Segment[] {
     quoted = false;
     started = false;
   };
-  const endSegment = (): void => {
+  const endCommand = (separator: string): void => {
     endWord();
     dropNext = false;
-    if (words.length) segments.push(words);
+    const pipes = separator === '|' || separator === '|&';
+    if (words.length) items.push({ kind: 'command', words, child: piped || pipes || separator === '&' });
     words = [];
+    piped = pipes;
+  };
+  const child = (from: number, close: ')' | '`'): number => {
+    const parsed = parseScript(command, from, close);
+    items.push({ kind: 'child', items: parsed.items });
+    return parsed.end;
   };
 
-  let index = 0;
+  let index = start;
   while (index < command.length) {
     const char = command[index];
     const next = command[index + 1];
+    if (char === closer) {
+      endCommand(';');
+      return { items, end: index + 1 };
+    }
     if (char === '\\') {
       if (next === '\n') { index += 2; continue; }
       if (next !== undefined) { text += next; started = true; }
@@ -82,14 +96,46 @@ export function splitCommand(command: string): Segment[] {
     }
     if (char === '"') {
       index++;
-      while (index < command.length && command[index] !== '"') {
-        if (command[index] === '\\' && index + 1 < command.length) index++;
-        text += command[index];
-        index++;
-      }
       started = true;
       quoted = true;
+      while (index < command.length && command[index] !== '"') {
+        if (command[index] === '\\' && index + 1 < command.length) {
+          text += command[index + 1];
+          index += 2;
+        } else if (command[index] === '$' && command[index + 1] === '(') {
+          index = child(index + 2, ')');
+          text += '$()';
+        } else if (command[index] === '`' && closer !== '`') {
+          index = child(index + 1, '`');
+          text += '$()';
+        } else {
+          text += command[index];
+          index++;
+        }
+      }
       index++;
+      continue;
+    }
+    if (char === '$' && next === '(') {
+      index = child(index + 2, ')');
+      text += '$()';
+      started = true;
+      continue;
+    }
+    if (char === '`') {
+      index = child(index + 1, '`');
+      text += '$()';
+      started = true;
+      continue;
+    }
+    if ((char === '<' || char === '>') && next === '(') {
+      endWord();
+      index = child(index + 2, ')');
+      continue;
+    }
+    if (char === '(') {
+      endCommand(';');
+      index = child(index + 1, ')');
       continue;
     }
     if (char === '#' && !started) {
@@ -120,7 +166,7 @@ export function splitCommand(command: string): Segment[] {
       continue;
     }
     if (char === '\n') {
-      endSegment();
+      endCommand('\n');
       index++;
       for (const heredoc of heredocs.splice(0)) {
         while (index < command.length) {
@@ -134,13 +180,13 @@ export function splitCommand(command: string): Segment[] {
       continue;
     }
     const pair = char + (next ?? '');
-    if (pair === '$(' || pair === '&&' || pair === '||' || pair === '|&' || pair === ';;') {
-      endSegment();
+    if (pair === '&&' || pair === '||' || pair === '|&' || pair === ';;') {
+      endCommand(pair);
       index += 2;
       continue;
     }
-    if (separators.has(char)) {
-      endSegment();
+    if (char === '|' || char === ';' || char === '&' || char === ')') {
+      endCommand(char);
       index++;
       continue;
     }
@@ -153,8 +199,8 @@ export function splitCommand(command: string): Segment[] {
     started = true;
     index++;
   }
-  endSegment();
-  return segments;
+  endCommand('\n');
+  return { items, end: index };
 }
 
 function stripPrefixes(words: Word[]): Word[] {
@@ -265,20 +311,28 @@ function changeDirectory(args: Word[], cwd: string | undefined, home: string): s
 }
 
 export function searchGuardReason(command: string, cwd: string, home: string = homedir()): string | undefined {
-  let current: string | undefined = cwd;
-  const visit = (source: string): string | undefined => {
-    for (const segment of splitCommand(source)) {
-      const words = stripPrefixes(segment);
+  const visit = (items: Item[], start: string | undefined): string | undefined => {
+    let current = start;
+    for (const item of items) {
+      if (item.kind === 'child') {
+        const reason = visit(item.items, current);
+        if (reason) return reason;
+        continue;
+      }
+      const words = stripPrefixes(item.words);
       const head = words[0];
       if (!head) continue;
       const name = base(head.text);
       const args = words.slice(1);
-      if (name === 'cd' || name === 'pushd') { current = changeDirectory(args, current, home); continue; }
+      if (name === 'cd' || name === 'pushd') {
+        if (!item.child) current = changeDirectory(args, current, home);
+        continue;
+      }
       if (shells.has(name)) {
         const flag = args.findIndex((arg) => /^-[a-z]*c[a-z]*$/u.test(arg.text));
         const script = flag === -1 ? undefined : args[flag + 1]?.text;
         if (script !== undefined) {
-          const reason = visit(script);
+          const reason = visit(parseScript(script, 0).items, current);
           if (reason) return reason;
         }
         continue;
@@ -288,7 +342,7 @@ export function searchGuardReason(command: string, cwd: string, home: string = h
     }
     return undefined;
   };
-  return visit(command);
+  return visit(parseScript(command, 0).items, cwd);
 }
 
 export function registerSearchGuard(pi: ExtensionAPI): void {

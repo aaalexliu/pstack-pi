@@ -29,6 +29,12 @@ test('blocks recursive grep without --exclude-dir', () => {
     'echo $(grep -r foo .)',
     'echo `grep -r foo .`',
     'cat <(grep -r foo .)',
+    'echo "$(grep -r foo .)"',
+    'echo "found: `grep -r foo .`"',
+    'x="$(echo "$(grep -r foo .)")"',
+    "bash -c 'echo $(grep -r foo .)'",
+    '(grep -r foo .)',
+    'grep -r foo . &',
     'grep -e bar -r foo .',
     'grep -A3 -r foo .',
     'ls\ngrep -r foo .',
@@ -74,6 +80,10 @@ test('blocks find rooted at home, root, or a folder above home', () => {
     'cd ~/dev && cd .. && find . -name x',
     'sudo find / -name x',
     'sh -c "find / -name x"',
+    'echo "$(find / -name x)"',
+    'cd ~ && find . -name x',
+    'bash -c "cd ~ && find . -name x"',
+    '(cd ~ && find . -name x)',
   ]) assert.equal(reason(command, command.startsWith('find .') ? home : repo), findHint, command);
 });
 
@@ -92,6 +102,19 @@ test('allows find under a narrower root or with a shallow depth', () => {
   ]) assert.equal(reason(command), undefined, command);
   assert.equal(reason('cd ~/dev/app && find . -name x', home), undefined);
   assert.equal(reason('cd - && find . -name x', home), undefined);
+});
+
+test('a cd in a child shell does not move later commands in the parent', () => {
+  for (const command of [
+    'bash -c "cd ~" && find . -name x',
+    'sh -c \'cd /\'; find . -name x',
+    '(cd ~) && find . -name x',
+    'echo "$(cd ~)" && find . -name x',
+    'x=$(cd ~ && pwd); find . -name x',
+    'echo `cd ~` && find . -name x',
+    'cd ~ | true; find . -name x',
+    'cd ~ & find . -name x',
+  ]) assert.equal(reason(command), undefined, command);
 });
 
 test('the tool_call hook blocks only bash calls that trip the guard', async () => {
