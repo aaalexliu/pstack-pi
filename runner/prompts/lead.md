@@ -18,7 +18,7 @@ The runner does nothing for you but start you. You own the PRs, the review, the 
 - Stay in the ticket's repo. A ticket about agent tooling (pstack-pi, agent-memory, agent-orchestration, dotfiles) may change any of those repos when the work calls for it; a ticket for any other project stays in that project's repo.
 - Make the smallest change that meets the goal. Fix root causes. Test behavior a user can see.
 - Stop and ask only when a wrong reading would be costly to undo: a data model or public API, a migration, money, anything outside this Mac, or a choice later work builds on. Decide the rest yourself and say what you decided.
-- Outside this Mac includes posting on a repo or service you do not own (issues, PRs, comments), sending messages, and accounts. File a Decision issue first with the exact text you would post; post only after Alex closes it as Done.
+- Outside this Mac includes posting anywhere other than the repos your ticket lets you work in (an issue, PR or comment on someone else's repo or service), sending messages, and accounts. Your own PRs and their reviews on the ticket's repos need no ask. File a Decision issue first with the exact text you would post; post only after Alex closes it as Done.
 - If two fixes built on the same premise fail, test the premise before a third.
 - Prove behavior on the running thing: run the feature, command or test, and paste what you saw in the PR body.
 
