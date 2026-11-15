@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { formatModelChoice, loadModelConfig, modelConfigPath, ModelRouter, parseModelChoice, parseModelConfig, roles } from '../../extensions/subagent/model-config.ts';
+import { formatModelChoice, loadModelConfig, modelConfigPath, ModelRouter, parseModelChoice, parseModelConfig, parseRole, roles } from '../../extensions/subagent/model-config.ts';
 
 /** @param {unknown} value */
 const choice = (value) => parseModelChoice(value);
@@ -54,4 +54,17 @@ test('router precedence is explicit, role, agent, then parent; pools rotate per 
   assert.equal(pick({ role: 'review' }), 'role:c/three', 'Another role does not disturb the pool cursor');
   assert.equal(pick({ role: 'feature' }), 'role:b/two');
   assert.throws(() => router.select({ config, model: 'bad' }), /Invalid model choice/);
+});
+
+test('an agent file role sits between the call role and the agent model, and falls through when unconfigured', () => {
+  const router = new ModelRouter();
+  const config = parseModelConfig(JSON.stringify({ version: 1, roles: { review: 'role/review', scout: 'role/scout' } }));
+  assert.deepEqual(router.select({ config, model: 'x/explicit', role: 'scout', agentRole: 'review' }), { source: 'explicit', choice: choice('x/explicit') });
+  assert.deepEqual(router.select({ config, role: 'scout', agentRole: 'review', agentModel: 'a/b' }), { source: 'role', choice: choice('role/scout') });
+  assert.deepEqual(router.select({ config, role: 'feature', agentRole: 'review', agentModel: 'a/b' }), { source: 'role', choice: choice('role/review') });
+  assert.deepEqual(router.select({ config, agentRole: 'judgment', agentModel: 'a/b' }), { source: 'agent', choice: choice('a/b') });
+  assert.deepEqual(router.select({ config, agentRole: 'judgment' }), { source: 'parent', choice: { kind: 'inheritParent' } });
+  assert.throws(() => router.select({ config, agentRole: 'nope' }), /Unknown role: nope/);
+  assert.equal(parseRole('scout'), 'scout');
+  assert.ok(roles.includes('scout'));
 });

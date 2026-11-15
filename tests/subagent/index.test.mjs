@@ -197,6 +197,9 @@ test('model routing: explicit beats role beats agent default beats parent, and p
   assert.deepEqual(await modelOf({ agent: 'custom', task: 'x', role: 'review' }), { model: 'fixture/model', thinking: 'high', source: 'role' });
   assert.deepEqual(await modelOf({ agent: 'custom', task: 'x' }), { model: 'agent/default', thinking: null, source: 'agent' });
   assert.deepEqual(await modelOf({ agent: 'general-purpose', task: 'x' }), { model: 'fixture/model', thinking: 'high', source: 'parent' });
+  await writeFile(path.join(f.agentDir, 'agents', 'roled.md'), '---\nname: roled\ndescription: Roled.\nrole: feature\nmodel: agent/default\ntools: bash\n---\nRoled prompt.\n');
+  assert.deepEqual(await modelOf({ agent: 'roled', task: 'x' }), { model: 'pool/one', thinking: null, source: 'role' });
+  assert.deepEqual(await modelOf({ agent: 'roled', task: 'x', model: 'explicit/win' }), { model: 'explicit/win', thinking: null, source: 'explicit' });
   await writeFile(path.join(f.agentDir, 'pstack-pi', 'models.json'), '{"version":1,"roles":{"feature":"broken"}}');
   await assert.rejects(f.execute({ agent: 'general-purpose', task: 'x' }), /Invalid pstack-pi\/models.json/);
 });

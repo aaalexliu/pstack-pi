@@ -8,7 +8,7 @@
     "web-app": { "path": "/Users/you/dev/web-app", "base": "main" },
     "dotfiles": { "path": "/Users/you/dev/dotfiles", "base": "main" }
   },
-  "models": { "lead": "anthropic/claude-opus-4-5", "review": "openai/gpt-5.5" },
+  "models": { "lead": "anthropic/claude-opus-5-5", "review": "openai/gpt-6.1-sol" },
   "thinking": "high",
   "pollSeconds": 30,
   "maxLeads": 2,

@@ -173,14 +173,14 @@ The child also receives `PI_MEMORY_EXIT_SUMMARY=0`, so [pi-memory](https://githu
 A child is otherwise a normal Pi. It loads extensions, skills, and project context files by Pi's own rules, uses the parent's provider auth from `auth.json`, and runs with the builtin tools its agent lists.
 Without `thinking`, a child inheriting the parent model also inherits the parent thinking level; a pinned model uses Pi's default thinking level.
 
-Agent files need a name and a description. `tools` accepts a YAML list or a comma-separated string. `model` is optional:
+Agent files need a name and a description. `tools` accepts a YAML list or a comma-separated string. `role` and `model` are optional; `role` names a model role and wins over `model` when configured:
 
 ```markdown
 ---
 name: reader
 description: Read files and answer a focused question.
 tools: [read, grep, find, ls]
-model: openai/gpt-4o
+role: scout
 ---
 Answer from file evidence. Do not delegate.
 ```
@@ -236,9 +236,11 @@ The role IDs are:
 - `how-explorer`, `how-explainer`, `how-critics`, `why-investigator`, `why-synthesizer`
 - `reflect-tooling`, `reflect-judgment`, `reflect-divergent`, `reflect-synthesizer`
 - `arena-runner`, `arena-cross-judge`, `swarm-worker`, `architect-runner`, `interrogate-reviewer`
-- `no-comments`, `review`, `test`, `verify`
+- `no-comments`, `review`, `test`, `verify`, `scout`
 
-Resolution order: the task's explicit `model`, then the configured `role`, then the agent file's `model`, then the parent's model.
+`scout` is for cheap read-only reconnaissance, such as the interactive `scout` agent. Like every role it has no built-in model: set it in `models.json`, or the child runs on the parent's model.
+
+Resolution order: the call's explicit `model`, then the call's `role`, then the agent file's `role`, then the agent file's `model`, then the parent's model. `blocking_subagent` and the interactive `subagent` tool share this lookup (`ModelRouter` in `extensions/subagent/model-config.ts`); both accept `role`.
 An unconfigured role falls through. `pstack_config` reads the same file and lists the models Pi can see.
 The child receives the choice as `--model provider/model-id` and resolves credentials itself from the standard Pi config, exactly as a user typing that flag would.
 
