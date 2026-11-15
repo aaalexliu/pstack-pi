@@ -68,10 +68,10 @@ const liveFile = ${JSON.stringify(file('live.json'))};
 const tagsFile = ${JSON.stringify(file('tags.json'))};
 const live = fs.existsSync(liveFile) ? JSON.parse(fs.readFileSync(liveFile, 'utf8')) : [];
 const target = args[args.indexOf('-t') + 1]?.replace(/^=|:$/g, '');
-if (args[0] === 'new-session') { try { execFileSync('sh', ['-c', args.at(-1)], { cwd: args[args.indexOf('-c') + 1], stdio: 'ignore' }); } catch {} }
+if (args[0] === 'new-session') { if (fs.existsSync(liveFile.replace(/live\.json$/, 'live-on-start'))) fs.writeFileSync(liveFile, JSON.stringify([...live, args[args.indexOf('-s') + 1]])); try { execFileSync('sh', ['-c', args.at(-1)], { cwd: args[args.indexOf('-c') + 1], stdio: 'ignore' }); } catch {} }
 else if (args[0] === 'has-session') process.exit(live.includes(target) ? 0 : 1);
 else if (args[0] === 'kill-session') { if (!live.includes(target)) process.exit(1); fs.writeFileSync(liveFile, JSON.stringify(live.filter((k) => k !== target))); }
-else if (args[0] === 'set-option') { if (!/^=.+:$/.test(args[args.indexOf('-t') + 1] ?? '')) { console.error('no such session'); process.exit(1); } const tags = fs.existsSync(tagsFile) ? JSON.parse(fs.readFileSync(tagsFile, 'utf8')) : {}; fs.writeFileSync(tagsFile, JSON.stringify({ ...tags, [target]: args.at(-1) })); }
+else if (args[0] === 'set-option') { if (!/^=.+:$/.test(args[args.indexOf('-t') + 1] ?? '') || fs.existsSync(tagsFile + '.fail')) { console.error('no such session'); process.exit(1); } const tags = fs.existsSync(tagsFile) ? JSON.parse(fs.readFileSync(tagsFile, 'utf8')) : {}; fs.writeFileSync(tagsFile, JSON.stringify({ ...tags, [target]: args.at(-1) })); }
 else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? JSON.parse(fs.readFileSync(tagsFile, 'utf8')) : {}; console.log(live.map((k) => k + ' ' + (tags[k] ?? '')).join('\\n')); }
 else if (args[0] === 'list-windows') { try { process.stdout.write(fs.readFileSync(${JSON.stringify(file('windows'))}, 'utf8')); } catch {} }
 `, { mode: 0o755 });
@@ -370,6 +370,14 @@ test('a lead the runner starts carries its tag, so it can be reaped later', asyn
   const t = setup([issue(1)]);
   await t.run('--once');
   assert.equal(JSON.parse(readFileSync(path.join(t.root, 'tags.json'), 'utf8'))['ALE-1'], 'ALE-1');
+});
+
+test('a session the runner cannot tag is stopped, not left running outside the kill rule', async () => {
+  const t = setup([issue(1)]);
+  writeFileSync(path.join(t.root, 'tags.json.fail'), '');
+  writeFileSync(path.join(t.root, 'live-on-start'), '');
+  await t.run('--once');
+  assert.deepEqual(JSON.parse(readFileSync(path.join(t.root, 'live.json'), 'utf8')), []);
 });
 
 test('a page that says more follows but gives no cursor fails the poll, and nothing starts or dies', async () => {
