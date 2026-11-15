@@ -363,19 +363,6 @@
     },
     "pi": {}
   },
-  "skills/recall/SKILL.md": {
-    "upstream": {
-      "scope before search": "Lock the scope before searching.",
-      "workspace privacy": "Never read another project's transcripts without being asked",
-      "no hidden truncation": "Never quietly turn \"all\" into \"recent N\".",
-      "mandatory shared sweep": "Sweep the shared record whenever the topic names a feature, file, subsystem, area, or bug. This is the default, not a judgment call, and \"my work on X\" does not exempt it.",
-      "live proof": "When the answer hinges on what an agent actually did (the tools it ran, files it read, errors it hit), read the full transcript, not just a trimmed local copy.",
-      "capsule bound": "- **Capsule.** At most 5 bullets. What this work is and where it stands overall.",
-      "concrete next move": "- **Next move.** The single most useful next action, concrete.",
-      "privacy before publication": "sanitize private context before any public output."
-    },
-    "pi": {}
-  },
   "skills/reflect/SKILL.md": {
     "upstream": {
       "durable-only scope": "Skip when the conversation is trivial, off-topic, or already covered by an existing skill the parent followed correctly. One-offs are not learnings.",

@@ -1,6 +1,6 @@
 # Reviewed Pi adaptations
 
-**No full-file replacements remain.** The production manifest classifies 573 upstream files as 73 copies, 54 exact transforms, and 446 omissions. The statechart test suite and its two dev configs account for 378 of the omissions. Pi-owned content ships from `additions/`, outside the generated folders: the `general-purpose` agent and the `deeper`, `intake`, `list-writing`, `principles`, and `show-me` skills. None is an upstream replacement.
+**No full-file replacements remain.** The production manifest classifies 573 upstream files as 73 copies, 53 exact transforms, and 447 omissions. The statechart test suite and its two dev configs account for 378 of the omissions. Pi-owned content ships from `additions/`, outside the generated folders: the `general-purpose` agent and the `deeper`, `intake`, `list-writing`, `principles`, and `show-me` skills. None is an upstream replacement.
 
 Every transform starts from the pinned upstream file. It changes exact literal regions with checked occurrence counts; everything else stays verbatim. The importer requires the expected Git blob and locks the transform digest and output hash. Routine sync runs no LLM and performs no fuzzy matching.
 
@@ -11,6 +11,8 @@ The `c742dd6` pin added eight upstream skills. Five ship as narrow transforms: `
 - `poteto-help` is a Cursor setup guide that links to the omitted guide pages.
 - `ketchup-video` renders a subtitled slide video and embeds it in the reply in place of ketchup's summary. Pi cannot play a video in the transcript, so the reply's main output would become a file path.
 - `sharpen` asks the same four questions as the Pi-owned `deeper` addition, which predates the pin.
+
+The package also omits `recall`. It reads only local sessions on one machine, and a separate session search already covers past sessions.
 
 `statechart` ships its 27 runtime scripts as byte-for-byte copies. The `scripts/statechart` wrapper keeps its executable mode and runs `statechart.ts` with Node 22.18 to 22.x, Node 23.6 or later, Bun 1.1.5 or later, or Deno 2.0 or later. Its first run installs TLC and Java with mise and needs the network. The upstream suite under `scripts/test/` and the `scripts/package.json` and `scripts/tsconfig.json` that serve it stay omitted. The runtime never reads them, and the suite needs fast-check, Pele, Java, and TLC. Node refuses to strip types under `node_modules`, so the skill runs from a Git or local-path install, not an npm install. The content checker treats `skills/<name>/scripts/` as code: it checks bytes and mode, not instruction prose.
 
@@ -55,7 +57,6 @@ The manifest contains the exact ordered `find`, `replace`, and `count` values fo
 | `skills/poteto-mode/playbooks/runtime-forensics.md` | Use available surface-control tools instead of assuming a control skill; parse large artifacts in a bounded leaf task. |
 | `skills/poteto-mode/playbooks/trace-forensics.md` | Rewrite `subagent (` phrasing to a bounded leaf task so the content gate stays clean. |
 | `skills/poteto-mode/playbooks/visual-parity.md` | Use available surface-control tools and an explicit local loop instead of control-skill and `/loop`. |
-| `skills/recall/SKILL.md` | Scoped Pi session discovery and bounded local readers; parent owns shared-record searches. |
 | `skills/reflect/SKILL.md` | Pi sessions, model roles, leaf readers, parent evidence follow-up, native authoring, and authorized tracker writes. A lesson about a pstack-pi skill goes to a manifest transform or an `additions/skills/` edit in a pstack-pi PR. Other skills get a copy in `.pi/skills/` or `~/.pi/agent/skills/`, never an edit to the installed package, and Pi must load the copy. |
 | `skills/reflect/references/divergent-reviewer.md` | Pi transcript/tool paths and invocation evidence; parent performs referenced external lookups. |
 | `skills/reflect/references/judgment-reviewer.md` | Pi transcript/tool paths and invocation evidence; parent performs referenced external lookups. |
