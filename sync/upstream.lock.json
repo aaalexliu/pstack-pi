@@ -713,10 +713,10 @@
       "source": "skills/poteto-mode/playbooks/opening-a-pr.md",
       "blob": "4a92c501f184ea24392d59a9889ce2f08e8e9201",
       "mode": "100644",
-      "adaptationSha256": "473b121aac9e7e13ce9ae75276d5f7b1c1e9de8a890a0b38a093f2730ef348a1",
+      "adaptationSha256": "b3d0a797971fedcc38192067fb81032074abf02a8450e2e7ac9347e0bd3e8ee7",
       "output": {
         "destination": "skills/poteto-mode/playbooks/opening-a-pr.md",
-        "sha256": "d86ceea3fcbe769714f7fa06c2d7fc9b26d716fce97c9d824d56d64327806800",
+        "sha256": "7b74cd95d1f76d2b1517148a9dacad63e01c4dc26ef8214f1ea5c2663cf4db1e",
         "mode": "100644"
       }
     },
@@ -4337,10 +4337,10 @@
       "source": "skills/technical-writing/SKILL.md",
       "blob": "3e6d26109376cd66439c87ed48b4033df8d78a3a",
       "mode": "100644",
-      "adaptationSha256": "aab65c31e01fcbafae18a2f3fd3afc22b818bbc261e401da470313f5cbd50392",
+      "adaptationSha256": "a54fb7f61d134a7241563ea24e868a2367333135a51605b3ad620906dab5f21a",
       "output": {
         "destination": "skills/technical-writing/SKILL.md",
-        "sha256": "56375eaa53ea48d589598942bb2b3ea9f490392029242ef9477720e14cdd1c37",
+        "sha256": "aee6313bbebd4188590ecfe9676fc73bd7595159aa4c89b5fee8b1d3ce033d75",
         "mode": "100644"
       }
     },

@@ -55,7 +55,10 @@ test('production contains exactly the reviewed copied and adapted workflow set',
     'skills/why/references/synthesizer-prompt.md',
   ].includes(source));
   assert.deepEqual(existingTransforms.map(({ source, expectedBlob, transforms }) => ({ source, expectedBlob, transforms })), [
-    { source: 'skills/technical-writing/SKILL.md', expectedBlob: '3e6d26109376cd66439c87ed48b4033df8d78a3a', transforms: [{ find: '/technical-writing', replace: '/skill:technical-writing', count: 1 }] },
+    { source: 'skills/technical-writing/SKILL.md', expectedBlob: '3e6d26109376cd66439c87ed48b4033df8d78a3a', transforms: [
+      { find: '/technical-writing', replace: '/skill:technical-writing', count: 1 },
+      { find: 'Do not paste swarm logs, SHA lists, or metric tables. Link them.', replace: 'Paste short real proof, under about 10 lines. Link swarm logs, SHA lists, metric tables, and other long output.', count: 1 },
+    ] },
     { source: 'skills/typescript-best-practices/SKILL.md', expectedBlob: 'e1e5aa7c97ed39c425d60d933a96424a3f14539e', transforms: [{ find: 'paths: ["**/*.ts", "**/*.tsx"]\n', replace: '', count: 1 }] },
     { source: 'skills/why/references/synthesizer-prompt.md', expectedBlob: '287a350c925c28b44f0e0dc687bb09a843e11100', transforms: [
       { find: '[PR #123](url)', replace: 'PR #123 at {URL}', count: 1 },
