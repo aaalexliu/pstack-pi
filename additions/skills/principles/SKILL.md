@@ -5,7 +5,7 @@ description: Index of the pstack engineering principles. Use when making a desig
 
 # Principles
 
-Pick the principle that fits the moment and read its `SKILL.md` in full before you apply it. Do not read them all. Paths are relative to the pstack-pi package root,, three directories above this file.
+Pick the principle that fits the moment and read its `SKILL.md` in full before you apply it. Do not read them all. Paths are relative to the pstack-pi package root, three directories above this file.
 
 - `principle-attack-the-premise`: two fixes on one premise failed the same gate. Read `skills/principle-attack-the-premise/SKILL.md`.
 - `principle-boundary-discipline`: placing validation, error handling, or adapters. Read `skills/principle-boundary-discipline/SKILL.md`.
