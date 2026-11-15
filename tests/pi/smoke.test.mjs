@@ -19,7 +19,7 @@ const productionSkills = [
   'principle-migrate-callers-then-delete-legacy-apis', 'principle-minimize-reader-load', 'principle-model-the-domain', 'principle-never-block-on-the-human',
   'principle-outcome-oriented-execution', 'principle-prove-it-works', 'principle-redesign-from-first-principles', 'principle-separate-before-serializing-shared-state',
   'principle-sequence-verifiable-units', 'principle-subtract-before-you-add', 'principle-test-behavior-not-implementation', 'principle-type-system-discipline', 'principles',
-  'recall', 'reflect', 'setup-pstack', 'show-me', 'show-me-your-work', 'statechart',
+  'reflect', 'setup-pstack', 'show-me', 'show-me-your-work', 'statechart',
   'swarm', 'tdd', 'teach', 'technical-writing',
   'typescript-best-practices', 'unslop', 'why',
 ];
@@ -65,7 +65,7 @@ test("real Pi loads the packed package and settles with fixture text and usage",
   assertClean(run);
   assert.deepEqual(run.cleanup.signals, []);
   assert.deepEqual(run.pack.files, expectedPackFiles(await productionInventory()));
-  assert.equal(run.pack.files.length, 193);
+  assert.equal(run.pack.files.length, 192);
   assertOnlyDeclaredTools(run);
   context.diagnostic(JSON.stringify({
     pi: run.process.version, revision: run.process.revision, pid: run.process.pid,

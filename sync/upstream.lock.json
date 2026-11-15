@@ -1230,12 +1230,8 @@
       "source": "skills/recall/SKILL.md",
       "blob": "cd8cc20790d90579e632626fe6db2b1fff593eea",
       "mode": "100644",
-      "adaptationSha256": "30966620e24821112348ed250bf36019c0b277dcb1f7da5f4dccd26679bdb396",
-      "output": {
-        "destination": "skills/recall/SKILL.md",
-        "sha256": "1332b40b500220a470cf4f84bb6ab0b5c3a26506b4cc783191eafe5f6f6cdac0",
-        "mode": "100644"
-      }
+      "adaptationSha256": null,
+      "output": null
     },
     {
       "source": "skills/reflect/SKILL.md",
