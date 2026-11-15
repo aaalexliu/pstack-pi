@@ -357,13 +357,16 @@ test('createSlots starts waiters in call order and an abort drops a waiter', asy
   /** @type {string[]} */
   const order = [];
   const controller = new AbortController();
+  const first = slots.acquire().then(() => order.push('first'));
   const dropped = slots.acquire(controller.signal);
   const second = slots.acquire().then(() => order.push('second'));
   controller.abort();
   await assert.rejects(dropped, /aborted/);
   slots.release();
-  await second;
-  assert.deepEqual(order, ['second']);
+  await realDelay(0);
+  slots.release();
+  await Promise.all([first, second]);
+  assert.deepEqual(order, ['first', 'second']);
   assert.equal(slots.active, 1);
 });
 

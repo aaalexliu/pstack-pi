@@ -144,8 +144,8 @@ pstack-pi has two delegation tools. Pick by whether you need to wait.
 In cmux, interactive children of one parent share an `agents: <session>` workspace in a 2x2 grid. A parent runs at most four at once and queues the rest. Set `maxConcurrent` and `cmuxLayout` (`"grid"` or `"tabs"`) under `interactiveSubagents` in `<Pi agent dir>/pstack-pi/settings.json`. In tmux, each child is a window. Children of either tool get no delegation tools, unless an interactive child's agent says `spawning: true`; then it gets the interactive tools only. Interactive children can use this package's agents as well as the bundled `scout`, `worker`, `planner`, `reviewer`, `visual-tester`, and `claude-code`.
 
 The `blocking_subagent` tool is Pi's bundled subagent example (`examples/extensions/subagent`) plus a few additions.
-Each call spawns a separate `pi --mode json -p --no-session` process per task, so every child has its own context window.
-Set `keepSession: true` on the call or a task to keep that child's session file instead. The child then runs with `--session-id <uuid>` and an explicit `--session-dir`: `PI_CODING_AGENT_SESSION_DIR` when set, else Pi's default session folder for its `cwd`. The `sessionDir` setting does not apply. Its result adds `session-id: <id>` and `session-path: <absolute path>` lines after `resolved-model:`, so an audit can open the transcript. If the child exits before writing its session, the result says so instead.
+Each call spawns a separate `pi --mode json -p --no-session` process per call, so every child has its own context window.
+Set `keepSession: true` on the call to keep that child's session file instead. The child then runs with `--session-id <uuid>` and an explicit `--session-dir`: `PI_CODING_AGENT_SESSION_DIR` when set, else Pi's default session folder for its `cwd`. The `sessionDir` setting does not apply. Its result adds `session-id: <id>` and `session-path: <absolute path>` lines after `resolved-model:`, so an audit can open the transcript. If the child exits before writing its session, the result says so instead.
 
 ```json
 {"agent":"general-purpose","task":"Read src/index.ts and explain its exports."}
@@ -198,7 +198,7 @@ A task fails when the child exits nonzero, is killed by a signal, or ends with `
 
 Use `/subagents` for the latest request's tasks, public message previews, checklists, usage, and recent event summaries. Use `/subagents raw` for the same public snapshot as JSON, not the raw protocol or private thinking. Both views update live. `j`/`k`, arrows, PageUp/PageDown, and Home/End scroll; `q` or Esc closes the view without stopping work. Esc in the parent stops the batch.
 
-The collapsed card shows at most eight tasks and favors unfinished work. Ctrl+O also reveals every task's metadata in a longer run, even after reload. The inspector shows every task of the most recently started request; older overlapping calls cannot replace that view. Each call keeps its own inline card. There is no duplicate widget. In cmux, the sidebar shows up to eight tasks using keys owned by this Pi instance. A cmux error triggers best-effort removal of those keys instead of keeping stale running status.
+Each call's card shows its one child. Ctrl+O reveals the child's full metadata, even after reload. The inspector shows the most recently started call; older overlapping calls cannot replace that view. Each call keeps its own inline card. There is no duplicate widget. In cmux, the sidebar shows up to eight children using keys owned by this Pi instance. A cmux error triggers best-effort removal of those keys instead of keeping stale running status.
 
 Checklists are self-reported. A quiet warning after 60 seconds and a long-run warning after 10 minutes suggest checking the task; neither proves a loop or lack of progress. Usage can lag. Public previews and event history are bounded. This is not a process-tree monitor and does not find arbitrary shell-launched agents.
 

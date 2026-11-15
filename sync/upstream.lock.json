@@ -724,10 +724,10 @@
       "source": "skills/poteto-mode/playbooks/orchestrate.md",
       "blob": "b6e5f5661a1e6b4778845de53f331cee3486905b",
       "mode": "100644",
-      "adaptationSha256": "723cc83bc94bce0f14bc56163c70d15cca4c860c47b1c65a897191c57945347b",
+      "adaptationSha256": "3d83e0a5c41f601a994650a0f06a578bdc363f740029e3b894523d87f80d0b9c",
       "output": {
         "destination": "skills/poteto-mode/playbooks/orchestrate.md",
-        "sha256": "b0ce52fe563ae8716c97631799931c9f3fd9661a2e5f6954674f61553f50743f",
+        "sha256": "9267116686b01a6c69562e64440943a3b1283c515e89f42e41638d1823c92c4f",
         "mode": "100644"
       }
     },
@@ -1310,10 +1310,10 @@
       "source": "skills/show-me-your-work/SKILL.md",
       "blob": "ada1bba1e51356de0e0d4da1d13ba5a56ba9c7cb",
       "mode": "100644",
-      "adaptationSha256": "de342a3e56c222187724cc1e227a51e6775ca520f58f4b4d7374e10de46b0525",
+      "adaptationSha256": "9036f75a46296de326fcba616d65aeca85b7ed0549f10bb49aaac52af4f8d461",
       "output": {
         "destination": "skills/show-me-your-work/SKILL.md",
-        "sha256": "45986a66fc97950b8a6b3a1f1b04290a522f81c09d2b0addba917223fdfcc876",
+        "sha256": "9dcae88d4809a04ddbcddf118210378e1c40ea386059a4857a3c1a77cf300eb2",
         "mode": "100644"
       }
     },
