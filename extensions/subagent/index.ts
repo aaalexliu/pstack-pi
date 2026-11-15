@@ -29,7 +29,6 @@ import {
   type ExtensionContext,
   getAgentDir,
   getMarkdownTheme,
-  SessionManager,
 } from '@earendil-works/pi-coding-agent';
 import { Container, Markdown, Spacer, Text } from '@earendil-works/pi-tui';
 import { Type } from 'typebox';
@@ -209,7 +208,9 @@ export function observedModelId(provider: unknown, model: unknown): string | und
 }
 
 export function modelFacingText(observed: string | undefined, body: string, session?: Pick<SingleResult, 'sessionId' | 'sessionPath'>): string {
-  const sessionLines = session?.sessionId ? `session-id: ${session.sessionId}\nsession-path: ${session.sessionPath ?? 'unknown'}\n` : '';
+  const sessionLines = !session?.sessionId ? ''
+    : session.sessionPath ? `session-id: ${session.sessionId}\nsession-path: ${session.sessionPath}\n`
+    : 'session: none saved, the child exited before writing its session file\n';
   return `resolved-model: ${observed ?? 'unknown'}\n${sessionLines}\n${body}`;
 }
 
@@ -334,6 +335,13 @@ export interface ResolvedTask {
   keepSession?: boolean;
 }
 
+// Pass the child an explicit folder so the parent knows where to look: PI_CODING_AGENT_SESSION_DIR, else Pi's default per-cwd folder.
+export function childSessionDir(cwd: string, env: NodeJS.ProcessEnv = process.env): string {
+  if (env.PI_CODING_AGENT_SESSION_DIR) return path.resolve(cwd, env.PI_CODING_AGENT_SESSION_DIR);
+  const real = fs.realpathSync(cwd);
+  return path.join(getAgentDir(), 'sessions', `--${real.replace(/^[/\\]/, '').replace(/[/\\:]/g, '-')}--`);
+}
+
 type OnUpdateCallback = (partial: AgentToolResult<SubagentDetails>) => void;
 
 export async function runSingleAgent({ resolved, depth, signal, timeoutMs, onUpdate, onEvent, makeDetails, spawnChild = spawnDetachedChild, registry, termGraceMs = TERM_GRACE_MS }: {
@@ -350,7 +358,8 @@ export async function runSingleAgent({ resolved, depth, signal, timeoutMs, onUpd
 }): Promise<SingleResult> {
   const { agent, task, cwd, step } = resolved;
   const sessionId = resolved.keepSession ? randomUUID() : undefined;
-  const args: string[] = ['--mode', 'json', '-p', ...(sessionId ? ['--session-id', sessionId] : ['--no-session'])];
+  const sessionDir = sessionId ? childSessionDir(cwd) : undefined;
+  const args: string[] = ['--mode', 'json', '-p', ...(sessionId && sessionDir ? ['--session-dir', sessionDir, '--session-id', sessionId] : ['--no-session'])];
   if (resolved.model) args.push('--model', resolved.model);
   if (resolved.thinking) args.push('--thinking', resolved.thinking);
   if (agent.tools && agent.tools.length > 0) args.push('--tools', [...new Set([...agent.tools, 'pstack_todo'])].join(','));
@@ -465,7 +474,10 @@ export async function runSingleAgent({ resolved, depth, signal, timeoutMs, onUpd
     });
 
     result.exitCode = exitCode;
-    if (sessionId) result.sessionPath = SessionManager.findById(cwd, sessionId);
+    if (sessionId && sessionDir) {
+      const name = (await fs.promises.readdir(sessionDir).catch(() => [])).find((file) => file.endsWith(`_${sessionId}.jsonl`));
+      if (name) result.sessionPath = path.join(sessionDir, name);
+    }
     if (stopCause === 'user') {
       result.stopReason = 'aborted';
       result.errorMessage = 'Subagent was aborted';
@@ -544,7 +556,7 @@ export function toolDescription(bundled: Pick<AgentConfig, 'name' | 'description
     `model accepts inherit-parent or provider/model-id. role selects a configured model from ${modelConfigPath(getAgentDir())}; roles: ${roles.join(', ')}.`,
     'Explicit model overrides role, then the agent default, then the parent model. thinking sets the child reasoning level per call or task; a task value overrides the call default. Children cannot delegate.',
     'Single and chain result text starts with `resolved-model: provider/model-id` from the child response, or `resolved-model: unknown`. Parallel results include that line in each task block. That line is the resolved identity. The requested selector is not.',
-    'With keepSession: true, the child keeps a Pi session file in the normal session folder for its cwd, and the result adds `session-id: <id>` and `session-path: <absolute path>` lines after resolved-model.',
+    'With keepSession: true, the child keeps a Pi session file in PI_CODING_AGENT_SESSION_DIR or else Pi\'s default session folder for its cwd, and the result adds `session-id: <id>` and `session-path: <absolute path>` lines after resolved-model. Chain replies name only the last step\'s session.',
   ].join(' ');
 }
 

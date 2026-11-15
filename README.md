@@ -145,7 +145,8 @@ In cmux, interactive children of one parent share an `agents: <session>` workspa
 
 The `blocking_subagent` tool is Pi's bundled subagent example (`examples/extensions/subagent`) plus a few additions.
 Each call spawns a separate `pi --mode json -p --no-session` process per task, so every child has its own context window.
-Set `keepSession: true` on the call or a task to keep that child's session file instead. The child then runs with `--session-id <uuid>` in Pi's normal session folder for its `cwd`, and its result adds `session-id: <id>` and `session-path: <absolute path>` lines after `resolved-model:`, so an audit can open the transcript.
+Set `keepSession: true` on the call or a task to keep that child's session file instead. The child then runs with `--session-id <uuid>` and an explicit `--session-dir`: `PI_CODING_AGENT_SESSION_DIR` when set, else Pi's default session folder for its `cwd`. The `sessionDir` setting does not apply. Its result adds `session-id: <id>` and `session-path: <absolute path>` lines after `resolved-model:`, so an audit can open the transcript. If the child exits before writing its session, the result says so instead.
+In chain mode, the reply names only the last step's session; each step's id and path stay in the tool details.
 
 ```json
 {"agent":"general-purpose","task":"Read src/index.ts and explain its exports."}
