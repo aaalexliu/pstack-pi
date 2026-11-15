@@ -13,7 +13,6 @@
  * Modes:
  *   - Single: { agent, task }
  *   - Parallel: { tasks: [{ agent, task }, ...] }
- *   - Chain: { chain: [{ agent, task: "... {previous} ..." }, ...] }
  */
 
 import { type ChildProcess, spawn } from 'node:child_process';
@@ -161,13 +160,12 @@ export interface SingleResult {
   thinking?: ExtensionContext['thinkingLevel'];
   stopReason?: string;
   errorMessage?: string;
-  step?: number;
   sessionId?: string;
   sessionPath?: string;
 }
 
 export interface SubagentDetails {
-  mode: 'single' | 'parallel' | 'chain';
+  mode: 'single' | 'parallel';
   agentScope: AgentScope;
   projectAgentsDir: string | null;
   results: SingleResult[];
@@ -330,7 +328,6 @@ export interface ResolvedTask {
   modelSource: SingleResult['modelSource'];
   thinking?: ExtensionContext['thinkingLevel'];
   role?: string;
-  step?: number;
   keepSession?: boolean;
 }
 
@@ -391,10 +388,10 @@ export async function runPaneAgent({ resolved, runPane, ctx, signal, timeoutMs }
   signal: AbortSignal | undefined;
   timeoutMs: number | undefined;
 }): Promise<SingleResult> {
-  const { agent, task, cwd, step } = resolved;
+  const { agent, task, cwd } = resolved;
   const result: SingleResult = {
     agent: agent.name, agentSource: agent.source, task, exitCode: -1, messages: [], stderr: '',
-    usage: zeroUsage(), model: resolved.model, modelSource: resolved.modelSource, thinking: resolved.thinking, step,
+    usage: zeroUsage(), model: resolved.model, modelSource: resolved.modelSource, thinking: resolved.thinking,
   };
   const stop = new AbortController();
   const onAbort = () => stop.abort();
@@ -459,7 +456,7 @@ export async function runSingleAgent({ resolved, depth, signal, timeoutMs, onUpd
   registry?: ChildRegistry;
   termGraceMs?: number;
 }): Promise<SingleResult> {
-  const { agent, task, cwd, step } = resolved;
+  const { agent, task, cwd } = resolved;
   const sessionId = resolved.keepSession ? randomUUID() : undefined;
   const sessionDir = sessionId ? childSessionDir(cwd) : undefined;
   const args: string[] = ['--mode', 'json', '-p', ...(sessionId && sessionDir ? ['--session-dir', sessionDir, '--session-id', sessionId] : ['--no-session'])];
@@ -469,7 +466,7 @@ export async function runSingleAgent({ resolved, depth, signal, timeoutMs, onUpd
 
   const result: SingleResult = {
     agent: agent.name, agentSource: agent.source, task, exitCode: -1, messages: [], stderr: '',
-    usage: zeroUsage(), model: resolved.model, modelSource: resolved.modelSource, thinking: resolved.thinking, step, sessionId,
+    usage: zeroUsage(), model: resolved.model, modelSource: resolved.modelSource, thinking: resolved.thinking, sessionId,
   };
   const observe = (event: unknown) => {
     try { onEvent?.(event, result); } catch { /* Display failures must not stop the child. */ }
@@ -603,13 +600,11 @@ const taskFields = {
   keepSession: Type.Optional(keepSessionSchema),
 };
 const TaskItem = Type.Object(taskFields);
-const ChainItem = Type.Object({ ...taskFields, task: Type.String({ description: 'Task with optional {previous} placeholder for prior output' }) });
 
 const SubagentParams = Type.Object({
   agent: Type.Optional(Type.String({ description: 'Name of the agent to invoke (single mode)' })),
   task: Type.Optional(Type.String({ description: 'Task to delegate (single mode)' })),
   tasks: Type.Optional(Type.Array(TaskItem, { description: `Array of {agent, task} for parallel execution, at most ${MAX_PARALLEL_TASKS}` })),
-  chain: Type.Optional(Type.Array(ChainItem, { description: 'Array of {agent, task} for sequential execution' })),
   model: Type.Optional(modelChoiceSchema),
   role: Type.Optional(roleSchema),
   thinking: Type.Optional(thinkingSchema),
@@ -632,14 +627,14 @@ export function toolDescription(bundled: Pick<AgentConfig, 'name' | 'description
   return [
     'Delegate tasks to specialized subagents with isolated context and wait for their results before you continue.',
     'Use it for read-only lookups and whenever you need the answer before your next step. For real work, prefer the non-blocking subagent tool, which opens a pane the user can watch and steer.',
-    'Modes: single (agent + task), parallel (tasks array), chain (sequential with {previous} placeholder).',
+    'Modes: single (agent + task) and parallel (tasks array).',
     listing,
     `User and project agents override bundled ones by name. User agents live in ${path.join(getAgentDir(), 'agents')}.`,
     `To enable project-local agents in ${CONFIG_DIR_NAME}/agents, set agentScope: "both".`,
     `model accepts inherit-parent or provider/model-id. role selects a configured model from ${modelConfigPath(getAgentDir())}; roles: ${roles.join(', ')}.`,
     'Explicit model overrides role, then the agent default, then the parent model. thinking sets the child reasoning level per call or task; a task value overrides the call default. Children cannot delegate.',
-    'Single and chain result text starts with `resolved-model: provider/model-id` from the child response, or `resolved-model: unknown`. Parallel results include that line in each task block. That line is the resolved identity. The requested selector is not.',
-    'With keepSession: true, the child keeps a Pi session file in PI_CODING_AGENT_SESSION_DIR or else Pi\'s default session folder for its cwd, and the result adds `session-id: <id>` and `session-path: <absolute path>` lines after resolved-model. Chain replies name only the last step\'s session.',
+    'Single result text starts with `resolved-model: provider/model-id` from the child response, or `resolved-model: unknown`. Parallel results include that line in each task block. That line is the resolved identity. The requested selector is not.',
+    'With keepSession: true, the child keeps a Pi session file in PI_CODING_AGENT_SESSION_DIR or else Pi\'s default session folder for its cwd, and the result adds `session-id: <id>` and `session-path: <absolute path>` lines after resolved-model.',
     'Inside cmux or tmux, a single-mode child runs as a real Pi in the subagents layout the user can watch and steer; it always keeps its session file, so its reply always has the session lines.',
   ].join(' ');
 }
@@ -678,7 +673,7 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
     name: TOOL_NAME,
     label: 'Blocking subagent',
     description: toolDescription(bundledAgents()),
-    promptSnippet: 'Run subagents and wait for their results: read-only lookups, answers you need before continuing, roles, parallel tasks, and chains',
+    promptSnippet: 'Run subagents and wait for their results: read-only lookups, answers you need before continuing, roles, and parallel tasks',
     promptGuidelines: [
       'Use subagent, not blocking_subagent, by default for real work: it opens a pane the user can watch and steer, returns at once, and delivers the result later as a new turn.',
       'Use blocking_subagent for read-only lookups, for answers you need before your next step, and when no terminal multiplexer is available.',
@@ -709,21 +704,20 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
         });
         const listAgents = () => agents.map((a) => `${a.name} (${a.source})`).join(', ') || 'none';
 
-        const hasChain = (params.chain?.length ?? 0) > 0;
         const hasTasks = (params.tasks?.length ?? 0) > 0;
         const hasSingle = Boolean(params.agent && params.task);
-        const mode: SubagentDetails['mode'] = hasChain ? 'chain' : hasTasks ? 'parallel' : 'single';
-        if (Number(hasChain) + Number(hasTasks) + Number(hasSingle) !== 1) {
+        const mode: SubagentDetails['mode'] = hasTasks ? 'parallel' : 'single';
+        if (hasTasks === hasSingle) {
           return { content: [{ type: 'text', text: `Invalid parameters. Provide exactly one mode.\nAvailable agents: ${listAgents()}` }], details: makeDetails('single')([]) };
         }
         if (params.tasks && params.tasks.length > MAX_PARALLEL_TASKS) {
           return { content: [{ type: 'text', text: `Too many parallel tasks (${params.tasks.length}). Max is ${MAX_PARALLEL_TASKS}.` }], details: makeDetails('parallel')([]) };
         }
 
-        const requested = params.chain ?? params.tasks ?? [{ agent: params.agent!, task: params.task!, cwd: params.cwd, model: params.model, role: params.role, thinking: params.thinking, keepSession: params.keepSession }];
+        const requested = params.tasks ?? [{ agent: params.agent!, task: params.task!, cwd: params.cwd, model: params.model, role: params.role, thinking: params.thinking, keepSession: params.keepSession }];
         const config = await loadModelConfig(getAgentDir());
         const resolvedTasks: ResolvedTask[] = [];
-        for (const [index, item] of requested.entries()) {
+        for (const item of requested) {
           const agent = agents.find((a) => a.name === item.agent);
           if (!agent) {
             return { content: [{ type: 'text', text: `Unknown agent "${item.agent}". Available agents: ${listAgents()}` }], details: makeDetails(mode)([]) };
@@ -735,7 +729,6 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
             model: inherits ? defaults.model : formatModelChoice(selection.choice),
             modelSource: selection.source, thinking: item.thinking ?? params.thinking ?? (inherits ? defaults.thinkingLevel : undefined), role: item.role ?? params.role,
             keepSession: item.keepSession ?? params.keepSession,
-            step: hasChain ? index + 1 : undefined,
           });
         }
 
@@ -757,7 +750,7 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
         });
         activeProgress.add(progress);
         // A single child opens in the subagents layout when a multiplexer and a session file exist, else runs headless.
-        // Parallel and chain stay headless until their future is decided.
+        // Parallel stays headless until its future is decided.
         const pane = mode !== 'single' ? null : runPane === undefined ? publishedPaneRunner() : runPane;
         const paneCtx = pane && ctx.sessionManager?.getSessionFile() ? ctx : undefined;
         const run = async (resolved: ResolvedTask, update: OnUpdateCallback | undefined, index: number) => {
@@ -777,28 +770,6 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
           }
           return runSingleAgent({ resolved, depth, signal, timeoutMs: params.timeoutMs, onUpdate: update, makeDetails: makeDetails(mode), spawnChild, registry, termGraceMs, onEvent: observe });
         };
-
-        if (mode === 'chain') {
-          const results: SingleResult[] = [];
-          let previousOutput = '';
-          for (const [index, resolved] of resolvedTasks.entries()) {
-            const withContext = { ...resolved, task: resolved.task.replace(/\{previous\}/g, previousOutput) };
-            const chainUpdate: OnUpdateCallback | undefined = onUpdate
-              ? (partial) => {
-                const current = partial.details?.results[0];
-                if (current) onUpdate({ content: partial.content, details: makeDetails('chain')([...results, current]) });
-              }
-              : undefined;
-            const result = await run(withContext, chainUpdate, index);
-            results.push(result);
-            if (isFailedResult(result)) {
-              return { content: [{ type: 'text', text: modelFacingText(result.observedModel, `Chain stopped at step ${resolved.step} (${resolved.agent.name}): ${getResultOutput(result)}`, result) }], details: makeDetails('chain')(results) };
-            }
-            previousOutput = getFinalOutput(result.messages);
-          }
-          const last = results[results.length - 1];
-          return { content: [{ type: 'text', text: modelFacingText(last.observedModel, getFinalOutput(last.messages) || '(no output)', last) }], details: makeDetails('chain')(results) };
-        }
 
         if (mode === 'parallel') {
           const allResults: SingleResult[] = resolvedTasks.map((t) => ({
@@ -861,16 +832,6 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
         const bits = [item.role && `role:${item.role}`, item.model && item.model].filter(Boolean);
         return bits.length ? theme.fg('muted', ` (${bits.join(', ')})`) : '';
       };
-      if (args.chain && args.chain.length > 0) {
-        let text = title + theme.fg('accent', `chain (${args.chain.length} steps)`) + theme.fg('muted', ` [${scope}]`);
-        for (const [i, step] of args.chain.slice(0, 3).entries()) {
-          const cleanTask = step.task.replace(/\{previous\}/g, '').trim();
-          const preview = cleanTask.length > 40 ? `${cleanTask.slice(0, 40)}...` : cleanTask;
-          text += `\n  ${theme.fg('muted', `${i + 1}.`)} ${theme.fg('accent', step.agent)}${tag(step)}${theme.fg('dim', ` ${preview}`)}`;
-        }
-        if (args.chain.length > 3) text += `\n  ${theme.fg('muted', `... +${args.chain.length - 3} more`)}`;
-        return new Text(text, 0, 0);
-      }
       if (args.tasks && args.tasks.length > 0) {
         let text = title + theme.fg('accent', `parallel (${args.tasks.length} tasks)`) + theme.fg('muted', ` [${scope}]`);
         for (const t of args.tasks.slice(0, 3)) {
@@ -958,26 +919,26 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
       const running = details.results.filter((r) => r.exitCode === -1).length;
       const done = details.results.filter((r) => r.exitCode !== -1);
       const successCount = done.filter((r) => !isFailedResult(r)).length;
-      const label = details.mode === 'chain' ? 'chain ' : 'parallel ';
-      const icon = running > 0 ? theme.fg('warning', '⏳') : successCount === details.results.length ? theme.fg('success', '✓') : theme.fg(details.mode === 'chain' ? 'error' : 'warning', details.mode === 'chain' ? '✗' : '◐');
-      const status = running > 0 ? `${done.length}/${details.results.length} done, ${running} running` : `${successCount}/${details.results.length} ${details.mode === 'chain' ? 'steps' : 'tasks'}`;
-      const stepHeader = (r: SingleResult) => {
+      const label = 'parallel ';
+      const icon = running > 0 ? theme.fg('warning', '⏳') : successCount === details.results.length ? theme.fg('success', '✓') : theme.fg('warning', '◐');
+      const status = running > 0 ? `${done.length}/${details.results.length} done, ${running} running` : `${successCount}/${details.results.length} tasks`;
+      const taskHeader = (r: SingleResult) => {
         const rIcon = r.exitCode === -1 ? theme.fg('warning', '⏳') : isFailedResult(r) ? theme.fg('error', '✗') : theme.fg('success', '✓');
         const reason = isFailedResult(r) && r.stopReason ? theme.fg('error', ` [${r.stopReason}]`) : '';
-        return `${theme.fg('muted', details.mode === 'chain' ? `─── Step ${r.step}: ` : '─── ')}${theme.fg('accent', r.agent)} ${rIcon}${theme.fg('muted', ` (${r.agentSource})`)}${reason}`;
+        return `${theme.fg('muted', '─── ')}${theme.fg('accent', r.agent)} ${rIcon}${theme.fg('muted', ` (${r.agentSource})`)}${reason}`;
       };
 
       if (expanded && running === 0) {
         const container = new Container();
         container.addChild(new Text(`${icon} ${theme.fg('toolTitle', theme.bold(label))}${theme.fg('accent', status)}`, 0, 0));
-        for (const r of details.results) { container.addChild(new Spacer(1)); expandedTask(container, r, stepHeader(r)); }
+        for (const r of details.results) { container.addChild(new Spacer(1)); expandedTask(container, r, taskHeader(r)); }
         const usage = formatUsageStats(aggregateUsage(details.results));
         if (usage) { container.addChild(new Spacer(1)); container.addChild(new Text(theme.fg('dim', `Total: ${usage}`), 0, 0)); }
         return container;
       }
 
       let text = `${icon} ${theme.fg('toolTitle', theme.bold(label))}${theme.fg('accent', status)}`;
-      for (const r of details.results) text += `\n\n${collapsedTask(r, stepHeader(r))}`;
+      for (const r of details.results) text += `\n\n${collapsedTask(r, taskHeader(r))}`;
       const usage = formatUsageStats(aggregateUsage(details.results));
       if (usage) text += `\n\n${theme.fg('dim', `Total: ${usage}`)}`;
       if (!expanded) text += `\n${theme.fg('muted', '(Ctrl+O to expand)')}`;
