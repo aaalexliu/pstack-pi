@@ -126,6 +126,7 @@
     "extensions/interactive-subagents/pi-extension/subagents/cmux-layout.ts",
     "extensions/interactive-subagents/pi-extension/subagents/cmux.ts",
     "extensions/interactive-subagents/pi-extension/subagents/config.ts",
+    "extensions/interactive-subagents/pi-extension/subagents/headless.ts",
     "extensions/interactive-subagents/pi-extension/subagents/index.ts",
     "extensions/interactive-subagents/pi-extension/subagents/plan-skill.md",
     "extensions/interactive-subagents/pi-extension/subagents/plugin/.claude-plugin/plugin.json",

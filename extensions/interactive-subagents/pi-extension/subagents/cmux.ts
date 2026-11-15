@@ -1409,7 +1409,7 @@ export interface PollResult {
  * the error path in subagent-done.ts). Centralized so both the fast and slow
  * paths in pollForExit decode the payload the same way.
  */
-function interpretExitSidecar(data: any): PollResult {
+export function interpretExitSidecar(data: any): PollResult {
   if (data?.type === "ping") {
     return {
       reason: "ping",
