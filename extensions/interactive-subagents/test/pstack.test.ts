@@ -203,6 +203,16 @@ describe("subagent with wait: true", () => {
   const savedEnv = Object.fromEntries(ENV.map((name) => [name, process.env[name]]));
   const savedScript = process.argv[1];
   let root: string;
+  let shutdown = async () => {};
+
+  /** Fail the test instead of hanging when a file never appears. */
+  async function waitForFile(file: string) {
+    const deadline = Date.now() + 5000;
+    while (!existsSync(file)) {
+      assert.ok(Date.now() < deadline, `${file} never appeared`);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+  }
 
   /** A root Pi with no multiplexer whose children are the fake Pi. */
   async function setup() {
@@ -214,8 +224,10 @@ describe("subagent with wait: true", () => {
     process.argv[1] = fakePiScript;
     const tools = new Map<string, any>();
     const messages: any[] = [];
-    const pi = { ...fakePi().api, registerTool: (tool: any) => tools.set(tool.name, tool), sendMessage: (message: any) => messages.push(message) };
+    const base = fakePi();
+    const pi = { ...base.api, registerTool: (tool: any) => tools.set(tool.name, tool), sendMessage: (message: any) => messages.push(message) };
     interactiveSubagents(pi);
+    shutdown = async () => { for (const handler of base.handlers.get("session_shutdown") ?? []) await handler({}, {}); };
     const sessionFile = join(root, "parent.jsonl");
     writeFileSync(sessionFile, "");
     const ctx = {
@@ -228,7 +240,9 @@ describe("subagent with wait: true", () => {
     return { call, messages };
   }
 
-  afterEach(() => {
+  afterEach(async () => {
+    await shutdown();
+    shutdown = async () => {};
     process.argv[1] = savedScript;
     for (const name of ENV) {
       if (savedEnv[name] === undefined) delete process.env[name];
@@ -277,7 +291,7 @@ describe("subagent with wait: true", () => {
     const pidFile = join(root, "pid");
     const stop = new AbortController();
     const pending = call({ name: "Stuck", task: `HANG ${pidFile}`, wait: true }, stop.signal);
-    while (!existsSync(pidFile)) await new Promise((resolve) => setTimeout(resolve, 20));
+    await waitForFile(pidFile);
     stop.abort();
     await assert.rejects(pending, /aborted/);
     await new Promise((resolve) => setTimeout(resolve, 100));
