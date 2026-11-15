@@ -111,11 +111,25 @@ function linearClient(config: Config, fetchFn: typeof fetch) {
      * In Review that Linear's GitHub link sets when a PR opens. Started ones come first, so they keep their slots.
      */
     async issues(): Promise<Issue[]> {
-      const data = await gql<{ issues: { nodes: Issue[] } }>(
-        `query Issues($team: String!, $user: String!) { issues(first: 100, filter: { team: { key: { eq: $team } }, state: { type: { in: ["unstarted", "started"] } }, delegate: { name: { eq: $user } } }) { nodes { ${ISSUE_FIELDS} } } }`,
-        { team: config.team, user: config.runnerUser },
+      const nodes: Issue[] = [];
+      for (let after: string | null = null; ;) {
+        const page: { issues: { nodes: Issue[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } } } = await gql(
+          `query Issues($team: String!, $user: String!, $after: String) { issues(first: 100, after: $after, filter: { team: { key: { eq: $team } }, state: { type: { in: ["unstarted", "started"] } }, delegate: { name: { eq: $user } } }) { nodes { ${ISSUE_FIELDS} } pageInfo { hasNextPage endCursor } } }`,
+          { team: config.team, user: config.runnerUser, after },
+        );
+        nodes.push(...page.issues.nodes);
+        if (!page.issues.pageInfo.hasNextPage) break;
+        after = page.issues.pageInfo.endCursor;
+      }
+      return nodes.sort((a, b) => b.state.type.localeCompare(a.state.type) || a.createdAt.localeCompare(b.createdAt));
+    },
+    /** Whether the ticket with this key is Done, Canceled or no longer delegated to the runner. Throws when Linear has no such ticket. */
+    async closed(key: string): Promise<boolean> {
+      const { issue } = await gql<{ issue: { state: { type: string }; delegate: { name: string } | null } | null }>(
+        'query IssueByKey($key: String!) { issue(id: $key) { state { type } delegate { name } } }', { key },
       );
-      return data.issues.nodes.sort((a, b) => b.state.type.localeCompare(a.state.type) || a.createdAt.localeCompare(b.createdAt));
+      if (!issue) throw new Error(`Linear has no ticket ${key}`);
+      return ['completed', 'canceled'].includes(issue.state.type) || issue.delegate?.name !== config.runnerUser;
     },
     /** The ticket's state, comments and sub-issues in one read, or null when no issue has that id. */
     async ticket(id: string): Promise<Ticket | null> {
@@ -317,14 +331,14 @@ async function launch(ctx: Ctx, w: Work, news: string[]) {
 const live = async (w: Pick<Work, 'key'>) => (await run(bin('tmux'), ['has-session', '-t', session(w.key)], process.cwd())).code === 0;
 
 /**
- * Minutes since the lead's tmux session last did anything: the lead's activity file, output in any of its windows
- * (`windowActivity`, in ms, so a working subagent counts), or the start.
+ * When, in ms, the lead's tmux session last did anything: the lead's activity file, output in any of its windows
+ * (`windowActivity`, in ms, so a working subagent counts), or the start. 0 when none is known.
  */
-export function quietMinutes(w: Pick<Work, 'dir'>, now = Date.now(), windowActivity = 0) {
+export function lastActivity(w: Pick<Work, 'dir'>, windowActivity = 0) {
   const started = lastStart(w);
   let last = Math.max(started ? Date.parse(started) : 0, windowActivity);
   try { last = Math.max(last, JSON.parse(readFileSync(rf(w, 'activity.json'), 'utf8')).updatedAt ?? 0); } catch { /* no activity yet */ }
-  return last ? Math.floor((now - last) / 60000) : 0;
+  return last;
 }
 
 /** The newest output time, in ms, of any window in the ticket's tmux session. */
@@ -339,9 +353,10 @@ async function windowActivity(w: Pick<Work, 'key' | 'dir'>) {
  */
 async function checkStall(ctx: Ctx, w: Work, ticket: Ticket) {
   if (existsSync(rf(w, 'held')) || existsSync(rf(w, 'takeover'))) return;
-  const quiet = quietMinutes(w, Date.now(), await windowActivity(w));
+  const last = lastActivity(w, await windowActivity(w));
+  const quiet = last ? Math.floor((Date.now() - last) / 60000) : 0;
   if (quiet < ctx.config.stallMinutes) return;
-  const quietSince = new Date(Date.now() - quiet * 60000 - 60000).toISOString();
+  const quietSince = new Date(last).toISOString();
   if (ticket.children.some((c) => isDecision(ctx.config, c) && c.createdAt >= quietSince)) return;
   const c = commands(w, sessionId(w), ctx.config.host);
   const issue = await ctx.linear.fileDecision(w.id, `Check ${w.key}: the lead looks stuck`, [
@@ -389,14 +404,23 @@ async function freeMemory(): Promise<number> {
 }
 
 /**
- * Kills the tmux session of a ticket that is no longer open: Done, Canceled, or no longer delegated.
- * The only time the runner kills a lead.
+ * Kills the tmux session of a ticket the runner started that is no longer open: Done, Canceled, or no longer
+ * delegated to the runner. The only time the runner kills a lead. It kills only a session with a runner worktree
+ * that recorded a start, and only after Linear confirms that one ticket is closed; on any doubt it leaves it.
  */
-async function reapClosed(config: Config, open: Issue[]) {
+async function reapClosed(ctx: Ctx, open: Issue[]) {
   const keys = new Set(open.map((i) => i.identifier));
+  const folders = existsSync(ctx.config.worktreeRoot) ? readdirSync(ctx.config.worktreeRoot) : [];
   const { out } = await run(bin('tmux'), ['list-sessions', '-F', '#{session_name}'], process.cwd());
   for (const name of out.split('\n')) {
-    if (new RegExp(`^${config.team}-\\d+$`).test(name) && !keys.has(name)) await run(bin('tmux'), ['kill-session', '-t', session(name)], process.cwd());
+    if (!new RegExp(`^${ctx.config.team}-\\d+$`).test(name) || keys.has(name)) continue;
+    const prefix = `job-${name.toLowerCase()}-`;
+    if (!folders.some((f) => f.startsWith(prefix) && existsSync(path.join(ctx.config.worktreeRoot, f, '.runner', 'started')))) continue;
+    try {
+      if (await ctx.linear.closed(name)) await run(bin('tmux'), ['kill-session', '-t', session(name)], process.cwd());
+    } catch (error) {
+      console.error(`${name}: could not confirm the ticket is closed, so its session stays`, error);
+    }
   }
 }
 
@@ -406,7 +430,7 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void) {
   const free = await freeMemory();
   const tickets: { w: Work; ticket: Ticket; live: boolean }[] = [];
   const issues = await linear.issues();
-  if (!dryRun) await reapClosed(config, issues);
+  if (!dryRun) await reapClosed(ctx, issues);
   for (const issue of issues) {
     const w = workFor(config, issue);
     if (!w) {
