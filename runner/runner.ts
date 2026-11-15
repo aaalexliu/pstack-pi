@@ -123,6 +123,7 @@ function linearClient(config: Config, fetchFn: typeof fetch) {
         nodes.push(...page.issues.nodes);
         if (!page.issues.pageInfo.hasNextPage) break;
         after = page.issues.pageInfo.endCursor;
+        if (!after) throw new Error('Linear gave no cursor');
       }
       return nodes.sort((a, b) => b.state.type.localeCompare(a.state.type) || a.createdAt.localeCompare(b.createdAt));
     },
@@ -329,6 +330,7 @@ async function launch(ctx: Ctx, w: Work, news: string[]) {
   put(rf(w, 'started'), new Date().toISOString());
   await run(bin('tmux'), ['kill-session', '-t', session(w.key)], w.dir);
   await must(bin('tmux'), ['new-session', '-d', '-s', w.key, '-x', '200', '-y', '50', '-c', w.dir, `sh ${sh(rf(w, 'lead.sh'))}`], w.dir);
+  await run(bin('tmux'), ['set-option', '-t', session(w.key), '@job-runner', w.key], w.dir);
 }
 
 const live = async (w: Pick<Work, 'key'>) => (await run(bin('tmux'), ['has-session', '-t', session(w.key)], process.cwd())).code === 0;
@@ -408,17 +410,19 @@ async function freeMemory(): Promise<number> {
 
 /**
  * Kills the tmux session of a ticket the runner started that is no longer open: Done, Canceled, or no longer
- * delegated to the runner. The only time the runner kills a lead. It kills only a session with a runner worktree
- * that recorded a start, and only after Linear confirms that one ticket is closed; on any doubt it leaves it.
+ * delegated to the runner. The only time the runner kills a lead. It kills only a session the runner tagged with
+ * `@job-runner` when it made it, never one a person took over, and only after Linear confirms that one ticket is
+ * closed; on any doubt it leaves it.
  */
 async function reapClosed(ctx: Ctx, open: Issue[]) {
   const keys = new Set(open.map((i) => i.identifier));
   const folders = existsSync(ctx.config.worktreeRoot) ? readdirSync(ctx.config.worktreeRoot) : [];
-  const { out } = await run(bin('tmux'), ['list-sessions', '-F', '#{session_name}'], process.cwd());
-  for (const name of out.split('\n')) {
-    if (!new RegExp(`^${ctx.config.team}-\\d+$`).test(name) || keys.has(name)) continue;
+  const { out } = await run(bin('tmux'), ['list-sessions', '-F', '#{session_name} #{@job-runner}'], process.cwd());
+  for (const [name, tag] of out.split('\n').map((line) => line.split(' '))) {
+    if (!name || tag !== name || keys.has(name)) continue;
     const prefix = `job-${name.toLowerCase()}-`;
-    if (!folders.some((f) => f.startsWith(prefix) && existsSync(path.join(ctx.config.worktreeRoot, f, '.runner', 'started')))) continue;
+    const held = (f: string) => ['takeover', 'held'].some((m) => existsSync(path.join(ctx.config.worktreeRoot, f, '.runner', m)));
+    if (folders.some((f) => f.startsWith(prefix) && held(f))) continue;
     try {
       if (await ctx.linear.closed(name)) await run(bin('tmux'), ['kill-session', '-t', session(name)], process.cwd());
     } catch (error) {
