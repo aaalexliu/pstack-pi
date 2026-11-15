@@ -7,6 +7,7 @@ import { roles, loadModelConfig, modelConfigPath, formatModelChoice } from '../s
 import { registerExport } from './export-session.ts';
 import { registerPapercuts } from './papercuts.ts';
 import { registerReadCloseMatches } from './read-close-matches.ts';
+import { registerSearchGuard } from './search-guard.ts';
 import { disabledModeState, enabledModeState, invokesPotetoMode, modeEntryType, restoreMode, type ModeState } from './mode.ts';
 import { formatTodos, parseTodoAction, reduceTodos, restoreTodos, todoEntryType, todoParameters, emptyTodoState, type TodoState } from './todo.ts';
 
@@ -72,6 +73,7 @@ export default function pstack(pi: ExtensionAPI): void {
 
   registerPapercuts(pi);
   registerReadCloseMatches(pi);
+  registerSearchGuard(pi);
   registerExport(pi);
 
   pi.registerTool({

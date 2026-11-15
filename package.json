@@ -142,6 +142,7 @@
     "extensions/pstack/papercut-observer.ts",
     "extensions/pstack/papercuts.ts",
     "extensions/pstack/read-close-matches.ts",
+    "extensions/pstack/search-guard.ts",
     "extensions/pstack/todo.ts",
     "extensions/recap/index.ts",
     "extensions/recap/summary.ts",
