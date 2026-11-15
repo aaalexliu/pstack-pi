@@ -40,7 +40,7 @@ try {
     models: [FIXTURE_MODEL, 'pi-test-model'].map((id) => ({ id, name: id, reasoning: false, contextWindow: 128000, maxTokens: 4096, cost: { input: 1, output: 2, cacheRead: 0, cacheWrite: 0 } })) } } }));
   await writeFile(path.join(profile, 'pstack-pi/models.json'), JSON.stringify({ version: 1, roles: { review: [`pi-fixture/${FIXTURE_MODEL}`], test: ['pi-fixture/pi-test-model'] } }));
   const child = spawn('pi', ['--no-extensions', '-e', path.join(repository, 'extensions/subagent/index.ts'), '--no-skills', '--no-context-files', '--no-prompt-templates', '--no-approve', '--offline', '--provider', 'pi-fixture', '--model', FIXTURE_MODEL, '--thinking', 'off', '--', parent], {
-    cwd: work, stdio: 'inherit', env: { ...process.env, PI_CODING_AGENT_DIR: profile, PI_OFFLINE: '1', PI_TELEMETRY: '0', PSTACK_SUBAGENT_DEPTH: '0' },
+    cwd: work, stdio: 'inherit', env: { ...process.env, PI_CODING_AGENT_DIR: profile, PI_OFFLINE: '1', PI_TELEMETRY: '0' },
   });
   const stop = () => child.kill('SIGTERM');
   process.on('SIGTERM', stop);

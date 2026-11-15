@@ -407,11 +407,11 @@ subagent({ name: "Scout", agent: "scout", interactive: true, task: "..." });
 
 ## Tool Access Control
 
-Sub-agents get no spawning tools unless their agent file sets `spawning: true`. Every child also runs with `PSTACK_SUBAGENT_DEPTH=1`, which hides pstack-pi's `blocking_subagent` tool. Control this with frontmatter:
+Sub-agents get no spawning tools unless their agent file sets `spawning: true`. pstack-pi's `blocking_subagent` counts as a spawning tool. Control this with frontmatter:
 
 ### `spawning: true`
 
-Grants the subagent lifecycle tools (`subagent`, `subagent_interrupt`, `subagents_list`, `subagent_resume`) to a child:
+Grants the subagent lifecycle tools (`subagent`, `subagent_interrupt`, `subagents_list`, `subagent_resume`, and pstack-pi's `blocking_subagent`) to a child:
 
 ```yaml
 ---

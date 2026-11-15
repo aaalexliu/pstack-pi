@@ -40,7 +40,7 @@ if (sessionId && verb !== 'EXIT2') {
   writeFileSync(path.join(dir, `2026-01-01T00-00-00-000Z_${sessionId}.jsonl`), `${JSON.stringify({ type: 'session', version: 3, id: sessionId, cwd: process.cwd() })}\n`);
 }
 
-const capture = () => JSON.stringify({ args, task, prompt, promptMode, cwd: process.cwd(), depth: process.env.PSTACK_SUBAGENT_DEPTH ?? null, memoryExitSummary: process.env.PI_MEMORY_EXIT_SUMMARY ?? null, pid: process.pid });
+const capture = () => JSON.stringify({ args, task, prompt, promptMode, cwd: process.cwd(), denied: process.env.PI_DENY_TOOLS ?? null, memoryExitSummary: process.env.PI_MEMORY_EXIT_SUMMARY ?? null, pid: process.pid });
 const parentPid = process.ppid;
 const loopMs = Number(process.env.FAKE_PI_LOOP_MS) || 15_000;
 const parentGone = () => { try { process.kill(parentPid, 0); return false; } catch { return true; } };

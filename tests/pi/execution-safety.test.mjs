@@ -210,10 +210,10 @@ test('packed child ignores fake pi at the front of PATH', { timeout: 12000 }, as
   });
 });
 
-for (const depth of ['01', '1']) {
-  test(`packed depth ${depth} disables pstack but leaves parent bash available`, { timeout: 12000 }, async (t) => {
+for (const denied of ['blocking_subagent', ' subagent , blocking_subagent ']) {
+  test(`packed PI_DENY_TOOLS=${denied} hides blocking_subagent but leaves parent bash available`, { timeout: 12000 }, async (t) => {
     const observer = observation(t);
-    await runPiSmoke({ keepArtifacts: true, launchEnvironment: { PSTACK_SUBAGENT_DEPTH: depth }, expectedRequests: 3, expectedText: 'Depth rejected without a command gate.',
+    await runPiSmoke({ keepArtifacts: true, launchEnvironment: { PI_DENY_TOOLS: denied }, expectedRequests: 3, expectedText: 'Depth rejected without a command gate.',
       onSpawn: (pid) => observer.start(pid),
       fixture: { script: [
         { reply: { kind: 'tool', ...delegate }, check: (request) => assert.ok(!tools(request).includes('blocking_subagent')) },
