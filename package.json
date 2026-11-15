@@ -133,6 +133,7 @@
     "extensions/interactive-subagents/pi-extension/subagents/subagent-done.ts",
     "extensions/profiles/config.ts",
     "extensions/profiles/index.ts",
+    "extensions/pstack/bash-head-tail.ts",
     "extensions/pstack/export-session.ts",
     "extensions/pstack/index.ts",
     "extensions/pstack/mode.ts",
