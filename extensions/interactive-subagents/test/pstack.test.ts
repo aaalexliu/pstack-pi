@@ -200,7 +200,7 @@ describe("runSubagentInPane, the runner blocking_subagent uses", () => {
 
 describe("subagent with wait: true", () => {
   const fakePiScript = join(dirname(fileURLToPath(import.meta.url)), "fake-pi.mjs");
-  const ENV = ["PI_SUBAGENT_MUX", "TMUX", "PI_CODING_AGENT_DIR"] as const;
+  const ENV = ["PI_SUBAGENT_MUX", "TMUX", "PI_CODING_AGENT_DIR", "PATH", "CMUX_SOCKET_PATH"] as const;
   const savedEnv = Object.fromEntries(ENV.map((name) => [name, process.env[name]]));
   const savedScript = process.argv[1];
   let root: string;
@@ -316,6 +316,28 @@ describe("subagent with wait: true", () => {
     while (messages.length === 0 && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 20));
     assert.equal(messages[0]?.customType, "subagent_result");
     assert.match(messages[0].content, /completed[\s\S]*done /);
+  });
+
+  it("runs the child headless when cmux looks available but its pane will not open", async () => {
+    const { call, messages } = await setup();
+    const bin = join(root, "bin");
+    mkdirSync(bin);
+    writeFileSync(join(bin, "cmux"), `#!/bin/sh\necho "$@" >> ${JSON.stringify(join(root, "cmux.log"))}\necho "Error: workspace create failed" >&2\nexit 1\n`, { mode: 0o755 });
+    process.env.PATH = `${bin}:${process.env.PATH}`;
+    process.env.PI_SUBAGENT_MUX = "cmux";
+    process.env.CMUX_SOCKET_PATH = join(root, "no-such.sock");
+    assert.ok(isMuxAvailable());
+
+    const waited = await call({ name: "Fallback", task: "hello", wait: true });
+    assert.equal(waited.isError, false, waited.content[0].text);
+    assert.match(waited.content[0].text, /^resolved-model: parent\/model\n/);
+    assert.equal(JSON.parse(waited.content[0].text.slice(waited.content[0].text.indexOf("done ") + 5)).args[0], "-p");
+
+    assert.equal((await call({ name: "Background", task: "hello" })).details.status, "started");
+    const deadline = Date.now() + 5000;
+    while (messages.length === 0 && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.match(messages[0]?.content ?? "", /completed[\s\S]*done /);
+    assert.match(readFileSync(join(root, "cmux.log"), "utf8"), /workspace/);
   });
 
   it("kills a descendant that ignores SIGTERM after the grace period, even once the direct child is gone", async () => {

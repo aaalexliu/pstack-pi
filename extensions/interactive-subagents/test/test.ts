@@ -2149,6 +2149,37 @@ describe("concurrency cap", () => {
   const testApi = (subagentsModule as any).__test__;
   const tick = () => new Promise<void>((resolve) => setImmediate(resolve));
 
+  it("closes a pane that will not take the launch command and runs the child headless", async () => {
+    await withFakeCmux(async (cmux) => {
+      cmux.update((state) => { state.fail = { send: "send failed" }; });
+      const dir = createTestDir();
+      const savedScript = process.argv[1];
+      const savedAgentDir = process.env.PI_CODING_AGENT_DIR;
+      process.argv[1] = fileURLToPath(new URL("./fake-pi.mjs", import.meta.url));
+      process.env.PI_CODING_AGENT_DIR = join(dir, "agent");
+      const sessionFile = join(dir, "parent.jsonl");
+      writeFileSync(sessionFile, "");
+      const ctx = {
+        cwd: dir,
+        model: { provider: "parent", id: "model" },
+        sessionManager: { getSessionFile: () => sessionFile, getSessionId: () => "parent", getSessionDir: () => dir, getSessionName: () => undefined },
+      };
+      try {
+        const running = await testApi.launchSubagent({ name: "Pane", task: "hello" }, ctx, { autoExit: true });
+        assert.equal(running.surface, "");
+        assert.ok(running.proc, "the child runs headless");
+        assert.deepEqual(cmux.workspaces(), {}, "the pane and its workspace are closed");
+        const result = await testApi.watchSubagent(running, new AbortController().signal);
+        assert.match(result.summary, /^done /);
+      } finally {
+        process.argv[1] = savedScript;
+        restoreEnvVar("PI_CODING_AGENT_DIR", savedAgentDir);
+        testApi.spawnSlots.clear();
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+  });
+
   async function withMaxConcurrent(maxConcurrent: number, fn: () => Promise<void>) {
     const dir = createTestDir();
     const previous = process.env.PI_CODING_AGENT_DIR;

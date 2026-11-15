@@ -1150,6 +1150,7 @@ export const __test__ = {
   spawnSlots,
   withSpawnSlot,
   liveChildrenRefusal,
+  launchSubagent,
 };
 
 function startWidgetRefresh() {
@@ -1246,13 +1247,21 @@ async function launchSubagent(
 
   // Use pre-created surface (parallel mode) or create a new one.
   // For new surfaces, pause briefly so the shell is ready before sending the command.
-  const headless = options?.headless === true;
+  // pstack-pi: no multiplexer, or one whose pane fails to open, runs the child headless.
+  let headless = options?.headless === true;
+  let surface = "";
+  if (!headless) {
+    try {
+      surface = options?.surface ?? createSurface(params.name, cmuxPlacement(ctx));
+    } catch (error) {
+      if (agentDefs?.cli === "claude") throw error;
+      headless = true;
+    }
+  }
   if (headless && agentDefs?.cli === "claude") {
     throw new Error(`Agent "${params.agent}" runs Claude Code, which needs a terminal multiplexer. ${muxSetupHint()}`);
   }
-  const surfacePreCreated = !!options?.surface;
-  const surface = headless ? "" : options?.surface ?? createSurface(params.name, cmuxPlacement(ctx));
-  if (!surfacePreCreated && !headless) {
+  if (surface && !options?.surface) {
     await new Promise<void>((resolve) => setTimeout(resolve, getShellReadyDelayMs()));
   }
 
@@ -1465,10 +1474,7 @@ async function launchSubagent(
     }),
   };
 
-  if (headless) {
-    // pstack-pi: no multiplexer, so the child runs in print mode in its own process group.
-    running.proc = spawnHeadless(args, { cwd: targetCwdForSession, env: { ...process.env, ...env } });
-  } else {
+  if (!headless) {
     // Resolve cwd — param overrides agent default, supports absolute and relative paths.
     // This was already computed above so session placement, PI_CODING_AGENT_DIR, and cd agree.
     const cdPrefix = effectiveCwd ? `cd ${shellEscape(effectiveCwd)} && ` : "";
@@ -1482,15 +1488,29 @@ async function launchSubagent(
       .replace(/-+/g, "-")
       .replace(/^-|-$/g, "") || "subagent"}-${id}.sh`;
     running.launchScriptFile = join(artifactDir, "subagent-scripts", launchScriptName);
-    sendLongCommand(surface, command, {
-      scriptPath: running.launchScriptFile,
-      scriptPreamble: [
-        `# Subagent launch script for ${params.name}`,
-        `# Generated: ${new Date().toISOString()}`,
-        `# Session: ${subagentSessionFile}`,
-        `# Surface: ${surface}`,
-      ].join("\n"),
-    });
+    try {
+      sendLongCommand(surface, command, {
+        scriptPath: running.launchScriptFile,
+        scriptPreamble: [
+          `# Subagent launch script for ${params.name}`,
+          `# Generated: ${new Date().toISOString()}`,
+          `# Session: ${subagentSessionFile}`,
+          `# Surface: ${surface}`,
+        ].join("\n"),
+      });
+    } catch {
+      // pstack-pi: the pane opened but would not take the command. Close it and run headless.
+      try { closeSurface(surface); } catch {}
+      running.surface = "";
+      running.launchScriptFile = undefined;
+      delete env.PI_SUBAGENT_SURFACE;
+      headless = true;
+    }
+  }
+
+  if (headless) {
+    // pstack-pi: the child runs in print mode in its own process group.
+    running.proc = spawnHeadless(args, { cwd: targetCwdForSession, env: { ...process.env, ...env } });
   }
 
   runningSubagents.set(id, running);
