@@ -23,7 +23,6 @@
   "pi": {
     "extensions": [
       "extensions/pstack/index.ts",
-      "extensions/subagent/index.ts",
       "extensions/profiles/index.ts",
       "extensions/title/index.ts",
       "extensions/recap/index.ts",
@@ -157,10 +156,7 @@
     "extensions/media/server.ts",
     "extensions/shared/model.ts",
     "extensions/subagent/agents.ts",
-    "extensions/subagent/index.ts",
     "extensions/subagent/model-config.ts",
-    "extensions/subagent/progress.ts",
-    "extensions/subagent/view.ts",
     "extensions/title/index.ts",
     "extensions/title/naming.ts",
     "package.json",

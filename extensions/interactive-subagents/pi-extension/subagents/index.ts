@@ -54,7 +54,6 @@ import {
 } from "./status.ts";
 import { DEFAULT_SUBAGENTS_CONFIG, loadSubagentsConfig, type SubagentsConfig } from "./config.ts";
 import { bundledAgentsDirectories as pstackAgentDirs, packageRoot as pstackRoot } from "../../../subagent/agents.ts";
-import { SPAWNING_TOOLS as PSTACK_SPAWNING_TOOLS } from "../../../subagent/index.ts";
 import { formatModelChoice, loadModelConfig, ModelRouter, roleSchema } from "../../../subagent/model-config.ts";
 import {
   getSubagentActivityFile,
@@ -137,6 +136,11 @@ const SubagentParams = Type.Object({
         "pstack-pi: wait for the child to finish and return its result in this tool call, starting with resolved-model:, session-id: and session-path: lines. Several wait calls in one message run side by side. Default false: return at once and deliver the result later as a new turn.",
     }),
   ),
+  thinking: Type.Optional(
+    Type.Union(["off", "minimal", "low", "medium", "high", "xhigh", "max"].map((level) => Type.Literal(level)), {
+      description: "pstack-pi: the child's reasoning level, passed as --thinking. Overrides the level in a role's model.",
+    }),
+  ),
   timeoutMs: Type.Optional(
     Type.Integer({ minimum: 1, description: "pstack-pi: with wait, stop the child after this many milliseconds." }),
   ),
@@ -181,8 +185,8 @@ interface ListedAgentDefinition extends AgentDefinition {
   source: AgentSource;
 }
 
-/** Tools that are gated by `spawning: false`. pstack-pi: includes `blocking_subagent`. */
-const SPAWNING_TOOLS = new Set(PSTACK_SPAWNING_TOOLS);
+/** Tools that are gated by `spawning: false`. */
+const SPAWNING_TOOLS = new Set(["subagent", "subagent_interrupt", "subagents_list", "subagent_resume"]);
 
 /**
  * Resolve the effective set of denied tool names from agent defaults.
@@ -907,6 +911,8 @@ function buildSubagentToolAllowlist(effectiveTools?: string): string | null {
   for (const tool of SUBAGENT_CONTROL_TOOLS) {
     allow.add(tool);
   }
+  // pstack-pi: every child keeps its own checklist.
+  allow.add("pstack_todo");
 
   return [...allow].join(",");
 }
@@ -1151,6 +1157,8 @@ export const __test__ = {
   withSpawnSlot,
   liveChildrenRefusal,
   launchSubagent,
+  runSubagentToEnd,
+  runSubagentAndWait,
 };
 
 function startWidgetRefresh() {
@@ -1162,14 +1170,14 @@ function startWidgetRefresh() {
   (globalThis as any)[WIDGET_INTERVAL_KEY] = widgetInterval;
 }
 
-// pstack-pi: a Pi child's model comes from the same lookup blocking_subagent uses: explicit model,
+// pstack-pi: a Pi child's model comes from pstack-pi's model lookup: explicit model,
 // the call's role, the agent file's role, the agent file's model, then the parent's model.
 const modelRouter = new ModelRouter();
-async function resolvePiChildModel(
+async function selectPiChildModel(
   params: { model?: string; role?: (typeof SubagentParams.static)["role"] },
   agentDefs: AgentDefaults | null,
   parentModel: { provider: string; id: string } | undefined,
-): Promise<string | undefined> {
+): Promise<{ model: string | undefined; inherited: boolean }> {
   const selection = modelRouter.select({
     config: await loadModelConfig(getAgentConfigDir()),
     role: params.role,
@@ -1177,19 +1185,31 @@ async function resolvePiChildModel(
     agentRole: agentDefs?.role,
     agentModel: agentDefs?.model,
   });
-  if (selection.choice.kind === "pinned") return formatModelChoice(selection.choice);
-  return parentModel ? `${parentModel.provider}/${parentModel.id}` : undefined;
+  if (selection.choice.kind === "pinned") return { model: formatModelChoice(selection.choice), inherited: false };
+  return { model: parentModel ? `${parentModel.provider}/${parentModel.id}` : undefined, inherited: true };
 }
 
-/** pstack-pi: the `--model` argv for a Pi child. A role choice's thinking suffix such as `:xhigh` wins over the agent's `thinking`. */
-async function piModelArgs(
+async function resolvePiChildModel(
   params: { model?: string; role?: (typeof SubagentParams.static)["role"] },
   agentDefs: AgentDefaults | null,
   parentModel: { provider: string; id: string } | undefined,
+): Promise<string | undefined> {
+  return (await selectPiChildModel(params, agentDefs, parentModel)).model;
+}
+
+/**
+ * pstack-pi: the `--model` argv for a Pi child. A role choice's thinking suffix such as `:xhigh` wins over the agent's
+ * `thinking`. A child on the parent's model with no `thinking` from the call or agent runs at the parent's level.
+ */
+async function piModelArgs(
+  params: { model?: string; role?: (typeof SubagentParams.static)["role"]; thinking?: string },
+  agentDefs: AgentDefaults | null,
+  parentModel: { provider: string; id: string } | undefined,
+  parentThinking?: string,
 ): Promise<string[]> {
-  const model = await resolvePiChildModel(params, agentDefs, parentModel);
+  const { model, inherited } = await selectPiChildModel(params, agentDefs, parentModel);
   if (!model) return [];
-  const thinking = agentDefs?.thinking;
+  const thinking = agentDefs?.thinking ?? (inherited && !params.thinking ? parentThinking : undefined);
   const hasThinking = /:(off|minimal|low|medium|high|xhigh|max)$/.test(model);
   return ["--model", thinking && !hasThinking ? `${model}:${thinking}` : model];
 }
@@ -1211,6 +1231,7 @@ async function launchSubagent(
     };
     cwd: string;
     model?: { provider: string; id: string };
+    thinkingLevel?: string;
   },
   options?: { surface?: string; autoExit?: boolean; systemPromptMode?: "append"; thinking?: string; headless?: boolean },
 ): Promise<RunningSubagent> {
@@ -1378,7 +1399,7 @@ async function launchSubagent(
   const subagentDonePath = join(SUBAGENTS_DIR, "subagent-done.ts");
   args.push("-e", subagentDonePath);
 
-  args.push(...await piModelArgs(params, agentDefs, ctx.model));
+  args.push(...await piModelArgs(params, agentDefs, ctx.model, ctx.thinkingLevel));
   if (options?.thinking) args.push("--thinking", options.thinking);
 
   // Pass agent body as system prompt via file to avoid shell escaping issues
@@ -1689,10 +1710,10 @@ async function watchSubagent(
 /**
  * pstack-pi: run one auto-exiting child, holding a spawn slot, and wait for its
  * result. The child opens in a pane inside a multiplexer and runs headless
- * outside one. `subagent` with `wait: true` and `blocking_subagent` call this.
+ * outside one. `subagent` with `wait: true` calls this.
  * An abort while waiting for a slot returns a cancelled result.
  */
-export async function runSubagentInPane(
+async function runSubagentToEnd(
   params: typeof SubagentParams.static,
   ctx: Parameters<typeof launchSubagent>[1],
   signal: AbortSignal,
@@ -1753,7 +1774,7 @@ async function runSubagentAndWait(
   params: typeof SubagentParams.static,
   ctx: Parameters<typeof launchSubagent>[1],
   signal: AbortSignal | undefined,
-  run = runSubagentInPane,
+  run = runSubagentToEnd,
 ) {
   const stop = new AbortController();
   const onAbort = () => stop.abort("user");
@@ -1761,7 +1782,7 @@ async function runSubagentAndWait(
   signal?.addEventListener("abort", onAbort, { once: true });
   const deadline = params.timeoutMs === undefined ? undefined : setTimeout(() => stop.abort("timeout"), params.timeoutMs);
   try {
-    const result = await run(params, ctx, stop.signal);
+    const result = await run(params, ctx, stop.signal, params.thinking);
     if (stop.signal.reason === "user") throw new Error("Subagent was aborted");
     const failed = stop.signal.aborted || result.exitCode !== 0 || Boolean(result.error || result.errorMessage || result.paneClosed || result.ping);
     const body = stop.signal.reason === "timeout"
@@ -1788,19 +1809,11 @@ async function runSubagentAndWait(
   }
 }
 
-/**
- * Pi loads each extension in its own module copy, so `blocking_subagent` cannot
- * import this file and share its slots, widget, and list. The live extension
- * publishes its runner here instead.
- */
-export const PANE_RUNNER_KEY = Symbol.for("pstack-pi/interactive-subagents/pane-runner");
-
 export default function subagentsExtension(pi: ExtensionAPI) {
   // Capture the UI context for widget updates
   pi.on("session_start", (_event, ctx) => {
     latestCtx = ctx;
   });
-  (globalThis as any)[PANE_RUNNER_KEY] = { isMuxAvailable, runSubagentInPane };
 
   // Clean up on session shutdown
   pi.on("session_shutdown", (_event, _ctx) => {
@@ -1845,7 +1858,9 @@ export default function subagentsExtension(pi: ExtensionAPI) {
 
   // Launches the child, in a pane or headless, and delivers its result later as a steer message.
   const launchInBackground = withSpawnSlot(pi, async (_toolCallId, params: typeof SubagentParams.static, _signal, _onUpdate, ctx) => {
-    const running = await launchSubagent(params, ctx, isMuxAvailable() ? undefined : { headless: true, autoExit: true });
+    const running = await launchSubagent(params, ctx, isMuxAvailable()
+    ? { thinking: params.thinking }
+    : { headless: true, autoExit: true, thinking: params.thinking });
 
     // Create a separate AbortController for the watcher
     // (the tool's signal completes when we return)

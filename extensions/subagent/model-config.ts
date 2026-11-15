@@ -76,7 +76,7 @@ export function parseRole(value: string): Role {
 
 // Precedence: explicit model, then the call's role, then the agent file's role, then the agent file's model, then the parent.
 // An unconfigured role falls through. Pools rotate per role for the life of the extension instance.
-// Both `blocking_subagent` and the interactive `subagent` tool resolve models here.
+// The `subagent` tool and `pstack_config` resolve models here.
 export class ModelRouter {
   #cursors = new Map<Role, number>();
   select({ config, role, model, agentRole, agentModel }: { config: RoleConfig; role?: Role; model?: string; agentRole?: string; agentModel?: string }): ModelSelection {

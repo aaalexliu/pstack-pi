@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { runPiSmoke } from './runner.mjs';
 
-const delegation = ['blocking_subagent', 'subagent', 'subagent_interrupt', 'subagent_resume', 'subagents_list'];
+const delegation = ['subagent', 'subagent_interrupt', 'subagent_resume', 'subagents_list'];
 
 /** @param {Record<string, unknown>} request */
 function toolNames(request) {
@@ -26,12 +26,12 @@ test('a lead started the way the runner starts it has both delegation tool sets'
   });
 });
 
-// The environment the `subagent` tool gives a `sub-lead` child, whose PI_DENY_TOOLS now names `blocking_subagent` with the other spawning tools (additions/agents/sub-lead.md: spawning false, auto-exit). A `pi -p` the sub-lead runs from bash inherits it, so a third level gets no delegation either.
+// The environment the `subagent` tool gives a `sub-lead` child, whose PI_DENY_TOOLS names every spawning tool (additions/agents/sub-lead.md: spawning false, auto-exit). A `pi -p` the sub-lead runs from bash inherits it, so a third level gets no delegation either.
 test('a sub-lead and a pi -p it starts have no delegation tools', async () => {
   const final = 'sub-lead checked';
   await runPiSmoke({
     launchEnvironment: {
-      PI_DENY_TOOLS: 'blocking_subagent,subagent,subagent_interrupt,subagents_list,subagent_resume',
+      PI_DENY_TOOLS: 'subagent,subagent_interrupt,subagents_list,subagent_resume',
       PI_SUBAGENT_NAME: 'unit-b', PI_SUBAGENT_AGENT: 'sub-lead', PI_SUBAGENT_AUTO_EXIT: '1',
     },
     expectedRequests: 3, expectedText: final,
@@ -46,17 +46,5 @@ test('a sub-lead and a pi -p it starts have no delegation tools', async () => {
       } },
       { reply: { kind: 'text', text: final }, check: (request) => assert.match(toolResult(request, 'nested'), /nested reply/) },
     ] },
-  });
-});
-
-// The environment a blocking_subagent child gets: no PI_SUBAGENT_NAME, PI_DENY_TOOLS with every spawning tool, and host default tools.
-test('a blocking_subagent child with host default tools has no delegation tools', async () => {
-  await runPiSmoke({
-    launchEnvironment: { PI_DENY_TOOLS: 'blocking_subagent,subagent,subagent_interrupt,subagents_list,subagent_resume', PI_MEMORY_EXIT_SUMMARY: '0' },
-    fixture: { script: [{ reply: { kind: 'text', text: 'leaf ready' }, check: (request) => {
-      for (const tool of delegation) assert.ok(!toolNames(request).includes(tool), `Leaf lacks ${tool}`);
-      assert.ok(toolNames(request).includes('pstack_todo'), 'The leaf still loaded the package');
-    } }] },
-    expectedText: 'leaf ready',
   });
 });

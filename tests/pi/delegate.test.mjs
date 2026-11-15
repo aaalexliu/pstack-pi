@@ -20,10 +20,10 @@ function toolResult(request, id) {
   return JSON.stringify(result.content);
 }
 
-/** A child gets the agent's tools and its own checklist, but no delegation. */
+/** A child gets the agent's tools, its own checklist, and the two control tools, but no delegation. */
 /** @param {Record<string, unknown>} request @param {string[]} builtins */
 function assertChild(request, builtins) {
-  assert.deepEqual(toolNames(request), [...builtins, 'pstack_todo'].sort());
+  assert.deepEqual(toolNames(request), [...builtins, 'caller_ping', 'pstack_todo', 'subagent_done'].sort());
   const text = JSON.stringify(request);
   assert.ok(text.includes('PROJECT_CONTEXT_MARKER'), 'Child reads the project AGENTS.md');
 }
@@ -37,10 +37,10 @@ async function setupProject(paths) {
 
 /** @param {import('./runner.mjs').PiTestRun} run */
 function subagentEnds(run) {
-  return run.events.filter((event) => event.type === 'tool_execution_end' && event.toolName === 'blocking_subagent');
+  return run.events.filter((event) => event.type === 'tool_execution_end' && event.toolName === 'subagent');
 }
 
-test('packed real parent delegates a file read to a bundled agent, then keeps running', async (t) => {
+test('packed real parent waits for a headless child of a bundled agent, then keeps running', async (t) => {
   const marker = 'DELEGATE_FILE_7f6b2a';
   const final = `The child read ${marker}. The parent shell ran.`;
   /** @type {string[]} */
@@ -55,7 +55,7 @@ test('packed real parent delegates a file read to a bundled agent, then keeps ru
       await writeFile(path.join(paths.cwd, 'fixture.txt'), marker);
     },
     fixture: { script: [
-      { reply: { kind: 'tool', id: 'delegate', name: 'blocking_subagent', arguments: { agent: 'general-purpose', task: 'Read fixture.txt and report its exact contents.' } }, check: (request) => assert.ok(toolNames(request).includes('blocking_subagent')) },
+      { reply: { kind: 'tool', id: 'delegate', name: 'subagent', arguments: { name: 'Reader', agent: 'general-purpose', task: 'Read fixture.txt and report its exact contents.', wait: true } }, check: (request) => assert.ok(toolNames(request).includes('subagent')) },
       { reply: { kind: 'tool', id: 'read-fixture', name: 'read', arguments: { path: 'fixture.txt' } }, check: (request) => {
         assertChild(request, ['read', 'grep', 'find', 'ls']);
         childProcesses = execFileSync('ps', ['-axo', 'pid=,ppid=,pgid=,command='], { encoding: 'utf8' }).split('\n').filter((line) => Number(line.trim().split(/\s+/)[1]) === parentPid && /(?:\bpi$|pi-coding-agent\/dist\/)/.test(line.trimEnd()));
@@ -75,17 +75,9 @@ test('packed real parent delegates a file read to a bundled agent, then keeps ru
       assert.deepEqual(run.diagnostics, []);
       const [end] = subagentEnds(run);
       assert.ok(end && end.isError === false);
-      const details = /** @type {import('../../extensions/subagent/index.ts').SubagentDetails} */ (/** @type {any} */ (end.result).details);
-      assert.equal(details.results.length, 1);
-      const [result] = details.results;
-      assert.equal(result.exitCode, 0);
-      assert.equal(result.stopReason, 'stop');
-      assert.equal(result.agentSource, 'bundled');
-      assert.equal(result.modelSource, 'parent');
-      assert.equal(result.model, 'pi-fixture/pi-smoke-model');
-      assert.equal(result.usage.turns, 2);
-      assert.ok(result.usage.input > 0 && result.usage.output > 0);
-      assert.ok(!(await readdir(run.paths.root)).some((name) => name.startsWith('pi-subagent-')), 'Prompt temp directories are removed');
+      const text = /** @type {any} */ (end.result).content[0].text;
+      assert.match(text, /^resolved-model: pi-fixture\/pi-smoke-model\nsession-id: \S+\nsession-path: \S+\.jsonl\n/);
+      assert.equal(/** @type {any} */ (end.result).details.status, 'finished');
       const pid = Number(childProcesses[0].trim().split(/\s+/)[0]);
       assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
     },
@@ -93,26 +85,6 @@ test('packed real parent delegates a file read to a bundled agent, then keeps ru
   assert.equal(run.cleanup.groupAlive, false);
   assert.deepEqual(run.cleanup.signals, []);
   t.diagnostic(JSON.stringify({ artifact: run.paths.root, pi: run.process.version, parentPid: run.process.pid, childProcesses, requests: run.provider?.requests, cleanup: run.cleanup }));
-});
-
-test('project agents stay hidden until agentScope opts in', async (t) => {
-  const final = 'Project agent rejected.';
-  const run = await runPiSmoke({
-    expectedText: final, expectedRequests: 2, setup: setupProject,
-    fixture: { script: [
-      { reply: { kind: 'tool', id: 'deny', name: 'blocking_subagent', arguments: { agent: 'project', task: 'Do not run this project agent.' } } },
-      { reply: { kind: 'text', text: final }, check: (request) => {
-        assert.ok(toolNames(request).includes('blocking_subagent'), 'Unexpected child request');
-        assert.match(toolResult(request, 'deny'), /Unknown agent \\"project\\"/);
-        assert.match(toolResult(request, 'deny'), /general-purpose \(bundled\)/);
-      } },
-    ] },
-    verify: async (run) => {
-      const [end] = subagentEnds(run);
-      assert.equal(end?.isError, false, 'Guidance about a bad request is not an error result');
-    },
-  });
-  t.diagnostic(JSON.stringify({ requests: run.provider?.requests, cleanup: run.cleanup, diagnostics: run.diagnostics }));
 });
 
 test('a user agent overrides the bundled one by name and runs in a subdirectory cwd', async (t) => {
@@ -127,7 +99,7 @@ test('a user agent overrides the bundled one by name and runs in a subdirectory 
       await writeFile(path.join(paths.profile, 'agents/general-purpose.md'), `---\nname: general-purpose\ndescription: Bash-only override.\ntools: [bash]\n---\n${marker}`);
     },
     fixture: { script: [
-      { reply: { kind: 'tool', id: 'override', name: 'blocking_subagent', arguments: { agent: 'general-purpose', task: 'Print the working directory.', cwd: 'sub' } } },
+      { reply: { kind: 'tool', id: 'override', name: 'subagent', arguments: { name: 'Override', agent: 'general-purpose', task: 'Print the working directory.', cwd: 'sub', wait: true } } },
       { reply: { kind: 'text', text: 'Ran in sub.' }, check: (request) => {
         assertChild(request, ['bash']);
         assert.ok(JSON.stringify(request).includes(marker));
@@ -137,8 +109,6 @@ test('a user agent overrides the bundled one by name and runs in a subdirectory 
     verify: async (run) => {
       const [end] = subagentEnds(run);
       assert.equal(end?.isError, false);
-      const details = /** @type {import('../../extensions/subagent/index.ts').SubagentDetails} */ (/** @type {any} */ (end?.result).details);
-      assert.equal(details.results[0].agentSource, 'user');
     },
   });
   t.diagnostic(JSON.stringify({ requests: run.provider?.requests, diagnostics: run.diagnostics, cleanup: run.cleanup }));
@@ -146,7 +116,7 @@ test('a user agent overrides the bundled one by name and runs in a subdirectory 
 
 test('a child with host default tools gets neither delegation tool set', async (t) => {
   const final = 'The default-tools child answered.';
-  const delegation = ['blocking_subagent', 'subagent', 'subagent_interrupt', 'subagent_resume', 'subagents_list'];
+  const delegation = ['subagent', 'subagent_interrupt', 'subagent_resume', 'subagents_list'];
   const run = await runPiSmoke({
     expectedText: final, expectedRequests: 3,
     setup: async (paths) => {
@@ -155,7 +125,7 @@ test('a child with host default tools gets neither delegation tool set', async (
       await writeFile(path.join(paths.profile, 'agents/default-tools.md'), '---\nname: default-tools\ndescription: No tool list.\n---\nAnswer briefly.');
     },
     fixture: { script: [
-      { reply: { kind: 'tool', id: 'default-tools', name: 'blocking_subagent', arguments: { agent: 'default-tools', task: 'Say hello.' } }, check: (request) => {
+      { reply: { kind: 'tool', id: 'default-tools', name: 'subagent', arguments: { name: 'Default', agent: 'default-tools', task: 'Say hello.', wait: true } }, check: (request) => {
         for (const tool of delegation) assert.ok(toolNames(request).includes(tool), `Parent has ${tool}`);
       } },
       { reply: { kind: 'text', text: 'hello' }, check: (request) => {
@@ -172,23 +142,23 @@ test('a child with host default tools gets neither delegation tool set', async (
 test('packed poteto-agent can edit through its explicit tool set', async () => {
   const final = 'Poteto delegate finished.';
   let packageRoot = '';
-  let testRoot = '';
+  let sessions = '';
   const run = await runPiSmoke({
     expectedText: final, expectedRequests: 4,
     prompt: 'Delegate the bounded fixture edit.',
     setup: async (paths) => {
       await setupProject(paths);
       packageRoot = paths.package;
-      testRoot = paths.root;
+      sessions = paths.sessions;
     },
     fixture: { script: [
-      { reply: { kind: 'tool', id: 'delegate-poteto', name: 'blocking_subagent', arguments: { agent: 'poteto-agent', task: 'Create poteto-created.txt with the exact text POTETO_LEAF.' } } },
+      { reply: { kind: 'tool', id: 'delegate-poteto', name: 'subagent', arguments: { name: 'Poteto', agent: 'poteto-agent', task: 'Create poteto-created.txt with the exact text POTETO_LEAF.', wait: true } } },
       { reply: { kind: 'tool', id: 'write-poteto', name: 'bash', arguments: { command: 'printf %s POTETO_LEAF > poteto-created.txt' } }, check: async (request) => {
         assertChild(request, ['read', 'grep', 'find', 'ls', 'bash', 'edit', 'write']);
         const skillPath = path.join(packageRoot, 'skills/poteto-mode/SKILL.md');
-        const promptDirs = (await readdir(testRoot)).filter((name) => name.startsWith('pi-subagent-'));
-        assert.equal(promptDirs.length, 1);
-        const text = await readFile(path.join(testRoot, promptDirs[0], 'prompt-poteto-agent.md'), 'utf8');
+        const [artifacts] = await readdir(path.join(sessions, 'artifacts'));
+        const [prompt] = (await readdir(path.join(sessions, 'artifacts', artifacts, 'context'))).filter((name) => name.startsWith('poteto-sysprompt-'));
+        const text = await readFile(path.join(sessions, 'artifacts', artifacts, 'context', prompt), 'utf8');
         assert.equal(text.includes(skillPath), true);
         assert.equal(text.includes('{{PSTACK_ROOT}}'), false);
       } },

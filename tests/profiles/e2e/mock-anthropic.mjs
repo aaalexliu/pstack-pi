@@ -4,7 +4,7 @@ import http from 'node:http';
 /**
  * Loopback stand-in for the Anthropic Messages API. Each reply names the login that
  * sent the request: "key=client-a" for a key containing CLIENT_A, "key=default" for
- * DEFAULT. A user message containing DELEGATE gets a blocking_subagent tool call that runs in
+ * DEFAULT. A user message containing DELEGATE gets a `subagent` tool call with wait: true that runs in
  * /tmp with CHILD_MODEL.
  */
 const [port, log] = [Number(process.argv[2]), String(process.argv[3])];
@@ -33,8 +33,8 @@ http.createServer((request, response) => {
     const send = (type, data) => response.write(`event: ${type}\ndata: ${JSON.stringify({ type, ...data })}\n\n`);
     send('message_start', { message: { id: 'msg_mock', type: 'message', role: 'assistant', model: parsed.model, content: [], stop_reason: null, stop_sequence: null, usage: { input_tokens: 1, output_tokens: 0 } } });
     if (delegate) {
-      const input = { agent: 'general-purpose', task: 'hi', cwd: '/tmp', model: process.env.CHILD_MODEL };
-      send('content_block_start', { index: 0, content_block: { type: 'tool_use', id: 'toolu_mock', name: 'blocking_subagent', input: {} } });
+      const input = { name: 'child', agent: 'general-purpose', task: 'hi', cwd: '/tmp', model: process.env.CHILD_MODEL, wait: true };
+      send('content_block_start', { index: 0, content_block: { type: 'tool_use', id: 'toolu_mock', name: 'subagent', input: {} } });
       send('content_block_delta', { index: 0, delta: { type: 'input_json_delta', partial_json: JSON.stringify(input) } });
     } else {
       send('content_block_start', { index: 0, content_block: { type: 'text', text: '' } });

@@ -198,11 +198,14 @@ subagent({ name: "Designer", agent: "game-designer", cwd: "agents/game-designer"
 | `fork`                 | boolean | `false`        | Force the full-context fork mode for this spawn, overriding any agent `session-mode` frontmatter  |
 | `interactive`          | boolean | derived        | Mark this spawn as interactive (don't wake the parent on stall/recovery). Defaults to the agent's `interactive` frontmatter, otherwise the inverse of `auto-exit`. |
 | `model`                | string  | —              | Override the role and the agent's default model                                                   |
-| `role`                 | string  | —              | pstack-pi model role from `<agent dir>/pstack-pi/models.json`, as `blocking_subagent` uses it     |
+| `role`                 | string  | —              | pstack-pi model role from `<agent dir>/pstack-pi/models.json`                                     |
 | `systemPrompt`         | string  | —              | Append to system prompt                                                                           |
 | `skills`               | string  | —              | Comma-separated skill names                                                                       |
 | `tools`                | string  | —              | Comma-separated tool names                                                                        |
 | `cwd`                  | string  | —              | Working directory for the sub-agent (see [Role Folders](#role-folders))                           |
+| `wait`                 | boolean | `false`        | pstack-pi: return the child's result in this call, after `resolved-model:`, `session-id:` and `session-path:` lines |
+| `timeoutMs`            | number  | —              | pstack-pi: with `wait`, stop the child after this many milliseconds                               |
+| `thinking`             | string  | —              | pstack-pi: the child's reasoning level, passed as `--thinking`                                     |
 
 ---
 
@@ -409,11 +412,11 @@ subagent({ name: "Scout", agent: "scout", interactive: true, task: "..." });
 
 ## Tool Access Control
 
-Sub-agents get no spawning tools unless their agent file sets `spawning: true`. pstack-pi's `blocking_subagent` counts as a spawning tool. Control this with frontmatter:
+Sub-agents get no spawning tools unless their agent file sets `spawning: true`. Control this with frontmatter:
 
 ### `spawning: true`
 
-Grants the subagent lifecycle tools (`subagent`, `subagent_interrupt`, `subagents_list`, `subagent_resume`, and pstack-pi's `blocking_subagent`) to a child:
+Grants the subagent lifecycle tools (`subagent`, `subagent_interrupt`, `subagents_list`, and `subagent_resume`) to a child:
 
 ```yaml
 ---

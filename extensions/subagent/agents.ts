@@ -1,10 +1,6 @@
-import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { CONFIG_DIR_NAME, getAgentDir, parseFrontmatter } from '@earendil-works/pi-coding-agent';
-
-export type AgentScope = 'user' | 'project' | 'both';
-export type AgentSource = 'bundled' | 'user' | 'project';
+import { parseFrontmatter } from '@earendil-works/pi-coding-agent';
 
 export type AgentDefinition = {
   name: string;
@@ -15,10 +11,6 @@ export type AgentDefinition = {
   role?: string;
   systemPrompt: string;
 };
-
-export type AgentConfig = AgentDefinition & { source: AgentSource; filePath: string };
-
-export type AgentDiscoveryResult = { agents: AgentConfig[]; projectAgentsDir: string | null };
 
 export const packageRoot = path.resolve(fileURLToPath(new URL('../..', import.meta.url)));
 
@@ -46,52 +38,4 @@ export function parseAgent(content: string): AgentDefinition {
     role: typeof frontmatter.role === 'string' ? frontmatter.role : undefined,
     systemPrompt: body.replaceAll('{{PSTACK_ROOT}}', packageRoot),
   };
-}
-
-// One bad file must not take down the other agents in the same directory.
-function loadAgentsFromDir(dir: string, source: AgentSource): AgentConfig[] {
-  const agents: AgentConfig[] = [];
-  let entries: fs.Dirent[];
-  try { entries = fs.readdirSync(dir, { withFileTypes: true }); }
-  catch { return agents; }
-  for (const entry of entries) {
-    if (!entry.name.endsWith('.md')) continue;
-    if (!entry.isFile() && !entry.isSymbolicLink()) continue;
-    const filePath = path.join(dir, entry.name);
-    try {
-      agents.push({ ...parseAgent(fs.readFileSync(filePath, 'utf-8')), source, filePath });
-    } catch { continue; }
-  }
-  return agents;
-}
-
-function isDirectory(p: string): boolean {
-  try { return fs.statSync(p).isDirectory(); }
-  catch { return false; }
-}
-
-function findNearestProjectAgentsDir(cwd: string): string | null {
-  let currentDir = cwd;
-  while (true) {
-    const candidate = path.join(currentDir, CONFIG_DIR_NAME, 'agents');
-    if (isDirectory(candidate)) return candidate;
-    const parentDir = path.dirname(currentDir);
-    if (parentDir === currentDir) return null;
-    currentDir = parentDir;
-  }
-}
-
-export function bundledAgents(bundledDirs = bundledAgentsDirectories): AgentConfig[] {
-  return bundledDirs.flatMap((dir) => loadAgentsFromDir(dir, 'bundled'));
-}
-
-// Later sources override earlier ones by name: bundled < user < project.
-export function discoverAgents(cwd: string, scope: AgentScope, { bundledDirs = bundledAgentsDirectories, userDir = path.join(getAgentDir(), 'agents') } = {}): AgentDiscoveryResult {
-  const projectAgentsDir = findNearestProjectAgentsDir(cwd);
-  const layers: AgentConfig[][] = [];
-  if (scope !== 'project') layers.push(bundledAgents(bundledDirs), loadAgentsFromDir(userDir, 'user'));
-  if (scope !== 'user' && projectAgentsDir) layers.push(loadAgentsFromDir(projectAgentsDir, 'project'));
-  const agentMap = new Map<string, AgentConfig>();
-  for (const layer of layers) for (const agent of layer) agentMap.set(agent.name, agent);
-  return { agents: Array.from(agentMap.values()), projectAgentsDir };
 }

@@ -57,8 +57,10 @@ export async function startConcurrentProvider(routes) {
         const marker = typeof content === 'string' ? content
           : Array.isArray(content) && content.length === 1 && content[0].type === 'text' ? content[0].text : undefined;
         assert.equal(typeof marker, 'string', 'Expected exact final user marker');
-        const script = scripts.get(marker);
-        assert.ok(script, 'Unknown exact final user marker');
+        // A subagent child gets its task wrapped in instructions, so a marker may also be one whole line of the message.
+        const lines = marker.split('\n').filter((/** @type {string} */ line) => scripts.has(line));
+        const script = scripts.get(marker) ?? (lines.length === 1 ? scripts.get(lines[0]) : undefined);
+        assert.ok(script, 'Unknown final user marker');
         const step = script.steps[script.next++];
         assert.ok(step, 'Route exhausted');
         assert.equal(payload.model, step.model, 'Wrong exact model reached provider');

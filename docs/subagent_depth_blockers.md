@@ -20,13 +20,13 @@ Depth 2 would let a delegated implementation agent ask for a focused investigati
 
 ### Runtime guard
 
-`extensions/subagent/index.ts` skips registering `blocking_subagent` when `PI_DENY_TOOLS` names it, and every child gets that list.
+`extensions/interactive-subagents/pi-extension/subagents/index.ts` skips registering `subagent` when `PI_DENY_TOOLS` names it, and every child gets that list unless its agent says `spawning: true`.
 
 Allow registration for a chosen depth-1 coordinator, but not depth 2. Grandchildren must remain leaves. Keep depth 1 as the default and make the extra level an explicit choice.
 
 ### Tool allowlists
 
-Bundled agents have explicit tool lists that omit `blocking_subagent`. Changing the spawning rule alone would not give those agents the tool.
+Bundled agents have explicit tool lists that omit `subagent`. Changing the spawning rule alone would not give those agents the tool.
 
 Grant delegation only to agents meant to coordinate. Research workers need not become coordinators. A descendant's permissions must not exceed the permissions granted to its parent.
 

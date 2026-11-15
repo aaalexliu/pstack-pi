@@ -1,7 +1,7 @@
 # pstack for Pi
 
 `@aaalexliu/pstack-pi` provides 54 of the 58 main skills from Lauren Tan's pstack, plus the Pi-owned `deeper`, `intake`, `list-writing`, `principles`, and `show-me` skills.
-It copies compatible upstream content and applies exact, reviewed edits to Cursor-specific instructions. No full-file replacements remain. It also includes branch-aware task tracking, scoped session discovery, model-config readback, a `blocking_subagent` tool built on Pi's bundled example with bundled agents, role-based model routing, a depth guard, and process-group cleanup, and HazAT's non-blocking interactive subagents in cmux or tmux panes. The three Benny Cursor Cloud Automation skills are outside this package's main-skill scope.
+It copies compatible upstream content and applies exact, reviewed edits to Cursor-specific instructions. No full-file replacements remain. It also includes branch-aware task tracking, scoped session discovery, model-config readback, and HazAT's interactive subagents in cmux or tmux panes, extended with bundled agents, role-based model routing, a wait mode, a spawning guard, and headless children with process-group cleanup. The three Benny Cursor Cloud Automation skills are outside this package's main-skill scope.
 
 ## Install
 
@@ -22,13 +22,13 @@ pi list
 Then start Pi in your project. For example:
 
 ```text
-Use the blocking_subagent tool with general-purpose to inspect this repository and summarize its entry points.
+Use the subagent tool with wait: true and the general-purpose agent to inspect this repository and summarize its entry points.
 ```
 
 For bounded parallel work:
 
 ```text
-Use the blocking_subagent tool to run separate read-only checks for the API, tests, and package metadata in parallel.
+Use subagent calls with wait: true to run separate read-only checks for the API, tests, and package metadata in parallel.
 ```
 
 You can also run a reviewed skill directly, such as `/skill:tdd add a regression test for this bug`.
@@ -64,10 +64,10 @@ Every skill except `intake`, `list-writing`, and `principles` keeps `disable-mod
 
 `/skill:statechart` runs its bundled `scripts/statechart` command. That command needs Node 22.18 to 22.x, Node 23.6 or later, Bun 1.1.5 or later, or Deno 2.0 or later, plus `mise`. Its first run downloads TLC and Java through mise. Rendering a chart to SVG uses the npm package `pele@1.9.0`, installed outside your repo. Node will not run the TypeScript scripts from a `node_modules` folder, so use the Git install above.
 
-The package ships 124 generated skill and support files, two generated agents, nine Pi-owned files under `additions/`, twenty-eight extension modules, 23 files from the interactive-subagents subtree, and the root package files.
-It registers `pstack_config`, `pstack_papercut`, `pstack_sessions`, `pstack_todo`, and, at root depth, `blocking_subagent`, `subagent`, `subagent_resume`, `subagent_interrupt`, and `subagents_list`.
-The delegation extension owns one `session_shutdown` hook that stops live children and a `tool_result` hook that preserves progress details when a call throws. Its `execute` result marks failed calls with `isError`. The papercut journal owns a `tool_execution_start` hook and a `tool_result` hook that append a one-line measurement to other tools' results. When `read` fails with ENOENT, a `tool_result` hook appends up to 10 existing paths from the nearest existing parent folder. It ranks the first missing path segment, same stem with other extensions first, then names within edit distance 3, and marks folders with a trailing `/`. The requested file name is added only when it exactly names a folder there. When Pi cuts `bash` output at its cap and saves the full output to a file, a `tool_result` hook replaces Pi's tail-only view with the first and last halves of that file. Each half holds at most half of Pi's byte cap and half of its line cap, and cuts on a line break unless whole lines would fill less than half of its byte budget; then it splits a long line on a character boundary. A marker between them names the file and the omitted lines and bytes. The exit status line stays at the end. A `tool_call` hook blocks a `bash` call that runs `grep -r` or `grep -R` without `--exclude-dir`, or `find` from `~`, `/`, or a folder above home without `-maxdepth` of 3 or less, and tells the agent to use `rg` or `git grep` instead. It reads each command in a pipeline or list, subshells, `sh -c` scripts, and `$(...)` or backtick substitutions, even inside double quotes. It skips other quoted text, comments, and heredoc bodies. A `cd` moves the commands after it, unless it runs in a child shell. The title extension owns an `input` hook that names the session in the background. The recap extension owns an `agent_settled` hook that starts its idle timer. The media extension records cited files after a TUI reply and draws a media entry under it.
-Todo and Poteto Mode state follow the active session branch through versioned custom entries. The package registers `/pstack`, `/pstack-export`, `/subagents`, `/papercuts`, `/recap`, `/media`, and the interactive extension's `/plan`, `/iterate`, and `/subagent`, but no prompts, themes, or blanket approval hooks.
+The package ships 124 generated skill and support files, two generated agents, nine Pi-owned files under `additions/`, twenty-five extension modules, 23 files from the interactive-subagents subtree, and the root package files.
+It registers `pstack_config`, `pstack_papercut`, `pstack_sessions`, `pstack_todo`, and, at root depth, `subagent`, `subagent_resume`, `subagent_interrupt`, and `subagents_list`.
+The subagents extension owns a `session_shutdown` hook that stops live children. A `subagent` wait result marks a failed child with `isError`. The papercut journal owns a `tool_execution_start` hook and a `tool_result` hook that append a one-line measurement to other tools' results. When `read` fails with ENOENT, a `tool_result` hook appends up to 10 existing paths from the nearest existing parent folder. It ranks the first missing path segment, same stem with other extensions first, then names within edit distance 3, and marks folders with a trailing `/`. The requested file name is added only when it exactly names a folder there. When Pi cuts `bash` output at its cap and saves the full output to a file, a `tool_result` hook replaces Pi's tail-only view with the first and last halves of that file. Each half holds at most half of Pi's byte cap and half of its line cap, and cuts on a line break unless whole lines would fill less than half of its byte budget; then it splits a long line on a character boundary. A marker between them names the file and the omitted lines and bytes. The exit status line stays at the end. A `tool_call` hook blocks a `bash` call that runs `grep -r` or `grep -R` without `--exclude-dir`, or `find` from `~`, `/`, or a folder above home without `-maxdepth` of 3 or less, and tells the agent to use `rg` or `git grep` instead. It reads each command in a pipeline or list, subshells, `sh -c` scripts, and `$(...)` or backtick substitutions, even inside double quotes. It skips other quoted text, comments, and heredoc bodies. A `cd` moves the commands after it, unless it runs in a child shell. The title extension owns an `input` hook that names the session in the background. The recap extension owns an `agent_settled` hook that starts its idle timer. The media extension records cited files after a TUI reply and draws a media entry under it.
+Todo and Poteto Mode state follow the active session branch through versioned custom entries. The package registers `/pstack`, `/pstack-export`, `/papercuts`, `/recap`, `/media`, and the interactive extension's `/plan`, `/iterate`, and `/subagent`, but no prompts, themes, or blanket approval hooks.
 
 `/pstack-export [path.html]` runs stock Pi HTML export (`pi --export`) for the current session, then injects a sticky token time series for the active branch. Bars jump to the first entry in that local-time minute. Scroll on the transcript updates the current bucket. Without a path it writes `pi-session-<session>.html` in the cwd.
 
@@ -75,13 +75,13 @@ Todo and Poteto Mode state follow the active session branch through versioned cu
 
 The package never installs a blanket command-approval gate, inspects unrelated shell strings, or requests package-wide confirmation for routine Git pushes or pull-request edits.
 Those actions remain under host policy.
-Its validation applies only to `blocking_subagent` requests.
+Its validation applies only to `subagent` requests.
 
 ## Core workflows
 
 Run `/skill:poteto-mode <task>` to load the mode and keep its short operating reminder active on the current session branch. The reminder is a `pstack_poteto_mode` system prompt section. Pi records sections in the session, so a request rebuilt from the session, as `pi-cached-compaction` does, matches the one Pi sent. The mode selects one of six bundled playbooks: feature, bug fix, investigation, prototype, multi-phase plan, or orchestration. Branching before the command restores the mode state from that earlier point.
 
-Poteto Mode uses `poteto-agent` for bounded implementation work and `general-purpose` for read-only exploration. `poteto-agent` has `read`, `grep`, `find`, `ls`, `bash`, `edit`, and `write`; it is a leaf process with no `blocking_subagent` tool. The parent still owns the design, diff review, and final checks.
+Poteto Mode uses `poteto-agent` for bounded implementation work and `general-purpose` for read-only exploration. `poteto-agent` has `read`, `grep`, `find`, `ls`, `bash`, `edit`, and `write`; it is a leaf process with no `subagent` tool. The parent still owns the design, diff review, and final checks.
 
 Run `/skill:how <question>` for an architecture walkthrough. Narrow questions use one read-only explainer. Broad questions can use two to four read-only explorers followed by one explainer. The configured `how-explorer` and `how-explainer` roles select their models, with parent-model inheritance as the default.
 
@@ -136,87 +136,28 @@ Aggregations always span every project because papercuts describe the tooling, n
 
 ## Delegation
 
-pstack-pi has two delegation tools. Pick by whether you need to wait.
+pstack-pi has one delegation tool, `subagent`. It comes from [HazAT/pi-interactive-subagents](https://github.com/HazAT/pi-interactive-subagents), folded into `extensions/interactive-subagents/` with its own README. `subagent_resume`, `subagent_interrupt`, and `subagents_list` manage its children. Each child is a separate Pi process with its own context window and session file.
 
-- `subagent` is the default for real work. It opens each child in a cmux or tmux pane you can watch and steer, returns at once, and delivers the result later as a new parent turn. It comes from [HazAT/pi-interactive-subagents](https://github.com/HazAT/pi-interactive-subagents), folded into `extensions/interactive-subagents/` with its own README. `subagent_resume`, `subagent_interrupt`, and `subagents_list` manage those children. With `wait: true`, `subagent` instead holds the call until the child finishes and returns its result after `resolved-model:`, `session-id:`, and `session-path:` lines; `timeoutMs` stops a child that runs too long. Outside cmux and tmux, `subagent` runs each child headless as `pi -p` in its own process group, under the same cap.
-- `blocking_subagent` waits for the answer. Use it for read-only lookups, for answers the parent needs before its next step, and outside a terminal multiplexer. It keeps roles, and several calls in one message run side by side. Skills that run parallel review or judging panels use it.
+Pick by whether you need to wait:
 
-In cmux, interactive children of one parent share an `agents: <session>` workspace in a 2x2 grid. A parent runs at most four at once and queues the rest. Set `maxConcurrent` and `cmuxLayout` (`"grid"` or `"tabs"`) under `interactiveSubagents` in `<Pi agent dir>/pstack-pi/settings.json`. In tmux, each child is a window. Children of either tool get no delegation tools, unless an interactive child's agent says `spawning: true`; then it gets the interactive tools and `blocking_subagent`. Interactive children can use this package's agents as well as the bundled `scout`, `worker`, `planner`, `reviewer`, `visual-tester`, and `claude-code`.
-
-The `blocking_subagent` tool is Pi's bundled subagent example (`examples/extensions/subagent`) plus a few additions.
-Each call spawns a separate Pi process, so every child has its own context window.
-Every child keeps its session file. A headless child runs with `--session-id <uuid>` and an explicit `--session-dir`: `PI_CODING_AGENT_SESSION_DIR` when set, else Pi's default session folder for its `cwd`. The `sessionDir` setting does not apply. Its result adds `session-id: <id>` and `session-path: <absolute path>` lines after `resolved-model:`, so an audit can open the transcript. If the child exits before writing its session, the result says so instead.
+- Without `wait`, the call returns at once and the child's result arrives later as a new parent turn. Use it for real work you want to watch and steer.
+- With `wait: true`, the call returns when the child finishes, with its result after `resolved-model:`, `session-id:`, and `session-path:` lines. Use it for read-only lookups and answers you need before your next step. `timeoutMs` stops a child that runs too long and reports it as failed. To run several children at once, make several wait calls in one message; Pi runs them together.
 
 ```json
-{"agent":"general-purpose","task":"Read src/index.ts and explain its exports."}
+{"name":"Reader","agent":"general-purpose","task":"Read src/index.ts and explain its exports.","wait":true}
 ```
 
-Each call runs one child: `agent` and `task`. To run several children at once, make several `blocking_subagent` calls in one message; Pi runs them together. At most four children run at once across all calls, the rest wait for a slot: in a multiplexer through the `subagent` tool's spawn slots (`maxConcurrent`), and headless through a cap of four in this extension.
+Inside cmux or tmux, each child opens as a real Pi you can watch and steer. In cmux, the children of one parent share an `agents: <session>` workspace in a 2x2 grid; in tmux, each child is a window. Outside both, the child runs headless as `pi -p` in its own process group, launched through the same Node binary and Pi entrypoint as the parent, never through `pi` on `PATH`. Abort, `timeoutMs`, and parent shutdown send `SIGTERM` to the whole group, then `SIGKILL` after three seconds. A parent runs at most four children at once, waiting or not, pane or headless, and queues the rest. Set `maxConcurrent` and `cmuxLayout` (`"grid"` or `"tabs"`) under `interactiveSubagents` in `<Pi agent dir>/pstack-pi/settings.json`.
 
-The call also accepts optional `cwd`, `model`, `role`, and `thinking`. It also accepts `timeoutMs`, `agentScope`, and `confirmProjectAgents`.
-`thinking` is `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`. Set it per call to match the job. An explicit value overrides the parent's thinking level. Pi clamps the requested level to the child's model capabilities.
-`cwd` is any directory; a relative path resolves against the parent's working directory.
-`timeoutMs` kills any child still running after that many milliseconds and reports the task as failed with `Timed out after N ms`.
+The call accepts `agent`, `cwd`, `model`, `role`, and `thinking`, plus the interactive options in its README. `thinking` is `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`; it overrides the level in a role's model, and Pi clamps it to the model.
 
-What this package adds to the example:
+What this package adds:
 
-- Bundled agents. `general-purpose`, `poteto-agent`, `comment-sicko`, `pr-reviewer` and `sub-lead` ship in `agents/` and `additions/agents/`. A file with the same name in `~/.pi/agent/agents` overrides a bundled one. Project agents under `.pi/agents` appear only with `agentScope: "both"` or `"project"`, and an untrusted project asks for confirmation in interactive mode. `{{PSTACK_ROOT}}` in an agent body resolves to the installed package root.
-- Model routing. `model` is `inherit-parent` or an exact `provider/model-id`; `role` picks from `~/.pi/agent/pstack-pi/models.json`. See Model routing.
-- One spawning rule. Every child gets `PI_DENY_TOOLS` naming each spawning tool (`blocking_subagent`, `subagent`, `subagent_interrupt`, `subagents_list`, `subagent_resume`), and both extensions skip a tool that list names, so children cannot delegate. An interactive child whose agent says `spawning: true` gets all five. Explicit agent tool lists also include `pstack_todo`, so a child can report its own checklist.
-- Process groups. Each child is a detached session leader. Abort, `timeoutMs`, and parent shutdown send `SIGTERM` to the whole group, then `SIGKILL` after three seconds. Parent shutdown waits up to one second for children to exit and discards any result that arrives during shutdown.
-- Private inputs. The system prompt goes through a `0600` temp file with `--append-system-prompt` and the task through stdin, so neither appears in `ps`. The temp file is removed after the child exits.
-- Error results. `execute` returns `isError: true` when its child fails. Each call stands alone, so one failed call does not fail its siblings. The `tool_result` hook keeps progress details when a call throws.
-- The child is launched through the same Node binary and Pi entrypoint as the parent, never through `pi` on `PATH`.
+- Bundled agents. `general-purpose`, `poteto-agent`, `comment-sicko`, `pr-reviewer` and `sub-lead` ship in `agents/` and `additions/agents/`, next to the subtree's `scout`, `worker`, `planner`, `reviewer`, `visual-tester`, and `claude-code`. A project agent in `.pi/agents` or a user agent in `~/.pi/agent/agents` overrides one by name. `{{PSTACK_ROOT}}` in an agent body resolves to the installed package root.
+- Model routing. `model` is an exact `provider/model-id`; `role` picks from `~/.pi/agent/pstack-pi/models.json`. See Model routing.
+- One spawning rule. Every child gets `PI_DENY_TOOLS` naming each spawning tool (`subagent`, `subagent_interrupt`, `subagents_list`, `subagent_resume`), unless its agent says `spawning: true`, so children cannot delegate. Explicit agent tool lists also include `pstack_todo`, so a child keeps its own checklist.
 
-The child also receives `PI_MEMORY_EXIT_SUMMARY=0`, so [pi-memory](https://github.com/jayzeng/pi-memory) does not summarize each child transcript into the shared daily log when the child exits.
-
-A child is otherwise a normal Pi. It loads extensions, skills, and project context files by Pi's own rules, uses the parent's provider auth from `auth.json`, and runs with the builtin tools its agent lists.
-Without `thinking`, a child inheriting the parent model also inherits the parent thinking level; a pinned model uses Pi's default thinking level.
-
-Agent files need a name and a description. `tools` accepts a YAML list or a comma-separated string. `role` and `model` are optional; `role` names a model role and wins over `model` when configured:
-
-```markdown
----
-name: reader
-description: Read files and answer a focused question.
-tools: [read, grep, find, ls]
-role: scout
----
-Answer from file evidence. Do not delegate.
-```
-
-A file that fails to parse is skipped; the other agents in that directory still load.
-
-### Results
-
-The tool returns the child's final assistant text.
-`details` holds `agentScope`, `projectAgentsDir`, and one entry for the child with the agent, its source (`bundled`, `user`, `project`), the task, `exitCode`, every `message_end` message from the child, capped stderr, summed usage (`input`, `output`, `cacheRead`, `cacheWrite`, `cost`, `contextTokens`, `turns`), the resolved `model`, `modelSource` (`explicit`, `role`, `agent`, `parent`), and the requested `thinking` level when passed to Pi.
-A task fails when the child exits nonzero, is killed by a signal, or ends with `stopReason` `error` or `aborted`.
-`details.progress` stores the public status snapshot with the result. Live cards show role, selected/observed model, requested thinking level when set, state, elapsed time, last event, reported usage, todo counts, and current activity. Completed cards keep that metadata and preview the original result text. Ctrl+O expands the full result.
-
-### Inspect subagents
-
-Use `/subagents` for the latest request's tasks, public message previews, checklists, usage, and recent event summaries. Use `/subagents raw` for the same public snapshot as JSON, not the raw protocol or private thinking. Both views update live. `j`/`k`, arrows, PageUp/PageDown, and Home/End scroll; `q` or Esc closes the view without stopping work. Esc in the parent stops the batch.
-
-Each call's card shows its one child. Ctrl+O reveals the child's full metadata, even after reload. The inspector shows the most recently started call; older overlapping calls cannot replace that view. Each call keeps its own inline card. There is no duplicate widget. In cmux, the sidebar shows up to eight children using keys owned by this Pi instance. A cmux error triggers best-effort removal of those keys instead of keeping stale running status.
-
-Checklists are self-reported. A quiet warning after 60 seconds and a long-run warning after 10 minutes suggest checking the task; neither proves a loop or lack of progress. Usage can lag. Public previews and event history are bounded. This is not a process-tree monitor and does not find arbitrary shell-launched agents.
-
-Saved tool cards survive reload. The inspector keeps only the latest request in memory. Graceful shutdown clears owned sidebar keys; a hard kill may leave stale keys.
-
-To try the real Pi UI with scripted fixture responses and no live credentials:
-
-```sh
-node scripts/demo-subagents.mjs
-```
-
-`--quick` shortens the wait; `--overlap` runs two separate simultaneous calls; `/quit` exits. Fixture responses are not actual review findings.
-
-### Children in cmux or tmux
-
-Inside cmux or tmux, each `blocking_subagent` child opens as a real Pi in the same `agents: <session>` layout the `subagent` tool uses, so you can watch and steer it. The parent still waits for it and reads its reply and model from the child's session file, so its reply always names `session-id` and `session-path`. Closing a child's pane ends it as a failure. Outside a multiplexer, or in a session with no session file, children run headless with `pi --mode json -p`.
-
-Limits worth knowing: a child's own detached, `SIGTERM`-ignoring processes are outside its process group and are not tracked, the same as Pi's bash tool. Delegation needs macOS or Linux for process groups.
+Limits worth knowing: a headless child's own detached, `SIGTERM`-ignoring processes are outside its process group and are not tracked, the same as Pi's bash tool. Headless delegation needs macOS or Linux for process groups. Claude Code agents need cmux or tmux.
 
 ## Model routing
 
@@ -240,7 +181,7 @@ The role IDs are:
 
 `scout` is for cheap read-only reconnaissance, such as the interactive `scout` agent. Like every role it has no built-in model: set it in `models.json`, or the child runs on the parent's model.
 
-Resolution order: the call's explicit `model`, then the call's `role`, then the agent file's `role`, then the agent file's `model`, then the parent's model. `blocking_subagent` and the interactive `subagent` tool share this lookup (`ModelRouter` in `extensions/subagent/model-config.ts`); both accept `role`.
+Resolution order: the call's explicit `model`, then the call's `role`, then the agent file's `role`, then the agent file's `model`, then the parent's model. The `subagent` tool uses this lookup (`ModelRouter` in `extensions/subagent/model-config.ts`) and accepts `role`.
 An unconfigured role falls through. `pstack_config` reads the same file and lists the models Pi can see.
 The child receives the choice as `--model provider/model-id` and resolves credentials itself from the standard Pi config, exactly as a user typing that flag would.
 
@@ -325,8 +266,8 @@ Pi-owned files live in `additions/`, apart from the 573 upstream paths, and ship
 
 | File | Why it exists |
 | --- | --- |
-| `additions/agents/general-purpose.md` | Gives `blocking_subagent` one read-only delegate without turning on deferred upstream agents. |
-| `additions/agents/pr-reviewer.md` | Gives `blocking_subagent` a reviewer that can read a PR and post its record with `gh`, for [job runner](runner/README.md) leads. |
+| `additions/agents/general-purpose.md` | Gives `subagent` one read-only delegate without turning on deferred upstream agents. |
+| `additions/agents/pr-reviewer.md` | Gives `subagent` a reviewer that can read a PR and post its record with `gh`, for [job runner](runner/README.md) leads. |
 | `additions/agents/sub-lead.md` | Builds one unit of a [job runner](runner/README.md) ticket through the lead's merge gate, with auto-exit on and no spawning tools. |
 | `additions/skills/deeper/SKILL.md` | Turns a task into a deeper prompt. It predates upstream `sharpen`, which the manifest omits in its favor. |
 | `additions/skills/show-me/` | Adapts the MIT-licensed `show-me` skill from [humanlayer/skills](https://github.com/humanlayer/skills) with bug views and set nodes. Ships the license notice in `references/humanlayer-license.md`. |
