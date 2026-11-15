@@ -404,10 +404,10 @@
       "source": "skills/create-verification-skill/SKILL.md",
       "blob": "140d033a001e8d27acd14b06004506c43053b199",
       "mode": "100644",
-      "adaptationSha256": "f2b534ecb9752b631e7066d0174885e79aa7693a60bd8eca6435a03e01ba9d81",
+      "adaptationSha256": "6b504f0197bbb71f0592fcf088cf60494d9a7dc43ece65a5463b6cff0d270311",
       "output": {
         "destination": "skills/create-verification-skill/SKILL.md",
-        "sha256": "4aeb92ef419989135dd1095b6cd932edfdd2d047f92196fe70bb54bf18a02ea6",
+        "sha256": "48c9b020aa6fbabc04cf8b277613c298ecc26fc13ca71c23421147de2d44f585",
         "mode": "100644"
       }
     },
@@ -543,10 +543,10 @@
       "source": "skills/maintain-verification-skill/SKILL.md",
       "blob": "a2680b91fead45a0b4963d8c367a854956bea59d",
       "mode": "100644",
-      "adaptationSha256": "721a2a57930524dcfaa463f3f15916a3c6d48c6a5820960cb59ec7264bebb3f2",
+      "adaptationSha256": "83f82373de17693258a4ce09256dc6c162e3e522c52f7ef5fa6e3df0172b41fd",
       "output": {
         "destination": "skills/maintain-verification-skill/SKILL.md",
-        "sha256": "205fa6b970a967d03776a76f5704f542d1de95faf1ff290fe0d348a23cdbb68a",
+        "sha256": "1566223f3985aab61655fabacf778e4e46fac920661d827303e081211c83fc74",
         "mode": "100644"
       }
     },
