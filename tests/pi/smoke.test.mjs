@@ -18,13 +18,13 @@ const productionSkills = [
   'principle-foundational-thinking', 'principle-guard-the-context-window', 'principle-laziness-protocol', 'principle-make-operations-idempotent',
   'principle-migrate-callers-then-delete-legacy-apis', 'principle-minimize-reader-load', 'principle-model-the-domain', 'principle-never-block-on-the-human',
   'principle-outcome-oriented-execution', 'principle-prove-it-works', 'principle-redesign-from-first-principles', 'principle-separate-before-serializing-shared-state',
-  'principle-sequence-verifiable-units', 'principle-subtract-before-you-add', 'principle-test-behavior-not-implementation', 'principle-type-system-discipline',
+  'principle-sequence-verifiable-units', 'principle-subtract-before-you-add', 'principle-test-behavior-not-implementation', 'principle-type-system-discipline', 'principles',
   'recall', 'reflect', 'setup-pstack', 'show-me-your-work', 'statechart',
   'swarm', 'tdd', 'teach', 'technical-writing',
   'typescript-best-practices', 'unslop', 'why',
 ];
 const exactExpansionSkills = ['bro', 'poteto-mode', 'principle-model-the-domain'];
-const modelInvocableSkills = ['intake', 'list-writing'];
+const modelInvocableSkills = ['intake', 'list-writing', 'principles'];
 
 async function productionInventory() {
   return checkContent({ root: repository,
@@ -65,7 +65,7 @@ test("real Pi loads the packed package and settles with fixture text and usage",
   assertClean(run);
   assert.deepEqual(run.cleanup.signals, []);
   assert.deepEqual(run.pack.files, expectedPackFiles(await productionInventory()));
-  assert.equal(run.pack.files.length, 194);
+  assert.equal(run.pack.files.length, 195);
   assertOnlyDeclaredTools(run);
   context.diagnostic(JSON.stringify({
     pi: run.process.version, revision: run.process.revision, pid: run.process.pid,

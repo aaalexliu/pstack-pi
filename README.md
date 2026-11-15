@@ -1,6 +1,6 @@
 # pstack for Pi
 
-`@aaalexliu/pstack-pi` provides 55 of the 58 main skills from Lauren Tan's pstack, plus the Pi-owned `deeper`, `alex-show-me`, `intake`, and `list-writing` skills.
+`@aaalexliu/pstack-pi` provides 55 of the 58 main skills from Lauren Tan's pstack, plus the Pi-owned `deeper`, `alex-show-me`, `intake`, `list-writing`, and `principles` skills.
 It copies compatible upstream content and applies exact, reviewed edits to Cursor-specific instructions. No full-file replacements remain. It also includes branch-aware task tracking, scoped session discovery, model-config readback, a `blocking_subagent` tool built on Pi's bundled example with bundled agents, role-based model routing, a depth guard, and process-group cleanup, and HazAT's non-blocking interactive subagents in cmux or tmux panes. The three Benny Cursor Cloud Automation skills are outside this package's main-skill scope.
 
 ## Install
@@ -57,10 +57,10 @@ The package requires Pi `>=1.5.2` and Node.js `>=22.19.0`. We test against Pi `1
 
 Pi `1.5.2` discovers all 59 package skill commands in an isolated profile:
 
-- Workflows: `/skill:alex-show-me`, `/skill:architect`, `/skill:arena`, `/skill:automate-me`, `/skill:benchmark-checklist`, `/skill:blast-radius`, `/skill:bro`, `/skill:correct`, `/skill:create-formal-verification-skill`, `/skill:create-verification-skill`, `/skill:deeper`, `/skill:figure-it-out`, `/skill:how`, `/skill:in-your-own-words`, `/skill:intake`, `/skill:interrogate`, `/skill:ketchup`, `/skill:list-writing`, `/skill:maintain-formal-verification-skill`, `/skill:maintain-verification-skill`, `/skill:make-bot-ui`, `/skill:no-comments`, `/skill:poteto-mode`, `/skill:recall`, `/skill:reflect`, `/skill:setup-pstack`, `/skill:show-me-your-work`, `/skill:statechart`, `/skill:swarm`, `/skill:tdd`, `/skill:teach`, `/skill:technical-writing`, `/skill:typescript-best-practices`, `/skill:unslop`, and `/skill:why`.
+- Workflows: `/skill:alex-show-me`, `/skill:architect`, `/skill:arena`, `/skill:automate-me`, `/skill:benchmark-checklist`, `/skill:blast-radius`, `/skill:bro`, `/skill:correct`, `/skill:create-formal-verification-skill`, `/skill:create-verification-skill`, `/skill:deeper`, `/skill:figure-it-out`, `/skill:how`, `/skill:in-your-own-words`, `/skill:intake`, `/skill:interrogate`, `/skill:ketchup`, `/skill:list-writing`, `/skill:maintain-formal-verification-skill`, `/skill:maintain-verification-skill`, `/skill:make-bot-ui`, `/skill:no-comments`, `/skill:poteto-mode`, `/skill:principles`, `/skill:recall`, `/skill:reflect`, `/skill:setup-pstack`, `/skill:show-me-your-work`, `/skill:statechart`, `/skill:swarm`, `/skill:tdd`, `/skill:teach`, `/skill:technical-writing`, `/skill:typescript-best-practices`, `/skill:unslop`, and `/skill:why`.
 - Principles: `/skill:principle-attack-the-premise`, `/skill:principle-boundary-discipline`, `/skill:principle-build-the-lever`, `/skill:principle-encode-lessons-in-structure`, `/skill:principle-exhaust-the-design-space`, `/skill:principle-experience-first`, `/skill:principle-explain-the-number`, `/skill:principle-fix-root-causes`, `/skill:principle-foundational-thinking`, `/skill:principle-guard-the-context-window`, `/skill:principle-laziness-protocol`, `/skill:principle-make-operations-idempotent`, `/skill:principle-migrate-callers-then-delete-legacy-apis`, `/skill:principle-minimize-reader-load`, `/skill:principle-model-the-domain`, `/skill:principle-never-block-on-the-human`, `/skill:principle-outcome-oriented-execution`, `/skill:principle-prove-it-works`, `/skill:principle-redesign-from-first-principles`, `/skill:principle-separate-before-serializing-shared-state`, `/skill:principle-sequence-verifiable-units`, `/skill:principle-subtract-before-you-add`, `/skill:principle-test-behavior-not-implementation`, and `/skill:principle-type-system-discipline`.
 
-Every skill except `intake` and `list-writing` keeps `disable-model-invocation: true` so Pi expands it only through an explicit skill command. Those two also appear in the model's skill list: `list-writing` applies whenever a reply holds a list or a breakdown, and `intake` applies whenever a session files a ticket for an agent.
+Every skill except `intake`, `list-writing`, and `principles` keeps `disable-model-invocation: true` so Pi expands it only through an explicit skill command. Those three also appear in the model's skill list: `list-writing` applies whenever a reply holds a list or a breakdown, `intake` applies whenever a session files a ticket for an agent, and `principles` indexes the 24 principle skills so the model can read the one a design call, review, or fix needs.
 
 `/skill:statechart` runs its bundled `scripts/statechart` command. That command needs Node 22.18 to 22.x, Node 23.6 or later, Bun 1.1.5 or later, or Deno 2.0 or later, plus `mise`. Its first run downloads TLC and Java through mise. Rendering a chart to SVG uses the npm package `pele@1.9.0`, installed outside your repo. Node will not run the TypeScript scripts from a `node_modules` folder, so use the Git install above.
 
@@ -334,7 +334,7 @@ Its `pstack` tree is `4719e1c4b4c43bac85d4206a8b41dd2899769c1c`.
 It copies 74 files, transforms 53, and explicitly omits 446. No file uses `replace`.
 Transforms change only reviewed commands, frontmatter, paths, runtime sections, or proof steps, leaving all other source bytes intact.
 Each transformation requires its locked source blob and exact match count.
-Even execution-ownership changes use targeted transforms rather than rewritten copies. All 23 principle skills and the Investigation playbook remain byte-for-byte copies.
+Even execution-ownership changes use targeted transforms rather than rewritten copies. All 24 principle skills and the Investigation playbook remain byte-for-byte copies.
 
 Pi-owned files live in `additions/`, apart from the 573 upstream paths, and ship as written. `SYNCING.md` describes how `npm run check:content` checks them.
 
@@ -347,9 +347,10 @@ Pi-owned files live in `additions/`, apart from the 573 upstream paths, and ship
 | `additions/skills/alex-show-me/` | Adapts the MIT-licensed `show-me` skill from [humanlayer/skills](https://github.com/humanlayer/skills) with bug views and set nodes. Ships the license notice in `references/humanlayer-license.md`. |
 | `additions/skills/intake/SKILL.md` | Tells any session that files a ticket for an agent to write Goal, Reference and Not doing, then delegate it. The [job runner](runner/README.md) leads read those headings. |
 | `additions/skills/list-writing/SKILL.md` | Turns the checklist in [Agent text at scale](https://fsdatalab.github.io/blog/agent-text-at-scale/) into rules for lists and breakdowns. |
+| `additions/skills/principles/SKILL.md` | Lists each principle skill with when it applies and its path, so the model can read one without all 24 in its skill list. |
 
 Cursor distribution metadata, guides, branding assets, Cloud Automations, unbundled playbooks, and unsupported scripts remain omitted.
-55 of the 58 upstream main skill entrypoints are present, including the webhook-backed `make-bot-ui`, plus the Pi-owned `deeper`, `alex-show-me`, `intake`, and `list-writing` skills. `ADAPTATIONS.md` lists the three omitted skills and why. Missing external service capabilities remain explicit limits, not silently changed tasks.
+55 of the 58 upstream main skill entrypoints are present, including the webhook-backed `make-bot-ui`, plus the Pi-owned `deeper`, `alex-show-me`, `intake`, `list-writing`, and `principles` skills. `ADAPTATIONS.md` lists the three omitted skills and why. Missing external service capabilities remain explicit limits, not silently changed tasks.
 Two upstream agents have targeted Pi transforms. `general-purpose`, `pr-reviewer` and `sub-lead` ship from `additions/agents/`.
 
 [0xrsydn/pstack-pi](https://github.com/0xrsydn/pstack-pi) and [kkgogogo17/pi-pstack](https://github.com/kkgogogo17/pi-pstack) are implementation references, not sources for shared content.
