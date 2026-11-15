@@ -1,7 +1,6 @@
 ---
-name: alex-show-me
-description: "Explain the current topic visually with concise diagrams, code-shape sketches, and focused HTML artifacts. For a bug, lead with matched 'What happened' and 'What should happen' views and put the detail below. Use for /skill:alex-show-me."
-disable-model-invocation: true
+name: show-me
+description: Explain the current topic visually with concise diagrams, code-shape sketches, and focused HTML artifacts. Use when the user asks to show, draw, or visualize something, or to understand a flow. For a bug, lead with matched views of what happened and what should happen, then the detail.
 ---
 
 Help the user understand the current topic of conversation visually. Skip the preamble and keep prose brief. Pick the smallest view that makes the key point clear.

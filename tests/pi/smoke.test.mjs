@@ -10,7 +10,7 @@ import { sha256 } from '../../scripts/sync-upstream.mjs';
 
 const repository = fileURLToPath(new URL('../../', import.meta.url));
 const productionSkills = [
-  'alex-show-me', 'architect', 'arena', 'automate-me', 'benchmark-checklist', 'blast-radius',
+  'architect', 'arena', 'automate-me', 'benchmark-checklist', 'blast-radius',
   'bro', 'correct', 'create-formal-verification-skill', 'create-verification-skill', 'deeper', 'figure-it-out', 'how',
   'in-your-own-words', 'intake', 'interrogate', 'ketchup', 'list-writing', 'maintain-formal-verification-skill', 'maintain-verification-skill', 'make-bot-ui', 'no-comments',
   'poteto-mode', 'principle-attack-the-premise', 'principle-boundary-discipline', 'principle-build-the-lever',
@@ -19,12 +19,12 @@ const productionSkills = [
   'principle-migrate-callers-then-delete-legacy-apis', 'principle-minimize-reader-load', 'principle-model-the-domain', 'principle-never-block-on-the-human',
   'principle-outcome-oriented-execution', 'principle-prove-it-works', 'principle-redesign-from-first-principles', 'principle-separate-before-serializing-shared-state',
   'principle-sequence-verifiable-units', 'principle-subtract-before-you-add', 'principle-test-behavior-not-implementation', 'principle-type-system-discipline', 'principles',
-  'recall', 'reflect', 'setup-pstack', 'show-me-your-work', 'statechart',
+  'recall', 'reflect', 'setup-pstack', 'show-me', 'show-me-your-work', 'statechart',
   'swarm', 'tdd', 'teach', 'technical-writing',
   'typescript-best-practices', 'unslop', 'why',
 ];
 const exactExpansionSkills = ['bro', 'poteto-mode', 'principle-model-the-domain'];
-const modelInvocableSkills = ['intake', 'list-writing', 'principles'];
+const modelInvocableSkills = ['intake', 'list-writing', 'principles', 'show-me'];
 
 async function productionInventory() {
   return checkContent({ root: repository,

@@ -27,14 +27,14 @@ test('production contains exactly the reviewed copied and adapted workflow set',
     'additions/agents/general-purpose.md',
     'additions/agents/pr-reviewer.md',
     'additions/agents/sub-lead.md',
-    'additions/skills/alex-show-me/SKILL.md',
-    'additions/skills/alex-show-me/references/humanlayer-license.md',
     'additions/skills/deeper/SKILL.md',
     'additions/skills/intake/SKILL.md',
     'additions/skills/list-writing/SKILL.md',
     'additions/skills/principles/SKILL.md',
+    'additions/skills/show-me/SKILL.md',
+    'additions/skills/show-me/references/humanlayer-license.md',
   ]);
-  for (const name of ['alex-show-me', 'deeper', 'intake', 'list-writing', 'principles']) assert.equal(inventory.bySkillName.get(name)?.destination, `additions/skills/${name}/SKILL.md`);
+  for (const name of ['deeper', 'intake', 'list-writing', 'principles', 'show-me']) assert.equal(inventory.bySkillName.get(name)?.destination, `additions/skills/${name}/SKILL.md`);
   const upstreamEntrypoints = manifest.files.filter((file) => /^skills\/[^/]+\/SKILL\.md$/u.test(file.source));
   assert.equal(upstreamEntrypoints.length, 58);
   const omittedSkills = ['skills/ketchup-video/SKILL.md', 'skills/poteto-help/SKILL.md', 'skills/sharpen/SKILL.md'];
@@ -85,7 +85,7 @@ test('production contains exactly the reviewed copied and adapted workflow set',
       assert.match(actual.toString('utf8'), /^disable-model-invocation: true$/mu);
     }
   }
-  assert.deepEqual([...inventory.bySkillName.values()].filter((skill) => !skill.disabled).map((skill) => skill.name).sort(), ['intake', 'list-writing', 'principles']);
+  assert.deepEqual([...inventory.bySkillName.values()].filter((skill) => !skill.disabled).map((skill) => skill.name).sort(), ['intake', 'list-writing', 'principles', 'show-me']);
 });
 
 test('principles index lists every principle skill and only those', async () => {
