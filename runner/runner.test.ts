@@ -71,7 +71,7 @@ const target = args[args.indexOf('-t') + 1]?.replace(/^=|:$/g, '');
 if (args[0] === 'new-session') { try { execFileSync('sh', ['-c', args.at(-1)], { cwd: args[args.indexOf('-c') + 1], stdio: 'ignore' }); } catch {} }
 else if (args[0] === 'has-session') process.exit(live.includes(target) ? 0 : 1);
 else if (args[0] === 'kill-session') { if (!live.includes(target)) process.exit(1); fs.writeFileSync(liveFile, JSON.stringify(live.filter((k) => k !== target))); }
-else if (args[0] === 'set-option') { const tags = fs.existsSync(tagsFile) ? JSON.parse(fs.readFileSync(tagsFile, 'utf8')) : {}; fs.writeFileSync(tagsFile, JSON.stringify({ ...tags, [target]: args.at(-1) })); }
+else if (args[0] === 'set-option') { if (!/^=.+:$/.test(args[args.indexOf('-t') + 1] ?? '')) { console.error('no such session'); process.exit(1); } const tags = fs.existsSync(tagsFile) ? JSON.parse(fs.readFileSync(tagsFile, 'utf8')) : {}; fs.writeFileSync(tagsFile, JSON.stringify({ ...tags, [target]: args.at(-1) })); }
 else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? JSON.parse(fs.readFileSync(tagsFile, 'utf8')) : {}; console.log(live.map((k) => k + ' ' + (tags[k] ?? '')).join('\\n')); }
 else if (args[0] === 'list-windows') { try { process.stdout.write(fs.readFileSync(${JSON.stringify(file('windows'))}, 'utf8')); } catch {} }
 `, { mode: 0o755 });
@@ -111,7 +111,7 @@ else if (args[0] === 'list-windows') { try { process.stdout.write(fs.readFileSyn
       const page = open.slice(from, from + 100);
       return data({ issues: {
         nodes: page.map((i) => ({ ...i, state: { type: TYPES[i.state] }, labels: { nodes: i.labels.map((name) => ({ name })) } })),
-        pageInfo: { hasNextPage: from + 100 < open.length, endCursor: String(from + 100) },
+        pageInfo: { hasNextPage: from + 100 < open.length || faults.includes('NoCursor'), endCursor: faults.includes('NoCursor') ? null : String(from + 100) },
       } });
     }
     if (op === 'IssueByKey') {
@@ -352,15 +352,31 @@ test('the runner kills only a session it tagged whose ticket Linear confirms is 
   many[2].delegate = null;
   mkdirSync(path.join(t.dirOf(8), '.runner'), { recursive: true });
   put(path.join(t.dirOf(8), '.runner', 'held'), '');
+  mkdirSync(path.join(t.dirOf(9), '.runner'), { recursive: true });
+  put(path.join(t.dirOf(9), '.runner', 'takeover'), '');
+  many[8].state = 'Done';
   t.faults.push('IssueByKey');
-  t.setLive('ALE-1', 'ALE-2', 'ALE-3', 'ALE-4', 'ALE-5', 'ALE-6', 'ALE-7', 'ALE-8', 'ALE-101', 'ALE-102', 'ALE-200', 'other');
-  t.tag('ALE-1', 'ALE-2', 'ALE-3', 'ALE-4', 'ALE-6', 'ALE-8', 'ALE-101', 'ALE-200');
+  t.setLive('ALE-1', 'ALE-2', 'ALE-3', 'ALE-4', 'ALE-5', 'ALE-6', 'ALE-7', 'ALE-8', 'ALE-9', 'ALE-101', 'ALE-102', 'ALE-200', 'other');
+  t.tag('ALE-1', 'ALE-2', 'ALE-3', 'ALE-4', 'ALE-6', 'ALE-8', 'ALE-9', 'ALE-101', 'ALE-200');
   const live = () => JSON.parse(readFileSync(path.join(t.root, 'live.json'), 'utf8')).sort();
   await t.run('--once');
-  assert.deepEqual(live(), ['ALE-1', 'ALE-101', 'ALE-102', 'ALE-200', 'ALE-5', 'ALE-6', 'ALE-7', 'ALE-8', 'other'],
-    'Done ALE-2, undelegated ALE-3 and Canceled ALE-4 die; ALE-1 hit a Linear error; Done ALE-5 and ALE-7 are untagged; Linear has no ALE-6; a person holds ALE-8; open, foreign and unknown sessions stay');
+  assert.deepEqual(live(), ['ALE-1', 'ALE-101', 'ALE-102', 'ALE-200', 'ALE-5', 'ALE-6', 'ALE-7', 'ALE-8', 'ALE-9', 'other'],
+    'Done ALE-2, undelegated ALE-3 and Canceled ALE-4 die; ALE-1 hit a Linear error; Done ALE-5 and ALE-7 are untagged; Linear has no ALE-6; a person holds ALE-8 and is taking over ALE-9; open, foreign and unknown sessions stay');
   await t.run('--once');
   assert.ok(!live().includes('ALE-1'));
+});
+
+test('a lead the runner starts carries its tag, so it can be reaped later', async () => {
+  const t = setup([issue(1)]);
+  await t.run('--once');
+  assert.equal(JSON.parse(readFileSync(path.join(t.root, 'tags.json'), 'utf8'))['ALE-1'], 'ALE-1');
+});
+
+test('a page that says more follows but gives no cursor fails the poll, and nothing starts or dies', async () => {
+  const t = setup([issue(1)]);
+  t.faults.push('NoCursor');
+  await t.run('--once');
+  assert.ok(!existsSync(path.join(t.root, 'tags.json')));
 });
 
 test('open tickets past the first page of 100 still start', async () => {

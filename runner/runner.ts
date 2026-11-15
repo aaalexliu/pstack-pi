@@ -330,7 +330,7 @@ async function launch(ctx: Ctx, w: Work, news: string[]) {
   put(rf(w, 'started'), new Date().toISOString());
   await run(bin('tmux'), ['kill-session', '-t', session(w.key)], w.dir);
   await must(bin('tmux'), ['new-session', '-d', '-s', w.key, '-x', '200', '-y', '50', '-c', w.dir, `sh ${sh(rf(w, 'lead.sh'))}`], w.dir);
-  await run(bin('tmux'), ['set-option', '-t', session(w.key), '@job-runner', w.key], w.dir);
+  await must(bin('tmux'), ['set-option', '-t', `${session(w.key)}:`, '@job-runner', w.key], w.dir);
 }
 
 const live = async (w: Pick<Work, 'key'>) => (await run(bin('tmux'), ['has-session', '-t', session(w.key)], process.cwd())).code === 0;
