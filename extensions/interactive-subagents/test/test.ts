@@ -2180,20 +2180,50 @@ describe("concurrency cap", () => {
     api.on = (event: string, handler: any) => handlers.push({ event, handler });
     subagentsModule.default(api);
     const toolCall = handlers.find((h) => h.event === "tool_call")!.handler;
-    return () => toolCall({ type: "tool_call", toolName: "subagent_done", toolCallId: "t", input: {} });
+    const call = (toolName = "subagent_done", input: any = {}) =>
+      toolCall({ type: "tool_call", toolName, toolCallId: "t", input });
+    const shutdown = () => handlers.find((h) => h.event === "session_shutdown")!.handler({}, {});
+    return Object.assign(call, { shutdown });
   }
 
-  it("subagent_done is refused while a child runs", async () => {
+  async function withRunningChild(fn: () => Promise<void> | void) {
+    testApi.runningSubagents.set("r1", { id: "r1", name: "scout", startTime: Date.now() - 65_000 });
+    try {
+      await fn();
+    } finally {
+      testApi.runningSubagents.clear();
+    }
+  }
+
+  it("subagent_done is refused while a child runs, and the refusal names the way out", async () => {
     await withMaxConcurrent(4, async () => {
-      testApi.runningSubagents.set("r1", { id: "r1", name: "scout", startTime: Date.now() - 65_000 });
-      try {
+      await withRunningChild(() => {
         const result = subagentDoneGuard()();
         assert.equal(result?.block, true);
-        assert.match(result.reason, /"scout" \(running 1m 5s\)/);
+        assert.match(result.reason, /\n- "scout" \(running 1m 5s\)\n/);
         assert.match(result.reason, /Wait for their results/);
-      } finally {
-        testApi.runningSubagents.clear();
-      }
+        assert.match(result.reason, /subagent_interrupt only stops a turn/);
+        assert.match(result.reason, /abandon_children: true/);
+        assert.doesNotMatch(result.reason, /stays open/);
+      });
+    });
+  });
+
+  it("subagent_done with abandon_children exits even with a live child", async () => {
+    await withMaxConcurrent(4, async () => {
+      await withRunningChild(() => {
+        assert.equal(subagentDoneGuard()("subagent_done", { abandon_children: true }), undefined);
+      });
+    });
+  });
+
+  it("caller_ping and other tools pass while a child runs", async () => {
+    await withMaxConcurrent(4, async () => {
+      await withRunningChild(() => {
+        const call = subagentDoneGuard();
+        assert.equal(call("caller_ping", { message: "help" }), undefined);
+        assert.equal(call("bash", { command: "ls" }), undefined);
+      });
     });
   });
 
@@ -2206,6 +2236,39 @@ describe("concurrency cap", () => {
       const result = subagentDoneGuard()();
       assert.equal(result?.block, true);
       assert.match(result.reason, /"second" \(queued 0s\)/);
+    });
+  });
+
+  it("subagent_done is refused while a child has left the queue but is still launching", async () => {
+    await withMaxConcurrent(1, async () => {
+      const { api } = createMockExtensionApi();
+      const start = testApi.withSpawnSlot(api, () => new Promise(() => {}));
+      void start("id", { name: "late", task: "T" });
+      await tick();
+      const result = subagentDoneGuard()();
+      assert.equal(result?.block, true);
+      assert.match(result.reason, /"late" \(starting 0s\)/);
+    });
+  });
+
+  it("subagent_done is allowed after session_shutdown clears this session's children", async () => {
+    await withMaxConcurrent(1, async () => {
+      const { api } = createMockExtensionApi();
+      const start = testApi.withSpawnSlot(api, startedLauncher().execute);
+      await start("id", { name: "first", task: "T" });
+      await start("id", { name: "second", task: "T" });
+      await withRunningChild(() => {
+        const call = subagentDoneGuard();
+        assert.equal(call()?.block, true);
+        const pollAbortKey = Symbol.for("pi-subagents/poll-abort-controller");
+        try {
+          call.shutdown();
+        } finally {
+          // Shutdown aborts the module's poll controller; later watchers need a live one.
+          (globalThis as any)[pollAbortKey] = new AbortController();
+        }
+        assert.equal(call(), undefined);
+      });
     });
   });
 

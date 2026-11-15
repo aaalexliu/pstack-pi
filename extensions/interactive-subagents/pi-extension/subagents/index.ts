@@ -576,19 +576,24 @@ const runningSubagents = new Map<string, RunningSubagent>();
  * in call order as slots free.
  */
 function createSpawnSlots(getLimit: () => number) {
-  let held = 0;
+  const held: Array<{ name: string; since: number }> = [];
   const waiting: Array<{ name: string; since: number; start: () => void }> = [];
 
   function admitWaiters() {
-    while (waiting.length > 0 && held < getLimit()) {
-      held++;
-      waiting.shift()!.start();
+    while (waiting.length > 0 && held.length < getLimit()) {
+      const { name, start } = waiting.shift()!;
+      held.push({ name, since: Date.now() });
+      start();
     }
   }
 
   return {
     get held() {
-      return held;
+      return held.length;
+    },
+    /** Names and start times of spawns holding a slot, launching or running. */
+    get holders() {
+      return held.map(({ name, since }) => ({ name, since }));
     },
     /** Names and queue times of spawns waiting for a slot. */
     get waiting() {
@@ -596,20 +601,22 @@ function createSpawnSlots(getLimit: () => number) {
     },
     /** Position 0 holds a slot now. Position n >= 1 holds one once `ready` resolves. */
     take(name = "subagent"): { position: number; ready: Promise<void> } {
-      if (waiting.length === 0 && held < getLimit()) {
-        held++;
+      if (waiting.length === 0 && held.length < getLimit()) {
+        held.push({ name, since: Date.now() });
         return { position: 0, ready: Promise.resolve() };
       }
       return { position: waiting.length + 1, ready: new Promise<void>((start) => waiting.push({ name, since: Date.now(), start })) };
     },
-    release() {
-      held = Math.max(0, held - 1);
+    /** Free the slot held under `name`, or the oldest one when no name matches. */
+    release(name?: string) {
+      const index = held.findIndex((entry) => entry.name === name);
+      if (held.length > 0) held.splice(Math.max(index, 0), 1);
       admitWaiters();
     },
     /** Drop every waiter without starting it and forget held slots (session shutdown). */
     clear() {
       waiting.length = 0;
-      held = 0;
+      held.length = 0;
     },
   };
 }
@@ -635,10 +642,10 @@ function withSpawnSlot<E extends SpawnToolExecute>(pi: ExtensionAPI, execute: E)
     const run = async () => {
       try {
         const result = await execute(toolCallId, params, signal, onUpdate, ctx);
-        if (result?.details?.status !== "started") spawnSlots.release();
+        if (result?.details?.status !== "started") spawnSlots.release(name);
         return result;
       } catch (error) {
-        spawnSlots.release();
+        spawnSlots.release(name);
         throw error;
       }
     };
@@ -684,19 +691,32 @@ function withSpawnSlot<E extends SpawnToolExecute>(pi: ExtensionAPI, execute: E)
 
 /**
  * Why `subagent_done` must wait, or null when it may run: this session still
- * has children from the `subagent` tool that run or wait for a slot.
+ * has children from the `subagent` or `subagent_resume` tool that run, launch,
+ * or wait for a slot. The state is per process, cleared on session_shutdown.
  */
 function liveChildrenRefusal(now = Date.now()): string | null {
   const age = (since: number) => formatElapsed(Math.floor((now - since) / 1000));
+  const running = Array.from(runningSubagents.values());
+  const unmatched = running.map((c) => c.name);
+  // A slot holder with no running entry yet is still launching its pane.
+  const starting = spawnSlots.holders.filter((holder) => {
+    const index = unmatched.indexOf(holder.name);
+    if (index === -1) return true;
+    unmatched.splice(index, 1);
+    return false;
+  });
   const live = [
-    ...Array.from(runningSubagents.values(), (c) => `"${c.name}" (running ${age(c.startTime)})`),
-    ...spawnSlots.waiting.map((c) => `"${c.name}" (queued ${age(c.since)})`),
+    ...running.map((c) => `- "${c.name}" (running ${age(c.startTime)})`),
+    ...starting.map((c) => `- "${c.name}" (starting ${age(c.since)})`),
+    ...spawnSlots.waiting.map((c) => `- "${c.name}" (queued ${age(c.since)})`),
   ];
   if (live.length === 0) return null;
-  return (
-    `subagent_done refused: this session still has live sub-agents: ${live.join(", ")}. ` +
-    `Wait for their results, which arrive as new turns, or stop them first. The session stays open.`
-  );
+  return [
+    "subagent_done refused: this session still has live sub-agents:",
+    ...live,
+    "Wait for their results, which arrive as new turns. subagent_interrupt only stops a turn; it does not end the child.",
+    "If a child is stuck, call subagent_done with abandon_children: true. Its result is lost.",
+  ].join("\n");
 }
 
 // ── Widget management ──
@@ -1557,7 +1577,7 @@ async function watchSubagent(
       closeSurface(surface);
     } catch {}
     runningSubagents.delete(running.id);
-    spawnSlots.release();
+    spawnSlots.release(running.name);
   }
 }
 
@@ -1593,6 +1613,7 @@ export default function subagentsExtension(pi: ExtensionAPI) {
   // Leaving would orphan live children and drop their results.
   pi.on("tool_call", (event) => {
     if (event.toolName !== "subagent_done") return;
+    if ((event.input as any)?.abandon_children === true) return;
     const reason = liveChildrenRefusal();
     if (reason) return { block: true, reason };
   });
