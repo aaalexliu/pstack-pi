@@ -24,7 +24,7 @@ const productionSkills = [
   'typescript-best-practices', 'unslop', 'why',
 ];
 const exactExpansionSkills = ['bro', 'poteto-mode', 'principle-model-the-domain'];
-const modelInvocableSkills = ['intake', 'list-writing', 'principles'];
+const modelInvocableSkills = ['intake', 'list-writing', 'principles', 'show-me'];
 
 async function productionInventory() {
   return checkContent({ root: repository,
