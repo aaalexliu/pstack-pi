@@ -44,7 +44,7 @@ Present the synthesizer's full Accepted / Rejected / Backlog output and wait for
 
 The parent files each Backlog item to your team's devex or backlog tracker without waiting when the caller or standing host policy authorizes that external write. Otherwise report ready-to-file items as pending. Only the Accepted list waits for skill-edit approval.
 
-Never edit a skill inside an installed Pi package, because an update replaces it. Before approval, show its destination, `.pi/skills/<skill>/` or `~/.pi/agent/skills/<skill>/`. After approval, copy the skill folder there and edit the copy. Pi keeps the first skill it finds when two share a name, so confirm `/skill:<skill>` loads the copy. Never open a PR or push.
+Never edit a skill inside an installed Pi package, because an update replaces it. A lesson about a pstack-pi skill goes to its source in a pstack-pi PR: a transform in `sync/manifest.json` for a synced skill, or an edit under `additions/skills/` for a Pi-owned one. Never copy a pstack-pi skill into `~/.pi/agent/skills/`, because the copy hides the package skill and misses its updates. For any other skill, before approval, show its destination, `.pi/skills/<skill>/` or `~/.pi/agent/skills/<skill>/`. After approval, copy the skill folder there and edit the copy. Pi keeps the first skill it finds when two share a name, so confirm `/skill:<skill>` loads the copy. Open a PR or push only for a pstack-pi source edit.
 
 Follow each approved row's Routing exactly:
 

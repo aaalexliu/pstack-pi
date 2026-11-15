@@ -390,7 +390,8 @@
     },
     "pi": {
       "missing evidence gate": "missing evidence cannot support an Accepted edit",
-      "installed package": "Never edit a skill inside an installed Pi package, because an update replaces it."
+      "installed package": "Never edit a skill inside an installed Pi package, because an update replaces it.",
+      "pstack-pi source": "A lesson about a pstack-pi skill goes to its source in a pstack-pi PR: a transform in `sync/manifest.json` for a synced skill, or an edit under `additions/skills/` for a Pi-owned one."
     }
   },
   "skills/reflect/references/divergent-reviewer.md": {
