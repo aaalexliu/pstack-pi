@@ -1,6 +1,6 @@
 # HumanLayer license notice
 
-`alex-show-me` adapts the `show-me` skill from [humanlayer/skills](https://github.com/humanlayer/skills), `plugins/show-me/skills/show-me/SKILL.md`. That file ships under this license:
+`show-me` adapts the `show-me` skill from [humanlayer/skills](https://github.com/humanlayer/skills), `plugins/show-me/skills/show-me/SKILL.md`. That file ships under this license:
 
 ```text
 MIT License
