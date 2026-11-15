@@ -189,8 +189,8 @@ A file that fails to parse is skipped; the other agents in that directory still 
 
 ### Results
 
-The tool returns the child's final assistant text. Parallel results are joined as `### [agent] completed` or `### [agent] failed (reason)` sections, each capped at 50 KiB with the full text kept in `details`.
-`details` holds `mode`, `agentScope`, `projectAgentsDir`, and one entry per task with the agent, its source (`bundled`, `user`, `project`), the task, `exitCode`, every `message_end` message from the child, capped stderr, summed usage (`input`, `output`, `cacheRead`, `cacheWrite`, `cost`, `contextTokens`, `turns`), the resolved `model`, `modelSource` (`explicit`, `role`, `agent`, `parent`), and the requested `thinking` level when passed to Pi.
+The tool returns the child's final assistant text.
+`details` holds `agentScope`, `projectAgentsDir`, and one entry for the child with the agent, its source (`bundled`, `user`, `project`), the task, `exitCode`, every `message_end` message from the child, capped stderr, summed usage (`input`, `output`, `cacheRead`, `cacheWrite`, `cost`, `contextTokens`, `turns`), the resolved `model`, `modelSource` (`explicit`, `role`, `agent`, `parent`), and the requested `thinking` level when passed to Pi.
 A task fails when the child exits nonzero, is killed by a signal, or ends with `stopReason` `error` or `aborted`.
 `details.progress` stores the public status snapshot with the result. Live cards show role, selected/observed model, requested thinking level when set, state, elapsed time, last event, reported usage, todo counts, and current activity. Completed cards keep that metadata and preview the original result text. Ctrl+O expands the full result.
 
