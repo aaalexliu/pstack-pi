@@ -1346,7 +1346,7 @@ describe("interactiveSubagents in pstack-pi settings", () => {
   it("uses the defaults when the file or the key is missing", () => {
     withTempDir((dir) => {
       assert.deepEqual(loadSubagentsConfig(dir), { maxConcurrent: 4, cmuxLayout: "grid" });
-      writePstackSettings(dir, { version: 1, cmuxTabs: true });
+      writePstackSettings(dir, { version: 1 });
       assert.deepEqual(loadSubagentsConfig(dir), { maxConcurrent: 4, cmuxLayout: "grid" });
     });
   });
@@ -1355,7 +1355,6 @@ describe("interactiveSubagents in pstack-pi settings", () => {
     withTempDir((dir) => {
       writePstackSettings(dir, {
         version: 1,
-        cmuxTabs: false,
         interactiveSubagents: { maxConcurrent: 2, cmuxLayout: "tabs" },
       });
       assert.deepEqual(loadSubagentsConfig(dir), { maxConcurrent: 2, cmuxLayout: "tabs" });

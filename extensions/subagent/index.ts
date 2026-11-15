@@ -370,14 +370,14 @@ export type PaneRunner = (
   params: { name: string; task: string; cwd?: string; systemPrompt?: string; model?: string; tools?: string },
   ctx: ExtensionContext,
   signal: AbortSignal,
+  thinking?: string,
 ) => Promise<{ summary: string; sessionFile?: string; exitCode: number; error?: string; errorMessage?: string; paneClosed?: boolean; ping?: { message: string } }>;
 
-// Loaded on first use: the interactive extension imports this module, and its files sit outside the typecheck.
-const interactiveSubagents = new URL('../interactive-subagents/pi-extension/subagents/', import.meta.url).href;
-async function loadPaneRunner(): Promise<PaneRunner | null> {
-  const { isMuxAvailable } = await import(`${interactiveSubagents}cmux.ts`) as { isMuxAvailable: () => boolean };
-  if (!isMuxAvailable()) return null;
-  return (await import(`${interactiveSubagents}index.ts`) as { runSubagentInPane: PaneRunner }).runSubagentInPane;
+// The interactive extension publishes its live runner under this key (`PANE_RUNNER_KEY` there). Importing
+// its file instead would load a second copy with its own slots and widget, because Pi loads each extension apart.
+function publishedPaneRunner(): PaneRunner | null {
+  const published = (globalThis as Record<symbol, { isMuxAvailable(): boolean; runSubagentInPane: PaneRunner } | undefined>)[Symbol.for('pstack-pi/interactive-subagents/pane-runner')];
+  return published?.isMuxAvailable() ? published.runSubagentInPane : null;
 }
 
 /**
@@ -407,9 +407,9 @@ export async function runPaneAgent({ resolved, runPane, ctx, signal, timeoutMs }
       task,
       cwd,
       systemPrompt: agent.systemPrompt.trim() || undefined,
-      model: resolved.model && resolved.thinking ? `${resolved.model}:${resolved.thinking}` : resolved.model,
+      model: resolved.model,
       tools: agent.tools?.length ? [...new Set([...agent.tools, 'pstack_todo'])].join(',') : undefined,
-    }, ctx, stop.signal);
+    }, ctx, stop.signal, resolved.thinking);
     if (signal?.aborted) {
       result.exitCode = 1;
       result.stopReason = 'aborted';
@@ -758,7 +758,7 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
         activeProgress.add(progress);
         // A single child opens in the subagents layout when a multiplexer and a session file exist, else runs headless.
         // Parallel and chain stay headless until their future is decided.
-        const pane = mode !== 'single' ? null : runPane === undefined ? await loadPaneRunner() : runPane;
+        const pane = mode !== 'single' ? null : runPane === undefined ? publishedPaneRunner() : runPane;
         const paneCtx = pane && ctx.sessionManager?.getSessionFile() ? ctx : undefined;
         const run = async (resolved: ResolvedTask, update: OnUpdateCallback | undefined, index: number) => {
           if (signal?.aborted) throw new Error('Subagent was aborted');

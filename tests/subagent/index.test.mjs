@@ -549,8 +549,8 @@ async function paneFixture(t, finish) {
   /** @type {any[]} */
   const calls = [];
   /** @type {import('../../extensions/subagent/index.ts').PaneRunner} */
-  const runPane = async (params, _ctx, signal) => {
-    calls.push(params);
+  const runPane = async (params, _ctx, signal, thinking) => {
+    calls.push({ ...params, thinking });
     const sessionFile = path.join(f.root, `pane-${calls.length}.jsonl`);
     const text = `pane says ${params.task}`;
     const lines = [{ type: 'session', id: `sid-${calls.length}` }, { type: 'message', message: { role: 'user', content: [{ type: 'text', text: params.task }] } },
@@ -571,7 +571,37 @@ test('in a multiplexer a single child runs in a pane and the reply carries its m
   assert.equal(single.details.results[0].usage.output, 4);
   assert.deepEqual(single.details.progress?.tasks.map((row) => row.state), ['succeeded']);
   const agent = bundledAgents().find((item) => item.name === 'general-purpose');
-  assert.deepEqual(f.calls[0], { name: 'general-purpose', task: 'hello', cwd: f.cwd, systemPrompt: agent?.systemPrompt.trim(), model: 'fixture/model:low', tools: agent?.tools?.length ? [...new Set([...agent.tools, 'pstack_todo'])].join(',') : undefined });
+  assert.deepEqual(f.calls[0], { name: 'general-purpose', task: 'hello', cwd: f.cwd, systemPrompt: agent?.systemPrompt.trim(), model: 'fixture/model', thinking: 'low', tools: agent?.tools?.length ? [...new Set([...agent.tools, 'pstack_todo'])].join(',') : undefined });
+});
+
+test('a child that asks for help fails with its question', async (t) => {
+  const f = await paneFixture(t, () => ({ ping: { name: 'general-purpose', message: 'Which branch?' } }));
+  const result = await f.execute({ agent: 'general-purpose', task: 'hello' });
+  assert.equal(result.isError, true);
+  assert.match(result.content[0].text, /Agent error: The child asked for help: Which branch\?$/);
+});
+
+test('the pane child keeps the requested thinking level when no model resolves', async (t) => {
+  const f = await paneFixture(t);
+  f.ctx.model = undefined;
+  await f.execute({ agent: 'general-purpose', task: 'hello', thinking: 'low' });
+  assert.equal(f.calls[0].model, undefined);
+  assert.equal(f.calls[0].thinking, 'low');
+});
+
+test('blocking_subagent uses the pane runner the live interactive extension published', async (t) => {
+  const key = Symbol.for('pstack-pi/interactive-subagents/pane-runner');
+  const previous = /** @type {any} */ (globalThis)[key];
+  t.after(() => { /** @type {any} */ (globalThis)[key] = previous; });
+  /** @type {string[]} */
+  const ran = [];
+  /** @type {any} */ (globalThis)[key] = { isMuxAvailable: () => true, runSubagentInPane: async (/** @type {any} */ params) => { ran.push(params.task); return { summary: 'ok', exitCode: 0 }; } };
+  const f = await fixture(t, { runPane: undefined, spawnChild: () => assert.fail('headless child with a published runner') });
+  f.ctx.sessionManager = { getSessionFile: () => path.join(f.root, 'parent.jsonl') };
+  await f.execute({ agent: 'general-purpose', task: 'hello' });
+  assert.deepEqual(ran, ['hello']);
+  /** @type {any} */ (globalThis)[key] = { isMuxAvailable: () => false, runSubagentInPane: () => assert.fail('no multiplexer') };
+  await assert.rejects(f.execute({ agent: 'general-purpose', task: 'plain' }), /headless child with a published runner/);
 });
 
 test('a closed pane or a timeout fails the child and an abort rejects the call', { timeout: 5000 }, async (t) => {
