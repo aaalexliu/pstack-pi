@@ -1147,7 +1147,7 @@ async function launchSubagent(
     };
     cwd: string;
   },
-  options?: { surface?: string },
+  options?: { surface?: string; autoExit?: boolean },
 ): Promise<RunningSubagent> {
   const startTime = Date.now();
   const id = Math.random().toString(16).slice(2, 10);
@@ -1158,6 +1158,7 @@ async function launchSubagent(
   const effectiveSkills = params.skills ?? agentDefs?.skills;
   const effectiveThinking = agentDefs?.thinking;
   const effectiveInteractive = resolveEffectiveInteractive(params, agentDefs);
+  const autoExit = options?.autoExit ?? agentDefs?.autoExit;
 
   const sessionFile = ctx.sessionManager.getSessionFile();
   if (!sessionFile) throw new Error("No session file");
@@ -1206,10 +1207,10 @@ async function launchSubagent(
   // Build the task message
   // Only full-context fork mode inherits prior conversation state.
   // Blank-session modes need the wrapper instructions and artifact-backed handoff.
-  const modeHint = agentDefs?.autoExit
+  const modeHint = autoExit
     ? "Complete your task autonomously."
     : "Complete your task. When finished, call the subagent_done tool. The user can interact with you at any time.";
-  const summaryInstruction = agentDefs?.autoExit
+  const summaryInstruction = autoExit
     ? "Your FINAL assistant message should summarize what you accomplished."
     : "Your FINAL assistant message (before calling subagent_done or before the user exits) should summarize what you accomplished.";
   const denySet = resolveDenyTools(agentDefs);
@@ -1350,7 +1351,7 @@ async function launchSubagent(
   if (params.agent) {
     envParts.push(`PI_SUBAGENT_AGENT=${shellEscape(params.agent)}`);
   }
-  if (agentDefs?.autoExit) {
+  if (autoExit) {
     envParts.push(`PI_SUBAGENT_AUTO_EXIT=1`);
   }
   envParts.push(`PI_SUBAGENT_SESSION=${shellEscape(subagentSessionFile)}`);
@@ -1578,6 +1579,33 @@ async function watchSubagent(
     } catch {}
     runningSubagents.delete(running.id);
     spawnSlots.release(running.name);
+  }
+}
+
+/**
+ * pstack-pi: run one auto-exiting child in a pane, holding a spawn slot, and
+ * wait for its result. `blocking_subagent` calls this inside cmux or tmux.
+ */
+export async function runSubagentInPane(
+  params: typeof SubagentParams.static,
+  ctx: Parameters<typeof launchSubagent>[1],
+  signal: AbortSignal,
+): Promise<SubagentResult> {
+  await spawnSlots.take().ready;
+  let running: RunningSubagent;
+  try {
+    if (signal.aborted) throw new Error("Subagent was aborted");
+    running = await launchSubagent(params, ctx, { autoExit: true });
+  } catch (error) {
+    spawnSlots.release();
+    throw error;
+  }
+  // Without a UI the widget timer never stops and would keep a print-mode parent alive.
+  if (latestCtx?.hasUI) startWidgetRefresh();
+  try {
+    return await watchSubagent(running, signal);
+  } finally {
+    updateWidget();
   }
 }
 

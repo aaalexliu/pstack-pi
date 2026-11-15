@@ -157,8 +157,6 @@
     "extensions/media/server.ts",
     "extensions/shared/model.ts",
     "extensions/subagent/agents.ts",
-    "extensions/subagent/cmux-settings.ts",
-    "extensions/subagent/cmux.ts",
     "extensions/subagent/index.ts",
     "extensions/subagent/model-config.ts",
     "extensions/subagent/progress.ts",

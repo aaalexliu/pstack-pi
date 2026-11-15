@@ -3,6 +3,7 @@
  * and wait for their results.
  *
  * Built on Pi's bundled example (examples/extensions/subagent) with these additions:
+ *   - inside cmux or tmux, each child runs as a real Pi in the interactive subagents' layout
  *   - bundled agents shipped with this package, overridable by user and project agents
  *   - `model` and `role` per task, routed through <agent dir>/pstack-pi/models.json
  *   - a depth guard so children cannot delegate again
@@ -33,8 +34,6 @@ import {
 import { Container, Markdown, Spacer, Text } from '@earendil-works/pi-tui';
 import { Type } from 'typebox';
 import { RunProgress, type ProgressSnapshot } from './progress.ts';
-import { CmuxTranscripts, type CmuxExec } from './cmux.ts';
-import { loadSettings, registerCmuxSettings } from './cmux-settings.ts';
 import { createProgressView, renderProgressResult } from './view.ts';
 import { type AgentConfig, type AgentScope, type AgentSource, bundledAgents, discoverAgents } from './agents.ts';
 import { formatModelChoice, loadModelConfig, ModelRouter, modelChoiceSchema, modelConfigPath, roleSchema, roles } from './model-config.ts';
@@ -344,6 +343,108 @@ export function childSessionDir(cwd: string, env: NodeJS.ProcessEnv = process.en
   return path.join(getAgentDir(), 'sessions', `--${real.replace(/^[/\\]/, '').replace(/[/\\:]/g, '-')}--`);
 }
 
+function recordMessage(result: SingleResult, msg: Message): void {
+  result.messages.push(msg);
+  if (msg.role !== 'assistant') return;
+  result.usage.turns++;
+  const usage = msg.usage;
+  if (usage) {
+    result.usage.input += usage.input || 0;
+    result.usage.output += usage.output || 0;
+    result.usage.cacheRead += usage.cacheRead || 0;
+    result.usage.cacheWrite += usage.cacheWrite || 0;
+    result.usage.cost += usage.cost?.total || 0;
+    result.usage.contextTokens = usage.totalTokens || 0;
+  }
+  const observed = observedModelId(msg.provider, msg.model);
+  if (observed) {
+    result.observedModel = observed;
+    result.model = observed;
+  }
+  if (msg.stopReason) result.stopReason = msg.stopReason;
+  if (msg.errorMessage) result.errorMessage = msg.errorMessage;
+}
+
+/** The interactive subagents' `runSubagentInPane`: the part of its launch params and result this tool uses. */
+export type PaneRunner = (
+  params: { name: string; task: string; cwd?: string; systemPrompt?: string; model?: string; tools?: string },
+  ctx: ExtensionContext,
+  signal: AbortSignal,
+) => Promise<{ summary: string; sessionFile?: string; exitCode: number; error?: string; errorMessage?: string; paneClosed?: boolean; ping?: { message: string } }>;
+
+// Loaded on first use: the interactive extension imports this module, and its files sit outside the typecheck.
+const interactiveSubagents = new URL('../interactive-subagents/pi-extension/subagents/', import.meta.url).href;
+async function loadPaneRunner(): Promise<PaneRunner | null> {
+  const { isMuxAvailable } = await import(`${interactiveSubagents}cmux.ts`) as { isMuxAvailable: () => boolean };
+  if (!isMuxAvailable()) return null;
+  return (await import(`${interactiveSubagents}index.ts`) as { runSubagentInPane: PaneRunner }).runSubagentInPane;
+}
+
+/**
+ * Runs the child as a real Pi in the interactive subagents' cmux or tmux layout, where the user can watch
+ * and steer it, and waits for it to exit. The child always keeps a session file, so the reply names it.
+ */
+export async function runPaneAgent({ resolved, runPane, ctx, signal, timeoutMs }: {
+  resolved: ResolvedTask;
+  runPane: PaneRunner;
+  ctx: ExtensionContext;
+  signal: AbortSignal | undefined;
+  timeoutMs: number | undefined;
+}): Promise<SingleResult> {
+  const { agent, task, cwd, step } = resolved;
+  const result: SingleResult = {
+    agent: agent.name, agentSource: agent.source, task, exitCode: -1, messages: [], stderr: '',
+    usage: zeroUsage(), model: resolved.model, modelSource: resolved.modelSource, thinking: resolved.thinking, step,
+  };
+  const stop = new AbortController();
+  const onAbort = () => stop.abort();
+  signal?.addEventListener('abort', onAbort, { once: true });
+  if (signal?.aborted) stop.abort();
+  const deadline = timeoutMs === undefined ? undefined : setTimeout(() => stop.abort(), timeoutMs);
+  try {
+    const child = await runPane({
+      name: agent.name,
+      task,
+      cwd,
+      systemPrompt: agent.systemPrompt.trim() || undefined,
+      model: resolved.model && resolved.thinking ? `${resolved.model}:${resolved.thinking}` : resolved.model,
+      tools: agent.tools?.length ? [...new Set([...agent.tools, 'pstack_todo'])].join(',') : undefined,
+    }, ctx, stop.signal);
+    if (signal?.aborted) {
+      result.exitCode = 1;
+      result.stopReason = 'aborted';
+      result.errorMessage = 'Subagent was aborted';
+      throw new Error(result.errorMessage);
+    }
+    if (child.sessionFile && fs.existsSync(child.sessionFile)) {
+      const entries = fs.readFileSync(child.sessionFile, 'utf8').split('\n').flatMap((line) => {
+        try { return [JSON.parse(line)]; } catch { return []; }
+      });
+      result.sessionId = entries.find((entry) => entry?.type === 'session')?.id;
+      result.sessionPath = child.sessionFile;
+      for (const entry of entries) if (entry?.type === 'message' && entry.message?.role !== 'system') recordMessage(result, entry.message);
+    }
+    result.exitCode = child.exitCode;
+    if (stop.signal.aborted) {
+      result.exitCode ||= 1;
+      result.stopReason = 'aborted';
+      result.errorMessage = `Timed out after ${timeoutMs} ms`;
+    } else if (child.ping) {
+      result.exitCode ||= 1;
+      result.errorMessage = `The child asked for help: ${child.ping.message}`;
+      result.stopReason = 'error';
+    } else if (child.paneClosed || child.error || child.exitCode !== 0) {
+      result.exitCode ||= 1;
+      result.errorMessage = child.errorMessage ?? child.summary;
+      result.stopReason = 'error';
+    }
+    return result;
+  } finally {
+    clearTimeout(deadline);
+    signal?.removeEventListener('abort', onAbort);
+  }
+}
+
 type OnUpdateCallback = (partial: AgentToolResult<SubagentDetails>) => void;
 
 export async function runSingleAgent({ resolved, depth, signal, timeoutMs, onUpdate, onEvent, makeDetails, spawnChild = spawnDetachedChild, registry, termGraceMs = TERM_GRACE_MS }: {
@@ -404,27 +505,7 @@ export async function runSingleAgent({ resolved, depth, signal, timeoutMs, onUpd
         if (event?.type !== 'message_end' || !event.message) { observe(event); return; }
         // The child's system message repeats its whole prompt; keeping it bloats every progress update.
         if (event.message.role === 'system') return;
-        const msg = event.message as Message;
-        result.messages.push(msg);
-        if (msg.role === 'assistant') {
-          result.usage.turns++;
-          const usage = msg.usage;
-          if (usage) {
-            result.usage.input += usage.input || 0;
-            result.usage.output += usage.output || 0;
-            result.usage.cacheRead += usage.cacheRead || 0;
-            result.usage.cacheWrite += usage.cacheWrite || 0;
-            result.usage.cost += usage.cost?.total || 0;
-            result.usage.contextTokens = usage.totalTokens || 0;
-          }
-          const observed = observedModelId(msg.provider, msg.model);
-          if (observed) {
-            result.observedModel = observed;
-            result.model = observed;
-          }
-          if (msg.stopReason) result.stopReason = msg.stopReason;
-          if (msg.errorMessage) result.errorMessage = msg.errorMessage;
-        }
+        recordMessage(result, event.message as Message);
         observe(event);
         emitUpdate();
       };
@@ -559,18 +640,22 @@ export function toolDescription(bundled: Pick<AgentConfig, 'name' | 'description
     'Explicit model overrides role, then the agent default, then the parent model. thinking sets the child reasoning level per call or task; a task value overrides the call default. Children cannot delegate.',
     'Single and chain result text starts with `resolved-model: provider/model-id` from the child response, or `resolved-model: unknown`. Parallel results include that line in each task block. That line is the resolved identity. The requested selector is not.',
     'With keepSession: true, the child keeps a Pi session file in PI_CODING_AGENT_SESSION_DIR or else Pi\'s default session folder for its cwd, and the result adds `session-id: <id>` and `session-path: <absolute path>` lines after resolved-model. Chain replies name only the last step\'s session.',
+    'Inside cmux or tmux, a single-mode child runs as a real Pi in the subagents layout the user can watch and steer; it always keeps its session file, so its reply always has the session lines.',
   ].join(' ');
 }
 
-export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawnDetachedChild, env = process.env, cmuxExec, termGraceMs = TERM_GRACE_MS }: { spawnChild?: SpawnChild; env?: NodeJS.ProcessEnv; cmuxExec?: CmuxExec; termGraceMs?: number } = {}) {
+export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawnDetachedChild, env = process.env, termGraceMs = TERM_GRACE_MS, runPane }: {
+  spawnChild?: SpawnChild;
+  env?: NodeJS.ProcessEnv;
+  termGraceMs?: number;
+  /** Pane launcher; null forces the headless path. Defaults to the interactive subagents' launcher inside a multiplexer. */
+  runPane?: PaneRunner | null;
+} = {}) {
   const depth = parentDepth(env);
   if (depth >= 1) return;
 
   const router = new ModelRouter();
   const registry = new ChildRegistry();
-  const transcripts = new CmuxTranscripts();
-  const cmuxEnv = { ...env };
-  registerCmuxSettings(pi, cmuxEnv);
   const view = createProgressView(pi);
   const pendingDetails = new Map<string, SubagentDetails>();
   const activeProgress = new Set<RunProgress>();
@@ -578,7 +663,6 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
   pi.on('session_shutdown', async () => {
     for (const progress of activeProgress) progress.finish('Session closed');
     activeProgress.clear();
-    transcripts.shutdown();
     await Promise.all([registry.shutdown(), view.close()]);
     pendingDetails.clear();
   });
@@ -672,36 +756,26 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
           publish();
         });
         activeProgress.add(progress);
-        let settingsErrorShown = false;
+        // A single child opens in the subagents layout when a multiplexer and a session file exist, else runs headless.
+        // Parallel and chain stay headless until their future is decided.
+        const pane = mode !== 'single' ? null : runPane === undefined ? await loadPaneRunner() : runPane;
+        const paneCtx = pane && ctx.sessionManager?.getSessionFile() ? ctx : undefined;
         const run = async (resolved: ResolvedTask, update: OnUpdateCallback | undefined, index: number) => {
-          let enabled = false;
-          if (cmuxEnv.CMUX_WORKSPACE_ID) {
-            try { enabled = (await loadSettings(getAgentDir())).cmuxTabs; }
-            catch (error) {
-              if (!settingsErrorShown && ctx.hasUI) ctx.ui.notify(`Subagent tabs disabled: ${error instanceof Error ? error.message : String(error)}`, 'warning');
-              settingsErrorShown = true;
-            }
-          }
           if (signal?.aborted) throw new Error('Subagent was aborted');
-          const pane = enabled ? transcripts.create({ env: cmuxEnv, exec: cmuxExec, label: resolved.agent.name }) : undefined;
-          return runSingleAgent({ resolved, depth, signal, timeoutMs: params.timeoutMs, onUpdate: update, makeDetails: makeDetails(mode), spawnChild, registry, termGraceMs,
-            onEvent: (event, result) => {
-              pane?.event(event);
-              const type = (event as { type?: string } | null)?.type;
-              if (type === 'child_started') progress!.started(index);
-              else if (type === 'child_stopping') progress!.stopping(index);
-              else if (type === 'child_finished') progress!.result(index, result);
-              else progress!.event(index, event, result.usage);
-            },
-          }).then((result) => {
-            pane?.finish(isFailedResult(result)
-              ? `Failed: ${result.errorMessage || result.stopReason || `exit ${result.exitCode}`}`
-              : `Completed: exit ${result.exitCode}`);
+          const observe = (event: unknown, result: SingleResult) => {
+            const type = (event as { type?: string } | null)?.type;
+            if (type === 'child_started') progress!.started(index);
+            else if (type === 'child_stopping') progress!.stopping(index);
+            else if (type === 'child_finished') progress!.result(index, result);
+            else progress!.event(index, event, result.usage);
+          };
+          if (pane && paneCtx) {
+            progress!.started(index);
+            const result = await runPaneAgent({ resolved, runPane: pane, ctx: paneCtx, signal, timeoutMs: params.timeoutMs });
+            observe({ type: 'child_finished' }, result);
             return result;
-          }).catch((error) => {
-            pane?.finish(`${signal?.aborted ? 'Aborted' : 'Failed'}: ${error instanceof Error ? error.message : String(error)}`);
-            throw error;
-          });
+          }
+          return runSingleAgent({ resolved, depth, signal, timeoutMs: params.timeoutMs, onUpdate: update, makeDetails: makeDetails(mode), spawnChild, registry, termGraceMs, onEvent: observe });
         };
 
         if (mode === 'chain') {

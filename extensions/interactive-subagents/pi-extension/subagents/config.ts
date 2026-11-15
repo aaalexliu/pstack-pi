@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { settingsPath } from "../../../subagent/cmux-settings.ts";
+import { join } from "node:path";
 
 /** The key that holds these settings in pstack-pi's `<agentDir>/pstack-pi/settings.json`. */
 export const SUBAGENTS_SETTINGS_KEY = "interactiveSubagents";
@@ -48,7 +48,7 @@ export function parseSubagentsConfig(raw: unknown, source: string): SubagentsCon
 
 /** Read the `interactiveSubagents` key of `<agentDir>/pstack-pi/settings.json`. A missing file or key means the defaults. */
 export function loadSubagentsConfig(agentDir: string): SubagentsConfig {
-  const path = settingsPath(agentDir);
+  const path = join(agentDir, "pstack-pi", "settings.json");
   let text: string;
   try {
     text = readFileSync(path, "utf8");
