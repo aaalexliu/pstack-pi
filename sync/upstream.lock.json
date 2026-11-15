@@ -1131,10 +1131,10 @@
       "source": "skills/principle-never-block-on-the-human/SKILL.md",
       "blob": "4f59bdc69f79d536b30b0014a563ed3be05b8b62",
       "mode": "100644",
-      "adaptationSha256": null,
+      "adaptationSha256": "621917f5817fcf6e4235f933ca0d4c2fd317a48cd629e8e2e8a57f7d1c4341e1",
       "output": {
         "destination": "skills/principle-never-block-on-the-human/SKILL.md",
-        "sha256": "05030a7a083c337676f793881b4e93cd218e8f1dd676529f56e6ac1d3efb8d1f",
+        "sha256": "1e41c95a1202aa4f42ede302689728272c3cd5f63c10770167402cc47cc84e77",
         "mode": "100644"
       }
     },

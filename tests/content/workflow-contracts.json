@@ -279,7 +279,7 @@
     "upstream": {
       "ready never draft": "Open every PR ready, never as a draft.",
       "conventional commits": "Conventional Commits `type(scope): subject`, no trailing period.",
-      "why section": "`## Why`: the problem and approach, 1–3 short sentences.",
+      "why section": "`## Why`: the problem and approach, 1\u20133 short sentences.",
       "babysit separate": "Opening a PR does not start a babysit.",
       "briefing body": "The PR body is a one-minute briefing, not a lab notebook, for a reviewer who has the diff."
     },
@@ -609,6 +609,15 @@
       "screenshots through read": "Pi shows only the alt text of a Markdown image in a reply, so open each screenshot with the read tool before you write the reply, and give its absolute path in the reply.",
       "video paths": "Pi cannot play a video, so give each video's absolute path.",
       "text charts": "a Mermaid diagram for how things connect and a text bar chart in a code block for numbers"
+    }
+  },
+  "skills/principle-never-block-on-the-human/SKILL.md": {
+    "upstream": {
+      "proceed then present": "Proceed, then present.",
+      "reversible proceeds": "Reversible actions (write code, edit notes, split tasks) should proceed without blocking."
+    },
+    "pi": {
+      "costly calls": "Calls that are costly to undo still need the human: force-push, deleting data, outside messages, a data model or public API, a migration, money."
     }
   }
 }
