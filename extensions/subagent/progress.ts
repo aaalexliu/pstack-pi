@@ -85,7 +85,7 @@ export function progressLines(snapshot: ProgressSnapshot, detailed = false): str
   return lines;
 }
 
-// Bound the inline view, not the chain. Active tasks precede queued tasks and recent results.
+// Bound the inline view, not the run. Active tasks precede queued tasks and recent results.
 export function inlineTasks(snapshot: ProgressSnapshot): TaskProgress[] {
   const active = snapshot.tasks.filter((row) => row.endedAt === null && row.state !== 'queued');
   const queued = snapshot.tasks.filter((row) => row.endedAt === null && row.state === 'queued');
