@@ -569,6 +569,9 @@ interface RunningSubagent {
 
 /** All currently running subagents, keyed by id. */
 const runningSubagents = new Map<string, RunningSubagent>();
+// subagent-done.ts loads as its own extension; it reads this map to keep an
+// auto-exit session alive while its children run.
+(globalThis as any)[Symbol.for("pi-subagents/running")] = runningSubagents;
 
 /**
  * Caps running children per parent session at `maxConcurrent`. A spawning

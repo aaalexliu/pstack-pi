@@ -37,6 +37,12 @@ export function shouldAutoExitOnAgentEnd(
   return true;
 }
 
+/** Live children this session started with `subagent`, from index.ts. */
+export function hasLiveChildren(): boolean {
+  const running = (globalThis as any)[Symbol.for("pi-subagents/running")] as Map<string, unknown> | undefined;
+  return (running?.size ?? 0) > 0;
+}
+
 export interface SubagentErrorInfo {
   errorMessage: string;
   stopReason: "error";
@@ -173,7 +179,9 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("agent_end", (event, ctx) => {
     const messages = (event as any).messages as any[] | undefined;
-    const shouldExit = autoExit && shouldAutoExitOnAgentEnd(userTookOver, messages);
+    const shouldExit = autoExit && shouldAutoExitOnAgentEnd(userTookOver, messages) && !hasLiveChildren();
+    // With live children, stay up: each child's result starts a new turn,
+    // and the session exits at the end of a turn that leaves none running.
 
     if (shouldExit) {
       // Surface stopReason: "error" turns (auto-retry exhausted, provider

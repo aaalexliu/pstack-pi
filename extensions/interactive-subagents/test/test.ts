@@ -3017,3 +3017,75 @@ describe("cmux.ts", () => {
     });
   });
 });
+
+describe("auto-exit with live children", () => {
+  const testApi = (subagentsModule as any).__test__;
+  const done = { role: "assistant", stopReason: "stop" };
+
+  async function startAutoExitSession() {
+    const previous = process.env.PI_SUBAGENT_AUTO_EXIT;
+    process.env.PI_SUBAGENT_AUTO_EXIT = "1";
+    const { default: subagentDone } = await import("../pi-extension/subagents/subagent-done.ts");
+    const handlers = new Map<string, Function>();
+    subagentDone({
+      on: (name: string, fn: Function) => handlers.set(name, fn),
+      registerShortcut() {},
+      registerTool() {},
+      getAllTools: () => [],
+    } as any);
+    restoreEnvVar("PI_SUBAGENT_AUTO_EXIT", previous);
+    let shutdowns = 0;
+    const agentEnd = () => handlers.get("agent_end")!({ messages: [done] }, { shutdown: () => shutdowns++ });
+    return { agentEnd, shutdowns: () => shutdowns };
+  }
+
+  it("stays up while a child runs, then exits after the child's result turn", async () => {
+    const session = await startAutoExitSession();
+    testApi.runningSubagents.set("child", { id: "child" });
+    try {
+      session.agentEnd();
+      assert.equal(session.shutdowns(), 0);
+    } finally {
+      testApi.runningSubagents.delete("child");
+    }
+    session.agentEnd();
+    assert.equal(session.shutdowns(), 1);
+  });
+
+  it("exits after a child whose watcher ends without a result", async () => {
+    const previousMux = process.env.PI_SUBAGENT_MUX;
+    const previousWezterm = process.env.WEZTERM_UNIX_SOCKET;
+    process.env.PI_SUBAGENT_MUX = "wezterm";
+    delete process.env.WEZTERM_UNIX_SOCKET;
+    const dir = createTestDir();
+    try {
+      const session = await startAutoExitSession();
+      const sessionFile = createSessionFile(dir, [SESSION_HEADER, USER_MSG]);
+      const running = {
+        id: "dies",
+        name: "Reviewer",
+        task: "T",
+        surface: "surface:404",
+        startTime: Date.now(),
+        sessionFile,
+        interactive: false,
+        statusState: createStatusState({ source: "pi", startTimeMs: Date.now() }),
+      };
+      testApi.runningSubagents.set(running.id, running);
+      session.agentEnd();
+      assert.equal(session.shutdowns(), 0);
+
+      const abort = new AbortController();
+      abort.abort();
+      await testApi.watchSubagent(running, abort.signal);
+
+      assert.equal(testApi.runningSubagents.has(running.id), false);
+      session.agentEnd();
+      assert.equal(session.shutdowns(), 1);
+    } finally {
+      restoreEnvVar("PI_SUBAGENT_MUX", previousMux);
+      restoreEnvVar("WEZTERM_UNIX_SOCKET", previousWezterm);
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
