@@ -332,8 +332,10 @@ async function launch(ctx: Ctx, w: Work, news: string[]) {
   await must(bin('tmux'), ['new-session', '-d', '-s', w.key, '-x', '200', '-y', '50', '-c', w.dir, `sh ${sh(rf(w, 'lead.sh'))}`], w.dir);
   const tagged = await run(bin('tmux'), ['set-option', '-t', `${session(w.key)}:`, '@job-runner', w.key], w.dir);
   if (tagged.code !== 0) {
-    await run(bin('tmux'), ['kill-session', '-t', session(w.key)], w.dir);
-    throw new Error(`could not tag the tmux session, so it was stopped: ${tagged.out.trim()}`);
+    const stopped = (await run(bin('tmux'), ['kill-session', '-t', session(w.key)], w.dir)).code === 0;
+    throw new Error(stopped
+      ? `could not tag the tmux session, so it was stopped: ${tagged.out.trim()}`
+      : `could not tag the tmux session or stop it; stop it by hand with tmux kill-session -t '${session(w.key)}': ${tagged.out.trim()}`);
   }
 }
 
