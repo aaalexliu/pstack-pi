@@ -24,6 +24,9 @@ Found == dec /\ linked
 Idle == lead = "idle" /\ ~done
 
 \* ---- the lead: how a session ends ----
+\* The lead calls subagent_done once its ending is in place; a turn end alone
+\* does not end it. A lead quiet for stallMinutes that forgot to call it counts
+\* as stopped (the stall check), so LeadJustExits covers it too.
 LeadAsks == lead = "live" /\ ~dec /\ lead' = "idle" /\ dec' = TRUE /\ linked' = TRUE
     /\ UNCHANGED <<news, dup, spun, done>>
 \* It merged its last PR ("Fixes KEY") or posted its report.

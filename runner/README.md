@@ -14,11 +14,13 @@ It remembers one fact per ticket: when it last started the lead, in `<worktree>/
 Each poll, for each open issue delegated to `runnerUser` (`Todo`, or any started state such as `In Progress` or `In Review`):
 
 ```text
-lead live in tmux                     -> leave it; file a Decision issue if it went quiet for stallMinutes
+lead live in tmux                     -> leave it; once quiet for stallMinutes, treat it as stopped (below)
 open Decision issue                   -> wait
 you acted after the lead's last start -> start the lead (if a slot is free) and save the start time
 else                                  -> file a Decision issue: "the lead stopped with nothing open to wait for"
 ```
+
+A live lead quiet for `stallMinutes` most often ended its turn and forgot `subagent_done`. The runner then waits on an open Decision issue, starts the lead again in the same session if you acted since its last start, and otherwise files one "the lead looks stuck" Decision issue. That issue blocks a second one until you close it, and closing it starts the lead again with your comments. You can also attach and type to it; that counts as activity.
 
 A ticket marked Done or Canceled, or with its delegate cleared, is no longer the runner's. `In Review` still is: Linear's GitHub link moves a ticket there when the lead opens its first PR, long before the work is done.
 
@@ -30,13 +32,13 @@ Closing a Decision issue, Done or Canceled, wakes the lead in the same Pi sessio
 
 ### The lead
 
-The runner starts `pi --session-id <uuid> @.runner/input.md` with [prompts/lead.md](prompts/lead.md) in a detached tmux session named for the ticket, in the ticket's worktree. `input.md` holds the ticket, the Linear ids the lead needs, the review model, the prompts folder, and what you did since its last start. Pi loads pstack-pi's `subagent-done.ts` with `PI_SUBAGENT_AUTO_EXIT=1`, so it exits when its turn ends, and writes activity to `.runner/activity.json` for the stall check.
+The runner starts `pi --session-id <uuid> @.runner/input.md` with [prompts/lead.md](prompts/lead.md) in a detached tmux session named for the ticket, in the ticket's worktree. `input.md` holds the ticket, the Linear ids the lead needs, the review model, the prompts folder, and what you did since its last start. Pi loads pstack-pi's `subagent-done.ts` without `PI_SUBAGENT_AUTO_EXIT`, so ending a turn does not end the session: the lead can wait for its own subagents, such as a reviewer started with the `subagent` tool. It exits when it calls `subagent_done`, once its ending is in place: the last PR merged and the ticket Done, the report posted and the ticket Done, or a Decision issue filed with nothing left running. The extension also writes activity to `.runner/activity.json` for the stall check.
 
 The launch script drops every `PI_*` and `PSTACK_*` variable the tmux server holds from another session, digits in names included, keeping only `PI_AUTH_PROFILE` and `PI_CODING_AGENT_DIR`. It runs `linearTokenCommand` itself and exports the token as `LINEAR_TOKEN`, so the token never lands on disk and the lead posts to Linear as the runner's app user. The lead calls Linear's GraphQL API with `curl`, and GitHub with the host's `gh` login.
 
 ### The merge gate lives in the lead prompt
 
-[prompts/lead.md](prompts/lead.md) tells the lead to open small PRs, one at a time, each naming the ticket (`Fixes KEY` on the last, `Part of KEY` on the others); run `.agents/verify`; get a review from a separate `pi -p` session with fresh context; fix caused must-fixes; after 3 rounds on one PR cut scope or file a Decision issue; and merge only after CI passes and the latest review names the head commit with `verdict: clean`. After its last PR merges, the lead moves the ticket to Done itself, so it does not depend on Linear's GitHub link.
+[prompts/lead.md](prompts/lead.md) tells the lead to open small PRs, one at a time, each naming the ticket (`Fixes KEY` on the last, `Part of KEY` on the others); run `.agents/verify`; get a review from a separate Pi session with fresh context (the `subagent` tool or `pi -p`); fix caused must-fixes; after 3 rounds on one PR cut scope or file a Decision issue; and merge only after CI passes and the latest review names the head commit with `verdict: clean`. After its last PR merges, the lead moves the ticket to Done itself, so it does not depend on Linear's GitHub link.
 
 The reviewer follows [prompts/review.md](prompts/review.md) and posts its own record on the PR with `gh pr review --comment` (GitHub refuses an approval from the PR's author). Its first lines are `runner-review v1`, `verdict`, `caused_must_fix`, `head`, `round`, `agent`, `model`, `session_id`, `session_path`, `session_title` and `asked_by`, one per line; the findings follow as JSON.
 
@@ -97,7 +99,7 @@ Run one runner per Linear team.
 
 ## The status comment
 
-Each ticket gets one runner comment, edited in place: the state, the host, the tmux session, the Pi session id, the worktree, and commands to watch the lead (`tmux attach`), take it over (touch `.runner/takeover` first, so auto-exit stays off until you quit Pi), or quiz a fork of it in its own worktree.
+Each ticket gets one runner comment, edited in place: the state, the host, the tmux session, the Pi session id, the worktree, and commands to watch the lead (`tmux attach`), take it over (touch `.runner/takeover` first, so the runner leaves it alone until you quit Pi), or quiz a fork of it in its own worktree.
 
 ## Ticket lines
 

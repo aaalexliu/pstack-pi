@@ -148,7 +148,7 @@ else if (args[0] === 'kill-session') process.exit(1);
   };
 }
 
-test('a delegated ticket starts one lead in tmux with the session, auto-exit, the Linear token and a clean environment', async () => {
+test('a delegated ticket starts one lead in tmux with the session, the subagent_done extension without auto-exit, the Linear token and a clean environment', async () => {
   const job = issue(1);
   const t = setup([job]);
   await t.run('--once');
@@ -157,10 +157,10 @@ test('a delegated ticket starts one lead in tmux with the session, auto-exit, th
   assert.equal(job.state, 'In Progress');
   assert.equal(lead.session, readFileSync(path.join(dir, '.runner', 'session-id'), 'utf8'));
   assert.equal(lead.cwd, realpathSync(dir));
-  assert.equal(lead.autoExit, '1');
+  assert.equal(lead.autoExit, undefined, 'the lead decides when to exit');
   assert.ok(lead.extension.endsWith('subagent-done.ts') && existsSync(lead.extension));
   assert.equal(lead.token, 'test-token');
-  assert.deepEqual(lead.piVars, ['PI_AUTH_PROFILE', 'PI_SUBAGENT_ACTIVITY_FILE', 'PI_SUBAGENT_AUTO_EXIT', 'PI_SUBAGENT_ID'], 'outer PI_* and PSTACK_* are gone, digits included');
+  assert.deepEqual(lead.piVars, ['PI_AUTH_PROFILE', 'PI_SUBAGENT_ACTIVITY_FILE', 'PI_SUBAGENT_ID'], 'outer PI_* and PSTACK_* are gone, digits included');
   assert.ok(!readFileSync(path.join(dir, '.runner', 'lead.sh'), 'utf8').includes('test-token'), 'the token never lands on disk');
   assert.match(lead.input, /^Issue ALE-1: Job number 1[\s\S]*Linear issue id: id-1\.[\s\S]*- The ticket was delegated to you\./);
   assert.deepEqual(t.tmux().find((a) => a[0] === 'new-session')!.slice(0, 4), ['new-session', '-d', '-s', 'ALE-1']);
@@ -272,7 +272,7 @@ test('a ticket the lead moved to Done is left alone; one Linear moved to In Revi
   }
 });
 
-test('a live lead is never started again or asked about until it stalls; a stall files one Decision issue', async () => {
+test('a live lead is never started again or asked about until it goes quiet; then one Decision issue, and Alex reaches it', async () => {
   const job = issue(1, { state: 'In Progress' });
   const t = setup([job], { stallMinutes: 5 });
   await t.run('--once');
@@ -280,15 +280,26 @@ test('a live lead is never started again or asked about until it stalls; a stall
   await t.run('--once');
   assert.equal(t.leads().length, 1);
   assert.equal(t.decisions().length, 0, 'a live, active lead is left alone');
-  put(path.join(t.dirOf(1), '.runner', 'started'), new Date(Date.now() - 20 * 60000).toISOString());
-  put(path.join(t.dirOf(1), '.runner', 'activity.json'), JSON.stringify({ updatedAt: Date.now() - 10 * 60000 }));
+  const quiet = () => {
+    put(path.join(t.dirOf(1), '.runner', 'started'), new Date(Date.now() - 20 * 60000).toISOString());
+    put(path.join(t.dirOf(1), '.runner', 'activity.json'), JSON.stringify({ updatedAt: Date.now() - 10 * 60000 }));
+  };
+  quiet();
   await t.run('--once');
   await t.run('--once');
   const stalls = t.decisions();
-  assert.equal(stalls.length, 1);
+  assert.equal(stalls.length, 1, 'an idle lead that never called subagent_done gets one Decision issue per idle stretch');
   assert.match(stalls[0].title, /Check ALE-1: the lead looks stuck/);
   assert.match(stalls[0].description, /no activity for 10 minutes/);
   assert.equal(t.leads().length, 1);
+  t.close(stalls[0]);
+  job.comments.push({ id: 'c-1', body: 'Merge it and call subagent_done.', createdAt: later(), user: { name: 'Alex Liu' } });
+  await t.run('--once');
+  assert.equal(t.leads().length, 2, 'closing the issue starts the idle lead again');
+  const again = t.leads()[1];
+  assert.equal(again.session, t.leads()[0].session, 'in the same session');
+  assert.match(again.input, /Alex Liu commented: Merge it and call subagent_done\./);
+  assert.equal(t.decisions().length, 1);
 });
 
 test('lead slots: at most maxLeads run, a live lead holds its slot, and the runner says why once', async () => {

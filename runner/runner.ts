@@ -36,7 +36,7 @@ type Ctx = { config: Config; linear: ReturnType<typeof linearClient> };
 export type Move = { kind: 'wait'; on: Child } | { kind: 'start'; news: string[] } | { kind: 'decide' };
 
 const PROMPTS = fileURLToPath(new URL('./prompts/', import.meta.url));
-const AUTO_EXIT = fileURLToPath(new URL('../extensions/interactive-subagents/pi-extension/subagents/subagent-done.ts', import.meta.url));
+const SUBAGENT_DONE = fileURLToPath(new URL('../extensions/interactive-subagents/pi-extension/subagents/subagent-done.ts', import.meta.url));
 const ISSUE_FIELDS = 'id identifier title description url createdAt state { type } labels { nodes { name } }';
 /** Pi variables a lead keeps from the runner's environment. Every other `PI_*` and `PSTACK_*` belongs to another session. */
 const KEEP_ENV = ['PI_AUTH_PROFILE', 'PI_CODING_AGENT_DIR'];
@@ -185,7 +185,7 @@ export function renderStatus(w: Pick<Work, 'key' | 'dir' | 'branch'>, sessionId:
     `- Session id: \`${sessionId}\``,
     `- Worktree: \`${w.dir}\` on \`${w.branch}\``,
     `- Watch or steer: \`${c.watch}\``,
-    `- Take over (auto-exit stays off until you quit Pi): \`${c.takeOver}\``,
+    `- Take over (the runner leaves it alone until you quit Pi): \`${c.takeOver}\``,
     `- Quiz a fork: \`${c.quiz}\``,
   ].join('\n');
 }
@@ -279,7 +279,7 @@ function startMessage(ctx: Ctx, w: Work, news: string[]) {
 
 /**
  * Starts or resumes the lead in a detached tmux session named for the ticket, and saves the start time.
- * Pi exits when its turn ends (auto-exit). The launch script drops every Pi variable the tmux server holds from
+ * Pi runs until the lead calls `subagent_done`; the extension also writes the activity file. The launch script drops every Pi variable the tmux server holds from
  * another session, and reads the Linear token itself, so the token never lands on disk.
  */
 async function launch(ctx: Ctx, w: Work, news: string[]) {
@@ -287,7 +287,7 @@ async function launch(ctx: Ctx, w: Work, news: string[]) {
   if (!sessionId(w)) put(rf(w, 'session-id'), randomUUID());
   put(rf(w, 'input.md'), startMessage(ctx, w, news));
   for (const file of ['takeover', 'held']) rmSync(rf(w, file), { force: true });
-  const pi = (...extra: string[]) => [bin('pi'), '--session-id', sessionId(w), '-e', AUTO_EXIT,
+  const pi = (...extra: string[]) => [bin('pi'), '--session-id', sessionId(w), '-e', SUBAGENT_DONE,
     '--model', w.models.lead, '--thinking', ctx.config.thinking, '--append-system-prompt', path.join(PROMPTS, 'lead.md'), ...extra].map(sh).join(' ');
   const keep = KEEP_ENV.filter((name) => process.env[name]).map((name) => `export ${name}=${sh(process.env[name]!)}`);
   put(rf(w, 'lead.sh'), [
@@ -299,8 +299,8 @@ async function launch(ctx: Ctx, w: Work, news: string[]) {
     ...keep,
     `LINEAR_TOKEN=$(${ctx.config.linearTokenCommand}) || exit 1`,
     'export LINEAR_TOKEN',
-    `PI_SUBAGENT_AUTO_EXIT=1 PI_SUBAGENT_ID=${sh(w.key)} PI_SUBAGENT_ACTIVITY_FILE=${sh(rf(w, 'activity.json'))} ${pi(`@${rf(w, 'input.md')}`)}`,
-    '# A person who touched .runner/takeover keeps the session, without auto-exit, until they quit Pi.',
+    `PI_SUBAGENT_ID=${sh(w.key)} PI_SUBAGENT_ACTIVITY_FILE=${sh(rf(w, 'activity.json'))} ${pi(`@${rf(w, 'input.md')}`)}`,
+    '# A person who touched .runner/takeover keeps the session, and the runner leaves it alone, until they quit Pi.',
     `if [ -f .runner/takeover ]; then mv .runner/takeover .runner/held; ${pi()}; rm -f .runner/held; fi`,
     '',
   ].join('\n'));
@@ -320,19 +320,26 @@ export function quietMinutes(w: Pick<Work, 'dir'>, now = Date.now()) {
 }
 
 /**
- * Files a Decision issue for a live lead quiet for `stallMinutes`, unless one was filed since it went quiet.
- * It does not stop the lead.
+ * Handles a live lead quiet for `stallMinutes`, such as one that ended its turn and never called `subagent_done`.
+ * With an open Decision issue it waits. If Alex commented or closed a Decision issue since the last start, it
+ * starts the lead again in the same session with that news. Otherwise it files one Decision issue, which then
+ * holds until Alex closes it.
  */
 async function checkStall(ctx: Ctx, w: Work, ticket: Ticket) {
   if (existsSync(rf(w, 'held'))) return;
   const quiet = quietMinutes(w);
   if (quiet < ctx.config.stallMinutes) return;
-  const quietSince = new Date(Date.now() - quiet * 60000 - 60000).toISOString();
-  if (ticket.children.some((c) => isDecision(ctx.config, c) && c.createdAt >= quietSince)) return;
+  const move = nextMove(ctx.config, ticket, lastStart(w));
+  if (move.kind === 'wait') return;
+  if (move.kind === 'start') {
+    await launch(ctx, w, move.news);
+    await status(ctx, w, ticket, 'Lead running');
+    return;
+  }
   const c = commands(w, sessionId(w), ctx.config.host);
   const issue = await ctx.linear.fileDecision(w.id, `Check ${w.key}: the lead looks stuck`, [
     `The lead has shown no activity for ${quiet} minutes and still holds a lead slot.`,
-    `Watch it with \`${c.watch}\`. If it is stuck, stop it with \`${c.stop}\`. Comment what it should do and close this issue; the runner then starts it again.`,
+    `Watch or steer it with \`${c.watch}\`, or stop it with \`${c.stop}\`. Or comment what it should do and close this issue; the runner then starts it again in the same session with your comments.`,
   ].join('\n\n'));
   await status(ctx, w, ticket, `Lead quiet for ${quiet} minutes; asked in [${issue.identifier}](${issue.url}). It still holds a slot.`);
 }
