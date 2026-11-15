@@ -145,7 +145,7 @@ test('registered tool description lists bundled capabilities without inferring t
   assert.ok(!general.tools?.includes('write') && !general.tools?.includes('edit'));
 });
 
-test('single mode runs the bundled agent in a detached child with prompt file, stdin task, depth, and parent model', async (t) => {
+test('single mode runs the bundled agent in a detached child with prompt file, stdin task, denied spawning tools, and parent model', async (t) => {
   const f = await fixture(t);
   const task = 'Summarize @file with --flags and unicode ✓';
   /** @type {ToolResult[]} */
