@@ -25,7 +25,7 @@ Audit every PR whose head branch starts with `job/` (the runner made it) or whos
 
 ## 2. Find the review record
 
-In `reviews`, a record is a review whose `body` starts with the line `runner-review v1`. The lines after it are `field: value` until the first blank line: `verdict`, `caused_must_fix`, `head`, `round`, `agent`, `model`, `session_id`, `session_path`, `session_title`, `asked_by`. "The record" below means the newest one with `submittedAt` at or before `mergedAt`.
+In `reviews`, a record is a review whose `body` starts with the line `runner-review v1`. The lines after it are `field: value` until the first blank line: `verdict`, `caused_must_fix`, `head`, `round`, `agent`, `model`, `session_id`, `session_path`, `session_title`, `asked_by`. Other lines, such as `trigger`, are for people reading the PR; ignore them. "The record" below means the newest one with `submittedAt` at or before `mergedAt`.
 
 ## 3. Flag a PR for each check it fails
 
@@ -36,10 +36,10 @@ In `reviews`, a record is a review whose `body` starts with the line `runner-rev
    - `session_id` differs from `asked_by`;
    - a file exists at `session_path`;
    - its first line is a `session` entry whose `id` equals `session_id`;
-   - its first user message (the first entry with `type` `message` and `message.role` `user`) starts with `Review PR <this PR's url>` and names the record's `head` sha and `asked_by`. Print it with:
+   - its first user message (the first entry with `type` `message` and `message.role` `user`) contains `Review PR <this PR's url>` and names the record's `head` sha and `asked_by`. Print it with:
 
      ```sh
-     jq -r 'select(.type=="message" and .message.role=="user") | .message.content[].text' <session_path> | head -1
+     jq -rs 'first(.[] | select(.type=="message" and .message.role=="user")) | .message.content | if type=="string" then . else map(.text // empty) | join("\n") end' <session_path>
      ```
 
    Run the audit on the runner host: `session_path` is a path there. If no record's `session_path` exists on this host, report this check once as "cannot check", not as a flag per PR.

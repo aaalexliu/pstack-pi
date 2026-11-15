@@ -1586,6 +1586,13 @@ describe("tool registration", () => {
     assert.deepEqual([...testApi.resolveDenyTools({ spawning: true, denyTools: "bash" })], ["bash"]);
   });
 
+  it("denies the bundled sub-lead agent every spawning tool", () => {
+    const testApi = (subagentsModule as any).__test__;
+    const defs = testApi.loadAgentDefaults("sub-lead");
+    assert.equal(defs?.autoExit, true);
+    assert.deepEqual([...testApi.resolveDenyTools(defs)].sort(), ["subagent", "subagent_interrupt", "subagent_resume", "subagents_list"]);
+  });
+
   it("expands spawning false to deny subagent interruption", () => {
     const testApi = (subagentsModule as any).__test__;
     const denied = testApi.resolveDenyTools({ spawning: false });
