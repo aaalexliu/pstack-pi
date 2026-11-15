@@ -2174,6 +2174,47 @@ describe("concurrency cap", () => {
     return { launched, execute };
   }
 
+  function subagentDoneGuard() {
+    const handlers: Array<{ event: string; handler: any }> = [];
+    const { api } = createMockExtensionApi();
+    api.on = (event: string, handler: any) => handlers.push({ event, handler });
+    subagentsModule.default(api);
+    const toolCall = handlers.find((h) => h.event === "tool_call")!.handler;
+    return () => toolCall({ type: "tool_call", toolName: "subagent_done", toolCallId: "t", input: {} });
+  }
+
+  it("subagent_done is refused while a child runs", async () => {
+    await withMaxConcurrent(4, async () => {
+      testApi.runningSubagents.set("r1", { id: "r1", name: "scout", startTime: Date.now() - 65_000 });
+      try {
+        const result = subagentDoneGuard()();
+        assert.equal(result?.block, true);
+        assert.match(result.reason, /"scout" \(running 1m 5s\)/);
+        assert.match(result.reason, /Wait for their results/);
+      } finally {
+        testApi.runningSubagents.clear();
+      }
+    });
+  });
+
+  it("subagent_done is refused while a child waits in the queue", async () => {
+    await withMaxConcurrent(1, async () => {
+      const { api } = createMockExtensionApi();
+      const start = testApi.withSpawnSlot(api, startedLauncher().execute);
+      await start("id", { name: "first", task: "T" });
+      await start("id", { name: "second", task: "T" });
+      const result = subagentDoneGuard()();
+      assert.equal(result?.block, true);
+      assert.match(result.reason, /"second" \(queued 0s\)/);
+    });
+  });
+
+  it("subagent_done runs when no child is live", async () => {
+    await withMaxConcurrent(4, async () => {
+      assert.equal(subagentDoneGuard()(), undefined);
+    });
+  });
+
   it("starts up to maxConcurrent at once and queues the rest in call order", async () => {
     await withMaxConcurrent(4, async () => {
       const { api, sentMessages } = createMockExtensionApi();

@@ -577,12 +577,12 @@ const runningSubagents = new Map<string, RunningSubagent>();
  */
 function createSpawnSlots(getLimit: () => number) {
   let held = 0;
-  const waiting: Array<() => void> = [];
+  const waiting: Array<{ name: string; since: number; start: () => void }> = [];
 
   function admitWaiters() {
     while (waiting.length > 0 && held < getLimit()) {
       held++;
-      waiting.shift()!();
+      waiting.shift()!.start();
     }
   }
 
@@ -590,13 +590,17 @@ function createSpawnSlots(getLimit: () => number) {
     get held() {
       return held;
     },
+    /** Names and queue times of spawns waiting for a slot. */
+    get waiting() {
+      return waiting.map(({ name, since }) => ({ name, since }));
+    },
     /** Position 0 holds a slot now. Position n >= 1 holds one once `ready` resolves. */
-    take(): { position: number; ready: Promise<void> } {
+    take(name = "subagent"): { position: number; ready: Promise<void> } {
       if (waiting.length === 0 && held < getLimit()) {
         held++;
         return { position: 0, ready: Promise.resolve() };
       }
-      return { position: waiting.length + 1, ready: new Promise<void>((resolve) => waiting.push(resolve)) };
+      return { position: waiting.length + 1, ready: new Promise<void>((start) => waiting.push({ name, since: Date.now(), start })) };
     },
     release() {
       held = Math.max(0, held - 1);
@@ -640,7 +644,7 @@ function withSpawnSlot<E extends SpawnToolExecute>(pi: ExtensionAPI, execute: E)
     };
 
     const name = params.name ?? "Resume";
-    const ticket = spawnSlots.take();
+    const ticket = spawnSlots.take(name);
     if (ticket.position === 0) return run();
 
     const reportFailure = (text: string, error?: string) =>
@@ -676,6 +680,23 @@ function withSpawnSlot<E extends SpawnToolExecute>(pi: ExtensionAPI, execute: E)
       details: { name, task: params.task ?? params.message, status: "queued", position: ticket.position },
     };
   }) as E;
+}
+
+/**
+ * Why `subagent_done` must wait, or null when it may run: this session still
+ * has children from the `subagent` tool that run or wait for a slot.
+ */
+function liveChildrenRefusal(now = Date.now()): string | null {
+  const age = (since: number) => formatElapsed(Math.floor((now - since) / 1000));
+  const live = [
+    ...Array.from(runningSubagents.values(), (c) => `"${c.name}" (running ${age(c.startTime)})`),
+    ...spawnSlots.waiting.map((c) => `"${c.name}" (queued ${age(c.since)})`),
+  ];
+  if (live.length === 0) return null;
+  return (
+    `subagent_done refused: this session still has live sub-agents: ${live.join(", ")}. ` +
+    `Wait for their results, which arrive as new turns, or stop them first. The session stays open.`
+  );
 }
 
 // ── Widget management ──
@@ -1077,6 +1098,7 @@ export const __test__ = {
   createSpawnSlots,
   spawnSlots,
   withSpawnSlot,
+  liveChildrenRefusal,
 };
 
 function startWidgetRefresh() {
@@ -1566,6 +1588,13 @@ export default function subagentsExtension(pi: ExtensionAPI) {
     }
     runningSubagents.clear();
     spawnSlots.clear();
+  });
+
+  // Leaving would orphan live children and drop their results.
+  pi.on("tool_call", (event) => {
+    if (event.toolName !== "subagent_done") return;
+    const reason = liveChildrenRefusal();
+    if (reason) return { block: true, reason };
   });
 
   // Tools denied via PI_DENY_TOOLS env var (set by parent agent based on frontmatter)
