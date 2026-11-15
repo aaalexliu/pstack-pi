@@ -4,6 +4,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Type } from 'typebox';
 import { roles, loadModelConfig, modelConfigPath, formatModelChoice } from '../subagent/model-config.ts';
+import { registerBashHeadTail } from './bash-head-tail.ts';
 import { registerExport } from './export-session.ts';
 import { registerPapercuts } from './papercuts.ts';
 import { registerReadCloseMatches } from './read-close-matches.ts';
@@ -71,6 +72,8 @@ export default function pstack(pi: ExtensionAPI): void {
     },
   });
 
+  // Before papercuts, so its trailer measures the output the model gets.
+  registerBashHeadTail(pi);
   registerPapercuts(pi);
   registerReadCloseMatches(pi);
   registerSearchGuard(pi);
