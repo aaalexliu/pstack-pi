@@ -39,10 +39,18 @@ async function readRange(path: string, start: number, length: number): Promise<B
   }
 }
 
+function lineCount(buffer: Buffer): number {
+  if (buffer.length === 0) return 0;
+  let count = buffer[buffer.length - 1] === newline ? 0 : 1;
+  for (let index = buffer.indexOf(newline); index !== -1; index = buffer.indexOf(newline, index + 1)) count++;
+  return count;
+}
+
 /**
  * Keep the first and last half of the output in the file at `path`, each within half of
- * `maxBytes` and half of `maxLines`. Both cuts land on line breaks unless one line fills the
- * whole half. The marker between them names the file and the omitted lines and bytes.
+ * `maxBytes` and half of `maxLines`. A cut lands on a line break unless whole lines would fill
+ * less than half of its byte budget; then it splits a long line on a character boundary. The
+ * marker between the halves names the file and the omitted lines and bytes.
  */
 export async function headAndTail(path: string, totalLines: number, maxLines: number, maxBytes: number): Promise<HeadTail | undefined> {
   const file = await open(path, 'r');
@@ -67,7 +75,7 @@ export async function headAndTail(path: string, totalLines: number, maxLines: nu
     headEnd = index + 1;
     headLines++;
   }
-  const headPartial = headEnd === 0;
+  const headPartial = headLines < headMaxLines && headEnd * 2 < headLimit;
   if (headPartial) headEnd = charBoundaryAtOrBefore(headBuffer, headLimit);
   if (headEnd === 0) return undefined;
 
@@ -77,13 +85,13 @@ export async function headAndTail(path: string, totalLines: number, maxLines: nu
   const tailBuffer = await readRange(path, bufferStart, size - bufferStart);
   const lastIndex = tailBuffer.length - 1;
   const searchFrom = tailBuffer[lastIndex] === newline ? lastIndex - 1 : lastIndex;
-  let tailOffset = -1;
+  let tailOffset = tailBuffer.length;
   let tailLines = 0;
   for (let index = tailBuffer.lastIndexOf(newline, searchFrom); index !== -1 && tailLines < tailMaxLines; index = index === 0 ? -1 : tailBuffer.lastIndexOf(newline, index - 1)) {
     tailOffset = index + 1;
     tailLines++;
   }
-  const tailPartial = tailOffset === -1;
+  const tailPartial = tailLines < tailMaxLines && (tailBuffer.length - tailOffset) * 2 < tailBuffer.length - 1;
   if (tailPartial) tailOffset = charBoundaryAtOrAfter(tailBuffer, 1);
   const tailStart = bufferStart + tailOffset;
   if (tailStart <= headEnd || tailStart >= size) return undefined;
@@ -101,7 +109,7 @@ export async function headAndTail(path: string, totalLines: number, maxLines: nu
   const marker = `[... ${omitted}. Full output: ${path}]`;
   return {
     text: `${headText}${headText.endsWith('\n') ? '' : '\n'}\n${marker}\n\n${tailText}`,
-    outputLines: (headPartial ? 1 : headLines) + (tailPartial ? 1 : tailLines),
+    outputLines: lineCount(head) + lineCount(tail),
     outputBytes: head.length + tail.length,
   };
 }

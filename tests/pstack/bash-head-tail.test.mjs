@@ -105,6 +105,14 @@ test('one long line is cut on character boundaries', async () => {
   assert.equal(after.details.truncation.outputLines, 2);
 });
 
+test('a short line next to a long line does not empty a half', async () => {
+  const { after } = await run(`node -e 'process.stdout.write("BEGIN!\\n" + "é".repeat(20000) + "\\n" + "ü".repeat(20000) + "\\nEND\\n")'`);
+  const shown = text(after);
+  assert.doesNotMatch(shown, /\uFFFD/u);
+  assert.match(shown, /^BEGIN!\né{12796}\n\n\[\.\.\. 28815 bytes omitted \(bytes 25600-54414 of 80013\)\. Full output: .*\]\n\nü{12797}\nEND$/u);
+  assert.equal(after.details.truncation.outputLines, 4);
+});
+
 test('short output passes through unchanged', async () => {
   const { after } = await run('echo hi');
   assert.equal(after, undefined);
