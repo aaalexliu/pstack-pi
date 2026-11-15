@@ -46,7 +46,7 @@ Map each available MCP to one evidence category:
 
 Check source control access through git and `gh`; record any missing access as a gap. For the other six, classify using the MCP name, server instructions, tool names, and resource descriptors. If an MCP could fit more than one category, choose the one matching its primary evidence. Record ambiguous cases in the coverage map.
 
-Spawn one investigator per category that has a matching MCP, each owning evidence from exactly one tool or MCP; the parent runs that tool. Send them through `blocking_subagent` in requests of at most eight tasks, with four active children, and finish each request before the next. Don't ask one agent to cover multiple MCPs. Use role `why-investigator`.
+Spawn one investigator per category that has a matching MCP, each owning evidence from exactly one tool or MCP; the parent runs that tool. Send them as parallel `blocking_subagent` calls, at most eight in one message with four running at once, and finish each batch before the next. Don't ask one agent to cover multiple MCPs. Use role `why-investigator`.
 
 Each investigator's prompt is `references/investigator-prompt.md` filled in, plus:
 - the category playbook `references/sources/<source>.md` for the selected MCP, adapted from the examples in `references/source-playbook.md`

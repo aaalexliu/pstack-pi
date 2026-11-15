@@ -342,7 +342,7 @@
         },
         {
           "find": "Spawn all N subagents in one message with `run_in_background: true`, each with the task, the path to the shared grounding, its own output path, and instructions to produce the artifact and a short rationale naming the alternatives it considered and what it rejected.",
-          "replace": "Send all N candidates through successive `blocking_subagent` requests of at most eight tasks, with four active children. Finish each request before the next; keep every configured panel entry. Each task uses `poteto-agent`, the selected role and explicit model, the same task, shared grounding paths, isolated `cwd`, and instructions to write the artifact and a short rationale naming the alternatives it considered and what it rejected. Keep the private rubric outside candidate inputs. Writers may use local bash and edit only assigned files, not external tools or nested delegation.\n\nEach writer persists its complete artifact, rationale, and check logs, then returns a receipt below 8 KiB with paths, commands, results, and gaps. The parent reads persisted files in full, paging as needed; truncated output is not a complete candidate. If scratch writes are forbidden, use `general-purpose` with `read`, `grep`, `find`, `ls`, and child-local `pstack_todo` only. Bound each proposal below 8 KiB or split it into bounded sections and collect every section before synthesis. Disclose that no runnable candidate was executed. If delegation is unavailable, produce distinct local attempts and disclose the lost independence. Replace dropouts when the invoking skill requires two viable designs; if none survive, report the block rather than invent a winner.",
+          "replace": "Send all N candidates through successive batches of at most eight parallel `blocking_subagent` calls in one message, with four running at once. Finish each batch before the next; keep every configured panel entry. Each task uses `poteto-agent`, the selected role and explicit model, the same task, shared grounding paths, isolated `cwd`, and instructions to write the artifact and a short rationale naming the alternatives it considered and what it rejected. Keep the private rubric outside candidate inputs. Writers may use local bash and edit only assigned files, not external tools or nested delegation.\n\nEach writer persists its complete artifact, rationale, and check logs, then returns a receipt below 8 KiB with paths, commands, results, and gaps. The parent reads persisted files in full, paging as needed; truncated output is not a complete candidate. If scratch writes are forbidden, use `general-purpose` with `read`, `grep`, `find`, `ls`, and child-local `pstack_todo` only. Bound each proposal below 8 KiB or split it into bounded sections and collect every section before synthesis. Disclose that no runnable candidate was executed. If delegation is unavailable, produce distinct local attempts and disclose the lost independence. Replace dropouts when the invoking skill requires two viable designs; if none survive, report the block rather than invent a winner.",
           "count": 1
         },
         {
@@ -401,12 +401,12 @@
         },
         {
           "find": "Run multiple parallel subagents across slices of history",
-          "replace": "Use `blocking_subagent` with read-only `general-purpose` tasks across slices of history",
+          "replace": "Use parallel `blocking_subagent` calls, one read-only `general-purpose` task each, across slices of history",
           "count": 1
         },
         {
           "find": "Each slice mining subagent reads transcripts",
-          "replace": "Use bounded requests of at most eight tasks and four active children, with explicit paths and a finite `timeoutMs`. Children have `read`, `grep`, `find`, `ls`, and their own `pstack_todo`; they do not edit, delegate, or access external services. The parent owns writes, history enumeration, and external services. If delegation is unavailable, mine the same slices locally and report the lost independence. Each slice mining subagent reads transcripts",
+          "replace": "Use batches of at most eight parallel `blocking_subagent` calls in one message, four running at once, with explicit paths and a finite `timeoutMs`. Children have `read`, `grep`, `find`, `ls`, and their own `pstack_todo`; they do not edit, delegate, or access external services. The parent owns writes, history enumeration, and external services. If delegation is unavailable, mine the same slices locally and report the lost independence. Each slice mining subagent reads transcripts",
           "count": 1
         },
         {
@@ -706,7 +706,7 @@
         },
         {
           "find": "## Start",
-          "replace": "The parent owns orchestration, runtime probes for read-only judges, forge actions, and integration. Children never delegate or resume. Use one live `blocking_subagent` request at a time, at most eight tasks per request and four active children without dropping coverage. Use `general-purpose` for read-only exploration and judgment and `poteto-agent` for scoped implementation. Read-only children cannot run shell commands, edit, or access external tools. Children may use their own `pstack_todo` and return text progress. Missing delegation requires local work with a separate review and disclosure of lost independence.\n\n## Start",
+          "replace": "The parent owns orchestration, runtime probes for read-only judges, forge actions, and integration. Children never delegate or resume. Send `blocking_subagent` calls in batches of at most eight parallel calls in one message, four running at once, without dropping coverage. Use `general-purpose` for read-only exploration and judgment and `poteto-agent` for scoped implementation. Read-only children cannot run shell commands, edit, or access external tools. Children may use their own `pstack_todo` and return text progress. Missing delegation requires local work with a separate review and disclosure of lost independence.\n\n## Start",
           "count": 1
         },
         {
@@ -730,7 +730,7 @@
       "transforms": [
         {
           "find": "When in doubt, take the simple path.",
-          "replace": "When in doubt, take the simple path.\n\nThe parent alone orchestrates through `blocking_subagent`, with at most eight tasks per request and four active children. Finish each request before the next. Children use `general-purpose` with `read`, `grep`, `find`, `ls`, and child-local `pstack_todo`; no bash, writes, external tools, or delegation. The parent owns external probes. If delegation is unavailable, follow the same steps locally and disclose the lost independence.",
+          "replace": "When in doubt, take the simple path.\n\nThe parent alone orchestrates through `blocking_subagent`, with at most eight parallel calls in one message and four running at once. Finish each batch before the next. Children use `general-purpose` with `read`, `grep`, `find`, `ls`, and child-local `pstack_todo`; no bash, writes, external tools, or delegation. The parent owns external probes. If delegation is unavailable, follow the same steps locally and disclose the lost independence.",
           "count": 1
         },
         {
@@ -750,7 +750,7 @@
         },
         {
           "find": "Spawn all explorers in a single message,",
-          "replace": "Spawn all explorers in one `blocking_subagent` request,",
+          "replace": "Spawn all explorers as parallel `blocking_subagent` calls in a single message,",
           "count": 1
         },
         {
@@ -929,7 +929,7 @@
         },
         {
           "find": "One read-only subagent per feature file, launched concurrently.",
-          "replace": "One read-only `general-purpose` task per feature file through `blocking_subagent`, launched concurrently in bounded requests of at most eight tasks and four active children, with explicit paths and a finite `timeoutMs`. Children have `read`, `grep`, `find`, `ls`, and their own `pstack_todo`; they do not delegate or access external services. The parent owns writes, external services, and live driving. If delegation is unavailable, do the same source pass locally and report the lost independence.",
+          "replace": "One read-only `general-purpose` task per feature file through `blocking_subagent`, launched as parallel calls in batches of at most eight per message, four running at once, with explicit paths and a finite `timeoutMs`. Children have `read`, `grep`, `find`, `ls`, and their own `pstack_todo`; they do not delegate or access external services. The parent owns writes, external services, and live driving. If delegation is unavailable, do the same source pass locally and report the lost independence.",
           "count": 1
         },
         {
@@ -1196,7 +1196,7 @@
         },
         {
           "find": "**Defaults for every `Task` call.** `run_in_background: true` (a steer or resume of a running agent too, because a foreground call holds your turn while other reports wait), agent mode (readonly strips MCP), file pointers not inlined context, explicit model per role (configurable via `/setup-pstack`. Defaults `grok-4.7-xhigh-fast` for code, `claude-opus-5-5-xhigh` for prose and judgment). Code delegates tier by difficulty. The hardest changes (cross-cutting design, gnarly concurrency, subtle algorithms) go to your strongest judgment model (`claude-opus-5-5-xhigh`), whether the task needs judgment on vague intent or is a precisely specified sequence of steps to execute to the letter. Trivial mechanical edits go to your fast code model. Per-role lines in the `/setup-pstack` rule override these defaults and the model choices in the routed skills (`how`, `why`, `arena`, `swarm`, `architect`, `interrogate`, `reflect`). A role with no line keeps its default, and a role line of `inherit-parent` or `auto` runs that role on the parent chat model (omit Task `model`). Each code playbook's configured model comes from its line (`feature, refactoring`, `bug-fix`, `perf-issue`, or `hillclimb`), and the hardest changes read `hardest tasks`. Prose and judgment read `judgment and prose`.",
-          "replace": "The parent alone orchestrates. One live request contains at most eight `tasks`, with at most four active children. Children cannot delegate or resume a nested workflow. Split larger workloads into bounded requests. Give file pointers, exact scope, acceptance checks, and separate writable outputs. A branch alone does not isolate files in a shared checkout. Use distinct worktrees or scratch paths.",
+          "replace": "The parent alone orchestrates. One message holds at most eight parallel `blocking_subagent` calls, with four running at once. Children cannot delegate or resume a nested workflow. Split larger workloads into successive batches. Give file pointers, exact scope, acceptance checks, and separate writable outputs. A branch alone does not isolate files in a shared checkout. Use distinct worktrees or scratch paths.",
           "count": 1
         },
         {
@@ -1469,7 +1469,7 @@
         },
         {
           "find": "lane runs on its own cloud VM at the PR head. Drive through `control-ui` or `control-cli` from `cursor-team-kit`.",
-          "replace": "scenario runs in an isolated local environment at the PR head. The parent drives available UI or CLI controls. Read-only children audit receipts; write-capable bounded workers may run scoped checks. Split the ten scenarios across requests of at most eight tasks without dropping coverage.",
+          "replace": "scenario runs in an isolated local environment at the PR head. The parent drives available UI or CLI controls. Read-only children audit receipts; write-capable bounded workers may run scoped checks. Split the ten scenarios across batches of at most eight parallel calls without dropping coverage.",
           "count": 1
         },
         {
@@ -1479,7 +1479,7 @@
         },
         {
           "find": "lanes on `<swarm workers model>",
-          "replace": "logical lanes in requests of at most eight tasks using configured role `swarm-worker",
+          "replace": "logical lanes in batches of at most eight parallel calls using configured role `swarm-worker",
           "count": 1
         },
         {
@@ -1639,7 +1639,7 @@
         },
         {
           "find": "Ten lanes at the PR head drive the real surface through its control skill, per the **swarm** skill, with configured role `swarm-worker`.",
-          "replace": "Ten logical lanes at the PR head drive the real surface through available controls, per the **swarm** skill, with configured role `swarm-worker`, in requests of at most eight tasks.",
+          "replace": "Ten logical lanes at the PR head drive the real surface through available controls, per the **swarm** skill, with configured role `swarm-worker`, in batches of at most eight parallel calls.",
           "count": 1
         },
         {
@@ -1712,7 +1712,7 @@
         },
         {
           "find": "- **A sub-coordinator only when one area has many parallel workers.** It owns that area's workers and kickoffs and sends you one rollup, never raw worker reports. Stop at three levels: you, sub-coordinators, and workers. Keep about ten workers in flight per coordinator, and start the next one as each finishes instead of waiting on a whole batch.",
-          "replace": "- **No sub-coordinators.** Pi children cannot delegate, so you coordinate every worker and the tree stops at two levels: you and workers. Group an area's workers into a track you own. Only one `blocking_subagent` request runs at a time, with at most eight `tasks` and four active children. Send the next bounded request as soon as one returns instead of waiting on a whole batch.",
+          "replace": "- **No sub-coordinators.** Pi children cannot delegate, so you coordinate every worker and the tree stops at two levels: you and workers. Group an area's workers into a track you own. Send at most eight parallel `blocking_subagent` calls in one message; four run at once. Send the next batch as soon as one returns instead of waiting on a whole batch.",
           "count": 1
         },
         {
@@ -1727,7 +1727,7 @@
         },
         {
           "find": "- **Stop or replace a worker that stalls or loops.**",
-          "replace": "- **Stop or replace a worker that stalls or loops.** Give each `blocking_subagent` request a finite `timeoutMs`.",
+          "replace": "- **Stop or replace a worker that stalls or loops.** Give each `blocking_subagent` call a finite `timeoutMs`.",
           "count": 1
         },
         {
@@ -2134,7 +2134,7 @@
         },
         {
           "find": "One message, three `Task` calls, `subagent_type: generalPurpose`, agent mode (`readonly: false`). Reviewers need MCP access to look up the tickets, chat threads, and observability traces the transcript references, and readonly strips MCPs.",
-          "replace": "One `blocking_subagent` request with three read-only `general-purpose` tasks, the configured roles below, and finite `timeoutMs`. Children use `read`, `grep`, `find`, and `ls`, may keep their own `pstack_todo`, and cannot run `bash`, access external tools, edit files, or delegate. The parent fetches referenced tickets, chat threads, and observability traces under host policy and supplies bounded cited extracts. Children return exact references and questions for missing context. If delegation is unavailable, apply all three lenses and synthesis locally and report the lost independence. Resolve returned evidence requests before synthesis, or mark affected findings unverified with the specific missing source.",
+          "replace": "Three parallel `blocking_subagent` calls in one message, each a read-only `general-purpose` task, the configured roles below, and finite `timeoutMs`. Children use `read`, `grep`, `find`, and `ls`, may keep their own `pstack_todo`, and cannot run `bash`, access external tools, edit files, or delegate. The parent fetches referenced tickets, chat threads, and observability traces under host policy and supplies bounded cited extracts. Children return exact references and questions for missing context. If delegation is unavailable, apply all three lenses and synthesis locally and report the lost independence. Resolve returned evidence requests before synthesis, or mark affected findings unverified with the specific missing source.",
           "count": 1
         },
         {
@@ -4560,7 +4560,7 @@
         },
         {
           "find": "Spawn all N workers in one message with `subagent_type: generalPurpose`, `environment: \"cloud\"`, `run_in_background: true`, and the step 3 model, left unset for `auto` or `inherit-parent`. Use `environment: \"local\"` only when the worker needs access to something on the user's computer.",
-          "replace": "Use one live `blocking_subagent` request at a time with at most eight `tasks` and at most four active children. For N greater than eight, use successive bounded requests without shrinking the declared coverage. Use `general-purpose` for read-only work and `poteto-agent` for scoped writes. Set role `swarm-worker` unless a model race sets exact models. The parent owns all orchestration and integration. Children never delegate. Use separate worktrees or scratch outputs for writes, not just separate branch names in one checkout. Verify the requested base and head locally before each task. No cloud or background resume is promised.",
+          "replace": "Send at most eight parallel `blocking_subagent` calls in one message, with four running at once. For N greater than eight, use successive batches without shrinking the declared coverage. Use `general-purpose` for read-only work and `poteto-agent` for scoped writes. Set role `swarm-worker` unless a model race sets exact models. The parent owns all orchestration and integration. Children never delegate. Use separate worktrees or scratch outputs for writes, not just separate branch names in one checkout. Verify the requested base and head locally before each task. No cloud or background resume is promised.",
           "count": 1
         },
         {
@@ -4575,7 +4575,7 @@
         },
         {
           "find": "## Start",
-          "replace": "The parent owns orchestration, runtime probes for read-only judges, forge actions, and integration. Children never delegate or resume. Use one live `blocking_subagent` request at a time, at most eight tasks per request and four active children without dropping coverage. Use `general-purpose` for read-only exploration and judgment and `poteto-agent` for scoped implementation. Read-only children cannot run shell commands, edit, or access external tools. Children may use their own `pstack_todo` and return text progress. Missing delegation requires local work with a separate review and disclosure of lost independence.\n\n## Start",
+          "replace": "The parent owns orchestration, runtime probes for read-only judges, forge actions, and integration. Children never delegate or resume. Send `blocking_subagent` calls in batches of at most eight parallel calls in one message, four running at once, without dropping coverage. Use `general-purpose` for read-only exploration and judgment and `poteto-agent` for scoped implementation. Read-only children cannot run shell commands, edit, or access external tools. Children may use their own `pstack_todo` and return text progress. Missing delegation requires local work with a separate review and disclosure of lost independence.\n\n## Start",
           "count": 1
         },
         {
@@ -4609,7 +4609,7 @@
       "transforms": [
         {
           "find": "Run them in parallel and combine the results",
-          "replace": "The parent owns both workflows and external searches. Run independent leaf research in parallel within one `blocking_subagent` request of at most eight tasks, with four active children, and combine the results. Finish each request before the next; never ask a child to orchestrate either skill. Children use `general-purpose` with `read`, `grep`, `find`, `ls`, and child-local `pstack_todo` only. If delegation is unavailable, run the research locally and disclose the lost independence",
+          "replace": "The parent owns both workflows and external searches. Run independent leaf research as parallel `blocking_subagent` calls, at most eight in one message with four running at once, and combine the results. Finish each batch before the next; never ask a child to orchestrate either skill. Children use `general-purpose` with `read`, `grep`, `find`, `ls`, and child-local `pstack_todo` only. If delegation is unavailable, run the research locally and disclose the lost independence",
           "count": 1
         },
         {
@@ -4705,7 +4705,7 @@
         },
         {
           "find": "all in a single message so they run concurrently, each owning exactly one tool or MCP.",
-          "replace": "each owning evidence from exactly one tool or MCP; the parent runs that tool. Send them through `blocking_subagent` in requests of at most eight tasks, with four active children, and finish each request before the next.",
+          "replace": "each owning evidence from exactly one tool or MCP; the parent runs that tool. Send them as parallel `blocking_subagent` calls, at most eight in one message with four running at once, and finish each batch before the next.",
           "count": 1
         },
         {

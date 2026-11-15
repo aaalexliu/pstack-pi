@@ -21,11 +21,11 @@ When the answer depends on how an outside product behaves, such as a vendor's re
 
 When in doubt, take the simple path.
 
-The parent alone orchestrates through `blocking_subagent`, with at most eight tasks per request and four active children. Finish each request before the next. Children use `general-purpose` with `read`, `grep`, `find`, `ls`, and child-local `pstack_todo`; no bash, writes, external tools, or delegation. The parent owns external probes. If delegation is unavailable, follow the same steps locally and disclose the lost independence.
+The parent alone orchestrates through `blocking_subagent`, with at most eight parallel calls in one message and four running at once. Finish each batch before the next. Children use `general-purpose` with `read`, `grep`, `find`, `ls`, and child-local `pstack_todo`; no bash, writes, external tools, or delegation. The parent owns external probes. If delegation is unavailable, follow the same steps locally and disclose the lost independence.
 
 ## 2. Explore (complex only)
 
-Decompose the question into 2 to 4 angles, each a distinct slice of the subsystem. Spawn all explorers in one `blocking_subagent` request, each with `references/explorer-prompt.md` and its angle filled in.
+Decompose the question into 2 to 4 angles, each a distinct slice of the subsystem. Spawn all explorers as parallel `blocking_subagent` calls in a single message, each with `references/explorer-prompt.md` and its angle filled in.
 
 ## 3. Synthesize (complex only)
 
