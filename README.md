@@ -322,7 +322,7 @@ Its `pstack` tree is `4719e1c4b4c43bac85d4206a8b41dd2899769c1c`.
 It copies 74 files, transforms 53, and explicitly omits 446. No file uses `replace`.
 Transforms change only reviewed commands, frontmatter, paths, runtime sections, or proof steps, leaving all other source bytes intact.
 Each transformation requires its locked source blob and exact match count.
-Even execution-ownership changes use targeted transforms rather than rewritten copies. All 24 principle skills and the Investigation playbook remain byte-for-byte copies.
+Even execution-ownership changes use targeted transforms rather than rewritten copies. The Investigation playbook and 23 of the 24 principle skills remain byte-for-byte copies. `principle-never-block-on-the-human` changes one line to name every call that is costly to undo.
 
 Pi-owned files live in `additions/`, apart from the 573 upstream paths, and ship as written. `SYNCING.md` describes how `npm run check:content` checks them.
 

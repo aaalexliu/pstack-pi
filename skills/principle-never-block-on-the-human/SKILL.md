@@ -10,6 +10,6 @@ The human supervises asynchronously. Agents must stay unblocked. Make reasonable
 
 - Proceed, then present. Do the work, show the result. Don't ask "should I do X?" Do X, explain why.
 - Make the system self-healing. When you notice a problem, log it and fix it in the next round.
-- Irreversible actions (force-push, delete production data, send external messages) still require confirmation.
+- Calls that are costly to undo still need the human: force-push, deleting data, outside messages, a data model or public API, a migration, money.
 - Reversible actions (write code, edit notes, split tasks) should proceed without blocking.
 - Product direction comes from the human. Execution should not block.

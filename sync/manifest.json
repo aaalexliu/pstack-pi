@@ -2062,9 +2062,18 @@
       "destination": "skills/principle-model-the-domain/SKILL.md"
     },
     {
-      "kind": "copy",
+      "kind": "transform",
       "source": "skills/principle-never-block-on-the-human/SKILL.md",
-      "destination": "skills/principle-never-block-on-the-human/SKILL.md"
+      "destination": "skills/principle-never-block-on-the-human/SKILL.md",
+      "expectedBlob": "4f59bdc69f79d536b30b0014a563ed3be05b8b62",
+      "reason": "Name every call that is costly to undo, not only irreversible actions, as one that still needs the human.",
+      "transforms": [
+        {
+          "find": "- Irreversible actions (force-push, delete production data, send external messages) still require confirmation.",
+          "replace": "- Calls that are costly to undo still need the human: force-push, deleting data, outside messages, a data model or public API, a migration, money.",
+          "count": 1
+        }
+      ]
     },
     {
       "kind": "copy",
