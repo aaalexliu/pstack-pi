@@ -1559,6 +1559,8 @@ export default function subagentsExtension(pi: ExtensionAPI) {
     }
     const moduleAbort = (globalThis as any)[POLL_ABORT_KEY] as AbortController | undefined;
     if (moduleAbort) moduleAbort.abort();
+    // A later session in this process (/new, resume, fork, reload) needs a live signal.
+    (globalThis as any)[POLL_ABORT_KEY] = new AbortController();
     for (const [_id, agent] of runningSubagents) {
       agent.abortController?.abort();
     }
