@@ -104,6 +104,7 @@ Each change below is one or more commits on top of the subtree. The first group 
 | A `blocking_subagent` child, at depth 1 or more without `PI_SUBAGENT_NAME`, registers none of the interactive spawning tools. | Both extensions load in every child. A blocking child with host default tools would otherwise get `subagent`. | `pi-extension/subagents/index.ts`, `test/pstack.test.ts` |
 | A test loads pstack-pi's bundled `sub-lead` agent and checks it gets auto-exit and is denied every spawning tool. | The job runner's two-level limit rests on that agent file. | `test/test.ts` |
 | The child tools widget toggles with `ctrl+shift+j`, not `ctrl+j`. | Pi 1.5 binds `ctrl+j` to a new line, so every child pane opened with a shortcut-conflict warning. | `pi-extension/subagents/subagent-done.ts`, `README.md` |
+| `session_shutdown` swaps in a fresh poll controller right after it aborts the old one. | Only module load made one, so after `/new`, resume, fork, or reload every watcher saw an aborted signal, closed the pane, and lost the child. | `pi-extension/subagents/index.ts` |
 
 `package.json` registers `pi-extension/subagents/index.ts` and ships the extension modules, plan skill, Claude Code plugin, bundled agents, README, config example, package file, and license. The plugin's `on-stop.sh` keeps its executable mode. `tsconfig.json` leaves the subtree out of `tsc`; its unit tests cover it.
 

@@ -2374,6 +2374,40 @@ describe("concurrency cap", () => {
     });
   });
 
+  it("watches a child started after a session shutdown", async () => {
+    const handlers = new Map<string, Function>();
+    const { api } = createMockExtensionApi();
+    subagentsModule.default({ ...api, on: (name: string, fn: Function) => handlers.set(name, fn) } as any);
+    handlers.get("session_shutdown")!({}, {});
+
+    const previousMux = process.env.PI_SUBAGENT_MUX;
+    const previousWezterm = process.env.WEZTERM_UNIX_SOCKET;
+    process.env.PI_SUBAGENT_MUX = "wezterm";
+    delete process.env.WEZTERM_UNIX_SOCKET;
+    const dir = createTestDir();
+    try {
+      const sessionFile = createSessionFile(dir, [SESSION_HEADER, ASSISTANT_MSG]);
+      writeFileSync(`${sessionFile}.exit`, JSON.stringify({ type: "done" }));
+      const running = {
+        id: "after-switch",
+        name: "Scout",
+        task: "T",
+        surface: "surface:404",
+        startTime: Date.now(),
+        sessionFile,
+        interactive: false,
+        statusState: createStatusState({ source: "pi", startTimeMs: Date.now() }),
+      };
+      const result = await testApi.watchSubagent(running, new AbortController().signal);
+      assert.equal(result.exitCode, 0);
+      assert.equal(result.summary, "Here is my plan...");
+    } finally {
+      restoreEnvVar("PI_SUBAGENT_MUX", previousMux);
+      restoreEnvVar("WEZTERM_UNIX_SOCKET", previousWezterm);
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("releases a slot when a child's watcher ends", async () => {
     await withMaxConcurrent(1, async () => {
       const { api } = createMockExtensionApi();
