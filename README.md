@@ -144,8 +144,8 @@ pstack-pi has two delegation tools. Pick by whether you need to wait.
 In cmux, interactive children of one parent share an `agents: <session>` workspace in a 2x2 grid. A parent runs at most four at once and queues the rest. Set `maxConcurrent` and `cmuxLayout` (`"grid"` or `"tabs"`) under `interactiveSubagents` in `<Pi agent dir>/pstack-pi/settings.json`. In tmux, each child is a window. Children of either tool get no delegation tools, unless an interactive child's agent says `spawning: true`; then it gets the interactive tools only. Interactive children can use this package's agents as well as the bundled `scout`, `worker`, `planner`, `reviewer`, `visual-tester`, and `claude-code`.
 
 The `blocking_subagent` tool is Pi's bundled subagent example (`examples/extensions/subagent`) plus a few additions.
-Each call spawns a separate `pi --mode json -p --no-session` process per call, so every child has its own context window.
-Set `keepSession: true` on the call to keep that child's session file instead. The child then runs with `--session-id <uuid>` and an explicit `--session-dir`: `PI_CODING_AGENT_SESSION_DIR` when set, else Pi's default session folder for its `cwd`. The `sessionDir` setting does not apply. Its result adds `session-id: <id>` and `session-path: <absolute path>` lines after `resolved-model:`, so an audit can open the transcript. If the child exits before writing its session, the result says so instead.
+Each call spawns a separate Pi process, so every child has its own context window.
+Every child keeps its session file. A headless child runs with `--session-id <uuid>` and an explicit `--session-dir`: `PI_CODING_AGENT_SESSION_DIR` when set, else Pi's default session folder for its `cwd`. The `sessionDir` setting does not apply. Its result adds `session-id: <id>` and `session-path: <absolute path>` lines after `resolved-model:`, so an audit can open the transcript. If the child exits before writing its session, the result says so instead.
 
 ```json
 {"agent":"general-purpose","task":"Read src/index.ts and explain its exports."}
@@ -153,7 +153,7 @@ Set `keepSession: true` on the call to keep that child's session file instead. T
 
 Each call runs one child: `agent` and `task`. To run several children at once, make several `blocking_subagent` calls in one message; Pi runs them together. At most four children run at once across all calls, the rest wait for a slot: in a multiplexer through the `subagent` tool's spawn slots (`maxConcurrent`), and headless through a cap of four in this extension.
 
-The call also accepts optional `cwd`, `model`, `role`, `thinking`, and `keepSession`. It also accepts `timeoutMs`, `agentScope`, and `confirmProjectAgents`.
+The call also accepts optional `cwd`, `model`, `role`, and `thinking`. It also accepts `timeoutMs`, `agentScope`, and `confirmProjectAgents`.
 `thinking` is `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`. Set it per call to match the job. An explicit value overrides the parent's thinking level. Pi clamps the requested level to the child's model capabilities.
 `cwd` is any directory; a relative path resolves against the parent's working directory.
 `timeoutMs` kills any child still running after that many milliseconds and reports the task as failed with `Timed out after N ms`.
