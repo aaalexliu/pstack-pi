@@ -1116,6 +1116,7 @@ export const __test__ = {
   observeRunningSubagent,
   resolveDenyTools,
   resolvePiChildModel,
+  piModelArgs,
   resolveInterruptTarget,
   requestSubagentInterrupt,
   handleSubagentInterrupt,
@@ -1158,6 +1159,19 @@ async function resolvePiChildModel(
   return parentModel ? `${parentModel.provider}/${parentModel.id}` : undefined;
 }
 
+/** pstack-pi: the `--model` argv for a Pi child. A role choice's thinking suffix such as `:xhigh` wins over the agent's `thinking`. */
+async function piModelArgs(
+  params: { model?: string; role?: (typeof SubagentParams.static)["role"] },
+  agentDefs: AgentDefaults | null,
+  parentModel: { provider: string; id: string } | undefined,
+): Promise<string[]> {
+  const model = await resolvePiChildModel(params, agentDefs, parentModel);
+  if (!model) return [];
+  const thinking = agentDefs?.thinking;
+  const hasThinking = /:(off|minimal|low|medium|high|xhigh|max)$/.test(model);
+  return ["--model", thinking && !hasThinking ? `${model}:${thinking}` : model];
+}
+
 /**
  * Launch a subagent: creates the multiplexer pane, builds the command, and
  * sends it. Returns a RunningSubagent — does NOT poll.
@@ -1182,10 +1196,9 @@ async function launchSubagent(
   const id = Math.random().toString(16).slice(2, 10);
 
   const agentDefs = params.agent ? loadAgentDefaults(params.agent) : null;
-  const effectiveModel = agentDefs?.cli === "claude" ? params.model ?? agentDefs.model : await resolvePiChildModel(params, agentDefs, ctx.model);
+  const claudeModel = params.model ?? agentDefs?.model;
   const effectiveTools = params.tools ?? agentDefs?.tools;
   const effectiveSkills = params.skills ?? agentDefs?.skills;
-  const effectiveThinking = agentDefs?.thinking;
   const effectiveInteractive = resolveEffectiveInteractive(params, agentDefs);
   const autoExit = options?.autoExit ?? agentDefs?.autoExit;
 
@@ -1264,8 +1277,8 @@ async function launchSubagent(
       cmdParts.push("--plugin-dir", shellEscape(pluginDir));
     }
 
-    if (effectiveModel) {
-      cmdParts.push("--model", shellEscape(effectiveModel));
+    if (claudeModel) {
+      cmdParts.push("--model", shellEscape(claudeModel));
     }
 
     const sp = params.systemPrompt ?? agentDefs.body;
@@ -1332,12 +1345,8 @@ async function launchSubagent(
   const subagentDonePath = join(SUBAGENTS_DIR, "subagent-done.ts");
   parts.push("-e", shellEscape(subagentDonePath));
 
-  if (effectiveModel) {
-    // A role choice may already end in a thinking suffix such as `:xhigh`; it wins over the agent's.
-    const hasThinking = /:(off|minimal|low|medium|high|xhigh|max)$/.test(effectiveModel);
-    const model = effectiveThinking && !hasThinking ? `${effectiveModel}:${effectiveThinking}` : effectiveModel;
-    parts.push("--model", shellEscape(model));
-  }
+  const [modelFlag, model] = await piModelArgs(params, agentDefs, ctx.model);
+  if (modelFlag && model) parts.push(modelFlag, shellEscape(model));
   if (options?.thinking) parts.push("--thinking", shellEscape(options.thinking));
 
   // Pass agent body as system prompt via file to avoid shell escaping issues

@@ -101,6 +101,19 @@ describe("subagent role and model, shared with blocking_subagent", () => {
     assert.equal(await resolve({}, null), "parent/model");
   });
 
+  it("builds the child's --model argv from a configured role, the parent fallback, and a role's thinking suffix", async () => {
+    dir = mkdtempSync(join(tmpdir(), "subagent-argv-"));
+    mkdirSync(join(dir, "pstack-pi"));
+    writeFileSync(join(dir, "pstack-pi", "models.json"), JSON.stringify({ version: 1, roles: { review: "role/review:xhigh", judgment: "role/judgment" } }));
+    process.env.PI_CODING_AGENT_DIR = dir;
+    const argv = (params: object, defs: object | null) => api().piModelArgs(params, defs, parent);
+    assert.deepEqual(await argv({}, { role: "judgment", model: "old/pin", thinking: "medium" }), ["--model", "role/judgment:medium"]);
+    assert.deepEqual(await argv({}, { role: "review", thinking: "medium" }), ["--model", "role/review:xhigh"]);
+    assert.deepEqual(await argv({}, { thinking: "minimal" }), ["--model", "parent/model:minimal"]);
+    assert.deepEqual(await argv({ model: "x/explicit" }, { role: "review" }), ["--model", "x/explicit"]);
+    assert.deepEqual(await api().piModelArgs({}, null, undefined), []);
+  });
+
   it("the subagent tool takes a role from the shared list", () => {
     for (const name of CHILD_ENV) delete process.env[name];
     const pi = fakePi();
