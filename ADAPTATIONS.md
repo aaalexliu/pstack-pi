@@ -56,7 +56,7 @@ The manifest contains the exact ordered `find`, `replace`, and `count` values fo
 | `skills/poteto-mode/playbooks/trace-forensics.md` | Rewrite `subagent (` phrasing to a bounded leaf task so the content gate stays clean. |
 | `skills/poteto-mode/playbooks/visual-parity.md` | Use available surface-control tools and an explicit local loop instead of control-skill and `/loop`. |
 | `skills/recall/SKILL.md` | Scoped Pi session discovery and bounded local readers; parent owns shared-record searches. |
-| `skills/reflect/SKILL.md` | Pi sessions, model roles, leaf readers, parent evidence follow-up, native authoring, and authorized tracker writes. Edit a copy in `.pi/skills/` or `~/.pi/agent/skills/`, never the installed package, and confirm Pi loads the copy. |
+| `skills/reflect/SKILL.md` | Pi sessions, model roles, leaf readers, parent evidence follow-up, native authoring, and authorized tracker writes. A lesson about a pstack-pi skill goes to a manifest transform or an `additions/skills/` edit in a pstack-pi PR. Other skills get a copy in `.pi/skills/` or `~/.pi/agent/skills/`, never an edit to the installed package, and Pi must load the copy. |
 | `skills/reflect/references/divergent-reviewer.md` | Pi transcript/tool paths and invocation evidence; parent performs referenced external lookups. |
 | `skills/reflect/references/judgment-reviewer.md` | Pi transcript/tool paths and invocation evidence; parent performs referenced external lookups. |
 | `skills/reflect/references/synthesizer.md` | Parent external checks, Pi authoring routes, and supported trigger metadata; keep acceptance criteria and output tables. |

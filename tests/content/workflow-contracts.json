@@ -279,7 +279,7 @@
     "upstream": {
       "ready never draft": "Open every PR ready, never as a draft.",
       "conventional commits": "Conventional Commits `type(scope): subject`, no trailing period.",
-      "why section": "`## Why`: the problem and approach, 1–3 short sentences.",
+      "why section": "`## Why`: the problem and approach, 1\u20133 short sentences.",
       "babysit separate": "Opening a PR does not start a babysit.",
       "briefing body": "The PR body is a one-minute briefing, not a lab notebook, for a reviewer who has the diff."
     },
@@ -390,7 +390,8 @@
     },
     "pi": {
       "missing evidence gate": "missing evidence cannot support an Accepted edit",
-      "installed package": "Never edit a skill inside an installed Pi package, because an update replaces it."
+      "installed package": "Never edit a skill inside an installed Pi package, because an update replaces it.",
+      "pstack-pi source": "A lesson about a pstack-pi skill goes to its source in a pstack-pi PR: a transform in `sync/manifest.json` for a synced skill, or an edit under `additions/skills/` for a Pi-owned one."
     }
   },
   "skills/reflect/references/divergent-reviewer.md": {
