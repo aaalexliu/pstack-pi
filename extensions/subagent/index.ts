@@ -200,9 +200,8 @@ export function observedModelId(provider: unknown, model: unknown): string | und
   return `${left}/${right}`;
 }
 
-export function modelFacingText(observed: string | undefined, body: string, session?: Pick<SingleResult, 'sessionId' | 'sessionPath'>): string {
-  const sessionLines = !session?.sessionId ? ''
-    : session.sessionPath ? `session-id: ${session.sessionId}\nsession-path: ${session.sessionPath}\n`
+export function modelFacingText(observed: string | undefined, body: string, session: Pick<SingleResult, 'sessionId' | 'sessionPath'>): string {
+  const sessionLines = session.sessionId && session.sessionPath ? `session-id: ${session.sessionId}\nsession-path: ${session.sessionPath}\n`
     : 'session: none saved, the child exited before writing its session file\n';
   return `resolved-model: ${observed ?? 'unknown'}\n${sessionLines}\n${body}`;
 }
@@ -298,7 +297,6 @@ export interface ResolvedTask {
   modelSource: SingleResult['modelSource'];
   thinking?: ExtensionContext['thinkingLevel'];
   role?: string;
-  keepSession?: boolean;
 }
 
 // Pass the child an explicit folder so the parent knows where to look: PI_CODING_AGENT_SESSION_DIR, else Pi's default per-cwd folder.
@@ -427,9 +425,9 @@ export async function runSingleAgent({ resolved, depth, signal, timeoutMs, onUpd
   termGraceMs?: number;
 }): Promise<SingleResult> {
   const { agent, task, cwd } = resolved;
-  const sessionId = resolved.keepSession ? randomUUID() : undefined;
-  const sessionDir = sessionId ? childSessionDir(cwd) : undefined;
-  const args: string[] = ['--mode', 'json', '-p', ...(sessionId && sessionDir ? ['--session-dir', sessionDir, '--session-id', sessionId] : ['--no-session'])];
+  const sessionId = randomUUID();
+  const sessionDir = childSessionDir(cwd);
+  const args: string[] = ['--mode', 'json', '-p', '--session-dir', sessionDir, '--session-id', sessionId];
   if (resolved.model) args.push('--model', resolved.model);
   if (resolved.thinking) args.push('--thinking', resolved.thinking);
   if (agent.tools && agent.tools.length > 0) args.push('--tools', [...new Set([...agent.tools, 'pstack_todo'])].join(','));
@@ -524,10 +522,8 @@ export async function runSingleAgent({ resolved, depth, signal, timeoutMs, onUpd
     });
 
     result.exitCode = exitCode;
-    if (sessionId && sessionDir) {
-      const name = (await fs.promises.readdir(sessionDir).catch(() => [])).find((file) => file.endsWith(`_${sessionId}.jsonl`));
-      if (name) result.sessionPath = path.join(sessionDir, name);
-    }
+    const name = (await fs.promises.readdir(sessionDir).catch(() => [])).find((file) => file.endsWith(`_${sessionId}.jsonl`));
+    if (name) result.sessionPath = path.join(sessionDir, name);
     if (stopCause === 'user') {
       result.stopReason = 'aborted';
       result.errorMessage = 'Subagent was aborted';
@@ -558,15 +554,12 @@ const thinkingSchema = Type.Union([
   Type.Literal('high'), Type.Literal('xhigh'), Type.Literal('max'),
 ], { description: 'Child reasoning level. Set for the job; overrides the inherited parent level.' });
 
-const keepSessionSchema = Type.Boolean({ description: 'Keep the child\'s Pi session file instead of running with --no-session. The result then names its session-id and session-path.' });
-
 const SubagentParams = Type.Object({
   agent: Type.String({ description: 'Name of the agent to invoke' }),
   task: Type.String({ description: 'Task to delegate to the agent' }),
   model: Type.Optional(modelChoiceSchema),
   role: Type.Optional(roleSchema),
   thinking: Type.Optional(thinkingSchema),
-  keepSession: Type.Optional(keepSessionSchema),
   cwd: Type.Optional(Type.String({ description: 'Working directory for the agent process' })),
   timeoutMs: Type.Optional(Type.Integer({ minimum: 1, description: 'Kill any child still running after this many milliseconds' })),
   agentScope: Type.Optional(Type.Union([Type.Literal('user'), Type.Literal('project'), Type.Literal('both')], {
@@ -592,8 +585,8 @@ export function toolDescription(bundled: Pick<AgentConfig, 'name' | 'description
     `model accepts inherit-parent or provider/model-id. role selects a configured model from ${modelConfigPath(getAgentDir())}; roles: ${roles.join(', ')}.`,
     'Explicit model overrides role, then the agent default, then the parent model. thinking sets the child reasoning level for the call. Children cannot delegate.',
     'Single result text starts with `resolved-model: provider/model-id` from the child response, or `resolved-model: unknown`. That line is the resolved identity. The requested selector is not.',
-    'With keepSession: true, the child keeps a Pi session file in PI_CODING_AGENT_SESSION_DIR or else Pi\'s default session folder for its cwd, and the result adds `session-id: <id>` and `session-path: <absolute path>` lines after resolved-model.',
-    'Inside cmux or tmux, the child runs as a real Pi in the subagents layout the user can watch and steer; it always keeps its session file, so its reply always has the session lines.',
+    'Every child keeps a Pi session file in PI_CODING_AGENT_SESSION_DIR or else Pi\'s default session folder for its cwd, and the result adds `session-id: <id>` and `session-path: <absolute path>` lines after resolved-model.',
+    'Inside cmux or tmux, the child runs as a real Pi in the subagents layout the user can watch and steer.',
   ].join(' ');
 }
 
@@ -695,7 +688,6 @@ export default function subagentExtension(pi: ExtensionAPI, { spawnChild = spawn
           agent, task: params.task, cwd: params.cwd ?? ctx.cwd,
           model: inherits ? defaults.model : formatModelChoice(selection.choice),
           modelSource: selection.source, thinking: params.thinking ?? (inherits ? defaults.thinkingLevel : undefined), role: params.role,
-          keepSession: params.keepSession,
         };
 
         if ((agentScope === 'project' || agentScope === 'both') && (params.confirmProjectAgents ?? true) && ctx.hasUI && !ctx.isProjectTrusted()) {

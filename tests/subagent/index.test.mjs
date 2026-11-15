@@ -167,7 +167,9 @@ test('single mode runs the bundled agent in a detached child with prompt file, s
   assert.equal(capture.cwd, f.cwd);
   assert.equal(capture.promptMode, 0o600);
   assert.equal(capture.prompt, (await readFile(new URL('../../additions/agents/general-purpose.md', import.meta.url), 'utf8')).split('---\n')[2].trim());
-  assert.deepEqual(capture.args.slice(0, 4), ['--mode', 'json', '-p', '--no-session']);
+  assert.deepEqual(capture.args.slice(0, 3), ['--mode', 'json', '-p']);
+  assert.ok(!capture.args.includes('--no-session'));
+  assert.equal(capture.args[capture.args.indexOf('--session-id') + 1], details.results[0].sessionId);
   assert.ok(capture.args.includes('--model') && capture.args[capture.args.indexOf('--model') + 1] === 'fixture/model');
   assert.equal(capture.args[capture.args.indexOf('--thinking') + 1], 'high');
   assert.equal(capture.args[capture.args.indexOf('--tools') + 1], 'read,grep,find,ls,pstack_todo');
@@ -206,9 +208,9 @@ test('a role selector keeps its thinking suffix, and an explicit thinking level 
   /** @param {Record<string, unknown>} params */
   const argsOf = async (params) => JSON.parse(childOutput((await f.execute(params)).content[0].text)).args;
   const roleArgs = await argsOf({ agent: 'general-purpose', task: 'x', role: 'feature' });
-  assert.deepEqual(roleArgs.slice(4, 6), ['--model', 'pinned/model:xhigh']);
+  assert.deepEqual(roleArgs.slice(7, 9), ['--model', 'pinned/model:xhigh']);
   assert.ok(!roleArgs.includes('--thinking'));
-  assert.deepEqual((await argsOf({ agent: 'general-purpose', task: 'x', role: 'feature', thinking: 'low' })).slice(4, 8), ['--model', 'pinned/model:xhigh', '--thinking', 'low']);
+  assert.deepEqual((await argsOf({ agent: 'general-purpose', task: 'x', role: 'feature', thinking: 'low' })).slice(7, 11), ['--model', 'pinned/model:xhigh', '--thinking', 'low']);
 });
 
 test('thinking schema accepts only Pi levels', () => {
@@ -225,15 +227,15 @@ test('single thinking overrides inherited parent level and pinned model defaults
   const f = await fixture(t);
   /** @type {[Record<string, unknown>, string[]][]} */
   const cases = [
-    [{ agent: 'general-purpose', task: 'x', thinking: 'off' }, ['--mode', 'json', '-p', '--no-session', '--model', 'fixture/model', '--thinking', 'off']],
-    [{ agent: 'general-purpose', task: 'x', model: 'pinned/model', thinking: 'high' }, ['--mode', 'json', '-p', '--no-session', '--model', 'pinned/model', '--thinking', 'high']],
-    [{ agent: 'general-purpose', task: 'x' }, ['--mode', 'json', '-p', '--no-session', '--model', 'fixture/model', '--thinking', 'high']],
-    [{ agent: 'general-purpose', task: 'x', model: 'pinned/model' }, ['--mode', 'json', '-p', '--no-session', '--model', 'pinned/model']],
+    [{ agent: 'general-purpose', task: 'x', thinking: 'off' }, ['--model', 'fixture/model', '--thinking', 'off']],
+    [{ agent: 'general-purpose', task: 'x', model: 'pinned/model', thinking: 'high' }, ['--model', 'pinned/model', '--thinking', 'high']],
+    [{ agent: 'general-purpose', task: 'x' }, ['--model', 'fixture/model', '--thinking', 'high']],
+    [{ agent: 'general-purpose', task: 'x', model: 'pinned/model' }, ['--model', 'pinned/model']],
   ];
   for (const [params, expected] of cases) {
     const result = await f.execute(params);
     const args = JSON.parse(childOutput(result.content[0].text)).args;
-    assert.deepEqual(args.slice(0, expected.length), expected);
+    assert.deepEqual(args.slice(7, 7 + expected.length), expected);
     assert.equal(args.includes('--thinking'), expected.includes('--thinking'));
     assert.equal(result.details.results[0].thinking, expected.includes('--thinking') ? expected[expected.indexOf('--thinking') + 1] : undefined);
     assert.ok(result.details.progress);
@@ -250,53 +252,52 @@ const sessionOf = (text) => /^session-id: (\S+)\nsession-path: (\S+)$/m.exec(tex
 /** @param {string} file */
 const header = async (file) => JSON.parse((await readFile(file, 'utf8')).split('\n')[0]);
 
-test('keepSession saves the child session and reports its id and path', async (t) => {
+test('every child keeps its session and the reply names its id and path', async (t) => {
   const f = await fixture(t);
-  const single = await f.execute({ agent: 'general-purpose', task: 'x', keepSession: true });
+  const single = await f.execute({ agent: 'general-purpose', task: 'x' });
   const [id, file] = sessionOf(single.content[0].text);
   assert.match(single.content[0].text, /^resolved-model: fixture\/model\nsession-id: /);
   assert.equal(path.dirname(path.dirname(file)), path.join(f.agentDir, 'sessions'));
   assert.deepEqual(await header(file), { type: 'session', version: 3, id, cwd: f.cwd });
   assert.ok(!JSON.parse(childOutput(single.content[0].text)).args.includes('--no-session'));
-  assert.doesNotMatch((await f.execute({ agent: 'general-purpose', task: 'x' })).content[0].text, /^session/m);
 });
 
-test('keepSession follows PI_CODING_AGENT_SESSION_DIR', async (t) => {
+test('the child session follows PI_CODING_AGENT_SESSION_DIR', async (t) => {
   const f = await fixture(t);
   const custom = path.join(f.root, 'custom-sessions');
   process.env.PI_CODING_AGENT_SESSION_DIR = custom;
   t.after(() => { delete process.env.PI_CODING_AGENT_SESSION_DIR; });
-  const result = await f.execute({ agent: 'general-purpose', task: 'x', keepSession: true });
+  const result = await f.execute({ agent: 'general-purpose', task: 'x' });
   const [id, file] = sessionOf(result.content[0].text);
   assert.equal(path.dirname(file), custom);
   assert.deepEqual(await header(file), { type: 'session', version: 3, id, cwd: f.cwd });
 });
 
-test('keepSession expands ~ in PI_CODING_AGENT_SESSION_DIR as Pi does', async (t) => {
+test('the child session expands ~ in PI_CODING_AGENT_SESSION_DIR as Pi does', async (t) => {
   const f = await fixture(t);
   const previousHome = process.env.HOME;
   process.env.HOME = f.root;
   process.env.PI_CODING_AGENT_SESSION_DIR = '~/tilde-sessions';
   t.after(() => { delete process.env.PI_CODING_AGENT_SESSION_DIR; process.env.HOME = previousHome; });
-  const [id, file] = sessionOf((await f.execute({ agent: 'general-purpose', task: 'x', keepSession: true })).content[0].text);
+  const [id, file] = sessionOf((await f.execute({ agent: 'general-purpose', task: 'x' })).content[0].text);
   assert.equal(path.dirname(file), path.join(f.root, 'tilde-sessions'));
   assert.equal((await header(file)).id, id);
 });
 
-test('keepSession with a symlinked cwd uses the folder a real Pi child would, keyed by the real path', async (t) => {
+test('the child session with a symlinked cwd uses the folder a real Pi child would, keyed by the real path', async (t) => {
   const f = await fixture(t);
   const link = path.join(f.root, 'link');
   await symlink(f.cwd, link);
   const ctx = { ...f.ctx, cwd: link };
-  const result = await f.tool.execute('call', { agent: 'general-purpose', task: 'x', keepSession: true }, f.abort.signal, undefined, ctx);
+  const result = await f.tool.execute('call', { agent: 'general-purpose', task: 'x' }, f.abort.signal, undefined, ctx);
   const [id, file] = sessionOf(result.content[0].text);
   assert.equal(path.dirname(file), path.join(f.agentDir, 'sessions', `--${f.cwd.slice(1).replaceAll('/', '-')}--`));
   assert.deepEqual(await header(file), { type: 'session', version: 3, id, cwd: f.cwd });
 });
 
-test('keepSession says plainly when the child saved no session', async (t) => {
+test('the child session says plainly when the child saved no session', async (t) => {
   const f = await fixture(t);
-  const result = await f.execute({ agent: 'general-purpose', task: 'EXIT2', keepSession: true });
+  const result = await f.execute({ agent: 'general-purpose', task: 'EXIT2' });
   assert.match(result.content[0].text, /^resolved-model: unknown\nsession: none saved, the child exited before writing its session file\n/);
   assert.doesNotMatch(result.content[0].text, /session-path/);
 });
@@ -344,7 +345,7 @@ test('separate calls run side by side, headless children share a cap of four, an
   const results = await Promise.all(tasks.map((task) => f.execute({ agent: 'general-purpose', task })));
   assert.deepEqual(results.map((r) => r.details.results[0].task), tasks);
   assert.deepEqual(results.map((r) => r.isError), [false, false, true, false, false, false, false, false]);
-  assert.match(results[2].content[0].text, /^resolved-model: fixture\/model\n\nAgent error: PRIVATE_BOOM/);
+  assert.match(results[2].content[0].text, /^resolved-model: fixture\/model\nsession-id: \S+\nsession-path: \S+\n\nAgent error: PRIVATE_BOOM/);
   const events = (await readFile(log, 'utf8')).trim().split('\n').map((line) => line.split(' '));
   let live = 0; let peak = 0;
   for (const [kind] of events.sort((a, b) => Number(a[1]) - Number(b[1]))) { live += kind === 'start' ? 1 : -1; peak = Math.max(peak, live); }
@@ -373,12 +374,12 @@ test('createSlots starts waiters in call order and an abort drops a waiter', asy
 test('a failed single result is an error result and a spawn failure is reported', async (t) => {
   const f = await fixture(t);
   const failed = await f.execute({ agent: 'general-purpose', task: 'FAIL x' });
-  assert.match(failed.content[0].text, /^resolved-model: fixture\/model\n\nAgent error: PRIVATE_BOOM/);
+  assert.match(failed.content[0].text, /^resolved-model: fixture\/model\nsession-id: \S+\nsession-path: \S+\n\nAgent error: PRIVATE_BOOM/);
   assert.equal(failed.details.results[0].observedModel, 'fixture/model');
   assert.equal(failed.isError, true);
   const exited = await f.execute({ agent: 'general-purpose', task: 'EXIT2 x' });
   assert.equal(exited.details.results[0].exitCode, 2);
-  assert.match(exited.content[0].text, /^resolved-model: unknown\n\nAgent failed: child exploded/);
+  assert.match(exited.content[0].text, /^resolved-model: unknown\nsession: none saved, the child exited before writing its session file\n\nAgent failed: child exploded/);
   assert.equal(exited.details.results[0].observedModel, undefined);
   assert.equal(exited.details.results[0].model, 'fixture/model');
   const { tools } = registration({ spawnChild: () => spawn('/nonexistent/pi', [], { stdio: 'pipe' }) });
