@@ -1,10 +1,9 @@
 import assert from 'node:assert/strict';
-import { access, mkdir, mkdtemp, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { access, readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { bundledAgents, bundledAgentsDirectories, discoverAgents, parseAgent } from '../../extensions/subagent/agents.ts';
+import { bundledAgentsDirectories, parseAgent } from '../../extensions/subagent/agents.ts';
 
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
 const installedSkill = path.join(repoRoot, 'skills/poteto-mode/SKILL.md');
@@ -12,28 +11,29 @@ const installedSkill = path.join(repoRoot, 'skills/poteto-mode/SKILL.md');
 /** @param {string} name @param {string} [extra] @param {string} [body] */
 const agentFile = (name, extra = '', body = `Prompt for ${name}.`) => `---\nname: ${name}\ndescription: ${name} agent.\n${extra}---\n${body}\n`;
 
-test('bundled agents parse with their tool lists and prompts', () => {
-  const agents = bundledAgents();
+async function bundledAgents() {
+  const agents = [];
+  for (const dir of bundledAgentsDirectories) {
+    for (const name of (await readdir(dir)).filter((file) => file.endsWith('.md'))) {
+      agents.push({ ...parseAgent(await readFile(path.join(dir, name), 'utf8')), filePath: path.join(dir, name) });
+    }
+  }
+  return agents;
+}
+
+test('bundled agents parse with their tool lists and prompts', async () => {
+  const agents = await bundledAgents();
   assert.deepEqual(agents.map((a) => a.name).sort(), ['comment-sicko', 'general-purpose', 'poteto-agent', 'pr-reviewer', 'sub-lead']);
-  assert.ok(agents.every((a) => a.source === 'bundled' && bundledAgentsDirectories.some((dir) => a.filePath.startsWith(dir + path.sep)) && a.systemPrompt.trim()));
+  assert.ok(agents.every((a) => a.systemPrompt.trim()));
   assert.deepEqual(agents.find((a) => a.name === 'poteto-agent')?.tools, ['read', 'grep', 'find', 'ls', 'bash', 'edit', 'write']);
   assert.equal(agents.find((a) => a.name === 'general-purpose')?.filePath, path.join(repoRoot, 'additions/agents/general-purpose.md'));
 });
 
 test('bundled poteto-agent names the installed poteto-mode skill', async () => {
   await access(installedSkill);
-  const prompt = bundledAgents().find((agent) => agent.name === 'poteto-agent')?.systemPrompt ?? '';
+  const prompt = (await bundledAgents()).find((agent) => agent.name === 'poteto-agent')?.systemPrompt ?? '';
   assert.equal(prompt.includes(installedSkill), true);
   assert.equal(prompt.includes('{{PSTACK_ROOT}}'), false);
-});
-
-test('a user-dir agent resolves the package root token to the installed skill', async () => {
-  const root = await mkdtemp(path.join(tmpdir(), 'agents-token-'));
-  const userDir = path.join(root, 'user');
-  await mkdir(userDir);
-  await writeFile(path.join(userDir, 'local.md'), agentFile('local', '', 'Read `{{PSTACK_ROOT}}/skills/poteto-mode/SKILL.md` before work.'));
-  const prompt = discoverAgents(root, 'user', { userDir }).agents.find((agent) => agent.name === 'local')?.systemPrompt.trim();
-  assert.equal(prompt, `Read \`${installedSkill}\` before work.`);
 });
 
 test('parseAgent accepts both tool spellings and rejects files without a name or description', () => {
@@ -43,35 +43,4 @@ test('parseAgent accepts both tool spellings and rejects files without a name or
   assert.equal(parseAgent(agentFile('a')).tools, undefined);
   assert.throws(() => parseAgent('---\ndescription: no name\n---\nbody'), /name/);
   assert.throws(() => parseAgent('---\nname: x\n---\nbody'), /description/);
-});
-
-test('discovery layers bundled, user, and project agents by name and skips broken files', async () => {
-  const root = await mkdtemp(path.join(tmpdir(), 'agents-'));
-  const userDir = path.join(root, 'user');
-  const project = path.join(root, 'project', 'nested');
-  await mkdir(userDir, { recursive: true });
-  await mkdir(path.join(root, 'project', '.pi', 'agents'), { recursive: true });
-  await mkdir(project);
-  await writeFile(path.join(userDir, 'general-purpose.md'), agentFile('general-purpose', 'tools: [bash]\n', 'USER OVERRIDE'));
-  await writeFile(path.join(userDir, 'reviewer.md'), agentFile('reviewer'));
-  await writeFile(path.join(userDir, 'broken.md'), '---\nname: [\n---\n');
-  await writeFile(path.join(userDir, 'notes.txt'), agentFile('ignored'));
-  await writeFile(path.join(root, 'project', '.pi', 'agents', 'reviewer.md'), agentFile('reviewer', '', 'PROJECT OVERRIDE'));
-  await writeFile(path.join(root, 'project', '.pi', 'agents', 'local.md'), agentFile('local'));
-
-  const user = discoverAgents(project, 'user', { userDir });
-  assert.equal(user.projectAgentsDir, path.join(root, 'project', '.pi', 'agents'));
-  assert.deepEqual(user.agents.map((a) => `${a.name}:${a.source}`).sort(), ['comment-sicko:bundled', 'general-purpose:user', 'poteto-agent:bundled', 'pr-reviewer:bundled', 'reviewer:user', 'sub-lead:bundled']);
-  assert.equal(user.agents.find((a) => a.name === 'general-purpose')?.systemPrompt.trim(), 'USER OVERRIDE');
-
-  const both = discoverAgents(project, 'both', { userDir });
-  assert.deepEqual(both.agents.map((a) => `${a.name}:${a.source}`).sort(), ['comment-sicko:bundled', 'general-purpose:user', 'local:project', 'poteto-agent:bundled', 'pr-reviewer:bundled', 'reviewer:project', 'sub-lead:bundled']);
-  assert.equal(both.agents.find((a) => a.name === 'reviewer')?.systemPrompt.trim(), 'PROJECT OVERRIDE');
-
-  const projectOnly = discoverAgents(project, 'project', { userDir });
-  assert.deepEqual(projectOnly.agents.map((a) => a.name).sort(), ['local', 'reviewer']);
-
-  const none = discoverAgents(root, 'both', { userDir: path.join(root, 'missing') });
-  assert.equal(none.projectAgentsDir, null);
-  assert.deepEqual(none.agents.map((a) => a.source), ['bundled', 'bundled', 'bundled', 'bundled', 'bundled']);
 });

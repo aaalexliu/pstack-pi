@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Swarm
 
-The parent owns orchestration, runtime probes for read-only judges, forge actions, and integration. Children never delegate or resume. Send `blocking_subagent` calls in batches of at most eight parallel calls in one message, four running at once, without dropping coverage. Use `general-purpose` for read-only exploration and judgment and `poteto-agent` for scoped implementation. Read-only children cannot run shell commands, edit, or access external tools. Children may use their own `pstack_todo` and return text progress. Missing delegation requires local work with a separate review and disclosure of lost independence.
+The parent owns orchestration, runtime probes for read-only judges, forge actions, and integration. Children never delegate or resume. Send `subagent` calls with `wait: true` in batches of at most eight parallel calls in one message, four running at once, without dropping coverage. Use `general-purpose` for read-only exploration and judgment and `poteto-agent` for scoped implementation. Read-only children cannot run shell commands, edit, or access external tools. Children may use their own `pstack_todo` and return text progress. Missing delegation requires local work with a separate review and disclosure of lost independence.
 
 ## Start
 
@@ -26,7 +26,7 @@ The parent opens `pstack_todo` with one entry per phase before launching anythin
 
 ## Phase B: Fan out
 
-Send at most eight parallel `blocking_subagent` calls in one message, with four running at once. For N greater than eight, use successive batches without shrinking the declared coverage. Use `general-purpose` for read-only work and `poteto-agent` for scoped writes. Set role `swarm-worker` unless a model race sets exact models. The parent owns all orchestration and integration. Children never delegate. Use separate worktrees or scratch outputs for writes, not just separate branch names in one checkout. Verify the requested base and head locally before each task. No cloud or background resume is promised.
+Send at most eight parallel `subagent` calls with `wait: true` in one message, with four running at once. For N greater than eight, use successive batches without shrinking the declared coverage. Use `general-purpose` for read-only work and `poteto-agent` for scoped writes. Set role `swarm-worker` unless a model race sets exact models. The parent owns all orchestration and integration. Children never delegate. Use separate worktrees or scratch outputs for writes, not just separate branch names in one checkout. Verify the requested base and head locally before each task. No cloud or background resume is promised.
 
 The parent verifies the requested branch and head locally before dispatch. Children never resume. Use live cancellation only if exposed; confirm exit before writable scope reuse.
 

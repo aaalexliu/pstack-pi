@@ -21,7 +21,7 @@ printf '{"providers":{"anthropic":{"baseUrl":"http://127.0.0.1:%s"}}}\n' "$port"
 printf '{"profiles":{"client-a":{"dirs":["%s"],"providers":["anthropic"]},"nologin":{"dirs":["%s"],"providers":["anthropic"]}}}\n' \
   "$root/work/client-a" "$root/work/nologin" > "$agent/pstack-pi/profiles.json"
 printf '{"extensions":["%s","%s"],"defaultProvider":"anthropic","defaultModel":"claude-haiku-5-5","defaultThinkingLevel":"off","quietStartup":true,"enableInstallTelemetry":false}\n' \
-  "$repo/extensions/profiles/index.ts" "$repo/extensions/subagent/index.ts" > "$agent/settings.json"
+  "$repo/extensions/profiles/index.ts" "$repo/extensions/interactive-subagents/pi-extension/subagents/index.ts" > "$agent/settings.json"
 printf '{"anthropic":{"type":"api_key","key":"sk-ant-api03-DEFAULT"}}\n' > "$agent/auth.json"
 printf '{"anthropic":{"type":"api_key","key":"sk-ant-api03-CLIENT_A"}}\n' > "$agent/pstack-pi/profiles/client-a/auth.json"
 chmod 600 "$agent/auth.json" "$agent/pstack-pi/profiles/client-a/auth.json"
@@ -36,7 +36,7 @@ expect() {
   local cwd="$1" inherited="$2" prompt="$3" want="$4" got
   local env=(env -u PI_AUTH_PROFILE "PI_CODING_AGENT_DIR=$agent" PI_OFFLINE=1)
   [ "$inherited" != - ] && env+=("PI_AUTH_PROFILE=$inherited")
-  got="$(cd "$cwd" && "${env[@]}" pi -p --no-session "$prompt" 2>&1 | tail -n 1)"
+  got="$(cd "$cwd" && "${env[@]}" pi -p --session-dir "$root/sessions" "$prompt" 2>&1 | tail -n 1)"
   if [ "$got" = "$want" ]; then
     printf 'pass  %-34s %-8s %s\n' "${cwd#"$root"/}" "$inherited" "$got"
   else

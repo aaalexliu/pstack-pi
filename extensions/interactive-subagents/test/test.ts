@@ -1200,7 +1200,7 @@ describe("subagent discovery", () => {
   it("buildSubagentToolAllowlist preserves requested tools and adds child control tools", () => {
     assert.equal(
       testApi.buildSubagentToolAllowlist("read,bash,web_search"),
-      "read,bash,web_search,caller_ping,subagent_done",
+      "read,bash,web_search,caller_ping,subagent_done,pstack_todo",
     );
   });
 
@@ -1395,7 +1395,7 @@ describe("interactiveSubagents in pstack-pi settings", () => {
     await withIsolatedAgentEnv(async ({ globalAgentsDir }) => {
       const general = testApi.loadAgentDefaults("general-purpose");
       assert.equal(general.tools, "read, grep, find, ls");
-      assert.equal(testApi.buildSubagentToolAllowlist(general.tools), "read,grep,find,ls,caller_ping,subagent_done");
+      assert.equal(testApi.buildSubagentToolAllowlist(general.tools), "read,grep,find,ls,caller_ping,subagent_done,pstack_todo");
 
       const poteto = testApi.loadAgentDefaults("poteto-agent");
       assert.ok(poteto.body.includes(`${pstackRoot}skills/poteto-mode/SKILL.md`), "PSTACK_ROOT resolves to the package root");
@@ -1576,7 +1576,7 @@ describe("tool registration", () => {
 
   it("denies spawning tools to every child unless its agent file sets spawning: true", () => {
     const testApi = (subagentsModule as any).__test__;
-    const spawningTools = ["blocking_subagent", "subagent", "subagent_interrupt", "subagent_resume", "subagents_list"];
+    const spawningTools = ["subagent", "subagent_interrupt", "subagent_resume", "subagents_list"];
 
     for (const defs of [null, {}, { spawning: false }]) {
       assert.deepEqual([...testApi.resolveDenyTools(defs)].sort(), spawningTools);
@@ -1589,7 +1589,7 @@ describe("tool registration", () => {
     const testApi = (subagentsModule as any).__test__;
     const defs = testApi.loadAgentDefaults("sub-lead");
     assert.equal(defs?.autoExit, true);
-    assert.deepEqual([...testApi.resolveDenyTools(defs)].sort(), ["blocking_subagent", "subagent", "subagent_interrupt", "subagent_resume", "subagents_list"]);
+    assert.deepEqual([...testApi.resolveDenyTools(defs)].sort(), ["subagent", "subagent_interrupt", "subagent_resume", "subagents_list"]);
   });
 
   it("expands spawning false to deny subagent interruption", () => {

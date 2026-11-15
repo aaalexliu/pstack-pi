@@ -36,20 +36,20 @@ async function verified(t, observer, run) {
   t.diagnostic(JSON.stringify({ artifact: run.paths.root, maxDepth: observer.maxDepth, peakLivePi: observer.peakLivePi, verifiedBeforeRescue: observer.verifiedBeforeRescue, pids: [...observer.identities.keys()], exit: run.exit }));
 }
 
-const delegate = { id: 'delegate', name: 'blocking_subagent', arguments: { agent: 'general-purpose', task: 'Do the fixture task.' } };
+const delegate = { id: 'delegate', name: 'subagent', arguments: { name: 'Leaf', agent: 'general-purpose', task: 'Do the fixture task.', wait: true } };
 
-test('packed leaf has no blocking_subagent and real Pi reports unknown tool when forced to call it', { timeout: 12000 }, async (t) => {
+test('packed leaf has no subagent and real Pi reports unknown tool when forced to call it', { timeout: 12000 }, async (t) => {
   const observer = observation(t);
   await runPiSmoke({ keepArtifacts: true, expectedRequests: 4, expectedText: 'Leaf-only verified.',
     onSpawn: (pid) => observer.start(pid),
     fixture: { script: [
       { reply: { kind: 'tool', ...delegate } },
-      { reply: { kind: 'tool', id: 'nested', name: 'blocking_subagent', arguments: delegate.arguments }, check: (request) => {
-        assert.ok(!tools(request).includes('blocking_subagent')); observer.sample();
+      { reply: { kind: 'tool', id: 'nested', name: 'subagent', arguments: delegate.arguments }, check: (request) => {
+        assert.ok(!tools(request).includes('subagent')); observer.sample();
       } },
       { reply: { kind: 'text', text: 'The child cannot delegate.' }, check: (request) => {
-        assert.ok(!tools(request).includes('blocking_subagent'));
-        assert.match(result(request, 'nested'), /blocking_subagent/);
+        assert.ok(!tools(request).includes('subagent'));
+        assert.match(result(request, 'nested'), /subagent/);
         assert.match(result(request, 'nested'), /not found|Unknown|not available/i);
         observer.sample();
       } },
@@ -67,10 +67,10 @@ test('packed deadline returns after child cleanup before the outer watchdog', { 
     onSpawn: (pid) => observer.start(pid),
     fixture: { script: [
       { reply: { kind: 'tool', ...delegate, arguments: { ...delegate.arguments, timeoutMs: 1500 } } },
-      { reply: { kind: 'stall' }, check: (request) => { assert.ok(!tools(request).includes('blocking_subagent')); observer.sample(); childRequestedAt = Date.now(); } },
+      { reply: { kind: 'stall' }, check: (request) => { assert.ok(!tools(request).includes('subagent')); observer.sample(); childRequestedAt = Date.now(); } },
       { reply: { kind: 'text', text: 'Deadline verified.' }, check: (request) => {
         returnedAt = Date.now();
-        assert.match(result(request, 'delegate'), /Timed out after 1500 ms/);
+        assert.match(result(request, 'delegate'), /timed out after 1500 ms/);
         assert.equal(observer.sample().filter((row) => row.pid !== observer.root).length, 0, 'Work survived tool return');
       } },
     ] },
@@ -90,7 +90,7 @@ test('packed simultaneous delegates both run as separate children and leave unre
   /** @type {import('./concurrent-provider.mjs').ConcurrentRoute[]} */
   const routes = [
     { marker: prompt, steps: [
-      { model: FIXTURE_MODEL, reply: { kind: 'tools', calls: [{ ...delegate, arguments: { agent: 'general-purpose', task: 'leaf-one' } }, { ...delegate, id: 'second', arguments: { agent: 'general-purpose', task: 'leaf-two' } }, { id: 'shell', name: 'bash', arguments: { command: 'printf "%s\\n" "literal git push and PR edit" > shell-survived.txt' } }] } },
+      { model: FIXTURE_MODEL, reply: { kind: 'tools', calls: [{ ...delegate, arguments: { name: 'One', agent: 'general-purpose', task: 'leaf-one', wait: true } }, { ...delegate, id: 'second', arguments: { name: 'Two', agent: 'general-purpose', task: 'leaf-two', wait: true } }, { id: 'shell', name: 'bash', arguments: { command: 'printf "%s\\n" "literal git push and PR edit" > shell-survived.txt' } }] } },
       { model: FIXTURE_MODEL, reply: { kind: 'text', text: 'Concurrency verified.' }, check: (request) => {
         assert.equal(arrived.size, 2);
         assert.match(result(request, 'delegate'), /Leaf one/);
@@ -99,7 +99,7 @@ test('packed simultaneous delegates both run as separate children and leave unre
       } },
     ] },
     ...['leaf-one', 'leaf-two'].map((marker, index) => ({ marker, steps: [{ model: FIXTURE_MODEL, reply: /** @type {const} */ ({ kind: 'text', text: index === 0 ? 'Leaf one.' : 'Leaf two.' }), check: async (/** @type {Record<string, unknown>} */ request) => {
-      assert.ok(!tools(request).includes('blocking_subagent'));
+      assert.ok(!tools(request).includes('subagent'));
       arrived.add(marker);
       const deadline = Date.now() + 4000;
       while (arrived.size < 2 && Date.now() < deadline) await delay(20);
@@ -112,33 +112,33 @@ test('packed simultaneous delegates both run as separate children and leave unre
     verify: async (run) => {
       assert.equal(observer.peakLivePi, 3);
       assert.equal(await readFile(path.join(run.paths.cwd, 'shell-survived.txt'), 'utf8'), 'literal git push and PR edit\n');
-      const ends = run.events.filter((event) => event.type === 'tool_execution_end' && event.toolName === 'blocking_subagent');
+      const ends = run.events.filter((event) => event.type === 'tool_execution_end' && event.toolName === 'subagent');
       assert.deepEqual(ends.map((event) => event.isError), [false, false]);
       await verified(t, observer, run);
     },
   });
 });
 
-test('eight blocking_subagent calls in one message run four at a time and one failure does not cancel siblings', { timeout: 25000 }, async (t) => {
+test('eight subagent wait calls in one message run four at a time and one failure does not cancel siblings', { timeout: 25000 }, async (t) => {
   const observer = observation(t, 5);
   const prompt = 'mixed-parallel-parent';
-  const tasks = Array.from({ length: 8 }, (_, index) => ({ agent: 'general-purpose', task: `mixed-child-${index}` }));
+  const tasks = Array.from({ length: 8 }, (_, index) => ({ name: `Mixed ${index}`, agent: 'general-purpose', task: `mixed-child-${index}`, wait: true }));
   const arrived = new Set();
   /** @type {import('./concurrent-provider.mjs').ConcurrentRoute[]} */
   const routes = [{ marker: prompt, steps: [
-    { model: FIXTURE_MODEL, reply: { kind: 'tools', calls: tasks.map((args, index) => ({ id: `mixed-${index}`, name: 'blocking_subagent', arguments: args })) } },
+    { model: FIXTURE_MODEL, reply: { kind: 'tools', calls: tasks.map((args, index) => ({ id: `mixed-${index}`, name: 'subagent', arguments: args })) } },
     { model: FIXTURE_MODEL, reply: { kind: 'text', text: 'Sibling isolation verified.' }, check: (payload) => {
       assert.equal(arrived.size, 8);
-      assert.match(result(payload, 'mixed-0'), /Agent error/);
+      assert.match(result(payload, 'mixed-0'), /failed/);
       for (const index of [1, 3, 4, 5, 6, 7]) assert.match(result(payload, `mixed-${index}`), new RegExp(`result-${index}`));
       assert.equal(observer.sample().length, 1, 'Child survived tool return');
     } },
   ] }, ...tasks.map((task, index) => {
     /** @type {import('./concurrent-provider.mjs').ConcurrentStep[]} */
     const steps = [{ model: FIXTURE_MODEL,
-      reply: index === 0 ? { kind: 'failure' } : index === 2 ? { kind: 'tool', id: 'nested', name: 'blocking_subagent', arguments: { agent: 'general-purpose', task: 'Do not run.' } } : { kind: 'text', text: `result-${index}` },
+      reply: index === 0 ? { kind: 'failure' } : index === 2 ? { kind: 'tool', id: 'nested', name: 'subagent', arguments: { name: 'Nested', agent: 'general-purpose', task: 'Do not run.', wait: true } } : { kind: 'text', text: `result-${index}` },
       check: async (payload) => {
-        assert.ok(!tools(payload).includes('blocking_subagent'));
+        assert.ok(!tools(payload).includes('subagent'));
         arrived.add(index);
         if (index < 4) {
           const deadline = Date.now() + 4000;
@@ -156,7 +156,7 @@ test('eight blocking_subagent calls in one message run four at a time and one fa
     verify: async (run) => {
       const ends = tasks.map((_, index) => run.events.find((event) => event.type === 'tool_execution_end' && event.toolCallId === `mixed-${index}`));
       assert.deepEqual(ends.map((event) => event?.isError), [true, false, false, false, false, false, false, false]);
-      assert.deepEqual(ends.map((event) => /** @type {any} */ (event?.result).details.results[0].task), tasks.map((task) => task.task));
+      assert.deepEqual(ends.map((event) => /** @type {any} */ (event?.result).details.task), tasks.map((task) => task.task));
       assert.equal(observer.peakLivePi, 5);
       await verified(t, observer, run);
     },
@@ -210,13 +210,13 @@ test('packed child ignores fake pi at the front of PATH', { timeout: 12000 }, as
   });
 });
 
-for (const denied of ['blocking_subagent', ' subagent , blocking_subagent ']) {
-  test(`packed PI_DENY_TOOLS=${denied} hides blocking_subagent but leaves parent bash available`, { timeout: 12000 }, async (t) => {
+for (const denied of ['subagent', ' subagent_resume , subagent ']) {
+  test(`packed PI_DENY_TOOLS=${denied} hides subagent but leaves parent bash available`, { timeout: 12000 }, async (t) => {
     const observer = observation(t);
     await runPiSmoke({ keepArtifacts: true, launchEnvironment: { PI_DENY_TOOLS: denied }, expectedRequests: 3, expectedText: 'Depth rejected without a command gate.',
       onSpawn: (pid) => observer.start(pid),
       fixture: { script: [
-        { reply: { kind: 'tool', ...delegate }, check: (request) => assert.ok(!tools(request).includes('blocking_subagent')) },
+        { reply: { kind: 'tool', ...delegate }, check: (request) => assert.ok(!tools(request).includes('subagent')) },
         { reply: { kind: 'tool', id: 'shell', name: 'bash', arguments: { command: 'printf untouched > unrelated.txt' } }, check: (request) => assert.match(result(request, 'delegate'), /not found|Unknown|not available/i) },
         { reply: { kind: 'text', text: 'Depth rejected without a command gate.' } },
       ] },
