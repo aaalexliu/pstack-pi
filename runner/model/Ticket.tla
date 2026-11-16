@@ -26,8 +26,8 @@ Idle == lead = "idle" /\ ~done
 \* ---- the lead: how a session ends ----
 \* The lead calls subagent_done once its ending is in place; a turn end alone
 \* does not end it. The runner acts only on a ticket with no live lead, so a
-\* live lead's steps, quiet or not, are the lead's own. The stall issue for a
-\* quiet live lead only tells Alex to attach; the model leaves it out.
+\* live lead's steps, quiet or not, are the lead's own. The nudge and the
+\* investigator for a quiet live lead change no state here; the model leaves them out.
 LeadAsks == lead = "live" /\ ~dec /\ lead' = "idle" /\ dec' = TRUE /\ linked' = TRUE
     /\ UNCHANGED <<news, dup, spun, done>>
 \* It merged its last PR ("Fixes KEY") or posted its report.

@@ -11,7 +11,7 @@ The runner does nothing for you but start you. You own the PRs, the review, the 
 
 ## Build
 
-- Split the work into units you can verify alone, ordered so each one proves itself, as `<prompts>/../../skills/principle-sequence-verifiable-units/SKILL.md` describes; read it. Build a unit yourself, or start a sub-lead for it: make its worktree first with `git worktree add ../<repo>-<unit> -b <branch> origin/<base>`, then call `subagent` with agent `sub-lead`, `cwd` set to that full path, and `model` set to your own model. Sub-leads cannot start subagents.
+- Split the work into units you can verify alone, ordered so each one proves itself, as `<prompts>/../../skills/principle-sequence-verifiable-units/SKILL.md` describes; read it. Build a unit yourself, or start a sub-lead for it: make its worktree first with `git worktree add "$PWD-<unit>" -b <branch> origin/<base>` (the runner watches session logs only under that name; `<unit>` is never `quiz`, which the quiz fork uses), then call `subagent` with agent `sub-lead`, `cwd` set to that full path, and `model` set to your own model. Sub-leads cannot start subagents.
 - Sub-leads usually suit units that can run in parallel. When each unit depends on the one before, it is often better to build them yourself in order.
 - The sub-lead's brief names the unit's goal and how to prove it, KEY and `Part of KEY`, the base branch, the review model, and the prompts folder.
 - Wait for every sub-lead. A unit is done only when its PR is merged: if a sub-lead returns before that, resume it with `subagent_resume` or finish the unit yourself.
@@ -28,6 +28,7 @@ The runner does nothing for you but start you. You own the PRs, the review, the 
 - Write each PR title and body as the Titles and Descriptions sections of `<prompts>/../../skills/poteto-mode/playbooks/opening-a-pr.md` describe; read it.
 - Each PR body names the ticket: `Fixes KEY` on the last PR, `Part of KEY` on the others.
 - Branch each PR from the latest base. Push with `git push --force-with-lease`.
+- Give any command that could run long an explicit timeout. Run long builds with output, or in the background with a log you check.
 
 ## The merge gate, for every PR
 

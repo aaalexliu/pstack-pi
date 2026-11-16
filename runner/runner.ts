@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { appendFileSync, closeSync, existsSync, fsyncSync, mkdirSync, openSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, writeSync } from 'node:fs';
+import { appendFileSync, closeSync, existsSync, fstatSync, fsyncSync, mkdirSync, openSync, readdirSync, readFileSync, readSync, realpathSync, renameSync, rmSync, statSync, writeSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,6 +21,7 @@ export type Config = {
   maxLeads: number;
   minFreeMemoryPercent: number;
   stallMinutes: number;
+  toolQuietMinutes: number;
   host: string;
   worktreeRoot: string;
   routines?: Routine[];
@@ -68,7 +69,7 @@ export function loadConfig(file: string): Config {
   }
   if (!raw.models.lead || !raw.models.review) throw new Error(`${file}: "models" needs "lead" and "review"`);
   for (const r of raw.routines ?? []) parseSchedule(r.schedule);
-  return { thinking: 'high', pollSeconds: 30, maxLeads: 2, minFreeMemoryPercent: 20, stallMinutes: 30, host: os.hostname().replace(/\.local$/, ''), ...raw };
+  return { thinking: 'high', pollSeconds: 30, maxLeads: 2, minFreeMemoryPercent: 20, stallMinutes: 5, toolQuietMinutes: 60, host: os.hostname().replace(/\.local$/, ''), ...raw };
 }
 
 function run(cmd: string, args: string[], cwd: string): Promise<{ code: number; out: string }> {
@@ -215,7 +216,7 @@ export function renderStatus(w: Pick<Work, 'key' | 'dir' | 'branch'>, sessionId:
     `- Session id: \`${sessionId}\``,
     `- Worktree: \`${w.dir}\` on \`${w.branch}\``,
     `- Watch or steer: \`${c.watch}\``,
-    `- Take over (no stall issues until you quit Pi): \`${c.takeOver}\``,
+    `- Take over (no stall nudges until you quit Pi): \`${c.takeOver}\``,
     `- Quiz a fork: \`${c.quiz}\``,
   ].join('\n');
 }
@@ -328,37 +329,44 @@ function startMessage(ctx: Ctx, w: Work, news: string[]) {
 
 /**
  * Starts or resumes the lead in a detached tmux session named for the ticket, and saves the start time.
- * Pi runs until the lead calls `subagent_done`; the extension also writes the activity file.
+ * Pi runs until the lead calls `subagent_done`.
  * The launch script drops every Pi variable the tmux server holds from another session, and reads the tokens itself,
  * so they never land on disk. It mirrors both into the tmux session, so windows the lead's subagents open match it.
  */
-async function launch(ctx: Ctx, w: Work, news: string[]) {
-  await worktree(ctx.config.repos[w.repo], w);
-  if (!sessionId(w)) put(rf(w, 'session-id'), randomUUID());
-  put(rf(w, 'input.md'), startMessage(ctx, w, news));
-  for (const file of ['takeover', 'held']) rmSync(rf(w, file), { force: true });
-  const pi = (...extra: string[]) => [bin('pi'), '--session-id', sessionId(w), '-e', SUBAGENT_DONE,
-    '--model', w.models.lead, '--thinking', ctx.config.thinking, '--append-system-prompt', path.join(PROMPTS, 'lead.md'), ...extra].map(sh).join(' ');
-  const keep = KEEP_ENV.filter((name) => process.env[name]);
-  const tmuxEnv = `${sh(bin('tmux'))} set-environment -t ${sh(session(w.key))}`;
+function envScript(ctx: Ctx, w: Work, name: string) {
+  const keep = KEEP_ENV.filter((env) => process.env[env]);
+  const tmuxEnv = `${sh(bin('tmux'))} set-environment -t ${sh(session(name))}`;
   const tokens = [['LINEAR_TOKEN', ctx.config.linearTokenCommand], ...(ctx.config.ghTokenCommand ? [['GH_TOKEN', ctx.config.ghTokenCommand]] : [])];
-  put(rf(w, 'lead.sh'), [
+  return [
     '#!/bin/sh',
     `cd ${sh(w.dir)} || exit 1`,
     `export PATH=${sh(process.env.PATH ?? '')}`,
     '# The tmux server keeps the environment of whoever started it. Drop Pi and cmux variables from another session.',
     `for v in $(env | sed -n 's/^\\(PI_[A-Za-z0-9_]*\\)=.*/\\1/p; s/^\\(PSTACK_[A-Za-z0-9_]*\\)=.*/\\1/p; s/^\\(CMUX_[A-Za-z0-9_]*\\)=.*/\\1/p'); do unset "$v"; ${tmuxEnv} -r "$v"; done`,
-    ...keep.map((name) => `export ${name}=${sh(process.env[name]!)}`),
-    ...tokens.flatMap(([name, command]) => [`${name}=$(${command}) || exit 1`, `export ${name}`]),
-    ...[...keep, ...tokens.map(([name]) => name)].map((name) => `${tmuxEnv} ${name} "$${name}"`),
-    `PI_SUBAGENT_ID=${sh(w.key)} PI_SUBAGENT_ACTIVITY_FILE=${sh(rf(w, 'activity.json'))} ${pi(`@${rf(w, 'input.md')}`)}`,
-    '# A person who touched .runner/takeover keeps the session, with no stall issues, until they quit Pi.',
+    ...keep.map((env) => `export ${env}=${sh(process.env[env]!)}`),
+    ...tokens.flatMap(([env, command]) => [`${env}=$(${command}) || exit 1`, `export ${env}`]),
+    ...[...keep, ...tokens.map(([env]) => env)].map((env) => `${tmuxEnv} ${env} "$${env}"`),
+  ];
+}
+
+async function launch(ctx: Ctx, w: Work, news: string[]) {
+  await worktree(ctx.config.repos[w.repo], w);
+  if (!sessionId(w)) put(rf(w, 'session-id'), randomUUID());
+  put(rf(w, 'input.md'), startMessage(ctx, w, news));
+  for (const file of ['takeover', 'held', 'stall.json']) rmSync(rf(w, file), { force: true });
+  const pi = (...extra: string[]) => [bin('pi'), '--session-id', sessionId(w), '-e', SUBAGENT_DONE,
+    '--model', w.models.lead, '--thinking', ctx.config.thinking, '--append-system-prompt', path.join(PROMPTS, 'lead.md'), ...extra].map(sh).join(' ');
+  put(rf(w, 'lead.sh'), [
+    ...envScript(ctx, w, w.key),
+    `PI_SUBAGENT_ID=${sh(w.key)} ${pi(`@${rf(w, 'input.md')}`)}`,
+    '# A person who touched .runner/takeover keeps the session, with no stall nudges, until they quit Pi.',
     `if [ -f .runner/takeover ]; then mv .runner/takeover .runner/held; ${pi()}; rm -f .runner/held; fi`,
     '',
   ].join('\n'));
   put(rf(w, 'started'), new Date().toISOString());
   await run(bin('tmux'), ['kill-session', '-t', session(w.key)], w.dir);
-  await must(bin('tmux'), ['new-session', '-d', '-s', w.key, '-x', '200', '-y', '50', '-c', w.dir, `sh ${sh(rf(w, 'lead.sh'))}`], w.dir);
+  const pane = await must(bin('tmux'), ['new-session', '-d', '-s', w.key, '-x', '200', '-y', '50', '-c', w.dir, '-P', '-F', '#{pane_id}', `sh ${sh(rf(w, 'lead.sh'))}`], w.dir);
+  put(rf(w, 'pane'), pane);
   const tagged = await run(bin('tmux'), ['set-option', '-t', `${session(w.key)}:`, '@job-runner', w.key], w.dir);
   if (tagged.code !== 0) {
     const stopped = (await run(bin('tmux'), ['kill-session', '-t', session(w.key)], w.dir)).code === 0;
@@ -370,40 +378,109 @@ async function launch(ctx: Ctx, w: Work, news: string[]) {
 
 const live = async (w: Pick<Work, 'key'>) => (await run(bin('tmux'), ['has-session', '-t', session(w.key)], process.cwd())).code === 0;
 
+const agentDir = () => process.env.PI_CODING_AGENT_DIR ?? path.join(os.homedir(), '.pi', 'agent');
+/** Pi's session folder for a cwd, named the way Pi names it. */
+const sessionFolder = (cwd: string) => path.join(agentDir(), 'sessions', `--${cwd.replace(/^[/\\]/, '').replace(/[/\\:]/g, '-')}--`);
+
 /**
- * When, in ms, the lead's tmux session last did anything: the lead's activity file, output in any of its windows
- * (`windowActivity`, in ms, so a working subagent counts), or the start. 0 when none is known.
+ * The last message in the last 1 MB of a session log, or null. A tail with no whole message, such as one huge
+ * screenshot result, reads as `unknown`, which counts as busy so the longer limit applies.
  */
-export function lastActivity(w: Pick<Work, 'dir'>, windowActivity = 0) {
-  const started = lastStart(w);
-  let last = Math.max(started ? Date.parse(started) : 0, windowActivity);
-  try { last = Math.max(last, JSON.parse(readFileSync(rf(w, 'activity.json'), 'utf8')).updatedAt ?? 0); } catch { /* no activity yet */ }
-  return last;
-}
-
-/** The newest output time, in ms, of any window in the ticket's tmux session. */
-async function windowActivity(w: Pick<Work, 'key' | 'dir'>) {
-  const { out } = await run(bin('tmux'), ['list-windows', '-t', session(w.key), '-F', '#{window_activity}'], w.dir);
-  return Math.max(0, ...out.split('\n').map(Number).filter(Number.isFinite)) * 1000;
+function lastMessage(file: string): { role?: string; stopReason?: string; text?: string; unknown?: boolean } | null {
+  const fd = openSync(file, 'r');
+  try {
+    const size = fstatSync(fd).size;
+    const buffer = Buffer.alloc(Math.min(size, 1 << 20));
+    readSync(fd, buffer, 0, buffer.length, size - buffer.length);
+    for (const line of buffer.toString('utf8').trimEnd().split('\n').reverse()) {
+      try {
+        const entry = JSON.parse(line);
+        if (entry.type !== 'message') continue;
+        const content = entry.message?.content;
+        return { ...entry.message, text: typeof content === 'string' ? content : Array.isArray(content) ? content.map((c: { text?: string }) => c.text ?? '').join('') : '' };
+      } catch { /* a partial first line */ }
+    }
+    return buffer.length < size ? { unknown: true } : null;
+  } finally { closeSync(fd); }
 }
 
 /**
- * A live lead belongs to the lead: the runner never starts, restarts or kills it. When its session has been quiet
- * for `stallMinutes`, the runner files one Decision issue per quiet stretch saying how to attach. Nothing else.
+ * The lead's heartbeat: the newest write to any Pi session log of the worktree or a sibling named `<worktree>-<unit>`,
+ * where sub-leads work; each cwd has its own folder. The investigator's (`.runner`) and Alex's quiz fork (`<worktree>-quiz`) are left out. Also whether that log's last message is mid-step. A tool call with no result,
+ * or a user message or tool result with no reply, is busy; anything else is idle. The lead start is the floor.
+ */
+export function heartbeat(w: Pick<Work, 'dir'>) {
+  const started = lastStart(w);
+  let newest = { at: started ? Date.parse(started) : 0, file: '' };
+  const sessions = path.join(agentDir(), 'sessions');
+  const prefixes = [...new Set([w.dir, existsSync(w.dir) ? realpathSync(w.dir) : w.dir])].map((dir) => path.basename(sessionFolder(dir)).slice(0, -1));
+  const dirs = [...new Set([w.dir, existsSync(w.dir) ? realpathSync(w.dir) : w.dir])];
+  const notLead = dirs.flatMap((dir) => [path.join(dir, '.runner'), `${dir}-quiz`]).map((dir) => path.basename(sessionFolder(dir)));
+  const folders = existsSync(sessions) ? readdirSync(sessions).filter((f) => prefixes.some((p) => f.startsWith(p)) && !notLead.includes(f)) : [];
+  for (const folder of folders.map((f) => path.join(sessions, f))) {
+    for (const name of readdirSync(folder).filter((f) => f.endsWith('.jsonl'))) {
+      const at = statSync(path.join(folder, name)).mtimeMs;
+      if (at > newest.at) newest = { at, file: path.join(folder, name) };
+    }
+  }
+  const last = newest.file ? lastMessage(newest.file) : null;
+  const busy = !!last && (!!last.unknown || (last.role === 'assistant' && last.stopReason === 'toolUse') || last.role === 'user' || last.role === 'toolResult');
+  return { at: newest.at, busy, nudge: !!last && last.role === 'user' && last.text?.startsWith(NUDGE) };
+}
+
+const NUDGE = 'No progress from you or your subagents for';
+/** What the runner did about the current quiet stretch, kept in `.runner/stall.json`. */
+type Stall = { nudgedAt: number; investigatedAt?: number };
+
+/**
+ * A live lead belongs to the lead: the runner never starts, restarts or kills it. A quiet stretch is `stallMinutes`
+ * with no heartbeat while idle, or `toolQuietMinutes` while busy. The first in a lead run gets Escape (closing a
+ * selector, or stopping the tool or wait) and one nudge. The second, whether or not the lead wrote in between, starts
+ * one investigator that reports on the ticket. After that the runner does nothing until it starts the lead again.
  */
 async function checkStall(ctx: Ctx, w: Work, ticket: Ticket) {
   if (existsSync(rf(w, 'held')) || existsSync(rf(w, 'takeover'))) return;
-  const last = lastActivity(w, await windowActivity(w));
-  const quiet = last ? Math.floor((Date.now() - last) / 60000) : 0;
-  if (quiet < ctx.config.stallMinutes) return;
-  const quietSince = new Date(last).toISOString();
-  if (ticket.children.some((c) => isDecision(ctx.config, c) && c.createdAt >= quietSince)) return;
-  const c = commands(w, sessionId(w), ctx.config.host);
-  const issue = await ctx.linear.fileDecision(w.id, `Check ${w.key}: the lead looks stuck`, [
-    `The lead's tmux session has shown no activity for ${quiet} minutes and still holds a lead slot.`,
-    `Attach with \`${c.watch}\` and tell it what to do, or stop it with \`${c.stop}\`; the runner then starts it again in the same session with your comments. The runner does not touch a live lead, so comments alone reach it only after it exits.`,
-  ].join('\n\n'));
-  await status(ctx, w, ticket, `Lead quiet for ${quiet} minutes; asked in [${issue.identifier}](${issue.url}). It still holds a slot.`);
+  const beat = heartbeat(w);
+  let stall: Stall | null = null;
+  try { stall = JSON.parse(readFileSync(rf(w, 'stall.json'), 'utf8')); } catch { /* no quiet stretch this run */ }
+  if (stall?.investigatedAt) return;
+  const limit = (beat.busy && !beat.nudge ? ctx.config.toolQuietMinutes : ctx.config.stallMinutes) * 60000;
+  const quiet = Math.floor((Date.now() - beat.at) / 60000);
+  if (!beat.at || Date.now() - Math.max(beat.at, stall?.nudgedAt ?? 0) < limit) return;
+  if (!stall) {
+    const target = readOr(rf(w, 'pane'))?.trim() || `${session(w.key)}:`;
+    await must(bin('tmux'), ['send-keys', '-t', target, 'Escape'], w.dir);
+    await sleep(500);
+    await must(bin('tmux'), ['send-keys', '-t', target, '-l', `${NUDGE} ${quiet} minutes${beat.busy ? ', so the runner pressed Escape to stop your tool or wait' : ''}. Check each subagent, take any finished result (from its pane, its session or the PR), close the ones that are done, then continue or end.`], w.dir);
+    await must(bin('tmux'), ['send-keys', '-t', target, 'Enter'], w.dir);
+    put(rf(w, 'stall.json'), JSON.stringify({ nudgedAt: Date.now() }));
+    await status(ctx, w, ticket, `Lead running. No heartbeat for ${quiet} minutes${beat.busy ? ' with a step in flight' : ''}, so the runner nudged it.`);
+  } else {
+    await investigate(ctx, w, quiet);
+    put(rf(w, 'stall.json'), JSON.stringify({ ...stall, investigatedAt: Date.now() }));
+    await status(ctx, w, ticket, `Lead running. Quiet again after the nudge, so an investigator (tmux session \`${w.key}-stall\`) is looking into it.`);
+  }
+}
+
+/** Starts a one-shot Pi in its own tmux session that finds out why the lead is stuck and comments on the ticket. It takes no lead slot. */
+async function investigate(ctx: Ctx, w: Work, quiet: number) {
+  put(rf(w, 'stall-input.md'), [
+    `Issue ${w.key}: ${w.title}`, w.url, '',
+    `Linear issue id: ${w.id}. Team: ${ctx.config.team}. File Decision issues as sub-issues assigned to ${ctx.config.decisionAssignee}.`,
+    `The lead went quiet a second time since the runner nudged it: its session logs have had no write for ${quiet} minutes.`,
+    `Lead tmux session: ${w.key}. Lead Pi session id: ${sessionId(w)}. Worktree: ${w.dir} on ${w.branch}.`,
+    `Session logs of the lead and its subagents: ${sessionFolder(w.dir)}.`,
+  ].join('\n'));
+  const script = rf(w, 'stall.sh');
+  put(script, [
+    ...envScript(ctx, w, `${w.key}-stall`),
+    '# Run from .runner so this session logs to its own folder, never the lead\'s heartbeat.',
+    `cd ${sh(rf(w, ''))} || exit 1`,
+    [bin('pi'), '-p', '--model', w.models.lead, '--thinking', ctx.config.thinking, '--append-system-prompt', path.join(PROMPTS, 'stall.md'), `@${rf(w, 'stall-input.md')}`].map(sh).join(' '),
+    '',
+  ].join('\n'));
+  await run(bin('tmux'), ['kill-session', '-t', session(`${w.key}-stall`)], w.dir);
+  await must(bin('tmux'), ['new-session', '-d', '-s', `${w.key}-stall`, '-x', '200', '-y', '50', '-c', rf(w, ''), `sh ${sh(script)}`], w.dir);
 }
 
 /** Files the runner's own Decision issue: the lead stopped, or could not start, with nothing open to wait for. */

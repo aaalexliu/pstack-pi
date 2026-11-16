@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import { format } from 'node:util';
-import { commands, lastActivity, main, nextMove, put, renderStatus, startBlock, type Child, type Config, type Ticket } from './runner.ts';
+import { commands, main, nextMove, put, renderStatus, startBlock, type Child, type Config, type Ticket } from './runner.ts';
 
 type FakeComment = { id: string; body: string; createdAt: string; user: { name: string; app?: boolean } | null; botActor?: { name: string } | null; parentId?: string };
 type FakeIssue = {
@@ -27,6 +27,17 @@ const asQueried = ({ botActor, user, ...c }: FakeComment, query: string) => ({
   user: user && (/user \{ name app \}/.test(query) ? user : { name: user.name }),
 });
 const later = () => new Date().toISOString();
+/** Writes a Pi session log for `cwd` whose last message is `last`, last written `minutes` ago. */
+function sessionLog(agent: string, cwd: string, name: string, minutes: number, last: Record<string, unknown>) {
+  const folder = path.join(agent, 'sessions', `--${cwd.replace(/^\//, '').replace(/[/:]/g, '-')}--`);
+  mkdirSync(folder, { recursive: true });
+  const file = path.join(folder, `${name}.jsonl`);
+  writeFileSync(file, `{"type":"session","id":"${name}"}\n${JSON.stringify({ type: 'message', message: last })}\n`);
+  const at = new Date(Date.now() - minutes * 60000);
+  utimesSync(file, at, at);
+}
+const IDLE = { role: 'assistant', stopReason: 'stop', content: [{ type: 'text', text: 'Waiting on the reviewer.' }] };
+const TOOL_CALL = { role: 'assistant', stopReason: 'toolUse', content: [] };
 
 function issue(n: number, fields: Partial<FakeIssue> = {}): FakeIssue {
   return {
@@ -74,7 +85,6 @@ else if (args[0] === 'has-session') process.exit(live.includes(target) ? 0 : 1);
 else if (args[0] === 'kill-session') { if (!live.includes(target)) process.exit(1); fs.writeFileSync(liveFile, JSON.stringify(live.filter((k) => k !== target))); }
 else if (args[0] === 'set-option') { if (!/^=.+:$/.test(args[args.indexOf('-t') + 1] ?? '') || fs.existsSync(tagsFile + '.fail')) { console.error('no such session'); process.exit(1); } const tags = fs.existsSync(tagsFile) ? JSON.parse(fs.readFileSync(tagsFile, 'utf8')) : {}; fs.writeFileSync(tagsFile, JSON.stringify({ ...tags, [target]: args.at(-1) })); }
 else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? JSON.parse(fs.readFileSync(tagsFile, 'utf8')) : {}; console.log(live.map((k) => k + ' ' + (tags[k] ?? '')).join('\\n')); }
-else if (args[0] === 'list-windows') { try { process.stdout.write(fs.readFileSync(${JSON.stringify(file('windows'))}, 'utf8')); } catch {} }
 `, { mode: 0o755 });
   writeFileSync(file('memory_pressure'), `#!/bin/sh\necho "System-wide memory free percentage: $(cat ${JSON.stringify(file('free'))} 2>/dev/null || echo 60)%"\n`, { mode: 0o755 });
   Object.assign(process.env, {
@@ -86,7 +96,7 @@ else if (args[0] === 'list-windows') { try { process.stdout.write(fs.readFileSyn
     linearTokenCommand: `cat ${file('token')}`, team: 'ALE', runnerUser: RUNNER, decisionAssignee: ALEX,
     repos: { 'pstack-pi': { path: repo, base: 'main' } },
     models: { lead: 'lead-model', review: 'review-model' }, thinking: 'high', pollSeconds: 0.01, maxLeads: options.maxLeads ?? 2,
-    minFreeMemoryPercent: 20, stallMinutes: options.stallMinutes ?? 30, host: 'test-host', worktreeRoot: file('worktrees'),
+    minFreeMemoryPercent: 20, stallMinutes: options.stallMinutes ?? 30, toolQuietMinutes: 60, host: 'test-host', worktreeRoot: file('worktrees'),
     ...(options.ghTokenCommand ? { ghTokenCommand: options.ghTokenCommand } : {}),
   };
   let nextId = 0;
@@ -172,8 +182,6 @@ else if (args[0] === 'list-windows') { try { process.stdout.write(fs.readFileSyn
     leads: () => lines(file('pi.log')).map((line) => JSON.parse(line)),
     tmux: () => lines(file('tmux.log')).map((line) => JSON.parse(line) as string[]),
     decisions: (parent = 'id-1') => issues.filter((i) => i.parent === parent),
-    /** Window activity times, in seconds, that the fake `tmux list-windows` prints. */
-    setWindows: (...seconds: number[]) => writeFileSync(file('windows'), seconds.join('\n')),
     setLive: (...keys: string[]) => writeFileSync(file('live.json'), JSON.stringify(keys)),
     /** Marks sessions as the runner's, as its `set-option @job-runner` does. */
     tag: (...keys: string[]) => writeFileSync(file('tags.json'), JSON.stringify(Object.fromEntries(keys.map((k) => [k, k])))),
@@ -195,7 +203,7 @@ test('a delegated ticket starts one lead in tmux with the session, the subagent_
   assert.equal(lead.autoExit, undefined, 'the lead decides when to exit');
   assert.ok(lead.extension.endsWith('subagent-done.ts') && existsSync(lead.extension));
   assert.equal(lead.token, 'test-token');
-  assert.deepEqual(lead.piVars, ['PI_AUTH_PROFILE', 'PI_SUBAGENT_ACTIVITY_FILE', 'PI_SUBAGENT_ID'], 'outer PI_*, PSTACK_* and CMUX_* are gone, digits included');
+  assert.deepEqual(lead.piVars, ['PI_AUTH_PROFILE', 'PI_SUBAGENT_ID'], 'outer PI_*, PSTACK_* and CMUX_* are gone, digits included');
   assert.ok(!readFileSync(path.join(dir, '.runner', 'lead.sh'), 'utf8').includes('test-token'), 'the token never lands on disk');
   assert.match(lead.input, /^Issue ALE-1: Job number 1[\s\S]*Linear issue id: id-1\.[\s\S]*- The ticket was delegated to you\./);
   assert.deepEqual(t.tmux().find((a) => a[0] === 'new-session')!.slice(0, 4), ['new-session', '-d', '-s', 'ALE-1']);
@@ -334,37 +342,98 @@ test('the runner never starts or kills a live lead, even after a comment or a cl
   assert.deepEqual(t.tmux().filter((a) => a[0] === 'new-session' || a[0] === 'kill-session').map((a) => a[0]), ['kill-session', 'new-session'], 'only the first start');
 });
 
-test('a quiet live lead gets one Decision issue per quiet stretch; takeover and a busy window hold it off', async () => {
+test('a quiet live lead gets Escape and one nudge, then one investigator and no Decision issue; takeover holds it off; the second quiet stretch in a run gets the investigator, a third nothing, and a new start resets', async () => {
   const job = issue(1, { state: 'In Progress' });
   const t = setup([job], { stallMinutes: 5 });
-  await t.run('--once');
-  t.setLive('ALE-1');
-  await t.run('--once');
-  assert.equal(t.decisions().length, 0, 'a live, active lead is left alone');
-  const runner = path.join(t.dirOf(1), '.runner');
-  put(path.join(runner, 'started'), new Date(Date.now() - 20 * 60000).toISOString());
-  put(path.join(runner, 'activity.json'), JSON.stringify({ updatedAt: Date.now() - 10 * 60000 }));
-  t.setWindows(Math.floor(Date.now() / 1000) - 60);
-  await t.run('--once');
-  assert.equal(t.decisions().length, 0, 'output in any window, such as a reviewer, counts as activity');
-  t.setWindows(Math.floor(Date.now() / 1000) - 10 * 60);
-  put(path.join(runner, 'takeover'), '');
-  await t.run('--once');
-  assert.equal(t.decisions().length, 0, 'a person took it over');
-  rmSync(path.join(runner, 'takeover'));
-  await t.run('--once');
-  await t.run('--once');
-  const stalls = t.decisions();
-  assert.equal(stalls.length, 1, 'one per quiet stretch');
-  assert.match(stalls[0].title, /Check ALE-1: the lead looks stuck/);
-  assert.match(stalls[0].description, /no activity for 10 minutes[\s\S]*tmux attach/);
-  const filed = Date.now() - 5.5 * 60000;
-  stalls[0].createdAt = new Date(filed).toISOString();
-  put(path.join(runner, 'activity.json'), JSON.stringify({ updatedAt: filed + 5000 }));
-  await t.run('--once');
-  await t.run('--once');
-  assert.equal(t.decisions().length, 2, 'activity seconds after the first issue, then a full quiet interval: exactly one more issue');
-  assert.equal(t.leads().length, 1);
+  const agent = path.join(t.root, 'agent');
+  process.env.PI_CODING_AGENT_DIR = agent;
+  try {
+    await t.run('--once');
+    t.setLive('ALE-1');
+    const dir = t.dirOf(1);
+    const runner = path.join(dir, '.runner');
+    const keys = () => t.tmux().filter((a) => a[0] === 'send-keys').map((a) => (a.includes('-l') ? 'nudge' : a.at(-1)));
+    const nudges = () => keys().filter((k) => k === 'nudge').length;
+    const investigators = () => t.tmux().filter((a) => a[0] === 'new-session' && a.includes('ALE-1-stall')).length;
+    await t.run('--once');
+    assert.equal(nudges(), 0, 'a lead that just started is left alone');
+    put(path.join(runner, 'started'), new Date(Date.now() - 20 * 60000).toISOString());
+    sessionLog(agent, dir, 'lead', 10, IDLE);
+    sessionLog(agent, dir, 'reviewer', 2, IDLE);
+    await t.run('--once');
+    assert.equal(nudges(), 0, 'a subagent that wrote 2 minutes ago keeps the lead alive');
+    sessionLog(agent, dir, 'reviewer', 6, IDLE);
+    sessionLog(agent, `${dir}-unit`, 'sublead', 0, IDLE);
+    await t.run('--once');
+    assert.equal(nudges(), 0, 'a sub-lead writing now in a sibling worktree keeps the lead alive');
+    sessionLog(agent, `${dir}-unit`, 'sublead', 6, IDLE);
+    sessionLog(agent, `${dir}-quiz`, 'quiz', 0, IDLE);
+    sessionLog(agent, dir.replace('job-ale-1-', 'job-ale-10-'), 'other-ticket', 0, IDLE);
+    sessionLog(agent, path.join(dir, '.runner'), 'investigator', 0, IDLE);
+    put(path.join(runner, 'takeover'), '');
+    await t.run('--once');
+    assert.equal(nudges(), 0, 'a person took it over');
+    rmSync(path.join(runner, 'takeover'));
+    await t.run('--once');
+    await t.run('--once');
+    assert.deepEqual(keys(), ['Escape', 'nudge', 'Enter'], 'every log idle for 5 minutes: Escape closes any selector, then one nudge; neither the investigator log nor a quiz fork writing now counts');
+    assert.match(t.tmux().find((a) => a.includes('-l'))!.at(-1)!, /No progress from you or your subagents for 6 minutes\. Check each subagent/);
+    assert.match(job.comments.find((c) => c.body.startsWith('**Runner:**'))!.body, /nudged it/);
+    assert.equal(investigators(), 0, 'the investigator waits another stallMinutes');
+    const stall = path.join(runner, 'stall.json');
+    const nudgedAt = Date.now() - 12 * 60000;
+    put(stall, JSON.stringify({ nudgedAt }));
+    sessionLog(agent, dir, 'lead', 3, IDLE);
+    await t.run('--once');
+    assert.equal(investigators(), 0, 'the lead answered the nudge 3 minutes ago: not quiet yet');
+    sessionLog(agent, dir, 'lead', 6, IDLE);
+    await t.run('--once');
+    await t.run('--once');
+    assert.deepEqual([nudges(), investigators()], [1, 1], 'answered, then idle again: the second stretch starts one investigator, not a second nudge');
+    assert.equal(t.decisions().length, 0, 'the investigator, not the runner, decides whether Alex must act');
+    const script = readFileSync(path.join(runner, 'stall.sh'), 'utf8');
+    assert.match(script, /cd .*\.runner \|\| exit 1\n.*pi -p --model lead-model[\s\S]*prompts\/stall\.md/, 'the investigator runs from .runner, so its log lands outside the lead folder');
+    assert.ok(t.leads().some((l) => /quiet a second time since the runner nudged it/.test(l.input)), 'the investigator ran with its facts');
+    sessionLog(agent, dir, 'lead', 30, IDLE);
+    await t.run('--once');
+    assert.deepEqual([nudges(), investigators()], [1, 1], 'a third stretch in the same run does nothing');
+    t.setLive();
+    job.comments.push({ id: 'c-2', body: 'Go on.', createdAt: later(), user: { name: ALEX } });
+    await t.run('--once');
+    t.setLive('ALE-1');
+    put(path.join(runner, 'started'), new Date(Date.now() - 20 * 60000).toISOString());
+    await t.run('--once');
+    assert.deepEqual([nudges(), investigators()], [2, 1], 'a new lead start resets the count: a fresh nudge');
+  } finally {
+    delete process.env.PI_CODING_AGENT_DIR;
+  }
+});
+
+test('a pending tool call keeps the lead alive for toolQuietMinutes, then gets Escape and a nudge', async () => {
+  const t = setup([issue(1, { state: 'In Progress' })], { stallMinutes: 5 });
+  const agent = path.join(t.root, 'agent');
+  process.env.PI_CODING_AGENT_DIR = agent;
+  try {
+    await t.run('--once');
+    t.setLive('ALE-1');
+    put(path.join(t.dirOf(1), '.runner', 'started'), new Date(Date.now() - 120 * 60000).toISOString());
+    const keys = () => t.tmux().filter((a) => a[0] === 'send-keys').map((a) => (a.includes('-l') ? a.at(-1) : a.at(-1)));
+    sessionLog(agent, t.dirOf(1), 'lead', 59, TOOL_CALL);
+    await t.run('--once');
+    sessionLog(agent, t.dirOf(1), 'lead', 30, { role: 'toolResult', content: [] });
+    await t.run('--once');
+    assert.deepEqual(keys(), [], 'a tool call or a model call in flight under 60 minutes is alive');
+    sessionLog(agent, t.dirOf(1), 'lead', 30, { role: 'toolResult', content: [{ type: 'image', data: 'A'.repeat(2 << 20) }] });
+    await t.run('--once');
+    assert.deepEqual(keys(), [], 'a 2 MB screenshot result past the 1 MB tail still reads as busy');
+    sessionLog(agent, t.dirOf(1), 'lead', 61, TOOL_CALL);
+    await t.run('--once');
+    assert.equal(keys()[0], 'Escape');
+    assert.match(keys()[1]!, /for 61 minutes, so the runner pressed Escape to stop your tool or wait/);
+    assert.equal(keys()[2], 'Enter');
+  } finally {
+    delete process.env.PI_CODING_AGENT_DIR;
+  }
 });
 
 test('the runner kills only a session it tagged whose ticket Linear confirms is closed, never a taken-over one', async () => {
@@ -670,17 +739,6 @@ test('on a real tmux server, a window the lead opens gets its tokens and none of
   } finally {
     try { execFileSync('tmux', ['-L', socket, 'kill-server'], { stdio: 'ignore' }); } catch { /* already gone */ }
   }
-});
-
-test('lastActivity is the latest of the lead start, its activity file and its windows', () => {
-  const dir = mkdtempSync(path.join(os.tmpdir(), 'job-runner-quiet-'));
-  const now = Date.now();
-  mkdirSync(path.join(dir, '.runner'));
-  writeFileSync(path.join(dir, '.runner', 'started'), new Date(now - 60 * 60000).toISOString());
-  assert.equal(lastActivity({ dir }), now - 60 * 60000);
-  writeFileSync(path.join(dir, '.runner', 'activity.json'), JSON.stringify({ updatedAt: now - 7 * 60000 }));
-  assert.equal(lastActivity({ dir }), now - 7 * 60000);
-  assert.equal(lastActivity({ dir }, now - 2 * 60000), now - 2 * 60000, 'output in any tmux window counts');
 });
 
 test('GH_TOKEN from ghTokenCommand reaches the lead, and the lead environment is mirrored into its tmux session', async () => {
