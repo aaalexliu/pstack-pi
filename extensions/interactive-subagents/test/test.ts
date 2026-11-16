@@ -653,6 +653,9 @@ describe("quiet child pings", () => {
   it("describes the log's last line", () => {
     const line = (message: unknown) => JSON.stringify({ type: "message", message });
     assert.equal(describeSessionTail(line({ role: "toolResult" })), "it is waiting on the model");
+    const calls = (...names: string[]) => line({ role: "assistant", content: names.map((name) => ({ type: "toolCall", name })) });
+    assert.equal(describeSessionTail(calls("bash")), "it is mid tool call: bash");
+    assert.equal(describeSessionTail(calls("bash", "bash", "read")), "it is mid 3 tool calls: bash ×2, read");
     assert.match(describeSessionTail(line({ role: "assistant", content: [{ type: "text" }] })), /turn ended/);
   });
 });

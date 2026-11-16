@@ -557,7 +557,13 @@ export function describeSessionTail(lastLine: string | undefined): string {
     const calls = Array.isArray(message.content)
       ? message.content.filter((part: any) => part?.type === "toolCall").map((part: any) => part.name)
       : [];
-    if (calls.length > 0) return `it is mid tool call: ${calls.join(", ")}`;
+    if (calls.length === 1) return `it is mid tool call: ${calls[0]}`;
+    if (calls.length > 1) {
+      const counts = new Map<string, number>();
+      for (const name of calls) counts.set(name, (counts.get(name) ?? 0) + 1);
+      const names = [...counts].map(([name, count]) => (count > 1 ? `${name} ×${count}` : name));
+      return `it is mid ${calls.length} tool calls: ${names.join(", ")}`;
+    }
     return "its turn ended, so it may be sitting at its prompt";
   }
   return "it is waiting on the model";
