@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpath
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
+import { format } from 'node:util';
 import { commands, lastActivity, main, nextMove, put, renderStatus, startBlock, type Child, type Config, type Ticket } from './runner.ts';
 
 type FakeComment = { id: string; body: string; createdAt: string; user: { name: string; app?: boolean } | null; botActor?: { name: string } | null; parentId?: string };
@@ -153,9 +154,21 @@ else if (args[0] === 'list-windows') { try { process.stdout.write(fs.readFileSyn
     throw new Error(`unexpected Linear operation ${op}`);
   };
   const dirOf = (n: number) => path.join(config.worktreeRoot, `job-ale-${n}-job-number-${n}`);
+  /** What the runner printed. A test that expects errors sets `expectErrors` and asserts on `errors`; otherwise any error fails the run. */
+  const printed = { logs: [] as string[], errors: [] as string[], expectErrors: false };
   return {
-    config, ops, faults, root, repo, dirOf, gone, missingStates,
-    run: async (...argv: string[]) => { await new Promise((r) => setTimeout(r, 5)); await main(argv, config, fakeFetch as typeof fetch); },
+    config, ops, faults, root, repo, dirOf, gone, missingStates, printed,
+    /** The first line of each distinct error, without its stack. */
+    errorLines: () => [...new Set(printed.errors.map((e) => e.split('\n')[0]))],
+    run: async (...argv: string[]) => {
+      await new Promise((r) => setTimeout(r, 5));
+      const { log, error } = console;
+      const before = printed.errors.length;
+      console.log = (...args: unknown[]) => { printed.logs.push(format(...args)); };
+      console.error = (...args: unknown[]) => { printed.errors.push(format(...args)); };
+      try { await main(argv, config, fakeFetch as typeof fetch); } finally { Object.assign(console, { log, error }); }
+      if (!printed.expectErrors) assert.deepEqual(printed.errors.slice(before), [], 'the runner printed an unexpected error');
+    },
     leads: () => lines(file('pi.log')).map((line) => JSON.parse(line)),
     tmux: () => lines(file('tmux.log')).map((line) => JSON.parse(line) as string[]),
     decisions: (parent = 'id-1') => issues.filter((i) => i.parent === parent),
@@ -260,13 +273,11 @@ test('NoSpin across a crash: a Todo ticket whose move to In Progress fails is st
   const job = issue(1);
   const t = setup([job]);
   t.faults.push('State');
-  const error = console.error;
-  console.error = () => {};
-  try {
-    await t.run('--once');
-    await t.run('--once');
-    await t.run('--once');
-  } finally { console.error = error; }
+  t.printed.expectErrors = true;
+  await t.run('--once');
+  await t.run('--once');
+  await t.run('--once');
+  assert.deepEqual(t.errorLines(), ['ALE-1: failed; the next poll tries again Error: injected State failure']);
   assert.equal(t.leads().length, 1);
   assert.equal(t.decisions().length, 1, 'the stopped lead gets one Decision issue');
 });
@@ -274,12 +285,10 @@ test('NoSpin across a crash: a Todo ticket whose move to In Progress fails is st
 test('a team with no "In Progress" state starts no lead, so a Todo ticket cannot spin', async () => {
   const t = setup([issue(1)]);
   t.missingStates.add('In Progress');
-  const error = console.error;
-  console.error = () => {};
-  try {
-    await t.run('--once');
-    await t.run('--once');
-  } finally { console.error = error; }
+  t.printed.expectErrors = true;
+  await t.run('--once');
+  await t.run('--once');
+  assert.deepEqual(t.errorLines(), ['ALE-1: failed; the next poll tries again Error: Linear team ALE has no state named "In Progress"']);
   assert.equal(t.leads().length, 0);
 });
 
@@ -371,8 +380,15 @@ test('the runner kills only a session it tagged whose ticket Linear confirms is 
   t.faults.push('IssueByKey');
   t.setLive('ALE-1', 'ALE-2', 'ALE-3', 'ALE-4', 'ALE-5', 'ALE-6', 'ALE-7', 'ALE-8', 'ALE-9', 'ALE-101', 'ALE-102', 'ALE-200', 'other');
   t.tag('ALE-1', 'ALE-2', 'ALE-3', 'ALE-4', 'ALE-6', 'ALE-8', 'ALE-9', 'ALE-101', 'ALE-200');
+  mkdirSync(t.dirOf(101), { recursive: true });
+  t.printed.expectErrors = true;
   const live = () => JSON.parse(readFileSync(path.join(t.root, 'live.json'), 'utf8')).sort();
   await t.run('--once');
+  assert.deepEqual(t.errorLines(), [
+    'ALE-1: could not confirm the ticket is closed, so its session stays Error: injected IssueByKey failure',
+    'ALE-6: could not confirm the ticket is closed, so its session stays Error: Linear has no ticket ALE-6',
+    'ALE-200: could not confirm the ticket is closed, so its session stays Error: Linear 200: [{"message":"Entity not found"}]',
+  ]);
   assert.deepEqual(live(), ['ALE-1', 'ALE-101', 'ALE-102', 'ALE-200', 'ALE-5', 'ALE-6', 'ALE-7', 'ALE-8', 'ALE-9', 'other'],
     'Done ALE-2, undelegated ALE-3 and Canceled ALE-4 die; ALE-1 hit a Linear error; Done ALE-5 and ALE-7 are untagged; Linear has no ALE-6; a person holds ALE-8 and is taking over ALE-9; open, foreign and unknown sessions stay');
   await t.run('--once');
@@ -396,7 +412,9 @@ test('a session the runner cannot tag is stopped, not left running outside the k
 test('a page that says more follows but gives no cursor fails the poll, and nothing starts or dies', async () => {
   const t = setup([issue(1)]);
   t.faults.push('NoCursor');
+  t.printed.expectErrors = true;
   await t.run('--once');
+  assert.deepEqual(t.errorLines(), ['poll failed Error: Linear gave no cursor']);
   assert.ok(!existsSync(path.join(t.root, 'tags.json')));
 });
 
@@ -408,16 +426,12 @@ test('open tickets past the first page of 100 still start', async () => {
 
 test('lead slots: at most maxLeads run, a live lead holds its slot, and the runner says why once', async () => {
   const t = setup([issue(1), issue(2), issue(3), issue(4)], { maxLeads: 2 });
-  const printed: string[] = [];
-  const log = console.log;
-  console.log = (...args: unknown[]) => { printed.push(args.join(' ')); };
-  try {
-    await t.run('--once');
-    assert.deepEqual(t.leads().map((l) => /Issue (ALE-\d)/.exec(l.input)![1]), ['ALE-1', 'ALE-2']);
-    assert.ok(printed.includes('Not starting ALE-3 yet: all 2 lead slots are busy'));
-    t.setLive('ALE-1');
-    await t.run('--once');
-  } finally { console.log = log; }
+  const printed = t.printed.logs;
+  await t.run('--once');
+  assert.deepEqual(t.leads().map((l) => /Issue (ALE-\d)/.exec(l.input)![1]), ['ALE-1', 'ALE-2']);
+  assert.ok(printed.includes('Not starting ALE-3 yet: all 2 lead slots are busy'));
+  t.setLive('ALE-1');
+  await t.run('--once');
   assert.deepEqual(t.leads().map((l) => /Issue (ALE-\d)/.exec(l.input)![1]), ['ALE-1', 'ALE-2', 'ALE-3'], 'the live lead holds one of the two slots');
 });
 
@@ -426,17 +440,13 @@ test('a blocked ticket with news acks it once, in the comment thread, naming wha
   const job = issue(1, { description: screen });
   const other = issue(2, { description: screen, delegate: null });
   const t = setup([job, other]);
-  const log = console.log;
-  console.log = () => {};
-  try {
-    await t.run('--once');
-    other.delegate = RUNNER;
-    t.setLive('ALE-2');
-    mkdirSync(t.dirOf(2), { recursive: true });
-    job.comments.push({ id: 'h1', body: 'Use the blue icon.', createdAt: later(), user: { name: 'Alex' } });
-    await t.run('--once');
-    await t.run('--once');
-  } finally { console.log = log; }
+  await t.run('--once');
+  other.delegate = RUNNER;
+  t.setLive('ALE-2');
+  mkdirSync(t.dirOf(2), { recursive: true });
+  job.comments.push({ id: 'h1', body: 'Use the blue icon.', createdAt: later(), user: { name: 'Alex' } });
+  await t.run('--once');
+  await t.run('--once');
   const acks = job.comments.filter((c) => c.body.startsWith('Seen.'));
   assert.deepEqual(acks.map((c) => [c.body, c.parentId]), [['Seen. Waiting to start: ALE-2 has the screen.', 'h1']]);
   assert.equal(t.leads().length, 1);
@@ -447,16 +457,12 @@ test('an ack to a reply in a thread goes to the thread root', async () => {
   const job = issue(1, { description: screen });
   const other = issue(2, { description: screen, delegate: null });
   const t = setup([job, other]);
-  const log = console.log;
-  console.log = () => {};
-  try {
-    await t.run('--once');
-    other.delegate = RUNNER;
-    t.setLive('ALE-2');
-    mkdirSync(t.dirOf(2), { recursive: true });
-    job.comments.push({ id: 'h2', body: 'And green.', createdAt: later(), user: { name: 'Alex' }, parentId: 'root' });
-    await t.run('--once');
-  } finally { console.log = log; }
+  await t.run('--once');
+  other.delegate = RUNNER;
+  t.setLive('ALE-2');
+  mkdirSync(t.dirOf(2), { recursive: true });
+  job.comments.push({ id: 'h2', body: 'And green.', createdAt: later(), user: { name: 'Alex' }, parentId: 'root' });
+  await t.run('--once');
   assert.deepEqual(job.comments.filter((c) => c.body.startsWith('Seen.')).map((c) => c.parentId), ['root']);
 });
 
@@ -466,23 +472,19 @@ test('each later Alex move gets its own ack, his own "Seen." does not suppress o
   const other = issue(2, { description: screen, delegate: null });
   const t = setup([job, other]);
   const acks = () => job.comments.filter((c) => c.user?.name === RUNNER && c.body.startsWith('Seen.')).length;
-  const log = console.log;
-  console.log = () => {};
-  try {
-    await t.run('--once');
-    other.delegate = RUNNER;
-    t.setLive('ALE-2');
-    mkdirSync(t.dirOf(2), { recursive: true });
-    job.comments.push({ id: 'h1', body: 'Use the blue icon.', createdAt: later(), user: { name: 'Alex' } });
-    await t.run('--once');
-    assert.equal(acks(), 1);
-    job.comments.push({ id: 'h2', body: 'Seen. Also make it round.', createdAt: later(), user: { name: 'Alex' } });
-    await t.run('--once');
-    await t.run('--once');
-    assert.equal(acks(), 2, 'a later comment gets a fresh ack, even when it says "Seen."');
-    t.setLive();
-    await t.run('--once');
-  } finally { console.log = log; }
+  await t.run('--once');
+  other.delegate = RUNNER;
+  t.setLive('ALE-2');
+  mkdirSync(t.dirOf(2), { recursive: true });
+  job.comments.push({ id: 'h1', body: 'Use the blue icon.', createdAt: later(), user: { name: 'Alex' } });
+  await t.run('--once');
+  assert.equal(acks(), 1);
+  job.comments.push({ id: 'h2', body: 'Seen. Also make it round.', createdAt: later(), user: { name: 'Alex' } });
+  await t.run('--once');
+  await t.run('--once');
+  assert.equal(acks(), 2, 'a later comment gets a fresh ack, even when it says "Seen."');
+  t.setLive();
+  await t.run('--once');
   const input = t.leads().find((l) => l.input.includes('Issue ALE-1') && l.input.includes('blue'))!.input;
   assert.doesNotMatch(input, /Waiting to start/, 'the runner\'s acks are not news');
 });
@@ -490,13 +492,9 @@ test('each later Alex move gets its own ack, his own "Seen." does not suppress o
 test('a ticket with news from Alex starts before tickets that never started', async () => {
   const job = issue(1);
   const t = setup([job, issue(2), issue(3)], { maxLeads: 1 });
-  const log = console.log;
-  console.log = () => {};
-  try {
-    await t.run('--once');
-    job.comments.push({ id: 'h1', body: 'One more thing.', createdAt: later(), user: { name: 'Alex' } });
-    await t.run('--once');
-  } finally { console.log = log; }
+  await t.run('--once');
+  job.comments.push({ id: 'h1', body: 'One more thing.', createdAt: later(), user: { name: 'Alex' } });
+  await t.run('--once');
   assert.deepEqual(t.leads().map((l) => /Issue (ALE-\d)/.exec(l.input)![1]), ['ALE-1', 'ALE-1']);
 });
 
@@ -504,9 +502,7 @@ test('low free memory starts no lead', async () => {
   const job = issue(1);
   const t = setup([job]);
   t.setFreeMemory(12);
-  const log = console.log;
-  console.log = () => {};
-  try { await t.run('--once'); } finally { console.log = log; }
+  await t.run('--once');
   assert.equal(t.leads().length, 0);
   assert.equal(job.state, 'Todo');
 });
@@ -549,10 +545,8 @@ test('an issue with no repo label is skipped with a comment and handed back', as
 test('--dry-run prints each move and writes nothing', async () => {
   const job = issue(1);
   const t = setup([job]);
-  const printed: string[] = [];
-  const log = console.log;
-  console.log = (...args: unknown[]) => { printed.push(args.join(' ')); };
-  try { await t.run('--dry-run'); } finally { console.log = log; }
+  const printed = t.printed.logs;
+  await t.run('--dry-run');
   assert.ok(printed.includes('ALE-1: start'));
   assert.equal(job.state, 'Todo');
   assert.deepEqual(job.comments, []);
