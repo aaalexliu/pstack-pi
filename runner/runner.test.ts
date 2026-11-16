@@ -996,3 +996,19 @@ test('a client that sends part of a body and drops the socket does not stop the 
     assert.equal(await srv.post({ type: 'Issue', data: { id: 'id-1' } }), 200);
   } finally { await srv.close(); }
 });
+
+test('a webhook that lands while the lead runs is not later logged as missed', async () => {
+  const job = issue(1);
+  const t = setup([job]);
+  await t.run('--once');
+  const srv = await t.serve();
+  try {
+    t.setLive('ALE-1');
+    job.comments.push({ id: 'c1', body: 'Also the footer.', createdAt: later(), user: { name: ALEX } });
+    assert.equal(await srv.post({ type: 'Comment', data: { id: 'c1', issueId: 'id-1' } }), 200);
+    t.setLive();
+    await srv.audit();
+    assert.equal(t.leads().length, 2);
+    assert.ok(!t.printed.logs.some((l) => l.startsWith('missed:')), t.printed.logs.join('\n'));
+  } finally { await srv.close(); }
+});

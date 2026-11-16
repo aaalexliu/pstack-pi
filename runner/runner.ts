@@ -53,7 +53,7 @@ export type Child = { id: string; identifier: string; title: string; url: string
  * Something someone other than the runner did on the ticket or a sub-issue. `comment` is set for a comment, so an ack
  * can react to it or reply in its thread; `reacted` says the runner already put its 👀 on it.
  */
-export type Event = { at: string; what: string; comment?: { id: string; issueId: string; thread: string; reacted: boolean } };
+export type Event = { at: string; what: string; issue?: string; comment?: { id: string; issueId: string; thread: string; reacted: boolean } };
 /**
  * What Linear says about a ticket this poll. `state` is the state type: `unstarted` for Todo, `started` for In Progress or In Review.
  * `events` and `mine`, the runner's comments, cover the ticket and its sub-issues back to the lead's last start.
@@ -70,6 +70,8 @@ export type Work = { id: string; key: string; title: string; url: string; descri
 type Ctx = {
   config: Config; linear: ReturnType<typeof linearClient>; quiet: Map<string, string>; reacted: Set<string>;
   webhook: boolean; since: string; leads: Map<string, Work>; handled: Set<string>;
+  /** Per issue id, when its last webhook arrived: an event on it no later than that was delivered, even if a live lead meant no pass acted on it. */
+  delivered: Map<string, string>;
 };
 /** The runner's move for an idle ticket. It mirrors `model/Ticket.tla`: wait, start the lead, or file a Decision issue. */
 export type Move = { kind: 'wait'; on: Child } | { kind: 'start'; events: Event[] } | { kind: 'decide' };
@@ -206,11 +208,11 @@ function linearClient(config: Config, fetchFn: typeof fetch) {
     return [
       ...comments.filter((c) => c.user && !c.botActor && c.user.name !== config.runnerUser)
         .map((c) => ({
-          at: c.createdAt, what: `${key}: ${c.user!.name} commented: ${c.body}`,
+          at: c.createdAt, what: `${key}: ${c.user!.name} commented: ${c.body}`, issue: id,
           comment: { id: c.id, issueId: id, thread: c.parentId ?? c.id, reacted: !!c.reactions?.some((r) => r.emoji === EYES && r.user?.name === config.runnerUser) },
         })),
       ...history.filter((h) => h.actor && h.actor.name !== config.runnerUser && !byIntegration(h))
-        .map((h) => ({ at: h.createdAt, what: `${key}: ${h.actor!.name} ${change(h)}` })),
+        .map((h) => ({ at: h.createdAt, what: `${key}: ${h.actor!.name} ${change(h)}`, issue: id })),
     ];
   };
   return {
@@ -752,7 +754,7 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void, pass
       if (move.kind === 'start') {
         for (const e of move.events) {
           const id = `${w.key} ${e.at} ${e.what}`;
-          if (pass.audit && ctx.webhook && e.at >= ctx.since && !ctx.handled.has(id)) console.log(`missed: ${w.key} ${e.at} ${e.what.split('\n')[0].slice(0, 120)}`);
+          if (pass.audit && ctx.webhook && e.at >= ctx.since && !ctx.handled.has(id) && !(e.issue && (ctx.delivered.get(e.issue) ?? '') >= e.at)) console.log(`missed: ${w.key} ${e.at} ${e.what.split('\n')[0].slice(0, 120)}`);
           ctx.handled.add(id);
         }
         await react(ctx, move.events);
@@ -790,7 +792,7 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void, pass
 }
 
 const newCtx = (config: Config, fetchFn: typeof fetch, webhook: boolean): Ctx => ({
-  config, linear: linearClient(config, fetchFn), quiet: new Map(), reacted: new Set(), webhook, since: new Date().toISOString(), leads: new Map(), handled: new Set(),
+  config, linear: linearClient(config, fetchFn), quiet: new Map(), reacted: new Set(), webhook, since: new Date().toISOString(), leads: new Map(), handled: new Set(), delivered: new Map(),
 });
 
 /** Whether a Linear webhook delivery carries a valid `Linear-Signature`, the hex HMAC-SHA256 of the raw body. */
@@ -849,6 +851,7 @@ export async function serve(config: Config, fetchFn: typeof fetch, secret: strin
       if (deliveries.length > 1000) deliveries.shift();
     }
     const id = issueOf(payload);
+    if (id) ctx.delivered.set(id, new Date().toISOString());
     if (id) enqueue(`webhook ${payload.type} ${id}`, () => poll(ctx, false, say, { only: [id] }));
   };
   await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve); });
