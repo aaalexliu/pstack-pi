@@ -245,6 +245,8 @@ const answeredAt = (config: Config, c: Child) => isDecision(config, c) && c.clos
  * An open Decision issue makes the runner wait unless Alex commented or closed another Decision since the start:
  * he may answer on the ticket instead, and the lead judges whether that answers the open one.
  */
+const DELEGATED = 'The ticket was delegated to you.';
+
 export function nextMove(config: Config, ticket: Ticket, started: string | null): Move {
   const after = (at: string) => started === null || at > started;
   const answers = [
@@ -255,7 +257,7 @@ export function nextMove(config: Config, ticket: Ticket, started: string | null)
   ];
   const open = ticket.children.find((c) => isDecision(config, c) && !closedAt(c));
   if (open && !answers.length) return { kind: 'wait', on: open };
-  const news = [...(!open && (started === null || ticket.state === 'unstarted') ? ['The ticket was delegated to you.'] : []), ...answers];
+  const news = [...(!open && (started === null || ticket.state === 'unstarted') ? [DELEGATED] : []), ...answers];
   return news.length ? { kind: 'start', news } : { kind: 'decide' };
 }
 
@@ -483,7 +485,12 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void) {
     if (ticket) tickets.push({ w, ticket, live: await live(w) });
   }
   // Tickets with news from Alex start before tickets that never started; the sort keeps Linear's order otherwise.
-  const hasNews = (t: (typeof tickets)[number]) => !t.live && lastStart(t.w) !== null && nextMove(config, t.ticket, lastStart(t.w)).kind === 'start';
+  // Delegation alone is not news from Alex, even on a Todo ticket with an old start.
+  const hasNews = (t: (typeof tickets)[number]) => {
+    if (t.live || lastStart(t.w) === null) return false;
+    const move = nextMove(config, t.ticket, lastStart(t.w));
+    return move.kind === 'start' && move.news.some((line) => line !== DELEGATED);
+  };
   tickets.sort((a, b) => Number(hasNews(b)) - Number(hasNews(a)));
   const running = tickets.filter((t) => t.live);
   for (const { w, ticket, live: isLive } of tickets) {
