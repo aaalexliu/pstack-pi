@@ -419,6 +419,7 @@ test('a blocked ticket with news acks it once, in the comment thread, naming wha
     await t.run('--once');
     other.delegate = RUNNER;
     t.setLive('ALE-2');
+    mkdirSync(t.dirOf(2), { recursive: true });
     job.comments.push({ id: 'h1', body: 'Use the blue icon.', createdAt: later(), user: { name: 'Alex' } });
     await t.run('--once');
     await t.run('--once');
@@ -439,6 +440,7 @@ test('an ack to a reply in a thread goes to the thread root', async () => {
     await t.run('--once');
     other.delegate = RUNNER;
     t.setLive('ALE-2');
+    mkdirSync(t.dirOf(2), { recursive: true });
     job.comments.push({ id: 'h2', body: 'And green.', createdAt: later(), user: { name: 'Alex' }, parentId: 'root' });
     await t.run('--once');
   } finally { console.log = log; }
@@ -457,6 +459,7 @@ test('each later Alex move gets its own ack, his own "Seen." does not suppress o
     await t.run('--once');
     other.delegate = RUNNER;
     t.setLive('ALE-2');
+    mkdirSync(t.dirOf(2), { recursive: true });
     job.comments.push({ id: 'h1', body: 'Use the blue icon.', createdAt: later(), user: { name: 'Alex' } });
     await t.run('--once');
     assert.equal(acks(), 1);
