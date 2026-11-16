@@ -302,7 +302,9 @@ function parseAgentDefinition(content: string, fallbackName: string): AgentDefin
     thinking: getFrontmatterValue(frontmatter, "thinking"),
     denyTools: getFrontmatterList(frontmatter, "deny-tools"),
     spawning: parseOptionalBoolean(getFrontmatterValue(frontmatter, "spawning")),
-    autoExit: parseOptionalBoolean(getFrontmatterValue(frontmatter, "auto-exit")),
+    // pstack-pi: a named agent is autonomous unless its file opts out, so a
+    // child that ends its turn without calling subagent_done still returns.
+    autoExit: parseOptionalBoolean(getFrontmatterValue(frontmatter, "auto-exit")) ?? true,
     interactive: parseOptionalBoolean(getFrontmatterValue(frontmatter, "interactive")),
     sessionMode: parseSessionMode(getFrontmatterValue(frontmatter, "session-mode")),
     cwd: getFrontmatterValue(frontmatter, "cwd"),

@@ -2180,6 +2180,35 @@ describe("concurrency cap", () => {
     });
   });
 
+  it("auto-exits a background child whose agent sets a tools list but no auto-exit, like pr-reviewer", async () => {
+    await withFakeCmux(async (cmux) => {
+      cmux.update((state) => { state.fail = { send: "send failed" }; });
+      const dir = createTestDir();
+      const savedScript = process.argv[1];
+      process.argv[1] = fileURLToPath(new URL("./fake-pi.mjs", import.meta.url));
+      const sessionFile = join(dir, "parent.jsonl");
+      writeFileSync(sessionFile, "");
+      const ctx = {
+        cwd: dir,
+        model: { provider: "parent", id: "model" },
+        sessionManager: { getSessionFile: () => sessionFile, getSessionId: () => "parent", getSessionDir: () => dir, getSessionName: () => undefined },
+      };
+      try {
+        // The options a background `subagent` call passes inside a multiplexer.
+        const running = await testApi.launchSubagent({ name: "Rev", task: "hello", agent: "pr-reviewer" }, ctx, { thinking: undefined });
+        assert.equal(running.interactive, false, "the parent gets stall pings for it");
+        const result = await testApi.watchSubagent(running, new AbortController().signal);
+        const child = JSON.parse(result.summary.slice("done ".length));
+        assert.equal(child.autoExit, "1", "the child shuts down when its turn ends");
+        assert.ok(child.args[child.args.indexOf("--tools") + 1].split(",").includes("subagent_done"));
+      } finally {
+        process.argv[1] = savedScript;
+        testApi.spawnSlots.clear();
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+  });
+
   async function withMaxConcurrent(maxConcurrent: number, fn: () => Promise<void>) {
     const dir = createTestDir();
     const previous = process.env.PI_CODING_AGENT_DIR;
