@@ -6,7 +6,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { commands, lastActivity, main, nextMove, put, renderStatus, startBlock, type Child, type Config, type Ticket } from './runner.ts';
 
-type FakeComment = { id: string; body: string; createdAt: string; user: { name: string; app?: boolean } | null; botActor?: { name: string } | null };
+type FakeComment = { id: string; body: string; createdAt: string; user: { name: string; app?: boolean } | null; botActor?: { name: string } | null; parentId?: string };
 type FakeIssue = {
   id: string; identifier: string; title: string; description: string; url: string; createdAt: string;
   team: string; state: string; delegate: string | null; assignee: string | null; parent: string | null; labels: string[]; comments: FakeComment[];
@@ -136,7 +136,7 @@ else if (args[0] === 'list-windows') { try { process.stdout.write(fs.readFileSyn
       return data({ issueUpdate: { success: true } });
     }
     if (op === 'Comment') {
-      find(v.input.issueId).comments.push({ id: `comment-${++nextId}`, body: v.input.body, createdAt: new Date().toISOString(), user: { name: RUNNER, app: true } });
+      find(v.input.issueId).comments.push({ id: `comment-${++nextId}`, body: v.input.body, createdAt: new Date().toISOString(), user: { name: RUNNER, app: true }, parentId: v.input.parentId });
       return data({ commentCreate: { success: true } });
     }
     if (op === 'EditComment') {
@@ -408,6 +408,85 @@ test('lead slots: at most maxLeads run, a live lead holds its slot, and the runn
   assert.deepEqual(t.leads().map((l) => /Issue (ALE-\d)/.exec(l.input)![1]), ['ALE-1', 'ALE-2', 'ALE-3'], 'the live lead holds one of the two slots');
 });
 
+test('a blocked ticket with news acks it once, in the comment thread, naming what it waits on', async () => {
+  const screen = 'Make it work.\nNeeds: screen';
+  const job = issue(1, { description: screen });
+  const other = issue(2, { description: screen, delegate: null });
+  const t = setup([job, other]);
+  const log = console.log;
+  console.log = () => {};
+  try {
+    await t.run('--once');
+    other.delegate = RUNNER;
+    t.setLive('ALE-2');
+    mkdirSync(t.dirOf(2), { recursive: true });
+    job.comments.push({ id: 'h1', body: 'Use the blue icon.', createdAt: later(), user: { name: 'Alex' } });
+    await t.run('--once');
+    await t.run('--once');
+  } finally { console.log = log; }
+  const acks = job.comments.filter((c) => c.body.startsWith('Seen.'));
+  assert.deepEqual(acks.map((c) => [c.body, c.parentId]), [['Seen. Waiting to start: ALE-2 has the screen.', 'h1']]);
+  assert.equal(t.leads().length, 1);
+});
+
+test('an ack to a reply in a thread goes to the thread root', async () => {
+  const screen = 'Make it work.\nNeeds: screen';
+  const job = issue(1, { description: screen });
+  const other = issue(2, { description: screen, delegate: null });
+  const t = setup([job, other]);
+  const log = console.log;
+  console.log = () => {};
+  try {
+    await t.run('--once');
+    other.delegate = RUNNER;
+    t.setLive('ALE-2');
+    mkdirSync(t.dirOf(2), { recursive: true });
+    job.comments.push({ id: 'h2', body: 'And green.', createdAt: later(), user: { name: 'Alex' }, parentId: 'root' });
+    await t.run('--once');
+  } finally { console.log = log; }
+  assert.deepEqual(job.comments.filter((c) => c.body.startsWith('Seen.')).map((c) => c.parentId), ['root']);
+});
+
+test('each later Alex move gets its own ack, his own "Seen." does not suppress one, and acks are not news', async () => {
+  const screen = 'Make it work.\nNeeds: screen';
+  const job = issue(1, { description: screen });
+  const other = issue(2, { description: screen, delegate: null });
+  const t = setup([job, other]);
+  const acks = () => job.comments.filter((c) => c.user?.name === RUNNER && c.body.startsWith('Seen.')).length;
+  const log = console.log;
+  console.log = () => {};
+  try {
+    await t.run('--once');
+    other.delegate = RUNNER;
+    t.setLive('ALE-2');
+    mkdirSync(t.dirOf(2), { recursive: true });
+    job.comments.push({ id: 'h1', body: 'Use the blue icon.', createdAt: later(), user: { name: 'Alex' } });
+    await t.run('--once');
+    assert.equal(acks(), 1);
+    job.comments.push({ id: 'h2', body: 'Seen. Also make it round.', createdAt: later(), user: { name: 'Alex' } });
+    await t.run('--once');
+    await t.run('--once');
+    assert.equal(acks(), 2, 'a later comment gets a fresh ack, even when it says "Seen."');
+    t.setLive();
+    await t.run('--once');
+  } finally { console.log = log; }
+  const input = t.leads().find((l) => l.input.includes('Issue ALE-1') && l.input.includes('blue'))!.input;
+  assert.doesNotMatch(input, /Waiting to start/, 'the runner\'s acks are not news');
+});
+
+test('a ticket with news from Alex starts before tickets that never started', async () => {
+  const job = issue(1);
+  const t = setup([job, issue(2), issue(3)], { maxLeads: 1 });
+  const log = console.log;
+  console.log = () => {};
+  try {
+    await t.run('--once');
+    job.comments.push({ id: 'h1', body: 'One more thing.', createdAt: later(), user: { name: 'Alex' } });
+    await t.run('--once');
+  } finally { console.log = log; }
+  assert.deepEqual(t.leads().map((l) => /Issue (ALE-\d)/.exec(l.input)![1]), ['ALE-1', 'ALE-1']);
+});
+
 test('low free memory starts no lead', async () => {
   const job = issue(1);
   const t = setup([job]);
@@ -518,12 +597,12 @@ test('the status comment shows the commands', () => {
 });
 
 test('startBlock enforces lead slots, free memory and the one screen', () => {
-  const base = { running: 0, maxLeads: 2, freeMemory: 40, minFreeMemory: 20, needsScreen: false, screenTaken: false };
+  const base = { running: 0, maxLeads: 2, freeMemory: 40, minFreeMemory: 20, needsScreen: false, screenHolder: null };
   assert.equal(startBlock(base), null);
   assert.match(startBlock({ ...base, running: 2 }) ?? '', /slots are busy/);
   assert.match(startBlock({ ...base, freeMemory: 19 }) ?? '', /only 19% of memory is free/);
-  assert.match(startBlock({ ...base, needsScreen: true, screenTaken: true }) ?? '', /screen/);
-  assert.equal(startBlock({ ...base, screenTaken: true }), null);
+  assert.equal(startBlock({ ...base, needsScreen: true, screenHolder: 'ALE-9' }), 'ALE-9 has the screen');
+  assert.equal(startBlock({ ...base, screenHolder: 'ALE-9' }), null);
 });
 
 const hasTmux = (() => { try { execFileSync('tmux', ['-V'], { stdio: 'ignore' }); return true; } catch { return false; } })();
