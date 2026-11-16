@@ -310,8 +310,16 @@ export const needsScreen = (description: string) => /^Needs:\s*screen\s*$/im.tes
 
 const rf = (w: Pick<Work, 'dir'>, name: string) => path.join(w.dir, '.runner', name);
 const sessionId = (w: Work) => readOr(rf(w, 'session-id'))?.trim() ?? '';
-/** The one fact the runner keeps per ticket: when it last started the lead. */
+/** When the runner last started the lead. The heartbeat counts from it. */
 export const lastStart = (w: Pick<Work, 'dir'>) => readOr(rf(w, 'started'))?.trim() || null;
+/** A failed start is kept under `worktreeRoot`, never in the ticket's folder: the runner may have refused that folder. */
+const attemptFile = (config: Config, key: string) => path.join(config.worktreeRoot, '.attempts', key);
+/**
+ * The one fact the runner keeps per ticket: when it last tried to start the lead, whether the start worked or not.
+ * Events before it are seen, so only a new event retries a failed start.
+ */
+const lastAttempt = (config: Config, w: Pick<Work, 'dir' | 'key'>) =>
+  [lastStart(w) ?? '', readOr(attemptFile(config, w.key))?.trim() ?? ''].sort().at(-1) || null;
 const isDecision = (config: Config, c: Child) => c.assignee?.name === config.decisionAssignee;
 const closedAt = (c: Child) => c.completedAt ?? c.canceledAt;
 const decisionTitle = (key: string, why: string) => `Decision for ${key}: ${why}`;
@@ -328,19 +336,13 @@ function change(h: Change) {
   return 'changed it';
 }
 
-/** When the lead last saw the ticket: its last start, or the runner's latest Decision issue if that came later. '' if never. */
-const cutoff = (key: string, children: Child[], started: string | null) =>
-  [started ?? '', ...children.filter((c) => c.title.startsWith(decisionTitle(key, ''))).map((c) => c.createdAt)].sort().at(-1)!;
 /** The newest change or comment Linear shows on the ticket or a sub-issue. A sub-issue's change does not touch the ticket's `updatedAt`, nor does a comment. */
 const newest = (i: Newest) => [i.updatedAt, ...i.comments.nodes.map((c) => c.createdAt)].sort().at(-1)!;
 const touched = (issue: Issue) => [issue, ...issue.children.nodes].map(newest).sort().at(-1)!;
 
-/**
- * The events the lead has not seen: those after its last start, or after the runner's own latest Decision issue,
- * which already covers what came before it. A routine's ticket counts its creation, since the runner made it on Alex's schedule.
- */
-export function newEvents(key: string, ticket: Ticket, started: string | null): Event[] {
-  const since = cutoff(key, ticket.children, started);
+/** The events since the runner's last attempt to start the lead. A routine's ticket counts its creation, since the runner made it on Alex's schedule. */
+export function newEvents(ticket: Ticket, attempted: string | null): Event[] {
+  const since = attempted ?? '';
   const routine = !since && ticket.description.includes(ROUTINE_MARK) ? [{ at: ticket.createdAt, what: 'A routine filed this ticket.' }] : [];
   return [...routine, ...ticket.events.filter((e) => e.at > since)];
 }
@@ -349,8 +351,8 @@ export function newEvents(key: string, ticket: Ticket, started: string | null): 
  * The runner's move for a ticket whose lead is not running. Any event since the lead's last start starts it,
  * even with a Decision issue open: Alex may answer it anywhere, and the lead judges what each event means.
  */
-export function nextMove(config: Config, key: string, ticket: Ticket, started: string | null): Move {
-  const events = newEvents(key, ticket, started);
+export function nextMove(config: Config, ticket: Ticket, attempted: string | null): Move {
+  const events = newEvents(ticket, attempted);
   if (events.length) return { kind: 'start', events };
   const open = ticket.children.find((c) => isDecision(config, c) && !closedAt(c));
   return open ? { kind: 'wait', on: open } : { kind: 'decide' };
@@ -377,8 +379,11 @@ function worktree(repo: Repo, w: Work) {
 /** Reuses the ticket's worktree or branch when they exist. It never removes a worktree or resets a branch. */
 async function makeWorktree(repo: Repo, w: Work) {
   if (existsSync(w.dir)) {
-    const head = await run('git', ['rev-parse', '--abbrev-ref', 'HEAD'], w.dir);
-    if (head.code !== 0 || head.out.trim() !== w.branch) throw new Error(`${w.dir} exists but is not a worktree on ${w.branch}, so the runner left it alone.`);
+    // A lead may check out its PR branch, so any branch is fine; only a folder outside this repo is refused.
+    const common = async (dir: string) => { const r = await run('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], dir); return r.code === 0 ? realpathSync(r.out.trim()) : null; };
+    const top = await run('git', ['rev-parse', '--show-toplevel'], w.dir);
+    const ours = top.code === 0 && realpathSync(top.out.trim()) === realpathSync(w.dir) && (await common(w.dir)) === (await common(repo.path));
+    if (!ours) throw new Error(`${w.dir} exists but is not a worktree of ${repo.path}, so the runner left it alone.`);
   } else {
     await must('git', ['fetch', 'origin', repo.base], repo.path);
     await must('git', ['worktree', 'prune'], repo.path);
@@ -575,7 +580,9 @@ async function investigate(ctx: Ctx, w: Work, quiet: number) {
 }
 
 /** Files the runner's own Decision issue: the lead stopped, or could not start, with nothing open to wait for. */
-async function decide(ctx: Ctx, w: Work, why: string) {
+async function decide(ctx: Ctx, w: Work, children: Child[], why: string) {
+  // Circuit breaker: never a second open runner Decision on one ticket, whatever loop asks for it.
+  if (children.some((c) => isDecision(ctx.config, c) && !closedAt(c) && c.title.startsWith(decisionTitle(w.key, '')))) return;
   const c = commands(w, sessionId(w), ctx.config.host);
   const issue = await ctx.linear.fileDecision(w.id, decisionTitle(w.key, why), [
     `${why}. The ticket is still open and delegated to the runner.`,
@@ -652,7 +659,7 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void) {
     // A live lead's heartbeat needs no Linear. A ticket nothing touched since the lead saw it, or since the
     // runner last read it and found no events, has none now.
     if (await live(w)) { tickets.push({ w, ticket: null, live: true }); continue; }
-    const since = cutoff(w.key, issue.children.nodes, lastStart(w));
+    const since = lastAttempt(config, w) ?? '';
     const at = touched(issue);
     const fresh = at > since && ctx.quiet.get(w.key) !== `${since} ${at}`;
     const seen = fresh ? await linear.events(issue, since) : { events: [], mine: [] };
@@ -660,7 +667,7 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void) {
     if (seen) tickets.push({ w, live: false, ticket: { state: issue.state.type, description: w.description, createdAt: issue.createdAt, children: issue.children.nodes, ...seen } });
   }
   // The ticket whose oldest unseen event is oldest goes first. Tickets with none keep Linear's order after them.
-  const oldest = (t: (typeof tickets)[number]) => (t.ticket ? newEvents(t.w.key, t.ticket, lastStart(t.w))[0]?.at : undefined);
+  const oldest = (t: (typeof tickets)[number]) => (t.ticket ? newEvents(t.ticket, lastAttempt(config, t.w))[0]?.at : undefined);
   tickets.sort((a, b) => {
     const [x, y] = [oldest(a), oldest(b)];
     return x && y ? (x < y ? -1 : x > y ? 1 : 0) : Number(!x) - Number(!y);
@@ -674,10 +681,10 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void) {
         continue;
       }
       if (!ticket) continue;
-      const move = nextMove(config, w.key, ticket, lastStart(w));
+      const move = nextMove(config, ticket, lastAttempt(config, w));
       if (dryRun) { console.log(`${w.key}: ${move.kind}`); continue; }
       if (move.kind === 'wait') continue;
-      if (move.kind === 'decide') { await decide(ctx, w, 'the lead stopped with nothing open to wait for'); continue; }
+      if (move.kind === 'decide') { await decide(ctx, w, ticket.children, 'the lead stopped with nothing open to wait for'); continue; }
       const reason = startBlock({
         running: running.length, maxLeads: config.maxLeads, freeMemory: free, minFreeMemory: config.minFreeMemoryPercent,
         needsScreen: needsScreen(w.description), screenHolder: running.find((r) => needsScreen(r.w.description))?.w.key ?? null,
@@ -693,7 +700,10 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void) {
       try {
         await launch(ctx, w, move.events);
       } catch (error) {
-        await decide(ctx, w, `the runner could not start the lead: ${message(error).split('\n')[0]}`);
+        // Record the attempt, so only a new event retries a failed start.
+        mkdirSync(path.dirname(attemptFile(config, w.key)), { recursive: true });
+        put(attemptFile(config, w.key), new Date().toISOString());
+        await decide(ctx, w, ticket.children, `the runner could not start the lead: ${message(error).split('\n')[0]}`);
         continue;
       }
       running.push({ w, ticket: null, live: true });

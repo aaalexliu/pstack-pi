@@ -351,14 +351,13 @@ test('an Alex label edit 1 s after an integration entry still counts', async () 
   assert.match(t.leads()[1].input, /ALE-1: Alex Example changed its labels/);
 });
 
-test('a live lead and an untouched ticket cost no per-ticket read', async () => {
-  const t = setup([issue(1), issue(2)]);
-  await t.run('--once');
+test('a live lead costs no per-ticket read', async () => {
+  const t = setup([issue(1)]);
   await t.run('--once');
   t.setLive('ALE-1');
   t.ops.length = 0;
   await t.run('--once');
-  assert.deepEqual(t.ops, ['Issues'], 'ALE-1 is live, and nothing touched ALE-2 since its Decision issue');
+  assert.deepEqual(t.ops, ['Issues']);
 });
 
 test('a 429 waits Retry-After and tries again; a low budget is logged once', async () => {
@@ -715,6 +714,47 @@ test('a lead that cannot start becomes a Decision issue, not a retry every poll'
   assert.match(t.decisions()[0].title, /could not start the lead: .* is not a worktree/);
 });
 
+test('a failed start files one Decision across polls with no new event, and a new comment retries once', async () => {
+  const job = issue(1, { state: 'In Progress', comments: [{ id: 'h1', body: 'Go.', createdAt: later(), user: { name: ALEX } }] });
+  const t = setup([job]);
+  mkdirSync(t.dirOf(1), { recursive: true });
+  for (let i = 0; i < 5; i++) await t.run('--once');
+  assert.equal(t.decisions().length, 1);
+  assert.equal(t.leads().length, 0);
+  rmSync(t.dirOf(1), { recursive: true });
+  job.comments.push({ id: 'h2', body: 'Try again.', createdAt: later(), user: { name: ALEX } });
+  await t.run('--once');
+  await t.run('--once');
+  assert.equal(t.leads().length, 1);
+});
+
+test('a refused folder gets no runner files; the failed attempt is kept outside it', async () => {
+  const t = setup([issue(1)]);
+  mkdirSync(t.dirOf(1), { recursive: true });
+  await t.run('--once');
+  await t.run('--once');
+  assert.deepEqual(readdirSync(t.dirOf(1)), []);
+  assert.ok(existsSync(path.join(t.config.worktreeRoot, '.attempts', 'ALE-1')));
+  assert.equal(t.decisions().length, 1);
+});
+
+test('a worktree on the lead PR branch starts the lead', async () => {
+  const t = setup([issue(1)]);
+  git(t.repo, 'worktree', 'add', '-q', '-b', 'job/ale-1-pr-branch', t.dirOf(1), 'origin/main');
+  await t.run('--once');
+  assert.equal(t.decisions().length, 0);
+  assert.equal(t.leads().length, 1);
+});
+
+test('the runner never files a Decision while its own Decision on the ticket is open', async () => {
+  const job = issue(1, { state: 'In Progress', comments: [{ id: 'h1', body: 'Go.', createdAt: later(), user: { name: ALEX } }] });
+  const open = issue(50, { parent: 'id-1', assignee: ALEX, delegate: null, labels: [], title: 'Decision for ALE-1: the runner could not start the lead', createdAt: later() });
+  const t = setup([job, open]);
+  mkdirSync(t.dirOf(1), { recursive: true });
+  for (let i = 0; i < 5; i++) await t.run('--once');
+  assert.equal(t.decisions().length, 1);
+});
+
 test('an issue with no repo label is skipped with a comment and handed back', async () => {
   const job = issue(1, { labels: ['Papercut'] });
   const t = setup([job]);
@@ -741,14 +781,13 @@ const cfg = { decisionAssignee: ALEX, runnerUser: RUNNER } as Config;
 test('nextMove follows the model: start on an event, else wait on an open Decision, else decide', () => {
   const started = '2026-01-02T00:00:00Z';
   const event = { at: '2026-01-03T00:00:00Z', what: 'ALE-1: Alex Example commented: go with A' };
-  assert.equal(nextMove(cfg, 'ALE-1', ticket({}), started).kind, 'decide');
-  assert.equal(nextMove(cfg, 'ALE-1', ticket({ events: [{ ...event, at: '2026-01-01T00:00:00Z' }] }), started).kind, 'decide', 'an event before the start is seen');
-  assert.deepEqual(nextMove(cfg, 'ALE-1', ticket({ children: [child({})], events: [event] }), started), { kind: 'start', events: [event] }, 'an event may answer the open Decision');
-  assert.equal(nextMove(cfg, 'ALE-1', ticket({ children: [child({})] }), started).kind, 'wait');
-  assert.equal(nextMove(cfg, 'ALE-1', ticket({ children: [child({ assignee: null })] }), started).kind, 'decide', 'a sub-issue not assigned to Alex is not a Decision');
-  const filed = child({ title: 'Decision for ALE-1: the runner could not start the lead', createdAt: '2026-01-04T00:00:00Z' });
-  assert.equal(nextMove(cfg, 'ALE-1', ticket({ children: [filed], events: [event] }), null).kind, 'wait', 'the runner\'s own Decision covers the events before it');
-  assert.equal(nextMove(cfg, 'ALE-1', ticket({ description: 'Do it.\n\nrunner-routine audit 2026-01-01T09:00:00.000Z' }), null).kind, 'start', 'a routine ticket starts on its creation');
+  assert.equal(nextMove(cfg, ticket({}), started).kind, 'decide');
+  assert.equal(nextMove(cfg, ticket({ events: [{ ...event, at: '2026-01-01T00:00:00Z' }] }), started).kind, 'decide', 'an event before the start is seen');
+  assert.deepEqual(nextMove(cfg, ticket({ children: [child({})], events: [event] }), started), { kind: 'start', events: [event] }, 'an event may answer the open Decision');
+  assert.equal(nextMove(cfg, ticket({ children: [child({})] }), started).kind, 'wait');
+  assert.equal(nextMove(cfg, ticket({ children: [child({ assignee: null })] }), started).kind, 'decide', 'a sub-issue not assigned to Alex is not a Decision');
+  assert.equal(nextMove(cfg, ticket({ children: [child({})], events: [event] }), '2026-01-04T00:00:00Z').kind, 'wait', 'a failed attempt after the event has seen it');
+  assert.equal(nextMove(cfg, ticket({ description: 'Do it.\n\nrunner-routine audit 2026-01-01T09:00:00.000Z' }), null).kind, 'start', 'a routine ticket starts on its creation');
 });
 
 const shells = ['sh', 'zsh'].filter((shell) => { try { execFileSync(shell, ['-c', 'true']); return true; } catch { return false; } });

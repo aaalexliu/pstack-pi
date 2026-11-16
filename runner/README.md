@@ -21,7 +21,7 @@ each poll, per open ticket delegated to runnerUser (Todo, or a started state suc
 order: the ticket whose oldest unseen event is oldest goes first
 ```
 
-It remembers one fact per ticket: when it last started the lead, in `<worktree>/.runner/started`. A Decision issue the runner files itself (titled `Decision for KEY: ...`) also counts as a start: it covers every event before it, so a lead that could not start does not retry on the same events. A ticket a routine filed counts its creation as an event, since the runner made it on your schedule.
+It remembers one fact per ticket: when it last tried to start the lead. A start that works is kept in `<worktree>/.runner/started`, which the heartbeat also counts from. A start that fails is kept in `<worktreeRoot>/.attempts/KEY`, never inside a folder the runner may have refused. Events before the last attempt are seen, so only a new event retries a failed start. The runner never files a second Decision issue while its own (titled `Decision for KEY: ...`) is open. A ticket a routine filed counts its creation as an event, since the runner made it on your schedule.
 
 The runner moves a `Todo` ticket to `In Progress` before it records the start. That move is the runner's own, so it is no event: a crash before the start is recorded starts the lead once more on the same events, never in a loop.
 
