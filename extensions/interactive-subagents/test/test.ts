@@ -633,6 +633,8 @@ describe("quiet child pings", () => {
   it("never pings for an interactive child", () => {
     withTempDir((dir) => {
       const { running, start } = child(dir, true);
+      const autonomous = { ...running, interactive: false };
+      assert.ok(checkQuietSubagent(autonomous, start + 5 * quietMs, quietMs));
       assert.equal(checkQuietSubagent(running, start + 5 * quietMs, quietMs), null);
     });
   });
