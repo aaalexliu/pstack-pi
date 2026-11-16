@@ -363,6 +363,11 @@ test('a quiet live lead gets Escape and one nudge, then one investigator and no 
     await t.run('--once');
     assert.equal(nudges(), 0, 'a subagent that wrote 2 minutes ago keeps the lead alive');
     sessionLog(agent, dir, 'reviewer', 6, IDLE);
+    sessionLog(agent, `${dir}-unit`, 'sublead', 0, IDLE);
+    await t.run('--once');
+    assert.equal(nudges(), 0, 'a sub-lead writing now in a sibling worktree keeps the lead alive');
+    sessionLog(agent, `${dir}-unit`, 'sublead', 6, IDLE);
+    sessionLog(agent, dir.replace('job-ale-1-', 'job-ale-10-'), 'other-ticket', 0, IDLE);
     sessionLog(agent, path.join(dir, '.runner'), 'investigator', 0, IDLE);
     put(path.join(runner, 'takeover'), '');
     await t.run('--once');
