@@ -422,6 +422,9 @@ test('a pending tool call keeps the lead alive for toolQuietMinutes, then gets E
     sessionLog(agent, t.dirOf(1), 'lead', 30, { role: 'toolResult', content: [] });
     await t.run('--once');
     assert.deepEqual(keys(), [], 'a tool call or a model call in flight under 60 minutes is alive');
+    sessionLog(agent, t.dirOf(1), 'lead', 30, { role: 'toolResult', content: [{ type: 'image', data: 'A'.repeat(2 << 20) }] });
+    await t.run('--once');
+    assert.deepEqual(keys(), [], 'a 2 MB screenshot result past the 1 MB tail still reads as busy');
     sessionLog(agent, t.dirOf(1), 'lead', 61, TOOL_CALL);
     await t.run('--once');
     assert.equal(keys()[0], 'Escape');

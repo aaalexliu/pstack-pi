@@ -382,8 +382,11 @@ const agentDir = () => process.env.PI_CODING_AGENT_DIR ?? path.join(os.homedir()
 /** Pi's session folder for a cwd, named the way Pi names it. */
 const sessionFolder = (cwd: string) => path.join(agentDir(), 'sessions', `--${cwd.replace(/^[/\\]/, '').replace(/[/\\:]/g, '-')}--`);
 
-/** The last message in the last 1 MB of a session log, or null. */
-function lastMessage(file: string): { role?: string; stopReason?: string; text?: string } | null {
+/**
+ * The last message in the last 1 MB of a session log, or null. A tail with no whole message, such as one huge
+ * screenshot result, reads as `unknown`, which counts as busy so the longer limit applies.
+ */
+function lastMessage(file: string): { role?: string; stopReason?: string; text?: string; unknown?: boolean } | null {
   const fd = openSync(file, 'r');
   try {
     const size = fstatSync(fd).size;
@@ -397,7 +400,7 @@ function lastMessage(file: string): { role?: string; stopReason?: string; text?:
         return { ...entry.message, text: typeof content === 'string' ? content : Array.isArray(content) ? content.map((c: { text?: string }) => c.text ?? '').join('') : '' };
       } catch { /* a partial first line */ }
     }
-    return null;
+    return buffer.length < size ? { unknown: true } : null;
   } finally { closeSync(fd); }
 }
 
@@ -420,7 +423,7 @@ export function heartbeat(w: Pick<Work, 'dir'>) {
     }
   }
   const last = newest.file ? lastMessage(newest.file) : null;
-  const busy = !!last && ((last.role === 'assistant' && last.stopReason === 'toolUse') || last.role === 'user' || last.role === 'toolResult');
+  const busy = !!last && (!!last.unknown || (last.role === 'assistant' && last.stopReason === 'toolUse') || last.role === 'user' || last.role === 'toolResult');
   return { at: newest.at, busy, nudge: !!last && last.role === 'user' && last.text?.startsWith(NUDGE) };
 }
 
