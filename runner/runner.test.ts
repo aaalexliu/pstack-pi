@@ -498,6 +498,37 @@ test('a ticket with news from Alex starts before tickets that never started', as
   assert.deepEqual(t.leads().map((l) => /Issue (ALE-\d)/.exec(l.input)![1]), ['ALE-1', 'ALE-1']);
 });
 
+test('an Alex comment beats a Todo ticket whose old start brings only the delegation', async () => {
+  const review = issue(1);
+  const todo = issue(2);
+  const t = setup([review, todo], { maxLeads: 2 });
+  await t.run('--once');
+  review.state = 'In Review';
+  todo.state = 'Todo';
+  review.comments.push({ id: 'h1', body: 'One more thing.', createdAt: later(), user: { name: 'Alex' } });
+  const before = t.leads().length;
+  await t.run('--once');
+  assert.match(t.leads()[before].input, /Issue ALE-1/);
+});
+
+test('a Decision Alex closed beats a Todo ticket whose old start brings only the delegation', async () => {
+  const review = issue(1);
+  const todo = issue(2);
+  const t = setup([review, todo], { maxLeads: 2 });
+  await t.run('--once');
+  await t.run('--once');
+  const [mine] = t.decisions('id-1');
+  const [theirs] = t.decisions('id-2');
+  review.state = 'In Review';
+  todo.state = 'Todo';
+  t.close(mine);
+  theirs.closedBy = RUNNER;
+  t.close(theirs);
+  const before = t.leads().length;
+  await t.run('--once');
+  assert.match(t.leads()[before].input, /Issue ALE-1/);
+});
+
 test('low free memory starts no lead', async () => {
   const job = issue(1);
   const t = setup([job]);
