@@ -227,7 +227,7 @@ else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? J
         return res.status;
       };
       return {
-        post, port: runner.port, audit: () => runner.audit(),
+        post, port: runner.port, audit: () => runner.audit(), heartbeat: () => runner.heartbeat(),
         close: async () => {
           await runner.close();
           Object.assign(console, { log, error });
@@ -265,7 +265,7 @@ test('a delegated ticket starts one lead in tmux with the session, the subagent_
   assert.equal(lead.token, 'test-token');
   assert.deepEqual(lead.piVars, ['PI_AUTH_PROFILE', 'PI_SUBAGENT_ID'], 'outer PI_*, PSTACK_* and CMUX_* are gone, digits included');
   assert.ok(!readFileSync(path.join(dir, '.runner', 'lead.sh'), 'utf8').includes('test-token'), 'the token never lands on disk');
-  assert.match(lead.input, /^Issue ALE-1: Job number 1[\s\S]*Linear issue id: id-1\.[\s\S]*Events since your last start:\n- 2026-01-01T00:00:01Z ALE-1: Alex Example delegated it to runner test$/);
+  assert.match(lead.input, /^Issue ALE-1: Job number 1[\s\S]*Linear issue id: id-1\.[\s\S]*Events since your last start:\n- 2026-01-01T00:00:01Z ALE-1: Alex Example delegated it to runner test\n\nOther leads running now [^\n]*\n- none$/);
   assert.deepEqual(t.tmux().find((a) => a[0] === 'new-session')!.slice(0, 4), ['new-session', '-d', '-s', 'ALE-1']);
   const status = job.comments.filter((c) => c.body.startsWith('**Runner:**'));
   assert.equal(status.length, 1);
@@ -634,10 +634,9 @@ test('lead slots: at most maxLeads run, a live lead holds its slot, and the runn
 });
 
 test('a blocked ticket with an event acks it once, in the comment thread, naming what it waits on', async () => {
-  const screen = 'Make it work.\nNeeds: screen';
-  const job = issue(1, { description: screen });
-  const other = issue(2, { description: screen, delegate: null });
-  const t = setup([job, other]);
+  const job = issue(1);
+  const other = issue(2, { delegate: null });
+  const t = setup([job, other], { maxLeads: 1 });
   await t.run('--once');
   other.delegate = RUNNER;
   t.setLive('ALE-2');
@@ -646,15 +645,52 @@ test('a blocked ticket with an event acks it once, in the comment thread, naming
   await t.run('--once');
   await t.run('--once');
   const acks = job.comments.filter((c) => c.body.startsWith('Seen.'));
-  assert.deepEqual(acks.map((c) => [c.body, c.parentId]), [['Seen. Waiting to start: ALE-2 has the screen.', 'h1']]);
+  assert.deepEqual(acks.map((c) => [c.body, c.parentId]), [['Seen. Waiting to start: all 1 lead slots are busy.', 'h1']]);
   assert.equal(t.leads().length, 1);
 });
 
-test('an ack to a reply in a thread goes to the thread root', async () => {
+test('two screen tickets start together, and running.json lists the running leads with the screen flag', async () => {
   const screen = 'Make it work.\nNeeds: screen';
-  const job = issue(1, { description: screen });
-  const other = issue(2, { description: screen, delegate: null });
-  const t = setup([job, other]);
+  const t = setup([issue(1, { description: screen }), issue(2, { description: screen }), issue(3)], { maxLeads: 3 });
+  const list = () => JSON.parse(readFileSync(path.join(t.config.worktreeRoot, 'running.json'), 'utf8')) as { key: string; needsScreen: boolean; worktree: string; startedAt: string }[];
+  await t.run('--once');
+  assert.deepEqual(t.leads().map((l) => /Issue (ALE-\d)/.exec(l.input)![1]), ['ALE-1', 'ALE-2', 'ALE-3']);
+  assert.deepEqual(list().map((r) => [r.key, r.needsScreen]), [['ALE-1', true], ['ALE-2', true], ['ALE-3', false]]);
+  assert.equal(list()[0].worktree, t.dirOf(1));
+  assert.ok(list()[0].startedAt);
+  const third = t.leads()[2].input;
+  assert.match(third, /running\.json/);
+  assert.match(third, /screen\.lock/);
+  assert.match(third, /- ALE-1: .*Needs: screen\)/);
+  assert.match(third, /- ALE-2: /);
+  assert.match(t.leads()[0].input, /Other leads running now.*\n- none/);
+  mkdirSync(path.join(t.config.worktreeRoot, 'screen.lock'));
+  writeFileSync(path.join(t.config.worktreeRoot, 'screen.lock', 'owner'), 'ALE-1 2026-01-01T00:00:00Z\n');
+  t.setLive('ALE-1', 'ALE-2', 'ALE-3');
+  await t.run('--once');
+  assert.ok(existsSync(path.join(t.config.worktreeRoot, 'screen.lock')), 'a running owner keeps its lock');
+  writeFileSync(path.join(t.config.worktreeRoot, 'screen.lock', 'owner'), 'ALE-9 2026-01-01T00:00:00Z\n');
+  t.setLive('ALE-2', 'ALE-3', 'ALE-9');
+  await t.run('--once');
+  assert.ok(existsSync(path.join(t.config.worktreeRoot, 'screen.lock')), 'an owner with a live session keeps its lock, though running.json does not list it');
+  writeFileSync(path.join(t.config.worktreeRoot, 'screen.lock', 'owner'), 'ALE-1 2026-01-01T00:00:00Z\n');
+  t.setLive('ALE-2', 'ALE-3');
+  await t.run('--once');
+  assert.deepEqual(list().map((r) => r.key), ['ALE-2', 'ALE-3'], 'a finished lead drops off the list');
+  assert.ok(!existsSync(path.join(t.config.worktreeRoot, 'screen.lock')), 'a lock whose owner stopped is cleared');
+  const lock = path.join(t.config.worktreeRoot, 'screen.lock');
+  mkdirSync(lock);
+  await t.run('--once');
+  assert.ok(existsSync(lock), 'a fresh lock with no owner file may be mid-take, so it stays');
+  utimesSync(lock, new Date(Date.now() - 120000), new Date(Date.now() - 120000));
+  await t.run('--once');
+  assert.ok(!existsSync(lock), 'a lock with no owner file for over a minute is cleared');
+});
+
+test('an ack to a reply in a thread goes to the thread root', async () => {
+  const job = issue(1);
+  const other = issue(2, { delegate: null });
+  const t = setup([job, other], { maxLeads: 1 });
   await t.run('--once');
   other.delegate = RUNNER;
   t.setLive('ALE-2');
@@ -665,10 +701,9 @@ test('an ack to a reply in a thread goes to the thread root', async () => {
 });
 
 test('each later Alex move gets its own ack, his own "Seen." does not suppress one, and acks are not events', async () => {
-  const screen = 'Make it work.\nNeeds: screen';
-  const job = issue(1, { description: screen });
-  const other = issue(2, { description: screen, delegate: null });
-  const t = setup([job, other]);
+  const job = issue(1);
+  const other = issue(2, { delegate: null });
+  const t = setup([job, other], { maxLeads: 1 });
   const acks = () => job.comments.filter((c) => c.user?.name === RUNNER && c.body.startsWith('Seen.')).length;
   await t.run('--once');
   other.delegate = RUNNER;
@@ -857,13 +892,11 @@ test('the status comment shows the commands', () => {
   assert.ok(body.includes(`\`ssh -t mini 'tmux attach -t "=ALE-7"'\``));
 });
 
-test('startBlock enforces lead slots, free memory and the one screen', () => {
-  const base = { running: 0, maxLeads: 2, freeMemory: 40, minFreeMemory: 20, needsScreen: false, screenHolder: null };
+test('startBlock enforces lead slots and free memory', () => {
+  const base = { running: 0, maxLeads: 2, freeMemory: 40, minFreeMemory: 20 };
   assert.equal(startBlock(base), null);
   assert.match(startBlock({ ...base, running: 2 }) ?? '', /slots are busy/);
   assert.match(startBlock({ ...base, freeMemory: 19 }) ?? '', /only 19% of memory is free/);
-  assert.equal(startBlock({ ...base, needsScreen: true, screenHolder: 'ALE-9' }), 'ALE-9 has the screen');
-  assert.equal(startBlock({ ...base, screenHolder: 'ALE-9' }), null);
 });
 
 const hasTmux = (() => { try { execFileSync('tmux', ['-V'], { stdio: 'ignore' }); return true; } catch { return false; } })();
@@ -1010,5 +1043,22 @@ test('a webhook that lands while the lead runs is not later logged as missed', a
     await srv.audit();
     assert.equal(t.leads().length, 2);
     assert.ok(!t.printed.logs.some((l) => l.startsWith('missed:')), t.printed.logs.join('\n'));
+  } finally { await srv.close(); }
+});
+
+test('with a webhook, the 30 s heartbeat keeps running.json fresh between backup polls', async () => {
+  const t = setup([issue(1)]);
+  await t.run('--once');
+  const srv = await t.serve();
+  try {
+    t.setLive('ALE-1');
+    await srv.audit();
+    const file = path.join(t.config.worktreeRoot, 'running.json');
+    rmSync(file);
+    await srv.heartbeat();
+    assert.match(readFileSync(file, 'utf8'), /ALE-1/);
+    t.setLive();
+    await srv.heartbeat();
+    assert.doesNotMatch(readFileSync(file, 'utf8'), /ALE-1/);
   } finally { await srv.close(); }
 });
