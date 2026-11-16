@@ -286,8 +286,11 @@ function worktree(repo: Repo, w: Work) {
 /** Reuses the ticket's worktree or branch when they exist. It never removes a worktree or resets a branch. */
 async function makeWorktree(repo: Repo, w: Work) {
   if (existsSync(w.dir)) {
-    const head = await run('git', ['rev-parse', '--abbrev-ref', 'HEAD'], w.dir);
-    if (head.code !== 0 || head.out.trim() !== w.branch) throw new Error(`${w.dir} exists but is not a worktree on ${w.branch}, so the runner left it alone.`);
+    // A lead may check out its PR branch, so any branch is fine; only a folder outside this repo is refused.
+    const common = async (dir: string) => { const r = await run('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], dir); return r.code === 0 ? realpathSync(r.out.trim()) : null; };
+    const top = await run('git', ['rev-parse', '--show-toplevel'], w.dir);
+    const ours = top.code === 0 && realpathSync(top.out.trim()) === realpathSync(w.dir) && (await common(w.dir)) === (await common(repo.path));
+    if (!ours) throw new Error(`${w.dir} exists but is not a worktree of ${repo.path}, so the runner left it alone.`);
   } else {
     await must('git', ['fetch', 'origin', repo.base], repo.path);
     await must('git', ['worktree', 'prune'], repo.path);
@@ -598,6 +601,8 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void) {
       try {
         await launch(ctx, w, move.news);
       } catch (error) {
+        // Record the attempt, so only a new event retries a failed start.
+        if (existsSync(w.dir)) { mkdirSync(rf(w, ''), { recursive: true }); put(rf(w, 'started'), new Date().toISOString()); }
         await decide(ctx, w, ticket, `the runner could not start the lead: ${message(error).split('\n')[0]}`);
         continue;
       }

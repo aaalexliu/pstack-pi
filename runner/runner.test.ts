@@ -634,6 +634,28 @@ test('a lead that cannot start becomes a Decision issue, not a retry every poll'
   assert.match(t.decisions()[0].title, /could not start the lead: .* is not a worktree/);
 });
 
+test('a failed start files one Decision across polls with the same news, and a new comment retries once', async () => {
+  const job = issue(1, { state: 'In Progress', comments: [{ id: 'h1', body: 'Go.', createdAt: later(), user: { name: ALEX } }] });
+  const t = setup([job]);
+  mkdirSync(t.dirOf(1), { recursive: true });
+  for (let i = 0; i < 5; i++) await t.run('--once');
+  assert.equal(t.decisions().length, 1);
+  assert.equal(t.leads().length, 0);
+  rmSync(t.dirOf(1), { recursive: true });
+  job.comments.push({ id: 'h2', body: 'Try again.', createdAt: later(), user: { name: ALEX } });
+  await t.run('--once');
+  await t.run('--once');
+  assert.equal(t.leads().length, 1);
+});
+
+test('a worktree on the lead PR branch starts the lead', async () => {
+  const t = setup([issue(1)]);
+  git(t.repo, 'worktree', 'add', '-q', '-b', 'job/ale-1-pr-branch', t.dirOf(1), 'origin/main');
+  await t.run('--once');
+  assert.equal(t.decisions().length, 0);
+  assert.equal(t.leads().length, 1);
+});
+
 test('an issue with no repo label is skipped with a comment and handed back', async () => {
   const job = issue(1, { labels: ['Papercut'] });
   const t = setup([job]);
