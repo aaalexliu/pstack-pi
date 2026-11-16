@@ -656,6 +656,15 @@ test('a worktree on the lead PR branch starts the lead', async () => {
   assert.equal(t.leads().length, 1);
 });
 
+test('the runner never files a Decision while its own Decision on the ticket is open', async () => {
+  const job = issue(1, { state: 'In Progress', comments: [{ id: 'h1', body: 'Go.', createdAt: later(), user: { name: ALEX } }] });
+  const open = issue(50, { parent: 'id-1', assignee: ALEX, delegate: null, labels: [], title: 'Decision for ALE-1: the runner could not start the lead', createdAt: later() });
+  const t = setup([job, open]);
+  mkdirSync(t.dirOf(1), { recursive: true });
+  for (let i = 0; i < 5; i++) await t.run('--once');
+  assert.equal(t.decisions().length, 1);
+});
+
 test('an issue with no repo label is skipped with a comment and handed back', async () => {
   const job = issue(1, { labels: ['Papercut'] });
   const t = setup([job]);

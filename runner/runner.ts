@@ -488,6 +488,8 @@ async function investigate(ctx: Ctx, w: Work, quiet: number) {
 
 /** Files the runner's own Decision issue: the lead stopped, or could not start, with nothing open to wait for. */
 async function decide(ctx: Ctx, w: Work, ticket: Ticket, why: string) {
+  // Circuit breaker: never a second open runner Decision on one ticket, whatever loop asks for it.
+  if (ticket.children.some((c) => isDecision(ctx.config, c) && !closedAt(c) && c.title.startsWith(`Decision for ${w.key}:`))) return;
   const c = commands(w, sessionId(w), ctx.config.host);
   const issue = await ctx.linear.fileDecision(w.id, `Decision for ${w.key}: ${why}`, [
     `${why}. The ticket is still open and delegated to the runner.`,
