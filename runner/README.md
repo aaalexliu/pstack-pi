@@ -1,26 +1,43 @@
 # Job runner
 
-The job runner starts a Pi lead for each Linear issue delegated to its app user that is in `Todo` or a started state and carries a repo label from the config, and wakes it when you act. The lead does the rest: it builds, opens small PRs, gets each one reviewed by a separate Pi session, merges after CI, asks you through Decision issues, and closes the ticket. The runner is one TypeScript file with no dependencies. It is not part of the Pi package, and `npm pack` leaves it out.
+The job runner starts a Pi lead for each Linear issue delegated to its app user that is in `Todo` or a started state and carries a repo label from the config, and wakes it on any event that is not its own. The lead does the rest: it builds, opens small PRs, gets each one reviewed by a separate Pi session, merges after CI, asks you through Decision issues, and closes the ticket. The runner is one TypeScript file with no dependencies. It is not part of the Pi package, and `npm pack` leaves it out.
 
 ## What the runner does
 
 The runner keeps process only where a stopped or absent model cannot act for itself. It makes two writes:
 
-1. **Start or resume the lead**, only when you acted after the lead's last start: you delegated the ticket (it sits in `Todo`), closed a Decision issue (Done or Canceled), or commented on the ticket as a person (comments by apps and bots do not count). The runner moves a `Todo` ticket to `In Progress` before it records the start, so a crash can never count one delegation twice; at worst it files a Decision issue instead of starting.
+1. **Start or resume the lead** on any event since its last start.
 2. **File a Decision issue** when the lead stopped and nothing is open to wait for.
 
-It remembers one fact per ticket: when it last started the lead, in `<worktree>/.runner/started`. Everything else it reads from Linear and tmux each poll.
-
-Each poll, for each open issue delegated to `runnerUser` (`Todo`, or any started state such as `In Progress` or `In Review`):
+Linear is an event log. An event is anything in Linear on the ticket or its sub-issues: a comment, a state, delegate, assignee, label, title or description change, or a Decision issue closed. Only events by someone other than `runnerUser` count, and not those of integrations such as GitHub or Slack. Leads post with the runner's token, so the runner's own moves and its leads' never wake anyone.
 
 ```text
-lead live in tmux                     -> leave it; nudge it, then start an investigator, if it went quiet
-open Decision issue, no news          -> wait (a comment or another closed Decision is news: start)
-you acted after the lead's last start -> start the lead (if a slot is free) and save the start time
-else                                  -> file a Decision issue: "the lead stopped with nothing open to wait for"
+each poll, per open ticket delegated to runnerUser (Todo, or a started state such as In Progress or In Review):
+  lead live in tmux            -> leave it; nudge it, then start an investigator, if it went quiet
+  any event since its start    -> start the lead; its start message lists the events, and it judges what they mean
+                                  if a limit blocks the start: reply "Seen. Waiting to start: <reason>" once
+  no event, open Decision      -> wait
+  no event, no open Decision   -> file a Decision issue: "the lead stopped with nothing open to wait for"
+order: the ticket whose oldest unseen event is oldest goes first
 ```
 
-A live lead belongs to the lead: the runner never starts, restarts or kills it. Your comments and Decision answers reach it when you attach and type, or after it exits, since the next start carries them.
+It remembers one fact per ticket: when it last tried to start the lead. A start that works is kept in `<worktree>/.runner/started`, which the heartbeat also counts from. A start that fails is kept in `<worktreeRoot>/.attempts/KEY`, never inside a folder the runner may have refused. Events before the last attempt are seen, so only a new event retries a failed start. The runner never files a second Decision issue while its own (titled `Decision for KEY: ...`) is open. A ticket a routine filed counts its creation as an event, since the runner made it on your schedule.
+
+The runner moves a `Todo` ticket to `In Progress` before it records the start. That move is the runner's own, so it is no event: a crash before the start is recorded starts the lead once more on the same events, never in a loop.
+
+### Reading Linear
+
+What Linear showed on 2026-11-16, and what the runner does with it:
+
+- Each history entry names its actor (`actor`, a user; leads and the runner share one app user). An integration's own entry has `botActor` set instead, such as the GitHub link a PR adds.
+- When a PR opens, the GitHub integration moves the ticket to In Review and assigns it, but Linear credits those entries to the PR author, a person, with no bot mark. Their only tell is that they land within a second after the integration's link entry. The runner drops a state or assignee change within 2 s after an integration's link entry on the same issue; any other change by a person still counts.
+- Comments are not in history; the runner reads both. A comment with `botActor`, or with no user, is an integration's.
+- History, comments and children all come newest first. The runner pages back through comments and history until it passes the lead's last start, so a busy ticket cannot hide an event past the first page of 25.
+- A comment does not move an issue's `updatedAt`, and a change on a sub-issue does not move its parent's. So the list query fetches, for the ticket and each sub-issue, `updatedAt` and the newest comment. When none of them is newer than the lead's last start, or than the last read that found no events, the runner skips the per-ticket read. A live lead costs no per-ticket read either.
+
+The runner and every lead share the app user's Linear budgets: 5,000 requests and 2,000,000 complexity points an hour. One poll is one list query of about 17 points, plus, for each ticket that changed, one read of about 310 points per changed issue in it. Complexity grows with each page size asked for, so the read asks only for the ticket and sub-issues that changed, 25 entries a page; asking for all 100 sub-issues at 50 a page cost 1,236 points. On a 429 the runner waits as long as `Retry-After` says, logs it, and tries again. It logs once when `X-RateLimit-Requests-Remaining` or `X-RateLimit-Complexity-Remaining` drops under 20% of its limit.
+
+A live lead belongs to the lead: the runner never starts, restarts or kills it. Events reach it when you attach and type, or after it exits, since the next start lists them.
 
 The lead's heartbeat is the newest write to any Pi session log in the session folder of its worktree or of a sibling worktree named `<worktree>-<unit>` (any unit name but `quiz`, which the quiz fork uses) (`~/.pi/agent/sessions/<encoded path>/`). Pi files each session under its cwd, so the lead and its subagents log to the worktree's folder, and sub-leads, which the lead prompt puts in `<worktree>-<unit>`, log to theirs. The investigator's folder (`.runner`) and the quiz fork's (`<worktree>-quiz`) do not count. The runner reads the last message of that newest log: a tool call with no result yet, or a user message or tool result with no reply yet, is busy; anything else is idle. tmux redraws do not count; the subagent panel's "waiting" timer redraws forever.
 
@@ -39,11 +56,11 @@ A ticket marked Done or Canceled, or with its delegate cleared, is no longer the
 
 A Decision issue is a sub-issue of the ticket assigned to `decisionAssignee`. The runner files its own with `parentId` in the one `issueCreate` call, so no crash can leave it unfindable, and finds them as open children. The lead files them the same way. A sub-issue assigned to anyone else does not block the ticket.
 
-Closing a Decision issue, Done or Canceled, wakes the lead in the same Pi session with your comments. So does a comment on the ticket while a Decision is still open: the lead judges whether it answers the Decision and closes the Decision if so. To stop the work instead, mark the ticket Done or Canceled, or clear its delegate.
+Closing a Decision issue, Done or Canceled, wakes the lead in the same Pi session. So does any other event while a Decision is still open, such as a comment on the Decision or the ticket: the lead judges whether it answers the Decision and closes the Decision if so. To stop the work instead, mark the ticket Done or Canceled, or clear its delegate.
 
 ### The lead
 
-The runner starts `pi --session-id <uuid> @.runner/input.md` with [prompts/lead.md](prompts/lead.md) in a detached tmux session named for the ticket, in the ticket's worktree. `input.md` holds the ticket, the Linear ids the lead needs, the review model, the prompts folder, and what you did since its last start. Pi loads pstack-pi's `subagent-done.ts` without `PI_SUBAGENT_AUTO_EXIT`, so ending a turn does not end the session: the lead can wait for its own subagents, such as a reviewer started with the `subagent` tool. It exits when it calls `subagent_done`, once its ending is in place: the last PR merged and the ticket Done, the report posted and the ticket Done, or a Decision issue filed with nothing left running.
+The runner starts `pi --session-id <uuid> @.runner/input.md` with [prompts/lead.md](prompts/lead.md) in a detached tmux session named for the ticket, in the ticket's worktree. `input.md` holds the ticket, the Linear ids the lead needs, the review model, the prompts folder, and the events since its last start. Pi loads pstack-pi's `subagent-done.ts` without `PI_SUBAGENT_AUTO_EXIT`, so ending a turn does not end the session: the lead can wait for its own subagents, such as a reviewer started with the `subagent` tool. It exits when it calls `subagent_done`, once its ending is in place: the last PR merged and the ticket Done, the report posted and the ticket Done, or a Decision issue filed with nothing left running.
 
 The lead splits the work into units it can verify alone. It builds a unit itself or hands it to a sub-lead: it makes a worktree and branch, then calls `subagent` with the bundled [`sub-lead`](../additions/agents/sub-lead.md) agent, that path as `cwd`, and its own model. The sub-lead follows this prompt's Build, PRs and merge gate sections for its unit and opens its own PR. It exits when its turn ends, so it blocks on every wait, and the lead checks the unit's PR merged, resuming the sub-lead with `subagent_resume` if not. That is two levels at most, enforced by Pi, not only the prompt. A `sub-lead` child gets `PI_DENY_TOOLS` with every spawning tool; a `pi -p` it runs from bash inherits it. [tests/pi/depth.test.mjs](../tests/pi/depth.test.mjs) proves this in a real Pi. A child that clears those variables on purpose could still start a full Pi; only the prompt stops that. The lead stays in the ticket's repo, except that an agent-tooling ticket may touch pstack-pi, agent-memory, agent-orchestration and dotfiles.
 
@@ -78,12 +95,12 @@ A routine can file this audit as a ticket on a schedule; see `routines` below.
 
 ## The model
 
-[model/Ticket.tla](model/Ticket.tla) is a TLC model of one ticket under the runner. `nextMove()` in `runner.ts` is its `StartsLead` and `FilesDecision` guards: start on news, else wait on an open Decision issue, else file one. Delegation alone does not override an open Decision.
+[model/Ticket.tla](model/Ticket.tla) is a TLC model of one ticket under the runner. `nextMove()` in `runner.ts` is its `StartsLead` and `FilesDecision` guards: start on an event, else wait on an open Decision issue, else file one.
 
 | Config | Result |
 | --- | --- |
 | [model/Ticket.cfg](model/Ticket.cfg) | `NoSpin`, `OneDecisionPerAsk` and no deadlock hold. 12 states. |
-| [model/TicketSpin.cfg](model/TicketSpin.cfg) | Without the news check, `NoSpin` breaks in 3 steps: the runner restarts a lead with nothing new. |
+| [model/TicketSpin.cfg](model/TicketSpin.cfg) | Without the event check, `NoSpin` breaks in 3 steps: the runner restarts a lead with nothing new. |
 | [model/TicketTwoStep.cfg](model/TicketTwoStep.cfg) | Filing then linking, instead of one write with a parent, breaks `OneDecisionPerAsk` in 4 steps. |
 
 Draw the charts with the statechart skill:
@@ -95,7 +112,7 @@ statechart runner/model/Ticket.tla --config runner/model/Ticket.cfg --view runne
 The model leaves out:
 
 - the stall check, lead slots, memory, `running.json` and the screen lock;
-- delegation versus comments as news (it has one `news` flag for any act of yours, so it lets delegation start a lead past an open Decision, which the runner does not);
+- the kinds of event, which it folds into one `event` flag;
 - PRs, review, CI and merge, which the runner no longer touches; the audit prompt covers them;
 - a ticket you close or take back while the lead runs;
 - the launch failing, which files a Decision issue like a stopped lead.
@@ -108,9 +125,9 @@ Before it starts a lead, the runner checks two limits, and logs once why it wait
 - On macOS, no lead starts while `memory_pressure -Q` reports less than `minFreeMemoryPercent` free.
 The runner does not decide who uses the screen; leads take turns themselves. Each poll, and after each start, it writes the running leads to `<worktreeRoot>/running.json` (key, title, tmux session, worktree, Pi session id, whether the ticket says `Needs: screen`, and start time), and each start message lists the same leads and names that file. Before a lead drives the screen, records it, or needs focus, it takes the shared lock `<worktreeRoot>/screen.lock` with `mkdir`, writes its key and the time to `screen.lock/owner`, and removes the folder when that step ends. `lead.md` says how to wait for a held lock. The runner never enforces the lock, but clears one whose owner has no tmux session, because that lead can no longer release it, and one with no `owner` file after a minute.
 
-When a limit holds back a ticket you acted on, the runner replies once to your latest move, in the thread when it was a comment, with what it waits on, such as "Seen. Waiting to start: all 2 lead slots are busy." It finds its earlier replies among the ticket's comments, so it keeps no state for this.
+When a limit holds back a ticket with an event, the runner replies once to the latest event, in its thread when it was a comment, with what it waits on, such as "Seen. Waiting to start: all 2 lead slots are busy." It finds its earlier replies among its comments on the ticket and its sub-issues, so it keeps no state for this.
 
-The queue: tickets with news from you since their last start go first. The rest keep Linear's order: Todo first, then the oldest. A Todo ticket that started once and stopped still counts as Todo, so it can go before a newer ticket that never started.
+The queue: the ticket whose oldest unseen event is oldest goes first. Tickets with no event keep Linear's order after them: Todo first, then the oldest.
 
 Run one runner per Linear team.
 
