@@ -20,6 +20,8 @@ export function lastDue(schedule: string, now: Date): Date {
   }
 }
 
+/** Starts the line that ends each routine ticket's description. */
+export const ROUTINE_MARK = 'runner-routine ';
 const pad = (n: number) => String(n).padStart(2, '0');
 
 /**
@@ -42,7 +44,7 @@ export async function createDueRoutines(config: Setup, fetchFn: typeof fetch, no
   for (const r of routines) {
     try {
       const due = lastDue(r.schedule, now);
-      const mark = `runner-routine ${r.name} ${due.toISOString()}`;
+      const mark = `${ROUTINE_MARK}${r.name} ${due.toISOString()}`;
       const found = await gql<{ issues: { nodes: unknown[] } }>(
         'query Marked($team: String!, $mark: String!) { issues(first: 1, includeArchived: true, filter: { team: { key: { eq: $team } }, description: { contains: $mark } }) { nodes { id } } }',
         { team: config.team, mark },

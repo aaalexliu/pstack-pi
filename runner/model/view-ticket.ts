@@ -4,7 +4,7 @@ export const state = (v: V): string => {
   if (v.done) return "Done";
   if (v.lead === "live") return "Lead working";
   if (v.dec) return v.linked ? "Waiting on Alex" : "Decision filed, not linked";
-  if (v.news) return "Alex delegated or answered";
+  if (v.event) return "Event since the last start";
   return "Lead stopped, nothing to wait for";
 };
 const labels: Record<string, string> = {
@@ -15,6 +15,7 @@ const labels: Record<string, string> = {
   FilesDecision: "the runner files a Decision issue",
   LinksDecision: "the runner links the Decision issue",
   AlexClosesDecision: "Alex answers or cancels",
+  SomeoneActs: "someone comments or changes the ticket",
 };
 export const step = (action: string) => {
   const base = action.replace(/\(.*$/, "");
@@ -23,7 +24,7 @@ export const step = (action: string) => {
 export const group = (v: V) => {
   const s = state(v);
   if (s === "Done") return "done";
-  if (/Alex|Decision|nothing/.test(s)) return "alex";
+  if (/Alex|Decision|nothing|Event/.test(s)) return "alex";
   return "lead";
 };
 export const colors = { lead: "blue", alex: "purple", done: "teal" };

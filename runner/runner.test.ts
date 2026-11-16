@@ -7,11 +7,13 @@ import { test } from 'node:test';
 import { format } from 'node:util';
 import { commands, main, nextMove, put, renderStatus, startBlock, type Child, type Config, type Ticket } from './runner.ts';
 
-type FakeComment = { id: string; body: string; createdAt: string; user: { name: string; app?: boolean } | null; botActor?: { name: string } | null; parentId?: string };
+type FakeComment = { id: string; body: string; createdAt: string; user: { name: string } | null; botActor?: { name: string } | null; parentId?: string };
+/** A history entry: who changed what. Linear returns every field the query names, null when unset. */
+type FakeChange = { createdAt: string; actor?: { name: string } | null; botActor?: { name: string } | null; attachment?: { sourceType: string }; toState?: { name: string }; toDelegate?: { name: string }; addedLabelIds?: string[]; toTitle?: string };
 type FakeIssue = {
   id: string; identifier: string; title: string; description: string; url: string; createdAt: string;
   team: string; state: string; delegate: string | null; assignee: string | null; parent: string | null; labels: string[]; comments: FakeComment[];
-  completedAt: string | null; canceledAt: string | null; closedBy?: string; history?: { createdAt: string; actor: { name: string } | null; toState: { type: string } | null }[];
+  completedAt: string | null; canceledAt: string | null; history: FakeChange[];
 };
 
 const RUNNER = 'runner test';
@@ -19,13 +21,9 @@ const TYPES: Record<string, string> = { Todo: 'unstarted', 'In Progress': 'start
 const ALEX = 'Alex Example';
 const git = (cwd: string, ...args: string[]) => execFileSync('git', args, { cwd, encoding: 'utf8' }).trim();
 const lines = (file: string) => (existsSync(file) ? readFileSync(file, 'utf8').trim().split('\n').filter(Boolean) : []);
+const wireComment = (c: FakeComment) => ({ parentId: null, botActor: null, ...c });
+const CHANGE = { actor: null, botActor: null, attachment: null, toState: null, toDelegate: null, fromDelegate: null, toAssignee: null, addedLabelIds: null, removedLabelIds: null, toTitle: null, updatedDescription: null };
 /** Now. `run` waits a few ms first, so a fact made here is older than the next lead start. */
-/** A comment with only the fields the query names, as Linear returns it. */
-const asQueried = ({ botActor, user, ...c }: FakeComment, query: string) => ({
-  ...c,
-  ...(/botActor \{ name \}/.test(query) ? { botActor: botActor ?? null } : {}),
-  user: user && (/user \{ name app \}/.test(query) ? user : { name: user.name }),
-});
 const later = () => new Date().toISOString();
 /** Writes a Pi session log for `cwd` whose last message is `last`, last written `minutes` ago. */
 function sessionLog(agent: string, cwd: string, name: string, minutes: number, last: Record<string, unknown>) {
@@ -43,7 +41,8 @@ function issue(n: number, fields: Partial<FakeIssue> = {}): FakeIssue {
   return {
     id: `id-${n}`, identifier: `ALE-${n}`, title: `Job number ${n}`, description: 'Make it work.',
     url: `https://linear.app/x/issue/ALE-${n}`, createdAt: `2026-01-0${n}T00:00:00Z`, team: 'ALE', state: 'Todo',
-    delegate: RUNNER, assignee: null, parent: null, labels: ['pstack-pi'], comments: [], completedAt: null, canceledAt: null, ...fields,
+    delegate: RUNNER, assignee: null, parent: null, labels: ['pstack-pi'], comments: [], completedAt: null, canceledAt: null,
+    history: [{ createdAt: `2026-01-0${n}T00:00:01Z`, actor: { name: ALEX }, toDelegate: { name: RUNNER } }], ...fields,
   };
 }
 
@@ -107,21 +106,41 @@ else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? J
   const ops: string[] = [];
   /** Linear operations that fail once, the next time they run. */
   const faults: string[] = [];
+  /** Makes every reply say the request budget is under 20%. */
+  const lowBudget = { value: false };
   writeFileSync(file('token'), 'test-token\n');
+  /** Linear lists comments and history newest first, 25 to a page. */
+  const paged = (all: (FakeComment | FakeChange)[], after?: string) => {
+    const newest = [...all].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map((x) => ('body' in x ? wireComment(x) : { ...CHANGE, ...x }));
+    const from = Number(after ?? 0);
+    return { nodes: newest.slice(from, from + 25), pageInfo: { hasNextPage: from + 25 < newest.length, endCursor: String(from + 25) } };
+  };
+  /** An issue as the list query returns it. Like Linear, a comment does not move `updatedAt`. */
+  const listed = (x: FakeIssue) => ({
+    ...x, assignee: x.assignee ? { name: x.assignee } : null,
+    updatedAt: [x.createdAt, ...x.history.map((h) => h.createdAt)].sort().at(-1),
+    comments: { nodes: x.comments.map((c) => ({ createdAt: c.createdAt })).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 1) },
+  });
   const fakeFetch = async (_url: string | URL | Request, init?: RequestInit) => {
     assert.equal(new Headers(init?.headers).get('Authorization'), 'Bearer test-token');
     const { query, variables: v } = JSON.parse(String(init?.body));
     const op = /^(?:query|mutation) (\w+)/.exec(query)?.[1] ?? '';
     ops.push(op);
     if (faults.includes(op)) { faults.splice(faults.indexOf(op), 1); throw new Error(`injected ${op} failure`); }
+    if (faults.includes('RateLimit')) {
+      faults.splice(faults.indexOf('RateLimit'), 1);
+      return Response.json({ errors: [{ message: 'Rate limit exceeded', extensions: { code: 'RATELIMITED' } }] }, { status: 429, headers: { 'Retry-After': '0.01' } });
+    }
+    const headers: Record<string, string> = lowBudget.value ? { 'X-RateLimit-Requests-Limit': '5000', 'X-RateLimit-Requests-Remaining': '900' } : {};
     const find = (id: string) => issues.find((i) => i.id === id)!;
-    const data = (value: unknown) => Response.json({ data: value });
+    const data = (value: unknown) => Response.json({ data: value }, { headers });
     if (op === 'Issues') {
       const open = issues.filter((i) => i.team === v.team && ['unstarted', 'started'].includes(TYPES[i.state]) && i.delegate === v.user);
       const from = Number(v.after ?? 0);
       const page = open.slice(from, from + 100);
       return data({ issues: {
-        nodes: page.map((i) => ({ ...i, state: { type: TYPES[i.state] }, labels: { nodes: i.labels.map((name) => ({ name })) } })),
+        nodes: page.map((i) => ({ ...listed(i), state: { type: TYPES[i.state] }, labels: { nodes: i.labels.map((name) => ({ name })) },
+          children: { nodes: issues.filter((c) => c.parent === i.id).reverse().map(listed), pageInfo: { hasNextPage: false } } })),
         pageInfo: { hasNextPage: from + 100 < open.length || faults.includes('NoCursor'), endCursor: faults.includes('NoCursor') ? null : String(from + 100) },
       } });
     }
@@ -131,13 +150,15 @@ else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? J
       if (!i) return Response.json({ errors: [{ message: 'Entity not found' }] });
       return data({ issue: { state: { type: TYPES[i.state] }, delegate: i.delegate ? { name: i.delegate } : null } });
     }
+    if (op === 'More') {
+      const conn = /issue\(id: \$id\) \{ (\w+)/.exec(query)![1] as 'comments' | 'history';
+      return data({ issue: { [conn]: paged(find(v.id)[conn], v.after) } });
+    }
+    if (op === 'StatusComment') return data({ issue: { comments: { nodes: find(v.id).comments.filter((c) => c.body.startsWith('**Runner:**')).map(wireComment) } } });
     if (op === 'IssueById') {
-      const i = issues.find((x) => x.id === v.id && !gone.has(x.id));
-      return data({ issues: { nodes: i ? [{
-        state: { type: TYPES[i.state] }, delegate: i.delegate ? { name: i.delegate } : null, comments: { nodes: i.comments.map((c) => asQueried(c, query)) },
-        children: { nodes: issues.filter((c) => c.parent === i.id).map(({ closedBy, ...c }) => ({ ...c, assignee: c.assignee ? { name: c.assignee } : null, history: { nodes: [...(c.history ?? []), ...(closedBy ? [{ createdAt: c.completedAt ?? c.canceledAt, actor: { name: closedBy }, toState: { type: TYPES[c.state] } }] : [])]
-          .reverse().slice(0, Number(/history\(first: (\d+)/.exec(query)?.[1])) } })) },
-      }] : [] } });
+      const found = issues.filter((x) => v.ids.includes(x.id) && !gone.has(x.id));
+      const wire = (x: FakeIssue) => ({ id: x.id, identifier: x.identifier, comments: paged(x.comments), history: paged(x.history) });
+      return data({ issues: { nodes: found.map(wire) } });
     }
     if (op === 'State') return data({ workflowStates: { nodes: missingStates.has(v.name) ? [] : [{ id: `state-${v.name}` }] } });
     if (op === 'Team') return data({ teams: { nodes: [{ id: 'team-ale' }] } });
@@ -145,10 +166,11 @@ else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? J
     if (op === 'Update') {
       if (v.input.stateId) find(v.id).state = v.input.stateId.slice(6);
       if ('delegateId' in v.input) find(v.id).delegate = v.input.delegateId;
+      find(v.id).history.push({ createdAt: new Date().toISOString(), actor: { name: RUNNER }, ...(v.input.stateId ? { toState: { name: v.input.stateId.slice(6) } } : {}) });
       return data({ issueUpdate: { success: true } });
     }
     if (op === 'Comment') {
-      find(v.input.issueId).comments.push({ id: `comment-${++nextId}`, body: v.input.body, createdAt: new Date().toISOString(), user: { name: RUNNER, app: true }, parentId: v.input.parentId });
+      find(v.input.issueId).comments.push({ id: `comment-${++nextId}`, body: v.input.body, createdAt: new Date().toISOString(), user: { name: RUNNER }, parentId: v.input.parentId });
       return data({ commentCreate: { success: true } });
     }
     if (op === 'EditComment') {
@@ -158,7 +180,8 @@ else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? J
     if (op === 'CreateIssue') {
       assert.equal(v.input.teamId, 'team-ale');
       const n = 100 + ++nextId;
-      issues.push(issue(n, { title: v.input.title, description: v.input.description, createdAt: new Date().toISOString(), state: 'Todo', delegate: null, labels: [], assignee: v.input.assigneeId === 'user-alex' ? ALEX : null, parent: v.input.parentId }));
+      const at = new Date().toISOString();
+      issues.push(issue(n, { title: v.input.title, description: v.input.description, createdAt: at, state: 'Todo', delegate: null, labels: [], assignee: v.input.assigneeId === 'user-alex' ? ALEX : null, parent: v.input.parentId, history: [{ createdAt: at, actor: { name: RUNNER } }] }));
       return data({ issueCreate: { issue: { identifier: `ALE-${n}`, url: `https://linear.app/x/issue/ALE-${n}` } } });
     }
     throw new Error(`unexpected Linear operation ${op}`);
@@ -167,7 +190,7 @@ else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? J
   /** What the runner printed. A test that expects errors sets `expectErrors` and asserts on `errors`; otherwise any error fails the run. */
   const printed = { logs: [] as string[], errors: [] as string[], expectErrors: false };
   return {
-    config, ops, faults, root, repo, dirOf, gone, missingStates, printed,
+    config, ops, faults, lowBudget, root, repo, dirOf, gone, missingStates, printed,
     /** The first line of each distinct error, without its stack. */
     errorLines: () => [...new Set(printed.errors.map((e) => e.split('\n')[0]))],
     run: async (...argv: string[]) => {
@@ -186,8 +209,12 @@ else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? J
     /** Marks sessions as the runner's, as its `set-option @job-runner` does. */
     tag: (...keys: string[]) => writeFileSync(file('tags.json'), JSON.stringify(Object.fromEntries(keys.map((k) => [k, k])))),
     setFreeMemory: (percent: number) => writeFileSync(file('free'), `${percent}\n`),
-    /** Alex closes a Decision issue, after the lead's last start. */
-    close: (d: FakeIssue, how: 'Done' | 'Canceled' = 'Done') => { d.state = how; d[how === 'Done' ? 'completedAt' : 'canceledAt'] = later(); d.closedBy ??= ALEX; },
+    /** Someone, Alex by default, closes a Decision issue after the lead's last start. */
+    close: (d: FakeIssue, how: 'Done' | 'Canceled' = 'Done', by = ALEX) => {
+      const at = later();
+      d.state = how; d[how === 'Done' ? 'completedAt' : 'canceledAt'] = at;
+      d.history.push({ createdAt: at, actor: { name: by }, toState: { name: how } });
+    },
   };
 }
 
@@ -205,7 +232,7 @@ test('a delegated ticket starts one lead in tmux with the session, the subagent_
   assert.equal(lead.token, 'test-token');
   assert.deepEqual(lead.piVars, ['PI_AUTH_PROFILE', 'PI_SUBAGENT_ID'], 'outer PI_*, PSTACK_* and CMUX_* are gone, digits included');
   assert.ok(!readFileSync(path.join(dir, '.runner', 'lead.sh'), 'utf8').includes('test-token'), 'the token never lands on disk');
-  assert.match(lead.input, /^Issue ALE-1: Job number 1[\s\S]*Linear issue id: id-1\.[\s\S]*- The ticket was delegated to you\./);
+  assert.match(lead.input, /^Issue ALE-1: Job number 1[\s\S]*Linear issue id: id-1\.[\s\S]*Events since your last start:\n- 2026-01-01T00:00:01Z ALE-1: Alex Example delegated it to runner test$/);
   assert.deepEqual(t.tmux().find((a) => a[0] === 'new-session')!.slice(0, 4), ['new-session', '-d', '-s', 'ALE-1']);
   const status = job.comments.filter((c) => c.body.startsWith('**Runner:**'));
   assert.equal(status.length, 1);
@@ -248,33 +275,86 @@ test('closing a Decision issue, Done or Canceled, wakes the same lead session on
     const leads = t.leads();
     assert.equal(leads.length, 2, `${how}: one wake, no spin after it`);
     assert.equal(leads[1].session, leads[0].session);
-    assert.match(leads[1].input, new RegExp(`Alex ${how === 'Done' ? 'closed' : 'canceled'} ${decision.identifier}`));
+    assert.match(leads[1].input, new RegExp(`${decision.identifier}: ${ALEX} moved it to ${how}`));
     assert.equal(t.decisions().length, 2, 'after the woken lead stops, a new ask');
   }
 });
 
-test('a busy Decision issue still wakes the lead when Alex closes it: Linear lists history newest first', async () => {
-  const t = setup([issue(1)]);
+test('a comment on an open Decision issue starts the lead; the runner\'s own comments and the lead closing it do not', async () => {
+  const all = [issue(1)];
+  const t = setup(all);
   await t.run('--once');
+  const asked = issue(50, { parent: 'id-1', assignee: ALEX, delegate: null, labels: [], createdAt: later(), history: [] });
+  all.push(asked);
+  asked.comments.push({ id: 'r1', body: 'Status.', createdAt: later(), user: { name: RUNNER } });
   await t.run('--once');
-  const [decision] = t.decisions();
-  decision.history = Array.from({ length: 60 }, (_, i) => ({ createdAt: `2026-01-01T00:00:${String(i).padStart(2, '0')}Z`, actor: { name: ALEX }, toState: null }));
-  t.close(decision);
+  assert.equal(t.leads().length, 1, 'waits on the open Decision');
+  asked.comments.push({ id: 'h1', body: 'Go with A.', createdAt: later(), user: { name: ALEX } });
   await t.run('--once');
   assert.equal(t.leads().length, 2);
-  assert.match(t.leads()[1].input, new RegExp(`Alex closed ${decision.identifier}`));
+  assert.match(t.leads()[1].input, /- \S+ ALE-50: Alex Example commented: Go with A\./);
+  t.close(asked, 'Done', RUNNER);
+  await t.run('--once');
+  assert.equal(t.leads().length, 2, 'the lead closing it is its own act');
 });
 
-test('a human comment after the last start wakes the lead; the runner\'s own comments do not', async () => {
+test('a busy ticket pages back to the last start: an event under 60 newer changes, over two pages of 25, still starts the lead', async () => {
   const job = issue(1);
   const t = setup([job]);
   await t.run('--once');
-  job.comments.push({ id: 'h1', body: 'Use the blue icon.', createdAt: later(), user: { name: 'Alex' } });
+  job.comments.push({ id: 'h1', body: 'One more thing.', createdAt: later(), user: { name: ALEX } });
+  const at = Date.now() + 1000;
+  job.history.push(...Array.from({ length: 60 }, (_, k) => ({ createdAt: new Date(at + k).toISOString(), actor: { name: RUNNER } })));
+  job.comments.push(...Array.from({ length: 60 }, (_, k) => ({ id: `r${k}`, body: 'progress', createdAt: new Date(at + k).toISOString(), user: { name: RUNNER } })));
   await t.run('--once');
   assert.equal(t.leads().length, 2);
-  assert.match(t.leads()[1].input, /- Alex commented: Use the blue icon\./);
+  assert.match(t.leads()[1].input, /Alex Example commented: One more thing\./);
+  assert.ok(t.ops.includes('More'));
+});
+
+test('a label or title change by Alex starts the lead; the GitHub integration moving it to In Review does not', async () => {
+  const job = issue(1);
+  const t = setup([job]);
   await t.run('--once');
-  assert.equal(t.leads().length, 2);
+  await t.run('--once');
+  assert.equal(t.decisions().length, 1);
+  const link = Date.now();
+  job.history.push(
+    { createdAt: new Date(link).toISOString(), botActor: { name: 'Linear' }, attachment: { sourceType: 'github' } },
+    { createdAt: new Date(link + 80).toISOString(), actor: { name: ALEX }, toState: { name: 'In Review' } },
+  );
+  job.state = 'In Review';
+  t.close(t.decisions()[0]);
+  await t.run('--once');
+  assert.doesNotMatch(t.leads()[1].input, /In Review/, 'Linear credits the integration\'s move to the PR author');
+  for (const [k, change] of [{ addedLabelIds: ['l1'] }, { toTitle: 'Better name' }].entries()) {
+    const before = t.leads().length;
+    job.history.push({ createdAt: new Date(link + 5000 + k).toISOString(), actor: { name: ALEX }, ...change });
+    await t.run('--once');
+    assert.equal(t.leads().length, before + 1, JSON.stringify(change));
+  }
+  assert.match(t.leads().at(-1).input, /ALE-1: Alex Example retitled it "Better name"/);
+});
+
+test('a live lead and an untouched ticket cost no per-ticket read', async () => {
+  const t = setup([issue(1), issue(2)]);
+  await t.run('--once');
+  await t.run('--once');
+  t.setLive('ALE-1');
+  t.ops.length = 0;
+  await t.run('--once');
+  assert.deepEqual(t.ops, ['Issues'], 'ALE-1 is live, and nothing touched ALE-2 since its Decision issue');
+});
+
+test('a 429 waits Retry-After and tries again; a low budget is logged once', async () => {
+  const t = setup([issue(1)]);
+  t.faults.push('RateLimit');
+  t.lowBudget.value = true;
+  await t.run('--once');
+  await t.run('--once');
+  assert.equal(t.leads().length, 1);
+  assert.equal(t.printed.logs.filter((l) => l === 'Linear rate limit hit; waiting 0.01 s').length, 1);
+  assert.equal(t.printed.logs.filter((l) => l.startsWith('Linear requests budget is low: 900 of 5000')).length, 2, 'once per runner start');
 });
 
 test('NoSpin across a crash: a Todo ticket whose move to In Progress fails is started once, not on every poll', async () => {
@@ -300,15 +380,17 @@ test('a team with no "In Progress" state starts no lead, so a Todo ticket cannot
   assert.equal(t.leads().length, 0);
 });
 
-test('comments from apps and bots do not wake the lead', async () => {
+test('integration comments do not wake the lead; another app\'s comment does', async () => {
   const job = issue(1);
   const t = setup([job]);
   await t.run('--once');
-  job.comments.push({ id: 'b1', body: 'Deployed preview.', createdAt: later(), user: { name: 'GitHub', app: true } });
   job.comments.push({ id: 'b2', body: 'Linked a PR.', createdAt: later(), user: null, botActor: { name: 'GitHub' } });
   await t.run('--once');
   assert.equal(t.leads().length, 1);
   assert.equal(t.decisions().length, 1);
+  job.comments.push({ id: 'a1', body: 'Please also do B.', createdAt: later(), user: { name: 'alex-jxp' } });
+  await t.run('--once');
+  assert.equal(t.leads().length, 2);
 });
 
 test('a ticket the lead moved to Done is left alone; one Linear moved to In Review is still watched', async () => {
@@ -504,7 +586,7 @@ test('lead slots: at most maxLeads run, a live lead holds its slot, and the runn
   assert.deepEqual(t.leads().map((l) => /Issue (ALE-\d)/.exec(l.input)![1]), ['ALE-1', 'ALE-2', 'ALE-3'], 'the live lead holds one of the two slots');
 });
 
-test('a blocked ticket with news acks it once, in the comment thread, naming what it waits on', async () => {
+test('a blocked ticket with an event acks it once, in the comment thread, naming what it waits on', async () => {
   const screen = 'Make it work.\nNeeds: screen';
   const job = issue(1, { description: screen });
   const other = issue(2, { description: screen, delegate: null });
@@ -535,7 +617,7 @@ test('an ack to a reply in a thread goes to the thread root', async () => {
   assert.deepEqual(job.comments.filter((c) => c.body.startsWith('Seen.')).map((c) => c.parentId), ['root']);
 });
 
-test('each later Alex move gets its own ack, his own "Seen." does not suppress one, and acks are not news', async () => {
+test('each later Alex move gets its own ack, his own "Seen." does not suppress one, and acks are not events', async () => {
   const screen = 'Make it work.\nNeeds: screen';
   const job = issue(1, { description: screen });
   const other = issue(2, { description: screen, delegate: null });
@@ -555,47 +637,21 @@ test('each later Alex move gets its own ack, his own "Seen." does not suppress o
   t.setLive();
   await t.run('--once');
   const input = t.leads().find((l) => l.input.includes('Issue ALE-1') && l.input.includes('blue'))!.input;
-  assert.doesNotMatch(input, /Waiting to start/, 'the runner\'s acks are not news');
+  assert.doesNotMatch(input, /Waiting to start/, 'the runner\'s acks are not events');
 });
 
-test('a ticket with news from Alex starts before tickets that never started', async () => {
-  const job = issue(1);
-  const t = setup([job, issue(2), issue(3)], { maxLeads: 1 });
+test('the ticket whose oldest unseen event is oldest starts first', async () => {
+  const one = issue(1);
+  const two = issue(2);
+  const t = setup([one, two, issue(3)], { maxLeads: 3 });
   await t.run('--once');
-  job.comments.push({ id: 'h1', body: 'One more thing.', createdAt: later(), user: { name: 'Alex' } });
+  const now = Date.now();
+  two.comments.push({ id: 'h2', body: 'First.', createdAt: new Date(now).toISOString(), user: { name: ALEX } });
+  one.comments.push({ id: 'h1', body: 'Second.', createdAt: new Date(now + 1).toISOString(), user: { name: ALEX } });
+  t.setLive('ALE-3');
+  t.config.maxLeads = 2;
   await t.run('--once');
-  assert.deepEqual(t.leads().map((l) => /Issue (ALE-\d)/.exec(l.input)![1]), ['ALE-1', 'ALE-1']);
-});
-
-test('an Alex comment beats a Todo ticket whose old start brings only the delegation', async () => {
-  const review = issue(1);
-  const todo = issue(2);
-  const t = setup([review, todo], { maxLeads: 2 });
-  await t.run('--once');
-  review.state = 'In Review';
-  todo.state = 'Todo';
-  review.comments.push({ id: 'h1', body: 'One more thing.', createdAt: later(), user: { name: 'Alex' } });
-  const before = t.leads().length;
-  await t.run('--once');
-  assert.match(t.leads()[before].input, /Issue ALE-1/);
-});
-
-test('a Decision Alex closed beats a Todo ticket whose old start brings only the delegation', async () => {
-  const review = issue(1);
-  const todo = issue(2);
-  const t = setup([review, todo], { maxLeads: 2 });
-  await t.run('--once');
-  await t.run('--once');
-  const [mine] = t.decisions('id-1');
-  const [theirs] = t.decisions('id-2');
-  review.state = 'In Review';
-  todo.state = 'Todo';
-  t.close(mine);
-  theirs.closedBy = RUNNER;
-  t.close(theirs);
-  const before = t.leads().length;
-  await t.run('--once');
-  assert.match(t.leads()[before].input, /Issue ALE-1/);
+  assert.deepEqual(t.leads().slice(3).map((l) => /Issue (ALE-\d)/.exec(l.input)![1]), ['ALE-2']);
 });
 
 test('low free memory starts no lead', async () => {
@@ -653,30 +709,21 @@ test('--dry-run prints each move and writes nothing', async () => {
   assert.ok(!existsSync(t.config.worktreeRoot));
 });
 
-const child = (fields: Partial<Child>): Child => ({ id: 'c', identifier: 'ALE-9', title: 't', url: 'u', createdAt: '2026-01-01T00:00:00Z', completedAt: null, canceledAt: null, closedBy: null, assignee: { name: ALEX }, ...fields });
-const ticket = (fields: Partial<Ticket>): Ticket => ({ state: 'started', delegate: RUNNER, comments: [], children: [], ...fields });
+const child = (fields: Partial<Child>): Child => ({ id: 'c', identifier: 'ALE-9', title: 't', url: 'u', createdAt: '2026-01-01T00:00:00Z', completedAt: null, canceledAt: null, assignee: { name: ALEX }, ...fields });
+const ticket = (fields: Partial<Ticket>): Ticket => ({ state: 'started', description: '', createdAt: '2026-01-01T00:00:00Z', mine: [], children: [], events: [], ...fields });
 const cfg = { decisionAssignee: ALEX, runnerUser: RUNNER } as Config;
 
-test('nextMove follows the model: wait on an open Decision, start on news, else decide', () => {
+test('nextMove follows the model: start on an event, else wait on an open Decision, else decide', () => {
   const started = '2026-01-02T00:00:00Z';
-  assert.equal(nextMove(cfg, ticket({}), null).kind, 'start');
-  assert.equal(nextMove(cfg, ticket({ state: 'unstarted' }), started).kind, 'start');
-  assert.equal(nextMove(cfg, ticket({}), started).kind, 'decide');
-  assert.equal(nextMove(cfg, ticket({ children: [child({})] }), null).kind, 'wait', 'an open Decision beats delegation');
-  assert.equal(nextMove(cfg, ticket({ children: [child({ assignee: null })] }), started).kind, 'decide', 'a sub-issue not assigned to Alex is not a Decision');
-  assert.equal(nextMove(cfg, ticket({ children: [child({ completedAt: '2026-01-01T00:00:00Z', closedBy: ALEX })] }), started).kind, 'decide', 'an answer older than the start is old news');
-  assert.equal(nextMove(cfg, ticket({ children: [child({ canceledAt: '2026-01-03T00:00:00Z', closedBy: ALEX })] }), started).kind, 'start');
-  assert.equal(nextMove(cfg, ticket({ comments: [{ id: 'x', body: 'b', createdAt: '2026-01-03T00:00:00Z', user: { name: RUNNER, app: true } }] }), started).kind, 'decide');
-  const said = (name: string, app = false) => ({ id: 'y', body: 'go with A', createdAt: '2026-01-03T00:00:00Z', user: { name, app } });
-  assert.equal(nextMove(cfg, ticket({ children: [child({})] }), started).kind, 'wait', 'an open Decision with no news waits');
-  assert.deepEqual(nextMove(cfg, ticket({ children: [child({})], comments: [said(ALEX)] }), started), { kind: 'start', news: [`${ALEX} commented: go with A`] }, 'a comment may answer the open Decision');
-  assert.equal(nextMove(cfg, ticket({ children: [child({})], comments: [said(RUNNER, true)] }), started).kind, 'wait', 'the runner is not news');
-  assert.equal(nextMove(cfg, ticket({ children: [child({})], comments: [said('alex-jxp', true)] }), started).kind, 'wait', 'an app user is not news');
-  assert.equal(nextMove(cfg, ticket({ children: [child({}), child({ id: 'd', completedAt: '2026-01-03T00:00:00Z', closedBy: ALEX })] }), started).kind, 'start', 'closing another Decision is news');
-  // Alex answered A on the ticket; the lead started, closed A itself, and stopped to wait on B. Its own closure must not start it again.
-  const leadClosedA = child({ id: 'a', completedAt: '2026-01-03T00:00:00Z', closedBy: RUNNER });
-  assert.equal(nextMove(cfg, ticket({ children: [leadClosedA, child({ id: 'b' })] }), started).kind, 'wait', 'a Decision the lead closed is not news');
-  assert.equal(nextMove(cfg, ticket({ children: [leadClosedA] }), started).kind, 'decide', 'a Decision the lead closed is not news');
+  const event = { at: '2026-01-03T00:00:00Z', what: 'ALE-1: Alex Example commented: go with A' };
+  assert.equal(nextMove(cfg, 'ALE-1', ticket({}), started).kind, 'decide');
+  assert.equal(nextMove(cfg, 'ALE-1', ticket({ events: [{ ...event, at: '2026-01-01T00:00:00Z' }] }), started).kind, 'decide', 'an event before the start is seen');
+  assert.deepEqual(nextMove(cfg, 'ALE-1', ticket({ children: [child({})], events: [event] }), started), { kind: 'start', events: [event] }, 'an event may answer the open Decision');
+  assert.equal(nextMove(cfg, 'ALE-1', ticket({ children: [child({})] }), started).kind, 'wait');
+  assert.equal(nextMove(cfg, 'ALE-1', ticket({ children: [child({ assignee: null })] }), started).kind, 'decide', 'a sub-issue not assigned to Alex is not a Decision');
+  const filed = child({ title: 'Decision for ALE-1: the runner could not start the lead', createdAt: '2026-01-04T00:00:00Z' });
+  assert.equal(nextMove(cfg, 'ALE-1', ticket({ children: [filed], events: [event] }), null).kind, 'wait', 'the runner\'s own Decision covers the events before it');
+  assert.equal(nextMove(cfg, 'ALE-1', ticket({ description: 'Do it.\n\nrunner-routine audit 2026-01-01T09:00:00.000Z' }), null).kind, 'start', 'a routine ticket starts on its creation');
 });
 
 const shells = ['sh', 'zsh'].filter((shell) => { try { execFileSync(shell, ['-c', 'true']); return true; } catch { return false; } });

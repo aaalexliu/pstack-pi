@@ -4,7 +4,7 @@ import { appendFileSync, closeSync, existsSync, fstatSync, fsyncSync, mkdirSync,
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createDueRoutines, parseSchedule, type Routine } from './routines.ts';
+import { createDueRoutines, parseSchedule, ROUTINE_MARK, type Routine } from './routines.ts';
 
 export type Repo = { path: string; base: string };
 export type Config = {
@@ -26,28 +26,40 @@ export type Config = {
   worktreeRoot: string;
   routines?: Routine[];
 };
-type Comment = { id: string; body: string; createdAt: string; parentId?: string | null; user: { name: string; app?: boolean } | null; botActor?: { name: string } | null };
-/** Only a person's comment counts as Alex acting: not the runner, its leads, or any other app or bot. */
-const human = (c: Comment) => !!c.user && !c.user.app && !c.botActor;
-type Issue = { id: string; identifier: string; title: string; description: string | null; url: string; createdAt: string; state: { type: string }; labels: { nodes: { name: string }[] } };
+type Comment = { id: string; body: string; createdAt: string; parentId?: string | null; user: { name: string } | null; botActor?: { name: string } | null };
+/** One entry of an issue's history. A `botActor` marks an integration; `attachment` is the link it added. */
+type Change = {
+  createdAt: string; actor: { name: string } | null; botActor: { name: string } | null; attachment: { sourceType: string } | null;
+  toState: { name: string } | null; toDelegate: { name: string } | null; fromDelegate: { name: string } | null; toAssignee: { name: string } | null;
+  addedLabelIds: string[] | null; removedLabelIds: string[] | null; toTitle: string | null; updatedDescription: boolean | null;
+};
+type Newest = { updatedAt: string; comments: { nodes: { createdAt: string }[] } };
+/** An open ticket from the list query, with its sub-issues and, for each, the last change and newest comment. */
+type Issue = Newest & {
+  id: string; identifier: string; title: string; description: string | null; url: string; createdAt: string; state: { type: string }; labels: { nodes: { name: string }[] };
+  children: { nodes: (Child & Newest)[]; pageInfo: { hasNextPage: boolean } };
+};
+type Page<T> = { nodes: T[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } };
+/** A sub-issue of a ticket. One assigned to `decisionAssignee` is a Decision issue: Alex owes a move on it. */
+export type Child = { id: string; identifier: string; title: string; url: string; createdAt: string; completedAt: string | null; canceledAt: string | null; assignee: { name: string } | null };
+/** Something someone other than the runner did on the ticket or a sub-issue. `comment` is set for a comment, so an ack can reply in its thread. */
+export type Event = { at: string; what: string; comment?: { issueId: string; thread: string } };
 /**
- * A sub-issue of a ticket. One assigned to `decisionAssignee` is a Decision issue: Alex owes a move on it.
- * `closedBy` names who last moved it to Done or Canceled, from its history, so a lead's own closure is not news.
- * Linear lists history newest first, so the latest closure sits in the first page unless 50 changes followed it.
+ * What Linear says about a ticket this poll. `state` is the state type: `unstarted` for Todo, `started` for In Progress or In Review.
+ * `events` and `mine`, the runner's comments, cover the ticket and its sub-issues back to the lead's last start.
  */
-export type Child = { id: string; identifier: string; title: string; url: string; createdAt: string; completedAt: string | null; canceledAt: string | null; closedBy: string | null; assignee: { name: string } | null };
-type History = { nodes: { createdAt: string; actor: { name: string } | null; toState: { type: string } | null }[] };
-/** What Linear says about a ticket this poll. `state` is the state type: `unstarted` for Todo, `started` for In Progress or In Review. */
-export type Ticket = { state: string; delegate: string | null; comments: Comment[]; children: Child[] };
+export type Ticket = { state: string; description: string; createdAt: string; mine: Comment[]; children: Child[]; events: Event[] };
 /** A ticket as the runner sees it this poll. */
 export type Work = { id: string; key: string; title: string; url: string; description: string; repo: string; branch: string; dir: string; models: { lead: string; review: string } };
-type Ctx = { config: Config; linear: ReturnType<typeof linearClient> };
+/** `quiet` holds, per ticket, the newest touch the runner read with no events, so it reads that ticket again only once something changes. */
+type Ctx = { config: Config; linear: ReturnType<typeof linearClient>; quiet: Map<string, string> };
 /** The runner's move for an idle ticket. It mirrors `model/Ticket.tla`: wait, start the lead, or file a Decision issue. */
-export type Move = { kind: 'wait'; on: Child } | { kind: 'start'; news: string[] } | { kind: 'decide' };
+export type Move = { kind: 'wait'; on: Child } | { kind: 'start'; events: Event[] } | { kind: 'decide' };
 
 const PROMPTS = fileURLToPath(new URL('./prompts/', import.meta.url));
 const SUBAGENT_DONE = fileURLToPath(new URL('../extensions/interactive-subagents/pi-extension/subagents/subagent-done.ts', import.meta.url));
-const ISSUE_FIELDS = 'id identifier title description url createdAt state { type } labels { nodes { name } }';
+const NEWEST = 'updatedAt comments(first: 1) { nodes { createdAt } }';
+const ISSUE_FIELDS = `id identifier title description url createdAt state { type } labels { nodes { name } } ${NEWEST} children(first: 100) { nodes { id identifier title url createdAt completedAt canceledAt assignee { name } ${NEWEST} } pageInfo { hasNextPage } }`;
 /** Pi variables a lead keeps from the runner's environment. Every other `PI_*` and `PSTACK_*` belongs to another session. */
 const KEEP_ENV = ['PI_AUTH_PROFILE', 'PI_CODING_AGENT_DIR'];
 const bin = (name: 'pi' | 'tmux' | 'memory_pressure') => process.env[`JOB_RUNNER_${name.toUpperCase()}`] ?? name;
@@ -102,22 +114,73 @@ const readOr = (file: string) => (existsSync(file) ? readFileSync(file, 'utf8') 
 
 function linearClient(config: Config, fetchFn: typeof fetch) {
   let decisionIds: { team: string; assignee: string } | undefined;
+  /** The budgets under 20%, so each low budget is logged once until it recovers. */
+  const low = new Set<string>();
+  /**
+   * One GraphQL call. The runner and every lead share the app's hourly budgets of requests and complexity. On a
+   * 429 the call waits as long as Linear's `Retry-After` says and tries again.
+   */
   async function gql<T>(query: string, variables: Record<string, unknown>): Promise<T> {
-    const token = await must('/bin/sh', ['-c', config.linearTokenCommand], process.cwd());
-    const res = await fetchFn('https://api.linear.app/graphql', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, variables }),
-    });
-    const body = (await res.json()) as { data?: T; errors?: unknown };
-    if (!res.ok || body.errors || !body.data) throw new Error(`Linear ${res.status}: ${JSON.stringify(body.errors ?? body)}`);
-    return body.data;
+    for (;;) {
+      const token = await must('/bin/sh', ['-c', config.linearTokenCommand], process.cwd());
+      const res = await fetchFn('https://api.linear.app/graphql', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, variables }),
+      });
+      for (const budget of ['Requests', 'Complexity']) {
+        const left = Number(res.headers.get(`X-RateLimit-${budget}-Remaining`));
+        const limit = Number(res.headers.get(`X-RateLimit-${budget}-Limit`));
+        if (!limit || left >= limit / 5) { low.delete(budget); continue; }
+        if (!low.has(budget)) console.log(`Linear ${budget.toLowerCase()} budget is low: ${left} of ${limit} left this hour`);
+        low.add(budget);
+      }
+      const body = (await res.json()) as { data?: T; errors?: { extensions?: { code?: string } }[] };
+      if (res.status === 429 || body.errors?.some((e) => e.extensions?.code === 'RATELIMITED')) {
+        const wait = Number(res.headers.get('Retry-After')) || 60;
+        console.log(`Linear rate limit hit; waiting ${wait} s`);
+        await sleep(wait * 1000);
+        continue;
+      }
+      if (!res.ok || body.errors || !body.data) throw new Error(`Linear ${res.status}: ${JSON.stringify(body.errors ?? body)}`);
+      return body.data;
+    }
   }
-  const CHILD = 'id identifier title url createdAt completedAt canceledAt assignee { name } history(first: 50) { nodes { createdAt actor { name } toState { type } } }';
+  const COMMENT = 'id body createdAt parentId user { name } botActor { name }';
+  const CHANGE = 'createdAt actor { name } botActor { name } attachment { sourceType } toState { name } toDelegate { name } fromDelegate { name } toAssignee { name } addedLabelIds removedLabelIds toTitle updatedDescription';
+  const page = (conn: string, fields: string, after = '') => `${conn}(first: 25${after}) { nodes { ${fields} } pageInfo { hasNextPage endCursor } }`;
+  /**
+   * The rest of one issue's comments or history back past `since`. Linear lists both newest first,
+   * so the first page of a busy issue can stop short of the lead's last start.
+   */
+  async function back<T extends { createdAt: string }>(id: string, conn: string, fields: string, first: Page<T>, since: string) {
+    const nodes = [...first.nodes];
+    for (let info = first.pageInfo; info.hasNextPage && nodes.at(-1)!.createdAt > since;) {
+      const { issue } = await gql<{ issue: Record<string, Page<T>> }>(
+        `query More($id: String!, $after: String) { issue(id: $id) { ${page(conn, fields, ', after: $after')} } }`, { id, after: info.endCursor },
+      );
+      nodes.push(...issue[conn].nodes);
+      info = issue[conn].pageInfo;
+    }
+    return nodes;
+  }
+  /** The events on one issue, by anyone but the runner and integrations. */
+  const eventsOf = (key: string, id: string, comments: Comment[], history: Change[]): Event[] => {
+    // Linear credits a change the GitHub integration makes, such as moving the ticket to In Review when a PR
+    // opens, to the PR author. Its only mark is the integration's own link entry, which lands a moment before it.
+    const links = history.filter((h) => h.botActor).map((h) => Date.parse(h.createdAt));
+    const byIntegration = (h: Change) => !!h.botActor || links.some((at) => Date.parse(h.createdAt) - at >= 0 && Date.parse(h.createdAt) - at < 2000);
+    return [
+      ...comments.filter((c) => c.user && !c.botActor && c.user.name !== config.runnerUser)
+        .map((c) => ({ at: c.createdAt, what: `${key}: ${c.user!.name} commented: ${c.body}`, comment: { issueId: id, thread: c.parentId ?? c.id } })),
+      ...history.filter((h) => h.actor && h.actor.name !== config.runnerUser && !byIntegration(h))
+        .map((h) => ({ at: h.createdAt, what: `${key}: ${h.actor!.name} ${change(h)}` })),
+    ];
+  };
   return {
     /**
      * Open tickets delegated to the runner: Todo (unstarted) and any started state, such as In Progress or the
-     * In Review that Linear's GitHub link sets when a PR opens. Todo ones come first, then the oldest; `poll` puts tickets with news from Alex ahead of both.
+     * In Review that Linear's GitHub link sets when a PR opens. Todo ones come first, then the oldest.
      */
     async issues(): Promise<Issue[]> {
       const nodes: Issue[] = [];
@@ -126,6 +189,8 @@ function linearClient(config: Config, fetchFn: typeof fetch) {
           `query Issues($team: String!, $user: String!, $after: String) { issues(first: 100, after: $after, filter: { team: { key: { eq: $team } }, state: { type: { in: ["unstarted", "started"] } }, delegate: { name: { eq: $user } } }) { nodes { ${ISSUE_FIELDS} } pageInfo { hasNextPage endCursor } } }`,
           { team: config.team, user: config.runnerUser, after },
         );
+        const full = page.issues.nodes.find((i) => i.children.pageInfo.hasNextPage);
+        if (full) throw new Error(`${full.identifier} has over 100 sub-issues; the runner reads at most 100`);
         nodes.push(...page.issues.nodes);
         if (!page.issues.pageInfo.hasNextPage) break;
         after = page.issues.pageInfo.endCursor;
@@ -141,23 +206,33 @@ function linearClient(config: Config, fetchFn: typeof fetch) {
       if (!issue) throw new Error(`Linear has no ticket ${key}`);
       return ['completed', 'canceled'].includes(issue.state.type) || issue.delegate?.name !== config.runnerUser;
     },
-    /** The ticket's state, comments and sub-issues in one read, or null when no issue has that id. */
-    async ticket(id: string): Promise<Ticket | null> {
-      type Wire = { state: { type: string }; delegate: { name: string } | null; comments: { nodes: Comment[] }; children: { nodes: (Omit<Child, 'closedBy'> & { history: History })[] } };
+    /**
+     * The events and the runner's comments since `since` on the ticket and its sub-issues, or null when Linear finds
+     * none of them. It reads only the issues the list query shows changed since then: complexity grows with each page asked for.
+     */
+    async events(issue: Issue, since: string): Promise<Pick<Ticket, 'events' | 'mine'> | null> {
+      const ids = [issue, ...issue.children.nodes].filter((i) => newest(i) > since).map((i) => i.id);
+      type Wire = { id: string; identifier: string; comments: Page<Comment>; history: Page<Change> };
       const found = (await gql<{ issues: { nodes: Wire[] } }>(
-        `query IssueById($id: ID!) { issues(first: 1, filter: { id: { eq: $id } }) { nodes { state { type } delegate { name } comments(first: 100) { nodes { id body createdAt parentId user { name app } botActor { name } } } children(first: 50) { nodes { ${CHILD} } } } } }`,
-        { id },
-      )).issues.nodes[0];
-      if (!found) return null;
-      return {
-        state: found.state.type, delegate: found.delegate?.name ?? null,
-        comments: found.comments.nodes.sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
-        children: found.children.nodes.map(({ history, ...c }) => ({
-          ...c,
-          closedBy: history.nodes.filter((h) => ['completed', 'canceled'].includes(h.toState?.type ?? ''))
-            .sort((a, b) => a.createdAt.localeCompare(b.createdAt)).at(-1)?.actor?.name ?? null,
-        })),
-      };
+        `query IssueById($ids: [ID!]!) { issues(first: ${ids.length}, filter: { id: { in: $ids } }) { nodes { id identifier ${page('comments', COMMENT)} ${page('history', CHANGE)} } } }`,
+        { ids },
+      )).issues.nodes;
+      if (!found.length) return null;
+      const events: Event[] = [];
+      const mine: Comment[] = [];
+      for (const i of found) {
+        const comments = await back(i.id, 'comments', COMMENT, i.comments, since);
+        events.push(...eventsOf(i.identifier, i.id, comments, await back(i.id, 'history', CHANGE, i.history, since)));
+        mine.push(...comments.filter((c) => c.user?.name === config.runnerUser));
+      }
+      return { events: events.filter((e) => e.at > since).sort((a, b) => a.at.localeCompare(b.at)), mine };
+    },
+    /** The runner's status comment on a ticket, if it posted one. */
+    async statusComment(id: string): Promise<Comment | undefined> {
+      const { issue } = await gql<{ issue: { comments: { nodes: Comment[] } } }>(
+        `query StatusComment($id: String!) { issue(id: $id) { comments(first: 10, filter: { body: { startsWith: "**Runner:**" } }) { nodes { ${COMMENT} } } } }`, { id },
+      );
+      return issue.comments.nodes.find((c) => c.user?.name === config.runnerUser);
     },
     async setState(id: string, state: string) {
       const { workflowStates } = await gql<{ workflowStates: { nodes: { id: string }[] } }>(
@@ -237,42 +312,56 @@ const sessionId = (w: Work) => readOr(rf(w, 'session-id'))?.trim() ?? '';
 export const lastStart = (w: Pick<Work, 'dir'>) => readOr(rf(w, 'started'))?.trim() || null;
 const isDecision = (config: Config, c: Child) => c.assignee?.name === config.decisionAssignee;
 const closedAt = (c: Child) => c.completedAt ?? c.canceledAt;
-/** When Alex closed this Decision issue, or null if it is open or the runner's token (the runner or a lead) closed it. */
-const answeredAt = (config: Config, c: Child) => isDecision(config, c) && c.closedBy !== null && c.closedBy !== config.runnerUser ? closedAt(c) : null;
+const decisionTitle = (key: string, why: string) => `Decision for ${key}: ${why}`;
+
+/** What one history entry changed, as the lead's start message names it. */
+function change(h: Change) {
+  if (h.toState) return `moved it to ${h.toState.name}`;
+  if (h.toDelegate) return `delegated it to ${h.toDelegate.name}`;
+  if (h.fromDelegate) return 'cleared its delegate';
+  if (h.toAssignee) return `assigned it to ${h.toAssignee.name}`;
+  if (h.addedLabelIds?.length || h.removedLabelIds?.length) return 'changed its labels';
+  if (h.toTitle) return `retitled it "${h.toTitle}"`;
+  if (h.updatedDescription) return 'edited its description';
+  return 'changed it';
+}
+
+/** When the lead last saw the ticket: its last start, or the runner's latest Decision issue if that came later. '' if never. */
+const cutoff = (key: string, children: Child[], started: string | null) =>
+  [started ?? '', ...children.filter((c) => c.title.startsWith(decisionTitle(key, ''))).map((c) => c.createdAt)].sort().at(-1)!;
+/** The newest change or comment Linear shows on the ticket or a sub-issue. A sub-issue's change does not touch the ticket's `updatedAt`, nor does a comment. */
+const newest = (i: Newest) => [i.updatedAt, ...i.comments.nodes.map((c) => c.createdAt)].sort().at(-1)!;
+const touched = (issue: Issue) => [issue, ...issue.children.nodes].map(newest).sort().at(-1)!;
 
 /**
- * The runner's move for a ticket whose lead is not running, from Linear and the last start time alone.
- * News is anything Alex did after that start: delegated the ticket (it sits in Todo), closed a Decision issue, or commented.
- * An open Decision issue makes the runner wait unless Alex commented or closed another Decision since the start:
- * he may answer on the ticket instead, and the lead judges whether that answers the open one.
+ * The events the lead has not seen: those after its last start, or after the runner's own latest Decision issue,
+ * which already covers what came before it. A routine's ticket counts its creation, since the runner made it on Alex's schedule.
  */
-const DELEGATED = 'The ticket was delegated to you.';
-
-export function nextMove(config: Config, ticket: Ticket, started: string | null): Move {
-  const after = (at: string) => started === null || at > started;
-  const answers = [
-    ...ticket.children.filter((c) => answeredAt(config, c) && after(answeredAt(config, c)!))
-      .map((c) => `Alex ${c.completedAt ? 'closed' : 'canceled'} ${c.identifier} (${c.title}): ${c.url}`),
-    ...ticket.comments.filter((c) => human(c) && c.user?.name !== config.runnerUser && after(c.createdAt))
-      .map((c) => `${c.user?.name ?? 'Someone'} commented: ${c.body}`),
-  ];
-  const open = ticket.children.find((c) => isDecision(config, c) && !closedAt(c));
-  if (open && !answers.length) return { kind: 'wait', on: open };
-  const news = [...(!open && (started === null || ticket.state === 'unstarted') ? [DELEGATED] : []), ...answers];
-  return news.length ? { kind: 'start', news } : { kind: 'decide' };
+export function newEvents(key: string, ticket: Ticket, started: string | null): Event[] {
+  const since = cutoff(key, ticket.children, started);
+  const routine = !since && ticket.description.includes(ROUTINE_MARK) ? [{ at: ticket.createdAt, what: 'A routine filed this ticket.' }] : [];
+  return [...routine, ...ticket.events.filter((e) => e.at > since)];
 }
 
 /**
- * Tells Alex the runner saw his latest move on a ticket it cannot start yet, and why it waits. It replies once per move:
- * it skips a move it already acked, judged from its own comments, so it keeps no state. A comment gets a reply in its thread.
+ * The runner's move for a ticket whose lead is not running. Any event since the lead's last start starts it,
+ * even with a Decision issue open: Alex may answer it anywhere, and the lead judges what each event means.
  */
-async function ack(ctx: Ctx, w: Work, ticket: Ticket, started: string, reason: string) {
-  const runner = (c: Comment) => c.user?.name === ctx.config.runnerUser;
-  const comment = ticket.comments.filter((c) => human(c) && !runner(c) && c.createdAt > started).at(-1);
-  const closed = ticket.children.map((c) => answeredAt(ctx.config, c)).filter((at) => at !== null && at > started).sort().at(-1);
-  const latest = [comment?.createdAt, closed].filter((at) => at !== undefined).sort().at(-1);
-  if (!latest || ticket.comments.some((c) => runner(c) && c.body.startsWith('Seen.') && c.createdAt > latest)) return;
-  await ctx.linear.comment(w.id, `Seen. Waiting to start: ${reason}.`, latest === comment?.createdAt ? comment.parentId ?? comment.id : undefined);
+export function nextMove(config: Config, key: string, ticket: Ticket, started: string | null): Move {
+  const events = newEvents(key, ticket, started);
+  if (events.length) return { kind: 'start', events };
+  const open = ticket.children.find((c) => isDecision(config, c) && !closedAt(c));
+  return open ? { kind: 'wait', on: open } : { kind: 'decide' };
+}
+
+/**
+ * Tells Alex the runner saw the latest event on a ticket it cannot start yet, and why it waits. It replies once per event:
+ * it skips one it already acked, judged from its own comments, so it keeps no state. A comment gets a reply in its thread.
+ */
+async function ack(ctx: Ctx, w: Work, ticket: Ticket, events: Event[], reason: string) {
+  const latest = events.at(-1)!;
+  if (ticket.mine.some((c) => c.body.startsWith('Seen.') && c.createdAt > latest.at)) return;
+  await ctx.linear.comment(latest.comment?.issueId ?? w.id, `Seen. Waiting to start: ${reason}.`, latest.comment?.thread);
 }
 
 const repoLocks = new Map<string, Promise<unknown>>();
@@ -304,15 +393,15 @@ async function makeWorktree(repo: Repo, w: Work) {
 }
 
 /** Edits the ticket's one status comment, or posts it if Linear has none yet. */
-async function status(ctx: Ctx, w: Work, ticket: Ticket, state: string) {
+async function status(ctx: Ctx, w: Work, state: string) {
   const body = renderStatus(w, sessionId(w), ctx.config.host, state);
-  const mine = ticket.comments.find((c) => c.user?.name === ctx.config.runnerUser && c.body.startsWith('**Runner:**'));
+  const mine = await ctx.linear.statusComment(w.id);
   if (mine) await ctx.linear.editComment(mine.id, body);
   else await ctx.linear.comment(w.id, body);
 }
 
-/** The first message of each lead start: the ticket, the facts it needs to reach Linear, and what Alex did since. */
-function startMessage(ctx: Ctx, w: Work, news: string[]) {
+/** The first message of each lead start: the ticket, the facts it needs to reach Linear, and the events since its last start. */
+function startMessage(ctx: Ctx, w: Work, events: Event[]) {
   return [
     `Issue ${w.key}: ${w.title}`,
     w.url,
@@ -322,8 +411,8 @@ function startMessage(ctx: Ctx, w: Work, news: string[]) {
     `Linear issue id: ${w.id}. Team: ${ctx.config.team}. File Decision issues as sub-issues assigned to ${ctx.config.decisionAssignee}.`,
     `Branch: ${w.branch}. Base: ${ctx.config.repos[w.repo].base}. Review model: ${w.models.review}. Prompts: ${PROMPTS}.`,
     '',
-    'Since your last start:',
-    ...news.map((line) => `- ${line}`),
+    'Events since your last start:',
+    ...events.map((e) => `- ${e.at} ${e.what}`),
   ].join('\n');
 }
 
@@ -349,10 +438,10 @@ function envScript(ctx: Ctx, w: Work, name: string) {
   ];
 }
 
-async function launch(ctx: Ctx, w: Work, news: string[]) {
+async function launch(ctx: Ctx, w: Work, events: Event[]) {
   await worktree(ctx.config.repos[w.repo], w);
   if (!sessionId(w)) put(rf(w, 'session-id'), randomUUID());
-  put(rf(w, 'input.md'), startMessage(ctx, w, news));
+  put(rf(w, 'input.md'), startMessage(ctx, w, events));
   for (const file of ['takeover', 'held', 'stall.json']) rmSync(rf(w, file), { force: true });
   const pi = (...extra: string[]) => [bin('pi'), '--session-id', sessionId(w), '-e', SUBAGENT_DONE,
     '--model', w.models.lead, '--thinking', ctx.config.thinking, '--append-system-prompt', path.join(PROMPTS, 'lead.md'), ...extra].map(sh).join(' ');
@@ -438,7 +527,7 @@ type Stall = { nudgedAt: number; investigatedAt?: number };
  * selector, or stopping the tool or wait) and one nudge. The second, whether or not the lead wrote in between, starts
  * one investigator that reports on the ticket. After that the runner does nothing until it starts the lead again.
  */
-async function checkStall(ctx: Ctx, w: Work, ticket: Ticket) {
+async function checkStall(ctx: Ctx, w: Work) {
   if (existsSync(rf(w, 'held')) || existsSync(rf(w, 'takeover'))) return;
   const beat = heartbeat(w);
   let stall: Stall | null = null;
@@ -454,11 +543,11 @@ async function checkStall(ctx: Ctx, w: Work, ticket: Ticket) {
     await must(bin('tmux'), ['send-keys', '-t', target, '-l', `${NUDGE} ${quiet} minutes${beat.busy ? ', so the runner pressed Escape to stop your tool or wait' : ''}. Check each subagent, take any finished result (from its pane, its session or the PR), close the ones that are done, then continue or end.`], w.dir);
     await must(bin('tmux'), ['send-keys', '-t', target, 'Enter'], w.dir);
     put(rf(w, 'stall.json'), JSON.stringify({ nudgedAt: Date.now() }));
-    await status(ctx, w, ticket, `Lead running. No heartbeat for ${quiet} minutes${beat.busy ? ' with a step in flight' : ''}, so the runner nudged it.`);
+    await status(ctx, w, `Lead running. No heartbeat for ${quiet} minutes${beat.busy ? ' with a step in flight' : ''}, so the runner nudged it.`);
   } else {
     await investigate(ctx, w, quiet);
     put(rf(w, 'stall.json'), JSON.stringify({ ...stall, investigatedAt: Date.now() }));
-    await status(ctx, w, ticket, `Lead running. Quiet again after the nudge, so an investigator (tmux session \`${w.key}-stall\`) is looking into it.`);
+    await status(ctx, w, `Lead running. Quiet again after the nudge, so an investigator (tmux session \`${w.key}-stall\`) is looking into it.`);
   }
 }
 
@@ -484,14 +573,14 @@ async function investigate(ctx: Ctx, w: Work, quiet: number) {
 }
 
 /** Files the runner's own Decision issue: the lead stopped, or could not start, with nothing open to wait for. */
-async function decide(ctx: Ctx, w: Work, ticket: Ticket, why: string) {
+async function decide(ctx: Ctx, w: Work, why: string) {
   const c = commands(w, sessionId(w), ctx.config.host);
-  const issue = await ctx.linear.fileDecision(w.id, `Decision for ${w.key}: ${why}`, [
+  const issue = await ctx.linear.fileDecision(w.id, decisionTitle(w.key, why), [
     `${why}. The ticket is still open and delegated to the runner.`,
-    `Read the ticket and its PRs, or quiz the lead with \`${c.quiz}\`. Comment what it should do, then close this issue (Done or Canceled). The runner starts the lead again with your comments.`,
+    `Read the ticket and its PRs, or quiz the lead with \`${c.quiz}\`. Comment what it should do, then close this issue (Done or Canceled). Any comment or change you make starts the lead again.`,
     `To stop the work instead, mark ${w.key} Done or Canceled, or clear its delegate, first.`,
   ].join('\n\n'));
-  await status(ctx, w, ticket, `Waiting on [${issue.identifier}](${issue.url}). The lead holds no slot.`);
+  await status(ctx, w, `Waiting on [${issue.identifier}](${issue.url}). The lead holds no slot.`);
 }
 
 /** The ticket's worktree is the shortest folder named for its key, so a title change or a quiz worktree does not move it. */
@@ -547,7 +636,7 @@ async function reapClosed(ctx: Ctx, open: Issue[]) {
 async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void) {
   const { config, linear } = ctx;
   const free = await freeMemory();
-  const tickets: { w: Work; ticket: Ticket; live: boolean }[] = [];
+  const tickets: { w: Work; ticket: Ticket | null; live: boolean }[] = [];
   const issues = await linear.issues();
   if (!dryRun) await reapClosed(ctx, issues);
   for (const issue of issues) {
@@ -558,51 +647,52 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void) {
       await linear.clearDelegate(issue.id);
       continue;
     }
-    const ticket = await linear.ticket(issue.id);
-    if (ticket) tickets.push({ w, ticket, live: await live(w) });
+    // A live lead's heartbeat needs no Linear. A ticket nothing touched since the lead saw it, or since the
+    // runner last read it and found no events, has none now.
+    if (await live(w)) { tickets.push({ w, ticket: null, live: true }); continue; }
+    const since = cutoff(w.key, issue.children.nodes, lastStart(w));
+    const at = touched(issue);
+    const fresh = at > since && ctx.quiet.get(w.key) !== `${since} ${at}`;
+    const seen = fresh ? await linear.events(issue, since) : { events: [], mine: [] };
+    if (fresh && seen && !seen.events.length) ctx.quiet.set(w.key, `${since} ${at}`);
+    if (seen) tickets.push({ w, live: false, ticket: { state: issue.state.type, description: w.description, createdAt: issue.createdAt, children: issue.children.nodes, ...seen } });
   }
-  // Tickets with news from Alex start first; delegation alone is not news, even on a Todo ticket with an old start.
-  // All other tickets tie and keep Linear's order (Todo first, then oldest), so an older Todo ticket with an old
-  // start still goes before a newer one that never started: there is no separate never-started tier.
-  const hasNews = (t: (typeof tickets)[number]) => {
-    if (t.live || lastStart(t.w) === null) return false;
-    const move = nextMove(config, t.ticket, lastStart(t.w));
-    return move.kind === 'start' && move.news.some((line) => line !== DELEGATED);
-  };
-  tickets.sort((a, b) => Number(hasNews(b)) - Number(hasNews(a)));
+  // The ticket whose oldest unseen event is oldest goes first. Tickets with none keep Linear's order after them.
+  const oldest = (t: (typeof tickets)[number]) => (t.ticket ? newEvents(t.w.key, t.ticket, lastStart(t.w))[0]?.at : undefined) ?? '~';
+  tickets.sort((a, b) => oldest(a).localeCompare(oldest(b)));
   const running = tickets.filter((t) => t.live);
   for (const { w, ticket, live: isLive } of tickets) {
     try {
       if (isLive) {
         if (dryRun) console.log(`${w.key}: lead running`);
-        else await checkStall(ctx, w, ticket);
+        else await checkStall(ctx, w);
         continue;
       }
-      const move = nextMove(config, ticket, lastStart(w));
+      if (!ticket) continue;
+      const move = nextMove(config, w.key, ticket, lastStart(w));
       if (dryRun) { console.log(`${w.key}: ${move.kind}`); continue; }
       if (move.kind === 'wait') continue;
-      if (move.kind === 'decide') { await decide(ctx, w, ticket, 'the lead stopped with nothing open to wait for'); continue; }
+      if (move.kind === 'decide') { await decide(ctx, w, 'the lead stopped with nothing open to wait for'); continue; }
       const reason = startBlock({
         running: running.length, maxLeads: config.maxLeads, freeMemory: free, minFreeMemory: config.minFreeMemoryPercent,
         needsScreen: needsScreen(w.description), screenHolder: running.find((r) => needsScreen(r.w.description))?.w.key ?? null,
       });
       if (reason) {
         say(`Not starting ${w.key} yet: ${reason}`);
-        const started = lastStart(w);
-        if (started) await ack(ctx, w, ticket, started, reason);
+        await ack(ctx, w, ticket, move.events, reason);
         continue;
       }
-      // Moving a Todo ticket to In Progress consumes the delegation before the start is recorded, so a crash
-      // anywhere after it can only lead to a Decision issue, never a second start (model/Ticket.tla, NoSpin).
+      // The move is the runner's own, so it is not an event. A crash before the start is recorded starts the lead
+      // once more on the same events; after it, nothing new means a Decision issue (model/Ticket.tla, NoSpin).
       if (ticket.state === 'unstarted') await linear.setState(w.id, 'In Progress');
       try {
-        await launch(ctx, w, move.news);
+        await launch(ctx, w, move.events);
       } catch (error) {
-        await decide(ctx, w, ticket, `the runner could not start the lead: ${message(error).split('\n')[0]}`);
+        await decide(ctx, w, `the runner could not start the lead: ${message(error).split('\n')[0]}`);
         continue;
       }
-      running.push({ w, ticket, live: true });
-      await status(ctx, w, ticket, 'Lead running');
+      running.push({ w, ticket: null, live: true });
+      await status(ctx, w, 'Lead running');
     } catch (error) {
       console.error(`${w.key}: failed; the next poll tries again`, error);
     }
@@ -616,7 +706,7 @@ export async function main(argv: string[], config: Config, fetchFn: typeof fetch
   let next = new Set<string>();
   /** Logs a line once while it stays true, so a blocked queue does not repeat itself every poll. */
   const say = (line: string) => { if (!said.has(line)) console.log(line); next.add(line); };
-  const ctx: Ctx = { config, linear: linearClient(config, fetchFn) };
+  const ctx: Ctx = { config, linear: linearClient(config, fetchFn), quiet: new Map() };
   if (dryRun) console.log(`Config: ${JSON.stringify(config, null, 2)}`);
   for (;;) {
     try {
