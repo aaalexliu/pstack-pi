@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { appendFileSync, closeSync, existsSync, fstatSync, fsyncSync, mkdirSync, openSync, readdirSync, readFileSync, readSync, realpathSync, renameSync, rmSync, statSync, writeSync } from 'node:fs';
-import { createServer } from 'node:http';
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -824,7 +824,13 @@ export async function serve(config: Config, fetchFn: typeof fetch, secret: strin
   };
   /** Delivery ids already handled, so Linear's retry of one acts once. Passes are idempotent too; this skips the reads. */
   const deliveries: string[] = [];
-  const server = createServer(async (req, res) => {
+  // The endpoint is public through Funnel, so no request, however broken, may throw out of the handler.
+  const server = createServer((req, res) => {
+    res.on('error', () => {});
+    handle(req, res).catch(() => { if (!res.headersSent) res.writeHead(400); res.end(); });
+  });
+  server.on('clientError', (_error, socket) => socket.destroy());
+  const handle = async (req: IncomingMessage, res: ServerResponse) => {
     if (req.method !== 'POST' || req.url !== '/linear') { res.writeHead(404).end(); return; }
     const chunks: Buffer[] = [];
     let size = 0;
@@ -844,7 +850,7 @@ export async function serve(config: Config, fetchFn: typeof fetch, secret: strin
     }
     const id = issueOf(payload);
     if (id) enqueue(`webhook ${payload.type} ${id}`, () => poll(ctx, false, say, { only: [id] }));
-  });
+  };
   await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve); });
   return {
     port: (server.address() as { port: number }).port,

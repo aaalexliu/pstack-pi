@@ -227,7 +227,7 @@ else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? J
         return res.status;
       };
       return {
-        post, audit: () => runner.audit(),
+        post, port: runner.port, audit: () => runner.audit(),
         close: async () => {
           await runner.close();
           Object.assign(console, { log, error });
@@ -978,4 +978,21 @@ test('auditPoll takes every Nm, every Nh, daily and weekly', () => {
   assert.equal(auditDelay('daily 06:00', now), 3_600_000);
   assert.equal(auditDelay('daily 04:00', now), 23 * 3_600_000);
   assert.throws(() => auditDelay('hourly', now), /Bad auditPoll/);
+});
+
+test('a client that sends part of a body and drops the socket does not stop the webhook', async () => {
+  const t = setup([issue(1, { delegate: null })]);
+  const srv = await t.serve();
+  try {
+    const { connect } = await import('node:net');
+    for (let i = 0; i < 3; i++) {
+      const socket = connect(srv.port, '127.0.0.1');
+      await new Promise((r) => socket.once('connect', r));
+      socket.write('POST /linear HTTP/1.1\r\nHost: x\r\nContent-Length: 1000\r\n\r\n{"type":');
+      await new Promise((r) => setTimeout(r, 20));
+      socket.destroy();
+    }
+    await new Promise((r) => setTimeout(r, 50));
+    assert.equal(await srv.post({ type: 'Issue', data: { id: 'id-1' } }), 200);
+  } finally { await srv.close(); }
 });
