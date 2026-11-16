@@ -355,20 +355,22 @@ test('a quiet live lead gets one nudge, then one investigator and no Decision is
   assert.match(job.comments.find((c) => c.body.startsWith('**Runner:**'))!.body, /nudged it/);
   assert.equal(investigators().length, 0, 'the investigator waits another stallMinutes');
   const stall = path.join(runner, 'stall.json');
-  const nudgedAt = Date.now() - 5.5 * 60000;
-  put(stall, JSON.stringify({ nudgedAt }));
-  put(path.join(runner, 'activity.json'), JSON.stringify({ updatedAt: nudgedAt + 5000 }));
+  put(stall, JSON.stringify({ nudgedAt: Date.now() - 5.5 * 60000 }));
   await t.run('--once');
   await t.run('--once');
-  assert.equal(investigators().length, 1, 'the lead\'s reply to the nudge is not progress: one investigator');
+  assert.equal(investigators().length, 1, 'silence for stallMinutes after the nudge: one investigator');
   assert.equal(nudges().length, 1);
   assert.equal(t.decisions().length, 0, 'the investigator, not the runner, decides whether Alex must act');
   assert.match(readFileSync(path.join(runner, 'stall.sh'), 'utf8'), /pi -p --model lead-model[\s\S]*prompts\/stall\.md/);
   assert.ok(t.leads().some((l) => /no heartbeat for \d+ minutes, including 5 after a nudge/.test(l.input)), 'the investigator ran with its facts');
-  put(path.join(runner, 'activity.json'), JSON.stringify({ updatedAt: Date.now() - 6 * 60000 }));
-  put(stall, JSON.stringify({ nudgedAt: Date.now() - 20 * 60000, investigatedAt: Date.now() - 10 * 60000 }));
-  await t.run('--once');
-  assert.equal(nudges().length, 2, 'a heartbeat well after the nudge starts a new stretch');
+  for (const investigated of [false, true]) {
+    const nudgedAt = Date.now() - 12 * 60000;
+    put(stall, JSON.stringify({ nudgedAt, ...(investigated ? { investigatedAt: nudgedAt + 5 * 60000 } : {}) }));
+    put(path.join(runner, 'activity.json'), JSON.stringify({ updatedAt: nudgedAt + 2 * 60000 }));
+    const [n, i] = [nudges().length, investigators().length];
+    await t.run('--once');
+    assert.deepEqual([nudges().length - n, investigators().length - i], [1, 0], `work after the nudge${investigated ? ' and the investigator' : ''} starts a new stretch: a fresh nudge`);
+  }
   assert.equal(t.leads().filter((l) => l.session === t.leads()[0].session).length, 1, 'never a restart');
 });
 

@@ -414,18 +414,21 @@ type Stall = { nudgedAt: number; investigatedAt?: number };
 /**
  * A live lead belongs to the lead: the runner never starts, restarts or kills it. After `stallMinutes` with no heartbeat
  * it types one nudge into the lead's pane. If the lead is quiet for another `stallMinutes`, it starts one investigator
- * that reports on the ticket. A stretch ends when a heartbeat lands over `stallMinutes` after the nudge, so the lead's
- * own reply to the nudge does not start a new one.
+ * that reports on the ticket. Any heartbeat after the nudge ends the stretch.
  */
 async function checkStall(ctx: Ctx, w: Work, ticket: Ticket) {
   if (existsSync(rf(w, 'held')) || existsSync(rf(w, 'takeover'))) return;
   const window = ctx.config.stallMinutes * 60000;
   const last = heartbeat(w);
   const quiet = Math.floor((Date.now() - last) / 60000);
-  if (!last || Date.now() - last < window) return;
   let stall: Stall | null = null;
   try { stall = JSON.parse(readFileSync(rf(w, 'stall.json'), 'utf8')); } catch { /* no stretch yet */ }
-  if (!stall || last > stall.nudgedAt + window) {
+  if (stall && last > stall.nudgedAt) {
+    rmSync(rf(w, 'stall.json'), { force: true });
+    stall = null;
+  }
+  if (!last || Date.now() - last < window) return;
+  if (!stall) {
     const nudge = `No progress from you or your subagents for ${quiet} minutes. Check each subagent, take any finished result (from its pane, its session or the PR), close the ones that are done, then continue or end.`;
     const target = readOr(rf(w, 'pane'))?.trim() || `${session(w.key)}:`;
     await must(bin('tmux'), ['send-keys', '-t', target, '-l', nudge], w.dir);
