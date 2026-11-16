@@ -524,6 +524,8 @@ async function launch(ctx: Ctx, w: Work, events: Event[], running: Work[]) {
   await worktree(ctx.config.repos[w.repo], w);
   if (!sessionId(w)) put(rf(w, 'session-id'), randomUUID());
   put(rf(w, 'input.md'), startMessage(ctx, w, events, running));
+  // The heartbeat reads the ticket from here, so it needs no Linear call and survives a runner restart.
+  put(rf(w, 'work.json'), JSON.stringify(w));
   for (const file of ['takeover', 'held', 'stall.json']) rmSync(rf(w, file), { force: true });
   const pi = (...extra: string[]) => [bin('pi'), '--session-id', sessionId(w), '-e', SUBAGENT_DONE,
     '--model', w.models.lead, '--thinking', ctx.config.thinking, '--append-system-prompt', path.join(PROMPTS, 'lead.md'), ...extra].map(sh).join(' ');
@@ -884,12 +886,23 @@ export async function serve(config: Config, fetchFn: typeof fetch, secret: strin
     audit: () => { said = new Set(); return enqueue('backup poll', () => poll(ctx, false, say, { audit: true })); },
     /** The heartbeat: nudges or investigates a quiet live lead, and rewrites running.json. It reads only tmux and session logs, unless it acts. */
     heartbeat: () => enqueue('heartbeat', async () => {
-      for (const w of ctx.leads.values()) {
-        if (!(await live(w))) { ctx.leads.delete(w.key); continue; }
+      // The live leads are the tmux sessions the runner tagged, each with the ticket its launch saved in the worktree.
+      // A lead started before work.json existed falls back to the last pass that read it.
+      const { out } = await run(bin('tmux'), ['list-sessions', '-F', '#{session_name} #{@job-runner}'], process.cwd());
+      const folders = existsSync(config.worktreeRoot) ? readdirSync(config.worktreeRoot) : [];
+      const leads: Work[] = [];
+      for (const [name, tag] of out.split('\n').map((line) => line.split(' '))) {
+        if (!name || tag !== name) continue;
+        const folder = folders.filter((f) => f.startsWith(`job-${name.toLowerCase()}-`)).sort((a, b) => a.length - b.length)[0];
+        const saved = folder && readOr(path.join(config.worktreeRoot, folder, '.runner', 'work.json'));
+        const w: Work | undefined = saved ? JSON.parse(saved) : ctx.leads.get(name);
+        if (w) leads.push(w);
+      }
+      for (const w of leads) {
         try { await checkStall(ctx, w); } catch (error) { console.error(`${w.key}: stall check failed`, error); }
       }
       // The backup poll may be hours apart, so the heartbeat keeps running.json fresh and clears a stale screen lock.
-      await writeRunning(config, [...ctx.leads.values()]);
+      await writeRunning(config, leads);
     }),
     /** Resolves once every queued pass is done. */
     idle: () => queue,

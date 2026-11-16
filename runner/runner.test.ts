@@ -1062,3 +1062,20 @@ test('with a webhook, the 30 s heartbeat keeps running.json fresh between backup
     assert.doesNotMatch(readFileSync(file, 'utf8'), /ALE-1/);
   } finally { await srv.close(); }
 });
+
+test('the heartbeat finds live leads from tagged tmux sessions, after a restart and when only a webhook read another ticket', async () => {
+  const t = setup([issue(1), issue(2, { delegate: null })]);
+  await t.run('--once');
+  t.setLive('ALE-1');
+  t.tag('ALE-1');
+  const file = path.join(t.config.worktreeRoot, 'running.json');
+  const srv = await t.serve();
+  try {
+    await srv.heartbeat();
+    assert.match(readFileSync(file, 'utf8'), /ALE-1/, 'a fresh runner sees the lead with no poll');
+    rmSync(file);
+    await srv.post({ type: 'Issue', data: { id: 'id-2' } });
+    await srv.heartbeat();
+    assert.match(readFileSync(file, 'utf8'), /ALE-1/, 'a webhook pass about another ticket does not drop it');
+  } finally { await srv.close(); }
+});
