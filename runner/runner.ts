@@ -230,18 +230,20 @@ const closedAt = (c: Child) => c.completedAt ?? c.canceledAt;
 /**
  * The runner's move for a ticket whose lead is not running, from Linear and the last start time alone.
  * News is anything Alex did after that start: delegated the ticket (it sits in Todo), closed a Decision issue, or commented.
+ * An open Decision issue makes the runner wait unless Alex commented or closed another Decision since the start:
+ * he may answer on the ticket instead, and the lead judges whether that answers the open one.
  */
 export function nextMove(config: Config, ticket: Ticket, started: string | null): Move {
-  const open = ticket.children.find((c) => isDecision(config, c) && !closedAt(c));
-  if (open) return { kind: 'wait', on: open };
   const after = (at: string) => started === null || at > started;
-  const news = [
-    ...(started === null || ticket.state === 'unstarted' ? ['The ticket was delegated to you.'] : []),
-    ...ticket.children.filter((c) => isDecision(config, c) && after(closedAt(c)!))
+  const answers = [
+    ...ticket.children.filter((c) => isDecision(config, c) && closedAt(c) && after(closedAt(c)!))
       .map((c) => `Alex ${c.completedAt ? 'closed' : 'canceled'} ${c.identifier} (${c.title}): ${c.url}`),
     ...ticket.comments.filter((c) => human(c) && c.user?.name !== config.runnerUser && after(c.createdAt))
       .map((c) => `${c.user?.name ?? 'Someone'} commented: ${c.body}`),
   ];
+  const open = ticket.children.find((c) => isDecision(config, c) && !closedAt(c));
+  if (open && !answers.length) return { kind: 'wait', on: open };
+  const news = [...(!open && (started === null || ticket.state === 'unstarted') ? ['The ticket was delegated to you.'] : []), ...answers];
   return news.length ? { kind: 'start', news } : { kind: 'decide' };
 }
 

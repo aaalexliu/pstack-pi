@@ -555,11 +555,17 @@ test('nextMove follows the model: wait on an open Decision, start on news, else 
   assert.equal(nextMove(cfg, ticket({}), null).kind, 'start');
   assert.equal(nextMove(cfg, ticket({ state: 'unstarted' }), started).kind, 'start');
   assert.equal(nextMove(cfg, ticket({}), started).kind, 'decide');
-  assert.equal(nextMove(cfg, ticket({ children: [child({})] }), null).kind, 'wait', 'an open Decision beats news');
+  assert.equal(nextMove(cfg, ticket({ children: [child({})] }), null).kind, 'wait', 'an open Decision beats delegation');
   assert.equal(nextMove(cfg, ticket({ children: [child({ assignee: null })] }), started).kind, 'decide', 'a sub-issue not assigned to Alex is not a Decision');
   assert.equal(nextMove(cfg, ticket({ children: [child({ completedAt: '2026-01-01T00:00:00Z' })] }), started).kind, 'decide', 'an answer older than the start is old news');
   assert.equal(nextMove(cfg, ticket({ children: [child({ canceledAt: '2026-01-03T00:00:00Z' })] }), started).kind, 'start');
   assert.equal(nextMove(cfg, ticket({ comments: [{ id: 'x', body: 'b', createdAt: '2026-01-03T00:00:00Z', user: { name: RUNNER, app: true } }] }), started).kind, 'decide');
+  const said = (name: string, app = false) => ({ id: 'y', body: 'go with A', createdAt: '2026-01-03T00:00:00Z', user: { name, app } });
+  assert.equal(nextMove(cfg, ticket({ children: [child({})] }), started).kind, 'wait', 'an open Decision with no news waits');
+  assert.deepEqual(nextMove(cfg, ticket({ children: [child({})], comments: [said(ALEX)] }), started), { kind: 'start', news: [`${ALEX} commented: go with A`] }, 'a comment may answer the open Decision');
+  assert.equal(nextMove(cfg, ticket({ children: [child({})], comments: [said(RUNNER, true)] }), started).kind, 'wait', 'the runner is not news');
+  assert.equal(nextMove(cfg, ticket({ children: [child({})], comments: [said('alex-jxp', true)] }), started).kind, 'wait', 'an app user is not news');
+  assert.equal(nextMove(cfg, ticket({ children: [child({}), child({ id: 'd', completedAt: '2026-01-03T00:00:00Z' })] }), started).kind, 'start', 'closing another Decision is news');
 });
 
 const shells = ['sh', 'zsh'].filter((shell) => { try { execFileSync(shell, ['-c', 'true']); return true; } catch { return false; } });
