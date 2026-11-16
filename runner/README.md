@@ -99,6 +99,10 @@ Before it starts a lead, the runner checks three limits, and logs once why it wa
 - On macOS, no lead starts while `memory_pressure -Q` reports less than `minFreeMemoryPercent` free.
 - At most one running ticket has `Needs: screen` in its description.
 
+When a limit holds back a ticket you acted on, the runner replies once to your latest move, in the thread when it was a comment, with what it waits on, such as "Seen. Waiting to start: ALE-89 has the screen." It finds its earlier replies among the ticket's comments, so it keeps no state for this.
+
+The queue: tickets with news from you since their last start go first, then tickets that never started, then the rest. Within each group the oldest ticket goes first.
+
 Run one runner per Linear team.
 
 ## The status comment

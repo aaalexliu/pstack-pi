@@ -111,7 +111,7 @@ function linearClient(config: Config, fetchFn: typeof fetch) {
   return {
     /**
      * Open tickets delegated to the runner: Todo (unstarted) and any started state, such as In Progress or the
-     * In Review that Linear's GitHub link sets when a PR opens. Started ones come first, so they keep their slots.
+     * In Review that Linear's GitHub link sets when a PR opens. Todo ones come first, then the oldest; `poll` puts tickets with news from Alex ahead of both.
      */
     async issues(): Promise<Issue[]> {
       const nodes: Issue[] = [];
@@ -161,8 +161,8 @@ function linearClient(config: Config, fetchFn: typeof fetch) {
     async clearDelegate(id: string) {
       await gql('mutation Update($id: String!, $input: IssueUpdateInput!) { issueUpdate(id: $id, input: $input) { success } }', { id, input: { delegateId: null } });
     },
-    async comment(issueId: string, body: string) {
-      await gql('mutation Comment($input: CommentCreateInput!) { commentCreate(input: $input) { success } }', { input: { issueId, body } });
+    async comment(issueId: string, body: string, parentId?: string) {
+      await gql('mutation Comment($input: CommentCreateInput!) { commentCreate(input: $input) { success } }', { input: { issueId, body, ...(parentId ? { parentId } : {}) } });
     },
     async editComment(id: string, body: string) {
       await gql('mutation EditComment($id: String!, $input: CommentUpdateInput!) { commentUpdate(id: $id, input: $input) { success } }', { id, input: { body } });
@@ -211,10 +211,10 @@ export function renderStatus(w: Pick<Work, 'key' | 'dir' | 'branch'>, sessionId:
 }
 
 /** Why a lead cannot start now, or null. `freeMemory` is the percentage macOS `memory_pressure -Q` reports as free. */
-export function startBlock(o: { running: number; maxLeads: number; freeMemory: number; minFreeMemory: number; needsScreen: boolean; screenTaken: boolean }): string | null {
+export function startBlock(o: { running: number; maxLeads: number; freeMemory: number; minFreeMemory: number; needsScreen: boolean; screenHolder: string | null }): string | null {
   if (o.running >= o.maxLeads) return `all ${o.maxLeads} lead slots are busy`;
   if (o.freeMemory < o.minFreeMemory) return `only ${o.freeMemory}% of memory is free, under the ${o.minFreeMemory}% floor`;
-  if (o.needsScreen && o.screenTaken) return 'another running ticket has the screen';
+  if (o.needsScreen && o.screenHolder) return `${o.screenHolder} has the screen`;
   return null;
 }
 
@@ -243,6 +243,19 @@ export function nextMove(config: Config, ticket: Ticket, started: string | null)
       .map((c) => `${c.user?.name ?? 'Someone'} commented: ${c.body}`),
   ];
   return news.length ? { kind: 'start', news } : { kind: 'decide' };
+}
+
+/**
+ * Tells Alex the runner saw his latest move on a ticket it cannot start yet, and why it waits. It replies once per move:
+ * it skips a move it already acked, judged from its own comments, so it keeps no state. A comment gets a reply in its thread.
+ */
+async function ack(ctx: Ctx, w: Work, ticket: Ticket, started: string, reason: string) {
+  const runner = (c: Comment) => c.user?.name === ctx.config.runnerUser;
+  const comment = ticket.comments.filter((c) => human(c) && !runner(c) && c.createdAt > started).at(-1);
+  const closed = ticket.children.filter((c) => isDecision(ctx.config, c) && closedAt(c)! > started).map(closedAt).sort().at(-1);
+  const latest = [comment?.createdAt, closed].filter((at) => at !== undefined).sort().at(-1);
+  if (!latest || ticket.comments.some((c) => runner(c) && c.body.startsWith('Seen.') && c.createdAt > latest)) return;
+  await ctx.linear.comment(w.id, `Seen. Waiting to start: ${reason}.`, latest === comment?.createdAt ? comment.id : undefined);
 }
 
 const repoLocks = new Map<string, Promise<unknown>>();
@@ -455,6 +468,9 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void) {
     const ticket = await linear.ticket(issue.id);
     if (ticket) tickets.push({ w, ticket, live: await live(w) });
   }
+  // Tickets with news from Alex start before tickets that never started; the sort keeps Linear's order otherwise.
+  const hasNews = (t: (typeof tickets)[number]) => !t.live && lastStart(t.w) !== null && nextMove(config, t.ticket, lastStart(t.w)).kind === 'start';
+  tickets.sort((a, b) => Number(hasNews(b)) - Number(hasNews(a)));
   const running = tickets.filter((t) => t.live);
   for (const { w, ticket, live: isLive } of tickets) {
     try {
@@ -469,9 +485,14 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void) {
       if (move.kind === 'decide') { await decide(ctx, w, ticket, 'the lead stopped with nothing open to wait for'); continue; }
       const reason = startBlock({
         running: running.length, maxLeads: config.maxLeads, freeMemory: free, minFreeMemory: config.minFreeMemoryPercent,
-        needsScreen: needsScreen(w.description), screenTaken: running.some((r) => needsScreen(r.w.description)),
+        needsScreen: needsScreen(w.description), screenHolder: running.find((r) => needsScreen(r.w.description))?.w.key ?? null,
       });
-      if (reason) { say(`Not starting ${w.key} yet: ${reason}`); continue; }
+      if (reason) {
+        say(`Not starting ${w.key} yet: ${reason}`);
+        const started = lastStart(w);
+        if (started) await ack(ctx, w, ticket, started, reason);
+        continue;
+      }
       // Moving a Todo ticket to In Progress consumes the delegation before the start is recorded, so a crash
       // anywhere after it can only lead to a Decision issue, never a second start (model/Ticket.tla, NoSpin).
       if (ticket.state === 'unstarted') await linear.setState(w.id, 'In Progress');
