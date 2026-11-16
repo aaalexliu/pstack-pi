@@ -10,7 +10,7 @@ type FakeComment = { id: string; body: string; createdAt: string; user: { name: 
 type FakeIssue = {
   id: string; identifier: string; title: string; description: string; url: string; createdAt: string;
   team: string; state: string; delegate: string | null; assignee: string | null; parent: string | null; labels: string[]; comments: FakeComment[];
-  completedAt: string | null; canceledAt: string | null;
+  completedAt: string | null; canceledAt: string | null; closedBy?: string;
 };
 
 const RUNNER = 'runner test';
@@ -124,7 +124,7 @@ else if (args[0] === 'list-windows') { try { process.stdout.write(fs.readFileSyn
       const i = issues.find((x) => x.id === v.id && !gone.has(x.id));
       return data({ issues: { nodes: i ? [{
         state: { type: TYPES[i.state] }, delegate: i.delegate ? { name: i.delegate } : null, comments: { nodes: i.comments.map((c) => asQueried(c, query)) },
-        children: { nodes: issues.filter((c) => c.parent === i.id).map((c) => ({ ...c, assignee: c.assignee ? { name: c.assignee } : null })) },
+        children: { nodes: issues.filter((c) => c.parent === i.id).map(({ closedBy, ...c }) => ({ ...c, assignee: c.assignee ? { name: c.assignee } : null, history: { nodes: closedBy ? [{ createdAt: c.completedAt ?? c.canceledAt, actor: { name: closedBy }, toState: { type: TYPES[c.state] } }] : [] } })) },
       }] : [] } });
     }
     if (op === 'State') return data({ workflowStates: { nodes: missingStates.has(v.name) ? [] : [{ id: `state-${v.name}` }] } });
@@ -165,7 +165,7 @@ else if (args[0] === 'list-windows') { try { process.stdout.write(fs.readFileSyn
     tag: (...keys: string[]) => writeFileSync(file('tags.json'), JSON.stringify(Object.fromEntries(keys.map((k) => [k, k])))),
     setFreeMemory: (percent: number) => writeFileSync(file('free'), `${percent}\n`),
     /** Alex closes a Decision issue, after the lead's last start. */
-    close: (d: FakeIssue, how: 'Done' | 'Canceled' = 'Done') => { d.state = how; d[how === 'Done' ? 'completedAt' : 'canceledAt'] = later(); },
+    close: (d: FakeIssue, how: 'Done' | 'Canceled' = 'Done') => { d.state = how; d[how === 'Done' ? 'completedAt' : 'canceledAt'] = later(); d.closedBy ??= ALEX; },
   };
 }
 
@@ -546,7 +546,7 @@ test('--dry-run prints each move and writes nothing', async () => {
   assert.ok(!existsSync(t.config.worktreeRoot));
 });
 
-const child = (fields: Partial<Child>): Child => ({ id: 'c', identifier: 'ALE-9', title: 't', url: 'u', createdAt: '2026-01-01T00:00:00Z', completedAt: null, canceledAt: null, assignee: { name: ALEX }, ...fields });
+const child = (fields: Partial<Child>): Child => ({ id: 'c', identifier: 'ALE-9', title: 't', url: 'u', createdAt: '2026-01-01T00:00:00Z', completedAt: null, canceledAt: null, closedBy: null, assignee: { name: ALEX }, ...fields });
 const ticket = (fields: Partial<Ticket>): Ticket => ({ state: 'started', delegate: RUNNER, comments: [], children: [], ...fields });
 const cfg = { decisionAssignee: ALEX, runnerUser: RUNNER } as Config;
 
@@ -557,15 +557,19 @@ test('nextMove follows the model: wait on an open Decision, start on news, else 
   assert.equal(nextMove(cfg, ticket({}), started).kind, 'decide');
   assert.equal(nextMove(cfg, ticket({ children: [child({})] }), null).kind, 'wait', 'an open Decision beats delegation');
   assert.equal(nextMove(cfg, ticket({ children: [child({ assignee: null })] }), started).kind, 'decide', 'a sub-issue not assigned to Alex is not a Decision');
-  assert.equal(nextMove(cfg, ticket({ children: [child({ completedAt: '2026-01-01T00:00:00Z' })] }), started).kind, 'decide', 'an answer older than the start is old news');
-  assert.equal(nextMove(cfg, ticket({ children: [child({ canceledAt: '2026-01-03T00:00:00Z' })] }), started).kind, 'start');
+  assert.equal(nextMove(cfg, ticket({ children: [child({ completedAt: '2026-01-01T00:00:00Z', closedBy: ALEX })] }), started).kind, 'decide', 'an answer older than the start is old news');
+  assert.equal(nextMove(cfg, ticket({ children: [child({ canceledAt: '2026-01-03T00:00:00Z', closedBy: ALEX })] }), started).kind, 'start');
   assert.equal(nextMove(cfg, ticket({ comments: [{ id: 'x', body: 'b', createdAt: '2026-01-03T00:00:00Z', user: { name: RUNNER, app: true } }] }), started).kind, 'decide');
   const said = (name: string, app = false) => ({ id: 'y', body: 'go with A', createdAt: '2026-01-03T00:00:00Z', user: { name, app } });
   assert.equal(nextMove(cfg, ticket({ children: [child({})] }), started).kind, 'wait', 'an open Decision with no news waits');
   assert.deepEqual(nextMove(cfg, ticket({ children: [child({})], comments: [said(ALEX)] }), started), { kind: 'start', news: [`${ALEX} commented: go with A`] }, 'a comment may answer the open Decision');
   assert.equal(nextMove(cfg, ticket({ children: [child({})], comments: [said(RUNNER, true)] }), started).kind, 'wait', 'the runner is not news');
   assert.equal(nextMove(cfg, ticket({ children: [child({})], comments: [said('alex-jxp', true)] }), started).kind, 'wait', 'an app user is not news');
-  assert.equal(nextMove(cfg, ticket({ children: [child({}), child({ id: 'd', completedAt: '2026-01-03T00:00:00Z' })] }), started).kind, 'start', 'closing another Decision is news');
+  assert.equal(nextMove(cfg, ticket({ children: [child({}), child({ id: 'd', completedAt: '2026-01-03T00:00:00Z', closedBy: ALEX })] }), started).kind, 'start', 'closing another Decision is news');
+  // Alex answered A on the ticket; the lead started, closed A itself, and stopped to wait on B. Its own closure must not start it again.
+  const leadClosedA = child({ id: 'a', completedAt: '2026-01-03T00:00:00Z', closedBy: RUNNER });
+  assert.equal(nextMove(cfg, ticket({ children: [leadClosedA, child({ id: 'b' })] }), started).kind, 'wait', 'a Decision the lead closed is not news');
+  assert.equal(nextMove(cfg, ticket({ children: [leadClosedA] }), started).kind, 'decide', 'a Decision the lead closed is not news');
 });
 
 const shells = ['sh', 'zsh'].filter((shell) => { try { execFileSync(shell, ['-c', 'true']); return true; } catch { return false; } });
