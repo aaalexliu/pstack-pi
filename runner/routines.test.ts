@@ -65,13 +65,21 @@ function fakeLinear(o: { failSearchFor?: string; refuse?: boolean } = {}) {
 }
 const routine = { name: 'audit', schedule: 'daily 05:00', repo: 'pstack-pi', title: 'Audit', prompt: 'Do it' };
 const config = { linearTokenCommand: 'echo token', team: 'ALE', runnerUser: 'runner', routines: [routine] };
-/** Captures what createDueRoutines prints: the first line of each log and error. */
-function capture(t: TestContext) {
+/**
+ * Captures what createDueRoutines prints: the first line of each log and error.
+ * When the test ends, the errors must match `expected` exactly, in order, so an unexpected error fails it.
+ */
+function capture(t: TestContext, expected: (string | RegExp)[] = []) {
   const lines = (method: 'log' | 'error') => t.mock.method(console, method, () => {});
   const logs = lines('log');
   const errors = lines('error');
   const first = (m: typeof logs) => () => m.mock.calls.map((c) => format(...c.arguments).split('\n')[0]);
-  return { logs: first(logs), errors: first(errors) };
+  t.after(() => {
+    const got = first(errors)();
+    assert.equal(got.length, expected.length, `printed errors: ${JSON.stringify(got)}`);
+    expected.forEach((e, i) => typeof e === 'string' ? assert.equal(got[i], e) : assert.match(got[i], e));
+  });
+  return { logs: first(logs) };
 }
 const markFor = (name: string, at: string) => `runner-routine ${name} ${new Date(at).toISOString()}`;
 
@@ -82,7 +90,6 @@ test('creates one delegated Todo issue for the due run, and no duplicate when it
   await createDueRoutines(config, linear.fetchFn, new Date('2026-03-10T07:00:00'));
   assert.equal(linear.issues.length, 1);
   assert.deepEqual(printed.logs(), ['Routine audit: created the 2026-03-10 run']);
-  assert.deepEqual(printed.errors(), []);
   assert.deepEqual(linear.issues[0].input, {
     teamId: 't', stateId: 's', delegateId: 'u', labelIds: ['l'], title: 'Audit (2026-03-10)', description: `Do it\n\n${markFor('audit', '2026-03-10T05:00:00')}`,
   });
@@ -97,23 +104,20 @@ test('a Done, Canceled or archived issue with the marker blocks a new one; a sim
     assert.deepEqual(linear.issues.slice(1).map((i) => i.description), [`Do it\n\n${markFor('audit-2', '2026-03-10T05:00:00')}`], JSON.stringify(old));
   }
   assert.deepEqual(printed.logs(), Array(3).fill('Routine audit-2: created the 2026-03-10 run'));
-  assert.deepEqual(printed.errors(), []);
 });
 
 test('a failed search creates nothing for that routine, the next routine still runs, and the call resolves', async (t) => {
-  const printed = capture(t);
+  const printed = capture(t, ['Routine audit: failed; the next poll tries again Error: Linear 500: ["down"]']);
   const linear = fakeLinear({ failSearchFor: 'runner-routine audit ' });
   await createDueRoutines({ ...config, routines: [routine, { ...routine, name: 'other' }] }, linear.fetchFn, new Date('2026-03-10T06:00:00'));
   assert.deepEqual(linear.issues.map((i) => i.description), [`Do it\n\n${markFor('other', '2026-03-10T05:00:00')}`]);
-  assert.deepEqual(printed.errors(), ['Routine audit: failed; the next poll tries again Error: Linear 500: ["down"]']);
   assert.deepEqual(printed.logs(), ['Routine other: created the 2026-03-10 run']);
 });
 
 test('issueCreate success false is a failure, not a created run', async (t) => {
-  const printed = capture(t);
+  const printed = capture(t, [/^Routine audit: failed; the next poll tries again .*refused/]);
   await createDueRoutines(config, fakeLinear({ refuse: true }).fetchFn, new Date('2026-03-10T06:00:00'));
   assert.deepEqual(printed.logs(), []);
-  assert.match(printed.errors().join('\n'), /^Routine audit: failed; the next poll tries again .*refused/);
 });
 
 test('after a long downtime only the latest missed run is created', async (t) => {
@@ -135,20 +139,18 @@ test('nothing new before the due time', async (t) => {
 });
 
 test('a Linear call that hangs times out, so the poll goes on to tickets', async (t) => {
-  const printed = capture(t);
+  capture(t, ['Routine audit: failed; the next poll tries again DOMException [TimeoutError]: The operation was aborted due to timeout']);
   const hang = ((_url: string, init: { signal: AbortSignal }) => new Promise((_resolve, reject) => {
     init.signal?.addEventListener('abort', () => reject(init.signal.reason));
   })) as unknown as typeof fetch;
   const started = Date.now();
   await createDueRoutines(config, hang, new Date('2026-03-10T06:00:00'), 50);
   assert.ok(Date.now() - started < 2000);
-  assert.deepEqual(printed.errors(), ['Routine audit: failed; the next poll tries again DOMException [TimeoutError]: The operation was aborted due to timeout']);
 });
 
 test('a token command that hangs times out too', async (t) => {
-  const printed = capture(t);
+  capture(t, [/^Routine audit: failed; the next poll tries again .*spawnSync \/bin\/sh ETIMEDOUT$/]);
   const started = Date.now();
   await createDueRoutines({ ...config, linearTokenCommand: 'sleep 5' }, fakeLinear().fetchFn, new Date('2026-03-10T06:00:00'), 100);
   assert.ok(Date.now() - started < 2000);
-  assert.match(printed.errors().join('\n'), /^Routine audit: failed; the next poll tries again .*spawnSync \/bin\/sh ETIMEDOUT$/);
 });
