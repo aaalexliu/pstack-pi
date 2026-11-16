@@ -406,7 +406,7 @@ function lastMessage(file: string): { role?: string; stopReason?: string; text?:
 
 /**
  * The lead's heartbeat: the newest write to any Pi session log of the worktree or a sibling named `<worktree>-<unit>`,
- * where sub-leads work; each cwd has its own folder, and the investigator's (`.runner`) is left out. Also whether that log's last message is mid-step. A tool call with no result,
+ * where sub-leads work; each cwd has its own folder. The investigator's (`.runner`) and Alex's quiz fork (`<worktree>-quiz`) are left out. Also whether that log's last message is mid-step. A tool call with no result,
  * or a user message or tool result with no reply, is busy; anything else is idle. The lead start is the floor.
  */
 export function heartbeat(w: Pick<Work, 'dir'>) {
@@ -414,8 +414,9 @@ export function heartbeat(w: Pick<Work, 'dir'>) {
   let newest = { at: started ? Date.parse(started) : 0, file: '' };
   const sessions = path.join(agentDir(), 'sessions');
   const prefixes = [...new Set([w.dir, existsSync(w.dir) ? realpathSync(w.dir) : w.dir])].map((dir) => path.basename(sessionFolder(dir)).slice(0, -1));
-  const investigator = [rf(w, ''), existsSync(w.dir) ? path.join(realpathSync(w.dir), '.runner') : ''].map((dir) => path.basename(sessionFolder(dir)));
-  const folders = existsSync(sessions) ? readdirSync(sessions).filter((f) => prefixes.some((p) => f.startsWith(p)) && !investigator.includes(f)) : [];
+  const dirs = [...new Set([w.dir, existsSync(w.dir) ? realpathSync(w.dir) : w.dir])];
+  const notLead = dirs.flatMap((dir) => [path.join(dir, '.runner'), `${dir}-quiz`]).map((dir) => path.basename(sessionFolder(dir)));
+  const folders = existsSync(sessions) ? readdirSync(sessions).filter((f) => prefixes.some((p) => f.startsWith(p)) && !notLead.includes(f)) : [];
   for (const folder of folders.map((f) => path.join(sessions, f))) {
     for (const name of readdirSync(folder).filter((f) => f.endsWith('.jsonl'))) {
       const at = statSync(path.join(folder, name)).mtimeMs;

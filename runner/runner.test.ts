@@ -367,6 +367,7 @@ test('a quiet live lead gets Escape and one nudge, then one investigator and no 
     await t.run('--once');
     assert.equal(nudges(), 0, 'a sub-lead writing now in a sibling worktree keeps the lead alive');
     sessionLog(agent, `${dir}-unit`, 'sublead', 6, IDLE);
+    sessionLog(agent, `${dir}-quiz`, 'quiz', 0, IDLE);
     sessionLog(agent, dir.replace('job-ale-1-', 'job-ale-10-'), 'other-ticket', 0, IDLE);
     sessionLog(agent, path.join(dir, '.runner'), 'investigator', 0, IDLE);
     put(path.join(runner, 'takeover'), '');
@@ -375,7 +376,7 @@ test('a quiet live lead gets Escape and one nudge, then one investigator and no 
     rmSync(path.join(runner, 'takeover'));
     await t.run('--once');
     await t.run('--once');
-    assert.deepEqual(keys(), ['Escape', 'nudge', 'Enter'], 'every log idle for 5 minutes: Escape closes any selector, then one nudge; the investigator log does not count');
+    assert.deepEqual(keys(), ['Escape', 'nudge', 'Enter'], 'every log idle for 5 minutes: Escape closes any selector, then one nudge; neither the investigator log nor a quiz fork writing now counts');
     assert.match(t.tmux().find((a) => a.includes('-l'))!.at(-1)!, /No progress from you or your subagents for 6 minutes\. Check each subagent/);
     assert.match(job.comments.find((c) => c.body.startsWith('**Runner:**'))!.body, /nudged it/);
     assert.equal(investigators(), 0, 'the investigator waits another stallMinutes');
