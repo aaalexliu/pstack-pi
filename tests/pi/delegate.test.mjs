@@ -171,3 +171,29 @@ test('packed poteto-agent can edit through its explicit tool set', async () => {
   });
   assert.deepEqual(run.diagnostics, []);
 });
+
+test('packed real parent gets one quiet-log ping for a headless child while it runs another tool', async () => {
+  /** @type {string[]} */
+  const pings = [];
+  const run = await runPiSmoke({
+    expectedText: 'Done.', expectedRequests: 6, keepArtifacts: true, timeoutMs: 30000,
+    prompt: 'Start a quiet child, then run a slow shell command.',
+    setup: async (paths) => {
+      await writeFile(path.join(paths.package, 'extensions/interactive-subagents/config.json'), JSON.stringify({ status: { enabled: true, quietMinutes: 0.02 } }));
+    },
+    fixture: { script: [
+      { reply: { kind: 'tool', id: 'delegate', name: 'subagent', arguments: { name: 'Quiet', agent: 'poteto-agent', task: 'quiet-leaf' } } },
+      { reply: { kind: 'tool', id: 'hold', name: 'bash', arguments: { command: 'sleep 6' } } },
+      { reply: { kind: 'tool', id: 'build', name: 'bash', arguments: { command: 'sleep 4' } } },
+      { reply: { kind: 'text', text: 'Child done.' } },
+      { reply: { kind: 'text', text: 'Done.' }, check: (request) => { pings.push(JSON.stringify(request)); } },
+      { reply: { kind: 'text', text: 'Done.' }, check: (request) => { pings.push(JSON.stringify(request)); } },
+    ] },
+  });
+  const ping = /Subagent \\"Quiet\\" has written nothing to its session log for \d+ min: it is mid tool call: bash\./;
+  assert.ok(pings.some((request) => ping.test(request)), 'The parent request carries the quiet ping');
+  const logs = execFileSync('find', [run.paths.sessions, '-name', '*.jsonl'], { encoding: 'utf8' }).trim().split('\n');
+  const texts = await Promise.all(logs.map((file) => readFile(file, 'utf8')));
+  const quietEntries = texts.flatMap((text) => text.split('\n')).filter((line) => line.includes('"subagent_status"') && line.includes('written nothing'));
+  assert.equal(quietEntries.length, 1, 'One ping per quiet stretch');
+});

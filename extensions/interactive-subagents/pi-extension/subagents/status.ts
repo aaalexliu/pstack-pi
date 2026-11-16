@@ -566,7 +566,8 @@ export function describeSessionTail(lastLine: string | undefined): string {
 export function formatQuietPing(name: string, quietMs: number, tail: string): string {
   const minutes = Math.round(quietMs / 60_000);
   return (
-    `Subagent "${name}" has made no progress for ${minutes} min: ${tail}. ` +
-    "Read its pane or session, steer it, interrupt it with subagent_interrupt, or close it and go on."
+    `Subagent "${name}" has written nothing to its session log for ${minutes} min: ${tail}. ` +
+    "A long tool may still be running; wait if that is expected. " +
+    "Otherwise read its pane or session, steer it, interrupt it with subagent_interrupt, or close it and go on."
   );
 }

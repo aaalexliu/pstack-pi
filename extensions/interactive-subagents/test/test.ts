@@ -613,7 +613,7 @@ describe("quiet child pings", () => {
       const { running, start } = child(dir);
       assert.equal(checkQuietSubagent(running, start + quietMs - 1, quietMs), null);
       const ping = checkQuietSubagent(running, start + quietMs, quietMs);
-      assert.match(ping!, /Subagent "worker" has made no progress for 10 min: it is mid tool call: bash\./);
+      assert.match(ping!, /Subagent "worker" has written nothing to its session log for 10 min: it is mid tool call: bash\. A long tool may still be running; wait if that is expected\./);
       assert.match(ping!, /subagent_interrupt/);
       assert.equal(checkQuietSubagent(running, start + 3 * quietMs, quietMs), null);
     });
