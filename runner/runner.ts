@@ -168,8 +168,10 @@ function linearClient(config: Config, fetchFn: typeof fetch) {
   const eventsOf = (key: string, id: string, comments: Comment[], history: Change[]): Event[] => {
     // Linear credits a change the GitHub integration makes, such as moving the ticket to In Review when a PR
     // opens, to the PR author. Its only mark is the integration's own link entry, which lands a moment before it.
-    const links = history.filter((h) => h.botActor).map((h) => Date.parse(h.createdAt));
-    const byIntegration = (h: Change) => !!h.botActor || links.some((at) => Date.parse(h.createdAt) - at >= 0 && Date.parse(h.createdAt) - at < 2000);
+    // Only a state or assignee change within 2 s after an integration's link entry is the integration's.
+    const links = history.filter((h) => h.botActor && h.attachment).map((h) => Date.parse(h.createdAt));
+    const byIntegration = (h: Change) => !!h.botActor || (!!(h.toState || h.toAssignee)
+      && links.some((at) => Date.parse(h.createdAt) - at >= 0 && Date.parse(h.createdAt) - at < 2000));
     return [
       ...comments.filter((c) => c.user && !c.botActor && c.user.name !== config.runnerUser)
         .map((c) => ({ at: c.createdAt, what: `${key}: ${c.user!.name} commented: ${c.body}`, comment: { issueId: id, thread: c.parentId ?? c.id } })),

@@ -336,6 +336,21 @@ test('a label or title change by Alex starts the lead; the GitHub integration mo
   assert.match(t.leads().at(-1).input, /ALE-1: Alex Example retitled it "Better name"/);
 });
 
+test('an Alex label edit 1 s after an integration entry still counts', async () => {
+  const job = issue(1);
+  const t = setup([job]);
+  await t.run('--once');
+  await t.run('--once');
+  const link = Date.now();
+  job.history.push(
+    { createdAt: new Date(link).toISOString(), botActor: { name: 'Linear' }, attachment: { sourceType: 'github' } },
+    { createdAt: new Date(link + 1000).toISOString(), actor: { name: ALEX }, addedLabelIds: ['l1'] },
+  );
+  await t.run('--once');
+  assert.equal(t.leads().length, 2);
+  assert.match(t.leads()[1].input, /ALE-1: Alex Example changed its labels/);
+});
+
 test('a live lead and an untouched ticket cost no per-ticket read', async () => {
   const t = setup([issue(1), issue(2)]);
   await t.run('--once');
