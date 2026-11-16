@@ -540,6 +540,11 @@ test('two screen tickets start together, and running.json lists the running lead
   t.setLive('ALE-1', 'ALE-2', 'ALE-3');
   await t.run('--once');
   assert.ok(existsSync(path.join(t.config.worktreeRoot, 'screen.lock')), 'a running owner keeps its lock');
+  writeFileSync(path.join(t.config.worktreeRoot, 'screen.lock', 'owner'), 'ALE-9 2026-01-01T00:00:00Z\n');
+  t.setLive('ALE-2', 'ALE-3', 'ALE-9');
+  await t.run('--once');
+  assert.ok(existsSync(path.join(t.config.worktreeRoot, 'screen.lock')), 'an owner with a live session keeps its lock, though running.json does not list it');
+  writeFileSync(path.join(t.config.worktreeRoot, 'screen.lock', 'owner'), 'ALE-1 2026-01-01T00:00:00Z\n');
   t.setLive('ALE-2', 'ALE-3');
   await t.run('--once');
   assert.deepEqual(list().map((r) => r.key), ['ALE-2', 'ALE-3'], 'a finished lead drops off the list');
