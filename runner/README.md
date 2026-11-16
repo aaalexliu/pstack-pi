@@ -73,7 +73,7 @@ A routine can file this audit as a ticket on a schedule; see `routines` below.
 
 | Config | Result |
 | --- | --- |
-| [model/Ticket.cfg](model/Ticket.cfg) | `NoSpin`, `OneDecisionPerAsk` and no deadlock hold. 5 states. |
+| [model/Ticket.cfg](model/Ticket.cfg) | `NoSpin`, `OneDecisionPerAsk` and no deadlock hold. 12 states. |
 | [model/TicketSpin.cfg](model/TicketSpin.cfg) | Without the news check, `NoSpin` breaks in 3 steps: the runner restarts a lead with nothing new. |
 | [model/TicketTwoStep.cfg](model/TicketTwoStep.cfg) | Filing then linking, instead of one write with a parent, breaks `OneDecisionPerAsk` in 4 steps. |
 
@@ -86,7 +86,7 @@ statechart runner/model/Ticket.tla --config runner/model/Ticket.cfg --view runne
 The model leaves out:
 
 - the stall check, lead slots, memory and the screen limit;
-- comments as news (it has one `news` flag for any act of yours);
+- delegation versus comments as news (it has one `news` flag for any act of yours, so it lets delegation start a lead past an open Decision, which the runner does not);
 - PRs, review, CI and merge, which the runner no longer touches; the audit prompt covers them;
 - a ticket you close or take back while the lead runs;
 - the launch failing, which files a Decision issue like a stopped lead.
