@@ -28,6 +28,7 @@ The runner does nothing for you but start you. You own the PRs, the review, the 
 - Write each PR title and body as the Titles and Descriptions sections of `<prompts>/../../skills/poteto-mode/playbooks/opening-a-pr.md` describe; read it.
 - Each PR body names the ticket: `Fixes KEY` on the last PR, `Part of KEY` on the others.
 - Branch each PR from the latest base. Push with `git push --force-with-lease`.
+- Give any command that could run long an explicit timeout. Run long builds with output, or in the background with a log you check.
 
 ## The merge gate, for every PR
 
