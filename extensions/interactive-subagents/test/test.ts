@@ -1,6 +1,6 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, readFileSync, mkdirSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, mkdirSync, rmSync, statSync, utimesSync } from "node:fs";
 import { join } from "node:path";
 import { homedir, tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -47,6 +47,7 @@ import {
   observeStatus,
   loadStatusConfig,
   parseStatusConfig,
+  describeSessionTail,
 } from "../pi-extension/subagents/status.ts";
 import {
   createSubagentActivityRecorder,
@@ -595,6 +596,70 @@ describe("session.ts", () => {
   });
 });
 
+describe("quiet child pings", () => {
+  const { checkQuietSubagent } = subagentsModule.__test__;
+  const quietMs = 10 * 60_000;
+
+  function child(dir: string, interactive = false) {
+    const sessionFile = join(dir, "child.jsonl");
+    const toolCall = { type: "message", message: { role: "assistant", content: [{ type: "toolCall", name: "bash" }], stopReason: "toolUse" } };
+    writeFileSync(sessionFile, JSON.stringify(toolCall) + "\n");
+    const start = statSync(sessionFile).mtimeMs;
+    return { running: { name: "worker", interactive, sessionFile, startTime: start } as any, start };
+  }
+
+  it("pings once when the log stops for quietMinutes and names the pending tool", () => {
+    withTempDir((dir) => {
+      const { running, start } = child(dir);
+      assert.equal(checkQuietSubagent(running, start + quietMs - 1, quietMs), null);
+      const ping = checkQuietSubagent(running, start + quietMs, quietMs);
+      assert.match(ping!, /Subagent "worker" has written nothing to its session log for 10 min: it is mid tool call: bash\. A long tool may still be running; wait if that is expected\./);
+      assert.match(ping!, /subagent_interrupt/);
+      assert.equal(checkQuietSubagent(running, start + 3 * quietMs, quietMs), null);
+    });
+  });
+
+  it("starts a new stretch after a write", () => {
+    withTempDir((dir) => {
+      const { running, start } = child(dir);
+      assert.ok(checkQuietSubagent(running, start + quietMs, quietMs));
+      const later = new Date(start + quietMs + 1000);
+      utimesSync(running.sessionFile, later, later);
+      assert.equal(checkQuietSubagent(running, start + quietMs + 2000, quietMs), null);
+      assert.ok(checkQuietSubagent(running, start + 2 * quietMs + 1000, quietMs));
+    });
+  });
+
+  it("never pings for an interactive child", () => {
+    withTempDir((dir) => {
+      const { running, start } = child(dir, true);
+      const autonomous = { ...running, interactive: false };
+      assert.ok(checkQuietSubagent(autonomous, start + 5 * quietMs, quietMs));
+      assert.equal(checkQuietSubagent(running, start + 5 * quietMs, quietMs), null);
+    });
+  });
+
+  it("never pings for a Claude Code child, which has no Pi session log", () => {
+    withTempDir((dir) => {
+      const start = Date.now();
+      const missing = join(dir, "missing.jsonl");
+      const pi = { name: "pi", interactive: false, sessionFile: missing, startTime: start } as any;
+      const claude = { ...pi, name: "claude-code", cli: "claude" };
+      assert.ok(checkQuietSubagent(pi, start + quietMs, quietMs));
+      assert.equal(checkQuietSubagent(claude, start + quietMs, quietMs), null);
+    });
+  });
+
+  it("describes the log's last line", () => {
+    const line = (message: unknown) => JSON.stringify({ type: "message", message });
+    assert.equal(describeSessionTail(line({ role: "toolResult" })), "it is waiting on the model");
+    const calls = (...names: string[]) => line({ role: "assistant", content: names.map((name) => ({ type: "toolCall", name })) });
+    assert.equal(describeSessionTail(calls("bash")), "it is mid tool call: bash");
+    assert.equal(describeSessionTail(calls("bash", "bash", "read")), "it is mid 3 tool calls: bash ×2, read");
+    assert.match(describeSessionTail(line({ role: "assistant", content: [{ type: "text" }] })), /turn ended/);
+  });
+});
+
 describe("status.ts", () => {
   it("parses strict config objects", () => {
     const disabled = parseStatusConfig({ status: { enabled: false } });
@@ -602,6 +667,7 @@ describe("status.ts", () => {
     assert.deepEqual(disabled, {
       enabled: false,
       lineLimit: 4,
+      quietMinutes: 10,
     });
   });
 
@@ -612,6 +678,7 @@ describe("status.ts", () => {
     assert.deepEqual(config, {
       enabled: true,
       lineLimit: 4,
+      quietMinutes: 10,
     });
   });
 
@@ -628,6 +695,7 @@ describe("status.ts", () => {
       assert.deepEqual(config, {
         enabled: true,
         lineLimit: 4,
+        quietMinutes: 10,
       });
     });
   });

@@ -13,6 +13,7 @@ import {
   copyFileSync,
   unlinkSync,
   rmSync,
+  statSync,
 } from "node:fs";
 import { homedir } from "node:os";
 import {
@@ -40,9 +41,13 @@ import {
   seedSubagentSessionFile,
 } from "./session.ts";
 import {
+  type QuietState,
   type StatusSnapshot,
   type SubagentStatusState,
+  advanceQuiet,
   advanceStatusState,
+  describeSessionTail,
+  formatQuietPing,
   capStatusLines,
   classifyStatus,
   createStatusState,
@@ -142,7 +147,11 @@ const SubagentParams = Type.Object({
     }),
   ),
   timeoutMs: Type.Optional(
-    Type.Integer({ minimum: 1, description: "pstack-pi: with wait, stop the child after this many milliseconds." }),
+    Type.Integer({
+      minimum: 1,
+      description:
+        "pstack-pi: with wait, stop the child after this many milliseconds. A parent blocked in a wait call gets no quiet-child pings, so set this to bound a child that stops making progress.",
+    }),
   ),
   resumeSessionId: Type.Optional(
     Type.String({
@@ -587,6 +596,8 @@ interface RunningSubagent {
    * subagent's pane (e.g. planner).
    */
   interactive: boolean;
+  /** pstack-pi: the current quiet stretch of the child's session log. */
+  quiet?: QuietState;
 }
 
 /** All currently running subagents, keyed by id. */
@@ -1072,6 +1083,32 @@ function handleSubagentInterrupt(
   };
 }
 
+/**
+ * pstack-pi: an autonomous child whose session log goes `quietMs` without a
+ * write returns one ping line per quiet stretch. Interactive children never ping,
+ * and neither do Claude Code children, which write no Pi session log while they run.
+ */
+function checkQuietSubagent(running: RunningSubagent, now: number, quietMs: number): string | null {
+  if (running.interactive || running.cli === "claude") return null;
+  let mtimeMs: number | undefined;
+  try {
+    mtimeMs = statSync(running.sessionFile).mtimeMs;
+  } catch {}
+  const { state, ping } = advanceQuiet(
+    running.quiet ?? { lastWriteMs: running.startTime, pinged: false },
+    mtimeMs,
+    now,
+    quietMs,
+  );
+  running.quiet = state;
+  if (!ping) return null;
+  let lastLine: string | undefined;
+  try {
+    lastLine = readFileSync(running.sessionFile, "utf8").trimEnd().split("\n").at(-1);
+  } catch {}
+  return formatQuietPing(running.name, now - state.lastWriteMs, describeSessionTail(lastLine));
+}
+
 function startStatusRefresh(pi: ExtensionAPI) {
   if (!statusConfig.enabled || statusInterval) return;
 
@@ -1104,6 +1141,8 @@ function startStatusRefresh(pi: ExtensionAPI) {
       if (transition && !running.interactive) {
         transitionLines.push(formatTransitionLine(running.name, snapshot, transition));
       }
+      const quietLine = checkQuietSubagent(running, now, statusConfig.quietMinutes * 60_000);
+      if (quietLine) transitionLines.push(quietLine);
     }
 
     if (shouldRefreshWidget) updateWidget();
@@ -1131,6 +1170,7 @@ function resolveResumeLaunchBehavior(params: { autoExit?: boolean }): { autoExit
 }
 
 export const __test__ = {
+  checkQuietSubagent,
   borderLine,
   getShellReadyDelayMs,
   renderSubagentWidgetLines,

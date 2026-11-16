@@ -170,6 +170,8 @@ cp config.json.example config.json
 
 `config.json` is gitignored so local overrides don't get committed.
 
+`status.quietMinutes` (default 10) sets how long an autonomous child's session log may go without a write before the parent gets one ping. The ping names the child, the minutes without a log write, and what the log's last line shows: mid tool call and which tool, waiting on the model, or turn ended. It says a long tool may still be running and that waiting is fine if that is expected. A new write starts a new stretch. Interactive children never ping. A parent blocked in a `wait: true` call can't take the ping; bound that call with `timeoutMs`.
+
 ---
 
 ## Spawning Subagents
