@@ -299,14 +299,33 @@ export function renderStatus(w: Pick<Work, 'key' | 'dir' | 'branch'>, sessionId:
 }
 
 /** Why a lead cannot start now, or null. `freeMemory` is the percentage macOS `memory_pressure -Q` reports as free. */
-export function startBlock(o: { running: number; maxLeads: number; freeMemory: number; minFreeMemory: number; needsScreen: boolean; screenHolder: string | null }): string | null {
+export function startBlock(o: { running: number; maxLeads: number; freeMemory: number; minFreeMemory: number }): string | null {
   if (o.running >= o.maxLeads) return `all ${o.maxLeads} lead slots are busy`;
   if (o.freeMemory < o.minFreeMemory) return `only ${o.freeMemory}% of memory is free, under the ${o.minFreeMemory}% floor`;
-  if (o.needsScreen && o.screenHolder) return `${o.screenHolder} has the screen`;
   return null;
 }
 
 export const needsScreen = (description: string) => /^Needs:\s*screen\s*$/im.test(description);
+
+/** One running lead as `running.json` lists it, so leads can see who else may want the screen. */
+const runningEntry = (w: Work) => ({
+  key: w.key, title: w.title, tmux: w.key, worktree: w.dir, sessionId: sessionId(w), needsScreen: needsScreen(w.description), startedAt: lastStart(w),
+});
+const runningFile = (config: Config) => path.join(config.worktreeRoot, 'running.json');
+const screenLock = (config: Config) => path.join(config.worktreeRoot, 'screen.lock');
+
+/**
+ * Writes the running leads to `<worktreeRoot>/running.json`. Leads sequence the screen themselves with the
+ * `screen.lock` folder; the runner does not enforce it, but clears a lock whose owner has no tmux session,
+ * since that lead cannot release it, and one with no owner file after a minute, left by a cut-off take. The list can lag a start, so the session is the truth, not the list.
+ */
+async function writeRunning(config: Config, running: Work[]) {
+  mkdirSync(config.worktreeRoot, { recursive: true });
+  put(runningFile(config), `${JSON.stringify(running.map(runningEntry), null, 2)}\n`);
+  const owner = readOr(path.join(screenLock(config), 'owner'))?.trim().split(/\s/)[0];
+  const orphan = !owner && existsSync(screenLock(config)) && Date.now() - statSync(screenLock(config)).mtimeMs > 60000;
+  if (orphan || (owner && !(await live({ key: owner })))) rmSync(screenLock(config), { recursive: true, force: true });
+}
 
 const rf = (w: Pick<Work, 'dir'>, name: string) => path.join(w.dir, '.runner', name);
 const sessionId = (w: Work) => readOr(rf(w, 'session-id'))?.trim() ?? '';
@@ -407,8 +426,8 @@ async function status(ctx: Ctx, w: Work, state: string) {
   else await ctx.linear.comment(w.id, body);
 }
 
-/** The first message of each lead start: the ticket, the facts it needs to reach Linear, and the events since its last start. */
-function startMessage(ctx: Ctx, w: Work, events: Event[]) {
+/** The first message of each lead start: the ticket, the facts it needs to reach Linear, the events since its last start, and the other running leads. */
+function startMessage(ctx: Ctx, w: Work, events: Event[], running: Work[]) {
   return [
     `Issue ${w.key}: ${w.title}`,
     w.url,
@@ -420,6 +439,9 @@ function startMessage(ctx: Ctx, w: Work, events: Event[]) {
     '',
     'Events since your last start:',
     ...events.map((e) => `- ${e.at} ${e.what}`),
+    '',
+    `Other leads running now (the runner keeps the live list in ${runningFile(ctx.config)}; the screen lock is ${screenLock(ctx.config)}):`,
+    ...(running.length ? running.map((r) => `- ${r.key}: ${r.title} (tmux ${r.key}, worktree ${r.dir}${needsScreen(r.description) ? ', Needs: screen' : ''})`) : ['- none']),
   ].join('\n');
 }
 
@@ -445,10 +467,10 @@ function envScript(ctx: Ctx, w: Work, name: string) {
   ];
 }
 
-async function launch(ctx: Ctx, w: Work, events: Event[]) {
+async function launch(ctx: Ctx, w: Work, events: Event[], running: Work[]) {
   await worktree(ctx.config.repos[w.repo], w);
   if (!sessionId(w)) put(rf(w, 'session-id'), randomUUID());
-  put(rf(w, 'input.md'), startMessage(ctx, w, events));
+  put(rf(w, 'input.md'), startMessage(ctx, w, events, running));
   for (const file of ['takeover', 'held', 'stall.json']) rmSync(rf(w, file), { force: true });
   const pi = (...extra: string[]) => [bin('pi'), '--session-id', sessionId(w), '-e', SUBAGENT_DONE,
     '--model', w.models.lead, '--thinking', ctx.config.thinking, '--append-system-prompt', path.join(PROMPTS, 'lead.md'), ...extra].map(sh).join(' ');
@@ -687,7 +709,6 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void) {
       if (move.kind === 'decide') { await decide(ctx, w, ticket.children, 'the lead stopped with nothing open to wait for'); continue; }
       const reason = startBlock({
         running: running.length, maxLeads: config.maxLeads, freeMemory: free, minFreeMemory: config.minFreeMemoryPercent,
-        needsScreen: needsScreen(w.description), screenHolder: running.find((r) => needsScreen(r.w.description))?.w.key ?? null,
       });
       if (reason) {
         say(`Not starting ${w.key} yet: ${reason}`);
@@ -698,7 +719,7 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void) {
       // once more on the same events; after it, nothing new means a Decision issue (model/Ticket.tla, NoSpin).
       if (ticket.state === 'unstarted') await linear.setState(w.id, 'In Progress');
       try {
-        await launch(ctx, w, move.events);
+        await launch(ctx, w, move.events, running.map((r) => r.w));
       } catch (error) {
         // Record the attempt, so only a new event retries a failed start.
         mkdirSync(path.dirname(attemptFile(config, w.key)), { recursive: true });
@@ -707,11 +728,13 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void) {
         continue;
       }
       running.push({ w, ticket: null, live: true });
+      await writeRunning(config, running.map((r) => r.w));
       await status(ctx, w, 'Lead running');
     } catch (error) {
       console.error(`${w.key}: failed; the next poll tries again`, error);
     }
   }
+  if (!dryRun) await writeRunning(config, running.map((r) => r.w));
 }
 
 export async function main(argv: string[], config: Config, fetchFn: typeof fetch = fetch) {
