@@ -1,10 +1,11 @@
 import { spawn } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { appendFileSync, closeSync, existsSync, fstatSync, fsyncSync, mkdirSync, openSync, readdirSync, readFileSync, readSync, realpathSync, renameSync, rmSync, statSync, writeSync } from 'node:fs';
+import { createServer } from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createDueRoutines, parseSchedule, ROUTINE_MARK, type Routine } from './routines.ts';
+import { createDueRoutines, lastDue, parseSchedule, ROUTINE_MARK, type Routine } from './routines.ts';
 
 export type Repo = { path: string; base: string };
 export type Config = {
@@ -18,6 +19,12 @@ export type Config = {
   models: { lead: string; review: string };
   thinking: string;
   pollSeconds: number;
+  /** Optional. Prints the Linear webhook signing secret. Without it the runner polls Linear every `pollSeconds`. */
+  webhookSecretCommand?: string;
+  /** The local port the webhook listens on, at `/linear`. Default 8787. */
+  webhookPort: number;
+  /** With a webhook, the backup poll: `every 10m`, `every 1h`, `daily HH:MM` or `weekly Mon HH:MM`. Default `every 10m`. */
+  auditPoll: string;
   maxLeads: number;
   minFreeMemoryPercent: number;
   stallMinutes: number;
@@ -26,7 +33,7 @@ export type Config = {
   worktreeRoot: string;
   routines?: Routine[];
 };
-type Comment = { id: string; body: string; createdAt: string; parentId?: string | null; user: { name: string } | null; botActor?: { name: string } | null };
+type Comment = { id: string; body: string; createdAt: string; parentId?: string | null; user: { name: string } | null; botActor?: { name: string } | null; reactions?: { emoji: string; user: { name: string } | null }[] };
 /** One entry of an issue's history. A `botActor` marks an integration; `attachment` is the link it added. */
 type Change = {
   createdAt: string; actor: { name: string } | null; botActor: { name: string } | null; attachment: { sourceType: string } | null;
@@ -42,8 +49,11 @@ type Issue = Newest & {
 type Page<T> = { nodes: T[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } };
 /** A sub-issue of a ticket. One assigned to `decisionAssignee` is a Decision issue: Alex owes a move on it. */
 export type Child = { id: string; identifier: string; title: string; url: string; createdAt: string; completedAt: string | null; canceledAt: string | null; assignee: { name: string } | null };
-/** Something someone other than the runner did on the ticket or a sub-issue. `comment` is set for a comment, so an ack can reply in its thread. */
-export type Event = { at: string; what: string; comment?: { issueId: string; thread: string } };
+/**
+ * Something someone other than the runner did on the ticket or a sub-issue. `comment` is set for a comment, so an ack
+ * can react to it or reply in its thread; `reacted` says the runner already put its 👀 on it.
+ */
+export type Event = { at: string; what: string; comment?: { id: string; issueId: string; thread: string; reacted: boolean } };
 /**
  * What Linear says about a ticket this poll. `state` is the state type: `unstarted` for Todo, `started` for In Progress or In Review.
  * `events` and `mine`, the runner's comments, cover the ticket and its sub-issues back to the lead's last start.
@@ -51,11 +61,21 @@ export type Event = { at: string; what: string; comment?: { issueId: string; thr
 export type Ticket = { state: string; description: string; createdAt: string; mine: Comment[]; children: Child[]; events: Event[] };
 /** A ticket as the runner sees it this poll. */
 export type Work = { id: string; key: string; title: string; url: string; description: string; repo: string; branch: string; dir: string; models: { lead: string; review: string } };
-/** `quiet` holds, per ticket, the newest touch the runner read with no events, so it reads that ticket again only once something changes. */
-type Ctx = { config: Config; linear: ReturnType<typeof linearClient>; quiet: Map<string, string> };
+/**
+ * `quiet` holds, per ticket, the newest touch the runner read with no events, so it reads that ticket again only once something changes.
+ * With a webhook, `webhook` is set: `leads` holds the live leads the heartbeat checks, `handled` the events a pass has acted on,
+ * so the backup poll can name one no webhook delivered, and `since` is when the runner started listening.
+ * `reacted` holds comments the runner put its 👀 on this run, before Linear shows the reaction.
+ */
+type Ctx = {
+  config: Config; linear: ReturnType<typeof linearClient>; quiet: Map<string, string>; reacted: Set<string>;
+  webhook: boolean; since: string; leads: Map<string, Work>; handled: Set<string>;
+};
 /** The runner's move for an idle ticket. It mirrors `model/Ticket.tla`: wait, start the lead, or file a Decision issue. */
 export type Move = { kind: 'wait'; on: Child } | { kind: 'start'; events: Event[] } | { kind: 'decide' };
 
+/** Linear's canonical name for 👀. A reaction on a person's comment is the runner's ack that it saw it. */
+const EYES = 'eyes';
 const PROMPTS = fileURLToPath(new URL('./prompts/', import.meta.url));
 const SUBAGENT_DONE = fileURLToPath(new URL('../extensions/interactive-subagents/pi-extension/subagents/subagent-done.ts', import.meta.url));
 const NEWEST = 'updatedAt comments(first: 1) { nodes { createdAt } }';
@@ -81,7 +101,18 @@ export function loadConfig(file: string): Config {
   }
   if (!raw.models.lead || !raw.models.review) throw new Error(`${file}: "models" needs "lead" and "review"`);
   for (const r of raw.routines ?? []) parseSchedule(r.schedule);
-  return { thinking: 'high', pollSeconds: 30, maxLeads: 2, minFreeMemoryPercent: 20, stallMinutes: 5, toolQuietMinutes: 60, host: os.hostname().replace(/\.local$/, ''), ...raw };
+  auditDelay(raw.auditPoll ?? 'every 10m', new Date());
+  return { thinking: 'high', pollSeconds: 30, webhookPort: 8787, auditPoll: 'every 10m', maxLeads: 2, minFreeMemoryPercent: 20, stallMinutes: 5, toolQuietMinutes: 60, host: os.hostname().replace(/\.local$/, ''), ...raw };
+}
+
+/** Milliseconds from `now` to the next backup poll: `every <n>m`, `every <n>h`, or a routine schedule such as `daily 06:00`. */
+export function auditDelay(schedule: string, now: Date): number {
+  const every = /^every ([1-9]\d*)(m|h)$/.exec(schedule);
+  if (every) return Number(every[1]) * (every[2] === 'm' ? 60_000 : 3_600_000);
+  if (!/^(daily|weekly) /.test(schedule)) throw new Error(`Bad auditPoll "${schedule}": use "every 10m", "every 1h", "daily HH:MM" or "weekly Mon HH:MM"`);
+  const next = lastDue(schedule, now);
+  next.setDate(next.getDate() + (schedule.startsWith('weekly') ? 7 : 1));
+  return next.getTime() - now.getTime();
 }
 
 function run(cmd: string, args: string[], cwd: string): Promise<{ code: number; out: string }> {
@@ -146,7 +177,7 @@ function linearClient(config: Config, fetchFn: typeof fetch) {
       return body.data;
     }
   }
-  const COMMENT = 'id body createdAt parentId user { name } botActor { name }';
+  const COMMENT = 'id body createdAt parentId user { name } botActor { name } reactions { emoji user { name } }';
   const CHANGE = 'createdAt actor { name } botActor { name } attachment { sourceType } toState { name } toDelegate { name } fromDelegate { name } toAssignee { name } addedLabelIds removedLabelIds toTitle updatedDescription';
   const page = (conn: string, fields: string, after = '') => `${conn}(first: 25${after}) { nodes { ${fields} } pageInfo { hasNextPage endCursor } }`;
   /**
@@ -174,7 +205,10 @@ function linearClient(config: Config, fetchFn: typeof fetch) {
       && links.some((at) => Date.parse(h.createdAt) - at >= 0 && Date.parse(h.createdAt) - at < 2000));
     return [
       ...comments.filter((c) => c.user && !c.botActor && c.user.name !== config.runnerUser)
-        .map((c) => ({ at: c.createdAt, what: `${key}: ${c.user!.name} commented: ${c.body}`, comment: { issueId: id, thread: c.parentId ?? c.id } })),
+        .map((c) => ({
+          at: c.createdAt, what: `${key}: ${c.user!.name} commented: ${c.body}`,
+          comment: { id: c.id, issueId: id, thread: c.parentId ?? c.id, reacted: !!c.reactions?.some((r) => r.emoji === EYES && r.user?.name === config.runnerUser) },
+        })),
       ...history.filter((h) => h.actor && h.actor.name !== config.runnerUser && !byIntegration(h))
         .map((h) => ({ at: h.createdAt, what: `${key}: ${h.actor!.name} ${change(h)}` })),
     ];
@@ -251,6 +285,10 @@ function linearClient(config: Config, fetchFn: typeof fetch) {
     },
     async comment(issueId: string, body: string, parentId?: string) {
       await gql('mutation Comment($input: CommentCreateInput!) { commentCreate(input: $input) { success } }', { input: { issueId, body, ...(parentId ? { parentId } : {}) } });
+    },
+    /** Puts the runner's 👀 on a comment. */
+    async react(commentId: string) {
+      await gql('mutation React($input: ReactionCreateInput!) { reactionCreate(input: $input) { success } }', { input: { commentId, emoji: EYES } });
     },
     async editComment(id: string, body: string) {
       await gql('mutation EditComment($id: String!, $input: CommentUpdateInput!) { commentUpdate(id: $id, input: $input) { success } }', { id, input: { body } });
@@ -366,6 +404,19 @@ async function ack(ctx: Ctx, w: Work, ticket: Ticket, events: Event[], reason: s
   const latest = events.at(-1)!;
   if (ticket.mine.some((c) => c.body.startsWith('Seen.') && c.createdAt > latest.at)) return;
   await ctx.linear.comment(latest.comment?.issueId ?? w.id, `Seen. Waiting to start: ${reason}.`, latest.comment?.thread);
+}
+
+/**
+ * The fast ack: a 👀 on each person's comment among the events, once per comment. Linear's own reactions on the
+ * comment carry it across restarts; `reacted` covers the moment before Linear shows a new one. A failed reaction
+ * is logged and never holds up the start.
+ */
+async function react(ctx: Ctx, events: Event[]) {
+  for (const { comment } of events) {
+    if (!comment || comment.reacted || ctx.reacted.has(comment.id)) continue;
+    ctx.reacted.add(comment.id);
+    try { await ctx.linear.react(comment.id); } catch (error) { console.error(`could not react to comment ${comment.id}`, error); }
+  }
 }
 
 const repoLocks = new Map<string, Promise<unknown>>();
@@ -641,14 +692,27 @@ async function reapClosed(ctx: Ctx, open: Issue[]) {
   }
 }
 
-/** One poll: every open ticket delegated to the runner. */
-async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void) {
+/**
+ * One pass over the open tickets delegated to the runner. A full poll takes every one. A webhook pass takes `only`
+ * the tickets an issue id names: the ticket itself, or the parent of a sub-issue such as a Decision. A ticket not
+ * delegated to the runner is not in the list, so a webhook about it does nothing. `audit` marks the backup poll,
+ * which logs each event no webhook delivered.
+ */
+async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void, pass: { only?: string[]; audit?: boolean } = {}) {
   const { config, linear } = ctx;
   const free = await freeMemory();
   const tickets: { w: Work; ticket: Ticket | null; live: boolean }[] = [];
   const issues = await linear.issues();
-  if (!dryRun) await reapClosed(ctx, issues);
+  if (!dryRun && !pass.only) await reapClosed(ctx, issues);
+  const only = pass.only;
+  const mine = (i: Issue) => !only || only.includes(i.id) || i.children.nodes.some((c) => only.includes(c.id));
   for (const issue of issues) {
+    // Lead slots and the screen count every live lead, so a webhook pass still looks at the tickets it does not act on.
+    if (!mine(issue)) {
+      const w = workFor(config, issue);
+      if (w && await live(w)) tickets.push({ w, ticket: null, live: true });
+      continue;
+    }
     const w = workFor(config, issue);
     if (!w) {
       if (dryRun) { console.log(`${issue.identifier}: no repo label`); continue; }
@@ -658,7 +722,7 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void) {
     }
     // A live lead's heartbeat needs no Linear. A ticket nothing touched since the lead saw it, or since the
     // runner last read it and found no events, has none now.
-    if (await live(w)) { tickets.push({ w, ticket: null, live: true }); continue; }
+    if (await live(w)) { tickets.push({ w, ticket: null, live: true }); ctx.leads.set(w.key, w); continue; }
     const since = lastAttempt(config, w) ?? '';
     const at = touched(issue);
     const fresh = at > since && ctx.quiet.get(w.key) !== `${since} ${at}`;
@@ -677,13 +741,22 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void) {
     try {
       if (isLive) {
         if (dryRun) console.log(`${w.key}: lead running`);
-        else await checkStall(ctx, w);
+        // With a webhook, the heartbeat checks live leads on its own timer.
+        else if (!ctx.webhook) await checkStall(ctx, w);
         continue;
       }
       if (!ticket) continue;
       const move = nextMove(config, ticket, lastAttempt(config, w));
       if (dryRun) { console.log(`${w.key}: ${move.kind}`); continue; }
       if (move.kind === 'wait') continue;
+      if (move.kind === 'start') {
+        for (const e of move.events) {
+          const id = `${w.key} ${e.at} ${e.what}`;
+          if (pass.audit && ctx.webhook && e.at >= ctx.since && !ctx.handled.has(id)) console.log(`missed: ${w.key} ${e.at} ${e.what.split('\n')[0].slice(0, 120)}`);
+          ctx.handled.add(id);
+        }
+        await react(ctx, move.events);
+      }
       if (move.kind === 'decide') { await decide(ctx, w, ticket.children, 'the lead stopped with nothing open to wait for'); continue; }
       const reason = startBlock({
         running: running.length, maxLeads: config.maxLeads, freeMemory: free, minFreeMemory: config.minFreeMemoryPercent,
@@ -707,6 +780,8 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void) {
         continue;
       }
       running.push({ w, ticket: null, live: true });
+      ctx.leads.set(w.key, w);
+      // For an event that is not a comment, such as a delegation or a closed Decision, this edit is the ack.
       await status(ctx, w, 'Lead running');
     } catch (error) {
       console.error(`${w.key}: failed; the next poll tries again`, error);
@@ -714,14 +789,101 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void) {
   }
 }
 
+const newCtx = (config: Config, fetchFn: typeof fetch, webhook: boolean): Ctx => ({
+  config, linear: linearClient(config, fetchFn), quiet: new Map(), reacted: new Set(), webhook, since: new Date().toISOString(), leads: new Map(), handled: new Set(),
+});
+
+/** Whether a Linear webhook delivery carries a valid `Linear-Signature`, the hex HMAC-SHA256 of the raw body. */
+export function signed(secret: string, raw: Buffer, signature: string | undefined) {
+  const want = Buffer.from(createHmac('sha256', secret).update(raw).digest('hex'));
+  const got = Buffer.from(signature ?? '');
+  return got.length === want.length && timingSafeEqual(got, want);
+}
+
+/**
+ * The issue a Linear webhook is about: an Issue event's own id, or a Comment's (or any other entity's) `issueId`.
+ * The pass maps a sub-issue, such as a Decision, to its parent ticket from the list query's children.
+ */
+function issueOf(payload: { type?: string; data?: { id?: string; issueId?: string } }) {
+  return payload.type === 'Issue' ? payload.data?.id : payload.data?.issueId;
+}
+
+/**
+ * Runs the runner with a Linear webhook: a server on 127.0.0.1 at `/linear`, a 30 s heartbeat for live leads that
+ * makes no Linear calls, and a backup poll on `auditPoll`. All Linear work runs one pass at a time.
+ * It answers a valid delivery with 200 before it acts, since Linear waits at most 5 s.
+ */
+export async function serve(config: Config, fetchFn: typeof fetch, secret: string, port = config.webhookPort) {
+  const ctx = newCtx(config, fetchFn, true);
+  let said = new Set<string>();
+  const say = (line: string) => { if (!said.has(line)) console.log(line); said.add(line); };
+  let queue: Promise<unknown> = Promise.resolve();
+  const enqueue = (what: string, work: () => Promise<unknown>) => {
+    queue = queue.then(work).catch((error) => console.error(`${what} failed`, error));
+    return queue;
+  };
+  /** Delivery ids already handled, so Linear's retry of one acts once. Passes are idempotent too; this skips the reads. */
+  const deliveries: string[] = [];
+  const server = createServer(async (req, res) => {
+    if (req.method !== 'POST' || req.url !== '/linear') { res.writeHead(404).end(); return; }
+    const chunks: Buffer[] = [];
+    let size = 0;
+    for await (const chunk of req) { size += chunk.length; if (size > 1 << 20) { res.writeHead(413).end(); return; } chunks.push(chunk); }
+    const raw = Buffer.concat(chunks);
+    if (!signed(secret, raw, req.headers['linear-signature'] as string | undefined)) { res.writeHead(401).end(); return; }
+    let payload: { type?: string; data?: { id?: string; issueId?: string }; webhookTimestamp?: number };
+    try { payload = JSON.parse(raw.toString('utf8')); } catch { res.writeHead(400).end(); return; }
+    // A replayed delivery carries an old timestamp; Linear's own retries are signed afresh.
+    if (!(Math.abs(Date.now() - Number(payload.webhookTimestamp)) <= 60_000)) { res.writeHead(401).end(); return; }
+    res.writeHead(200).end();
+    const delivery = req.headers['linear-delivery'] as string | undefined;
+    if (delivery) {
+      if (deliveries.includes(delivery)) return;
+      deliveries.push(delivery);
+      if (deliveries.length > 1000) deliveries.shift();
+    }
+    const id = issueOf(payload);
+    if (id) enqueue(`webhook ${payload.type} ${id}`, () => poll(ctx, false, say, { only: [id] }));
+  });
+  await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve); });
+  return {
+    port: (server.address() as { port: number }).port,
+    /** The backup poll: every ticket, logging each event no webhook delivered. */
+    audit: () => { said = new Set(); return enqueue('backup poll', () => poll(ctx, false, say, { audit: true })); },
+    /** The heartbeat: nudges or investigates a quiet live lead. It reads only tmux and session logs, unless it acts. */
+    heartbeat: () => enqueue('heartbeat', async () => {
+      for (const w of ctx.leads.values()) {
+        if (!(await live(w))) { ctx.leads.delete(w.key); continue; }
+        try { await checkStall(ctx, w); } catch (error) { console.error(`${w.key}: stall check failed`, error); }
+      }
+    }),
+    /** Resolves once every queued pass is done. */
+    idle: () => queue,
+    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+  };
+}
+
 export async function main(argv: string[], config: Config, fetchFn: typeof fetch = fetch) {
   const dryRun = argv.includes('--dry-run');
   const once = dryRun || argv.includes('--once');
+  if (!once && config.webhookSecretCommand) {
+    const secret = await must('/bin/sh', ['-c', config.webhookSecretCommand], process.cwd());
+    if (!secret) throw new Error('webhookSecretCommand printed nothing');
+    const runner = await serve(config, fetchFn, secret);
+    console.log(`Listening for Linear webhooks on 127.0.0.1:${runner.port}/linear; backup poll ${config.auditPoll}`);
+    setInterval(() => void runner.heartbeat(), 30_000);
+    // Routines keep their own timer: the ticket a routine files then starts through its webhook.
+    void (async () => { for (;;) { await createDueRoutines(config, fetchFn); await sleep(config.pollSeconds * 1000); } })();
+    for (;;) {
+      await runner.audit();
+      await sleep(auditDelay(config.auditPoll, new Date()));
+    }
+  }
   let said = new Set<string>();
   let next = new Set<string>();
   /** Logs a line once while it stays true, so a blocked queue does not repeat itself every poll. */
   const say = (line: string) => { if (!said.has(line)) console.log(line); next.add(line); };
-  const ctx: Ctx = { config, linear: linearClient(config, fetchFn), quiet: new Map() };
+  const ctx = newCtx(config, fetchFn, false);
   if (dryRun) console.log(`Config: ${JSON.stringify(config, null, 2)}`);
   for (;;) {
     try {

@@ -5,9 +5,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import { format } from 'node:util';
-import { commands, main, nextMove, put, renderStatus, startBlock, type Child, type Config, type Ticket } from './runner.ts';
+import { createHmac } from 'node:crypto';
+import { auditDelay, commands, main, nextMove, put, renderStatus, serve, signed, startBlock, type Child, type Config, type Ticket } from './runner.ts';
 
-type FakeComment = { id: string; body: string; createdAt: string; user: { name: string } | null; botActor?: { name: string } | null; parentId?: string };
+type FakeComment = { id: string; body: string; createdAt: string; user: { name: string } | null; botActor?: { name: string } | null; parentId?: string; reactions?: { emoji: string; user: { name: string } }[] };
 /** A history entry: who changed what. Linear returns every field the query names, null when unset. */
 type FakeChange = { createdAt: string; actor?: { name: string } | null; botActor?: { name: string } | null; attachment?: { sourceType: string }; toState?: { name: string }; toDelegate?: { name: string }; addedLabelIds?: string[]; toTitle?: string };
 type FakeIssue = {
@@ -21,7 +22,7 @@ const TYPES: Record<string, string> = { Todo: 'unstarted', 'In Progress': 'start
 const ALEX = 'Alex Example';
 const git = (cwd: string, ...args: string[]) => execFileSync('git', args, { cwd, encoding: 'utf8' }).trim();
 const lines = (file: string) => (existsSync(file) ? readFileSync(file, 'utf8').trim().split('\n').filter(Boolean) : []);
-const wireComment = (c: FakeComment) => ({ parentId: null, botActor: null, ...c });
+const wireComment = (c: FakeComment) => ({ parentId: null, botActor: null, reactions: [], ...c });
 const CHANGE = { actor: null, botActor: null, attachment: null, toState: null, toDelegate: null, fromDelegate: null, toAssignee: null, addedLabelIds: null, removedLabelIds: null, toTitle: null, updatedDescription: null };
 /** Now. `run` waits a few ms first, so a fact made here is older than the next lead start. */
 const later = () => new Date().toISOString();
@@ -94,7 +95,7 @@ else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? J
   const config: Config = {
     linearTokenCommand: `cat ${file('token')}`, team: 'ALE', runnerUser: RUNNER, decisionAssignee: ALEX,
     repos: { 'pstack-pi': { path: repo, base: 'main' } },
-    models: { lead: 'lead-model', review: 'review-model' }, thinking: 'high', pollSeconds: 0.01, maxLeads: options.maxLeads ?? 2,
+    models: { lead: 'lead-model', review: 'review-model' }, thinking: 'high', pollSeconds: 0.01, webhookPort: 0, auditPoll: 'every 10m', maxLeads: options.maxLeads ?? 2,
     minFreeMemoryPercent: 20, stallMinutes: options.stallMinutes ?? 30, toolQuietMinutes: 60, host: 'test-host', worktreeRoot: file('worktrees'),
     ...(options.ghTokenCommand ? { ghTokenCommand: options.ghTokenCommand } : {}),
   };
@@ -173,6 +174,11 @@ else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? J
       find(v.input.issueId).comments.push({ id: `comment-${++nextId}`, body: v.input.body, createdAt: new Date().toISOString(), user: { name: RUNNER }, parentId: v.input.parentId });
       return data({ commentCreate: { success: true } });
     }
+    if (op === 'React') {
+      const c = issues.flatMap((i) => i.comments).find((x) => x.id === v.input.commentId)!;
+      c.reactions = [...(c.reactions ?? []), { emoji: v.input.emoji, user: { name: RUNNER } }];
+      return data({ reactionCreate: { success: true } });
+    }
     if (op === 'EditComment') {
       issues.flatMap((i) => i.comments).find((c) => c.id === v.id)!.body = v.input.body;
       return data({ commentUpdate: { success: true } });
@@ -201,6 +207,33 @@ else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? J
       console.error = (...args: unknown[]) => { printed.errors.push(format(...args)); };
       try { await main(argv, config, fakeFetch as typeof fetch); } finally { Object.assign(console, { log, error }); }
       if (!printed.expectErrors) assert.deepEqual(printed.errors.slice(before), [], 'the runner printed an unexpected error');
+    },
+    /**
+     * Starts the runner with a webhook on a free port, logging into `printed`. `post` sends a delivery signed with
+     * `secret` unless told otherwise, and waits for the passes it queued.
+     */
+    serve: async () => {
+      const { log, error } = console;
+      console.log = (...args: unknown[]) => { printed.logs.push(format(...args)); };
+      console.error = (...args: unknown[]) => { printed.errors.push(format(...args)); };
+      const runner = await serve(config, fakeFetch as typeof fetch, 'test-secret', 0);
+      const post = async (payload: Record<string, unknown>, o: { secret?: string; delivery?: string; at?: number } = {}) => {
+        const body = JSON.stringify({ webhookTimestamp: o.at ?? Date.now(), ...payload });
+        const res = await fetch(`http://127.0.0.1:${runner.port}/linear`, {
+          method: 'POST', body,
+          headers: { 'Content-Type': 'application/json', 'Linear-Signature': createHmac('sha256', o.secret ?? 'test-secret').update(body).digest('hex'), ...(o.delivery ? { 'Linear-Delivery': o.delivery } : {}) },
+        });
+        await runner.idle();
+        return res.status;
+      };
+      return {
+        post, audit: () => runner.audit(),
+        close: async () => {
+          await runner.close();
+          Object.assign(console, { log, error });
+          if (!printed.expectErrors) assert.deepEqual(printed.errors, [], 'the runner printed an unexpected error');
+        },
+      };
     },
     leads: () => lines(file('pi.log')).map((line) => JSON.parse(line)),
     tmux: () => lines(file('tmux.log')).map((line) => JSON.parse(line) as string[]),
@@ -870,4 +903,79 @@ test('put replaces a file whole and leaves no temp file', () => {
   put(path.join(dir, 'a.json'), 'two');
   assert.equal(readFileSync(path.join(dir, 'a.json'), 'utf8'), 'two');
   assert.deepEqual(readdirSync(dir), ['a.json']);
+});
+
+test('a webhook needs a good Linear-Signature and a webhookTimestamp within 60 s', async () => {
+  const body = Buffer.from('{"type":"Issue"}');
+  assert.ok(signed('s', body, createHmac('sha256', 's').update(body).digest('hex')));
+  assert.ok(!signed('s', body, createHmac('sha256', 'other').update(body).digest('hex')));
+  assert.ok(!signed('s', body, undefined));
+  const t = setup([issue(1, { delegate: null })]);
+  const srv = await t.serve();
+  try {
+    assert.equal(await srv.post({ type: 'Issue', data: { id: 'id-1' } }), 200);
+    assert.equal(await srv.post({ type: 'Issue', data: { id: 'id-1' } }, { secret: 'wrong' }), 401);
+    assert.equal(await srv.post({ type: 'Issue', data: { id: 'id-1' } }, { at: Date.now() - 61_000 }), 401);
+    assert.equal(t.leads().length, 0, 'a ticket not delegated to the runner is ignored');
+  } finally { await srv.close(); }
+});
+
+test('a comment webhook on a Decision starts the parent lead with one 👀; a repeat delivery and the backup poll act on it once', async () => {
+  const all = [issue(1)];
+  const t = setup(all);
+  await t.run('--once');
+  const decision = issue(50, { parent: 'id-1', assignee: ALEX, delegate: null, labels: [], createdAt: '2026-01-01T00:00:02Z', history: [] });
+  all.push(decision);
+  const srv = await t.serve();
+  try {
+    decision.comments.push({ id: 'c1', body: 'Go with plan B.', createdAt: later(), user: { name: ALEX } });
+    const delivery = { type: 'Comment', action: 'create', data: { id: 'c1', issueId: 'id-50' } };
+    assert.equal(await srv.post(delivery, { delivery: 'd1' }), 200);
+    assert.equal(t.leads().length, 2);
+    assert.match(t.leads()[1].input, /ALE-50: Alex Example commented: Go with plan B\./);
+    assert.deepEqual(decision.comments[0].reactions, [{ emoji: 'eyes', user: { name: RUNNER } }]);
+    const reads = t.ops.length;
+    assert.equal(await srv.post(delivery, { delivery: 'd1' }), 200);
+    assert.equal(t.ops.length, reads, 'a repeated delivery id makes no Linear call');
+    await srv.post(delivery, { delivery: 'd2' });
+    await srv.audit();
+    assert.equal(t.leads().length, 2);
+    assert.equal(decision.comments[0].reactions!.length, 1);
+    assert.ok(!t.printed.logs.some((l) => l.startsWith('missed:')));
+  } finally { await srv.close(); }
+});
+
+test('the backup poll names an event no webhook delivered', async () => {
+  const job = issue(1);
+  const t = setup([job]);
+  await t.run('--once');
+  const srv = await t.serve();
+  try {
+    job.comments.push({ id: 'c1', body: 'Also the footer.', createdAt: later(), user: { name: ALEX } });
+    await srv.audit();
+    assert.equal(t.leads().length, 2);
+    assert.ok(t.printed.logs.some((l) => /^missed: ALE-1 \S+ ALE-1: Alex Example commented: Also the footer\.$/.test(l)), t.printed.logs.join('\n'));
+  } finally { await srv.close(); }
+});
+
+test('with no webhook secret the runner polls as before and still puts one 👀 on a comment', async () => {
+  const job = issue(1);
+  const t = setup([job]);
+  assert.equal(t.config.webhookSecretCommand, undefined);
+  await t.run('--once');
+  job.comments.push({ id: 'c1', body: 'One more thing.', createdAt: later(), user: { name: ALEX } });
+  await t.run('--once');
+  await t.run('--once');
+  assert.equal(t.leads().length, 2);
+  assert.equal(job.comments.find((c) => c.id === 'c1')!.reactions!.length, 1);
+  assert.ok(!t.printed.logs.some((l) => l.startsWith('missed:')));
+});
+
+test('auditPoll takes every Nm, every Nh, daily and weekly', () => {
+  const now = new Date(2026, 0, 5, 5, 0);
+  assert.equal(auditDelay('every 10m', now), 600_000);
+  assert.equal(auditDelay('every 1h', now), 3_600_000);
+  assert.equal(auditDelay('daily 06:00', now), 3_600_000);
+  assert.equal(auditDelay('daily 04:00', now), 23 * 3_600_000);
+  assert.throws(() => auditDelay('hourly', now), /Bad auditPoll/);
 });
