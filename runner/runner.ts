@@ -426,24 +426,20 @@ const NUDGE = 'No progress from you or your subagents for';
 type Stall = { nudgedAt: number; investigatedAt?: number };
 
 /**
- * A live lead belongs to the lead: the runner never starts, restarts or kills it. When its heartbeat is quiet for
- * `stallMinutes` while idle, or `toolQuietMinutes` while busy, it presses Escape (closing a selector, or stopping the
- * tool or wait) and types one nudge. If nothing but the nudge itself lands for the same limit again, it starts one
- * investigator that reports on the ticket. Any other write after the nudge ends the stretch.
+ * A live lead belongs to the lead: the runner never starts, restarts or kills it. A quiet stretch is `stallMinutes`
+ * with no heartbeat while idle, or `toolQuietMinutes` while busy. The first in a lead run gets Escape (closing a
+ * selector, or stopping the tool or wait) and one nudge. The second, whether or not the lead wrote in between, starts
+ * one investigator that reports on the ticket. After that the runner does nothing until it starts the lead again.
  */
 async function checkStall(ctx: Ctx, w: Work, ticket: Ticket) {
   if (existsSync(rf(w, 'held')) || existsSync(rf(w, 'takeover'))) return;
   const beat = heartbeat(w);
   let stall: Stall | null = null;
-  try { stall = JSON.parse(readFileSync(rf(w, 'stall.json'), 'utf8')); } catch { /* no stretch yet */ }
-  if (stall && beat.at > stall.nudgedAt && !beat.nudge) {
-    rmSync(rf(w, 'stall.json'), { force: true });
-    stall = null;
-  }
+  try { stall = JSON.parse(readFileSync(rf(w, 'stall.json'), 'utf8')); } catch { /* no quiet stretch this run */ }
+  if (stall?.investigatedAt) return;
   const limit = (beat.busy && !beat.nudge ? ctx.config.toolQuietMinutes : ctx.config.stallMinutes) * 60000;
-  const since = stall ? stall.nudgedAt : beat.at;
   const quiet = Math.floor((Date.now() - beat.at) / 60000);
-  if (!beat.at || Date.now() - since < limit) return;
+  if (!beat.at || Date.now() - Math.max(beat.at, stall?.nudgedAt ?? 0) < limit) return;
   if (!stall) {
     const target = readOr(rf(w, 'pane'))?.trim() || `${session(w.key)}:`;
     await must(bin('tmux'), ['send-keys', '-t', target, 'Escape'], w.dir);
@@ -452,10 +448,10 @@ async function checkStall(ctx: Ctx, w: Work, ticket: Ticket) {
     await must(bin('tmux'), ['send-keys', '-t', target, 'Enter'], w.dir);
     put(rf(w, 'stall.json'), JSON.stringify({ nudgedAt: Date.now() }));
     await status(ctx, w, ticket, `Lead running. No heartbeat for ${quiet} minutes${beat.busy ? ' with a step in flight' : ''}, so the runner nudged it.`);
-  } else if (!stall.investigatedAt) {
+  } else {
     await investigate(ctx, w, quiet);
     put(rf(w, 'stall.json'), JSON.stringify({ ...stall, investigatedAt: Date.now() }));
-    await status(ctx, w, ticket, `Lead running. Still no heartbeat ${quiet} minutes after the nudge, so an investigator (tmux session \`${w.key}-stall\`) is looking into it.`);
+    await status(ctx, w, ticket, `Lead running. Quiet again after the nudge, so an investigator (tmux session \`${w.key}-stall\`) is looking into it.`);
   }
 }
 
@@ -464,7 +460,7 @@ async function investigate(ctx: Ctx, w: Work, quiet: number) {
   put(rf(w, 'stall-input.md'), [
     `Issue ${w.key}: ${w.title}`, w.url, '',
     `Linear issue id: ${w.id}. Team: ${ctx.config.team}. File Decision issues as sub-issues assigned to ${ctx.config.decisionAssignee}.`,
-    `The lead's session logs have had no write for ${quiet} minutes, other than a nudge the runner typed.`,
+    `The lead went quiet a second time since the runner nudged it: its session logs have had no write for ${quiet} minutes.`,
     `Lead tmux session: ${w.key}. Lead Pi session id: ${sessionId(w)}. Worktree: ${w.dir} on ${w.branch}.`,
     `Session logs of the lead and its subagents: ${sessionFolder(w.dir)}.`,
   ].join('\n'));
