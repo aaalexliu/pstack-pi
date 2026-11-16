@@ -392,13 +392,14 @@ Controls whether status transitions (`stalled`, `recovered`) wake the parent ses
 
 **When to override:**
 
-- Set `interactive: false` on an agent that doesn't auto-exit but you still want stall pings for
+- Set `interactive: false` on an agent with `auto-exit: false` that you still want stall pings for
 - Set `interactive: true` on an autonomous agent you'd rather check on yourself
 
 ```yaml
 ---
 name: planner
-# interactive defaults to true because auto-exit is not set
+auto-exit: false
+# interactive defaults to true because auto-exit is false
 ---
 ```
 
