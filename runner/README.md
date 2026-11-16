@@ -14,13 +14,23 @@ It remembers one fact per ticket: when it last started the lead, in `<worktree>/
 Each poll, for each open issue delegated to `runnerUser` (`Todo`, or any started state such as `In Progress` or `In Review`):
 
 ```text
-lead live in tmux                     -> leave it; file a Decision issue if it went quiet for stallMinutes
+lead live in tmux                     -> leave it; nudge it, then start an investigator, if it went quiet
 open Decision issue, no news          -> wait (a comment or another closed Decision is news: start)
 you acted after the lead's last start -> start the lead (if a slot is free) and save the start time
 else                                  -> file a Decision issue: "the lead stopped with nothing open to wait for"
 ```
 
-A live lead belongs to the lead: the runner never starts, restarts or kills it. Your comments and Decision answers reach it when you attach and type, or after it exits, since the next start carries them. Quiet means no output in any window of the ticket's tmux session (an idle Pi does not redraw, and a working subagent window counts) and no event in `.runner/activity.json`. A lead quiet for `stallMinutes`, most often one that ended its turn and forgot `subagent_done`, gets one "the lead looks stuck" Decision issue per quiet stretch, with the commands to attach or stop it. It still holds its slot. No issue is filed while `.runner/takeover` or `.runner/held` exists.
+A live lead belongs to the lead: the runner never starts, restarts or kills it. Your comments and Decision answers reach it when you attach and type, or after it exits, since the next start carries them.
+
+The lead's heartbeat is the newest agent event in its `.runner/activity.json` or in the activity file of any subagent it runs (`<sessions>/<cwd>/artifacts/<lead session id>/subagent-activity/`, written by panes and headless children alike). A running tool or provider call keeps it alive, except a `subagent` call with `wait: true`: there the child's own heartbeat decides, so a lead waiting on a child idle at its prompt is quiet. Redraws in tmux do not count; the subagent panel's "waiting" timer redraws forever.
+
+```text
+last heartbeat      +stallMinutes             +stallMinutes
+      |------ quiet ------|------ still quiet ------|
+                       nudge                   investigator
+```
+
+After `stallMinutes` with no heartbeat, the runner types one nudge into the lead's pane: check each subagent, take any finished result, close the ones that are done, then continue or end. If no heartbeat lands more than `stallMinutes` after the nudge (the lead's own reply to it does not count), it starts one investigator: `pi -p` with [prompts/stall.md](prompts/stall.md) in the tmux session `KEY-stall`, in the worktree, on the lead model. It reads the lead's session, its subagents' panes and sessions, the activity files, the ticket and the PRs, changes nothing, and posts its findings as one comment, filing a Decision issue only if you must act. It takes no lead slot. Each step happens once per quiet stretch, tracked in `.runner/stall.json`, and none happens while `.runner/takeover` or `.runner/held` exists.
 
 The runner kills a ticket's tmux session only when it started that session (it tags each session it creates with the tmux option `@job-runner`), nobody holds it through `.runner/takeover` or `.runner/held`, and Linear, asked about that one ticket, says it is Done, Canceled, or no longer delegated to `runnerUser`. On any Linear error it leaves the session alone. Sessions started by a runner older than this tag are never reaped; stop them by hand with `tmux kill-session -t '=KEY'`.
 
@@ -107,7 +117,7 @@ Run one runner per Linear team.
 
 ## The status comment
 
-Each ticket gets one runner comment, edited in place: the state, the host, the tmux session, the Pi session id, the worktree, and commands to watch the lead (`tmux attach`), take it over (touch `.runner/takeover` first, so no stall issue is filed until you quit Pi; if the lead exits first, a second Pi starts under `.runner/held`), or quiz a fork of it in its own worktree.
+Each ticket gets one runner comment, edited in place: the state, the host, the tmux session, the Pi session id, the worktree, and commands to watch the lead (`tmux attach`), take it over (touch `.runner/takeover` first, so the runner does not nudge or investigate until you quit Pi; if the lead exits first, a second Pi starts under `.runner/held`), or quiz a fork of it in its own worktree.
 
 ## Ticket lines
 
@@ -133,7 +143,7 @@ The runner reads `~/.config/job-runner/config.json`, or the file named by `JOB_R
 | `pollSeconds` | Seconds between polls. Default 30 |
 | `maxLeads` | Leads that run at once. Default 2 |
 | `minFreeMemoryPercent` | No lead starts while less memory than this is free. Default 20 |
-| `stallMinutes` | Minutes without activity in the lead's tmux session before the runner asks. Default 30 |
+| `stallMinutes` | Minutes without a heartbeat from the lead or its subagents before the runner nudges the lead, and again before it starts an investigator. Default 5 |
 | `host` | The host name the status comment uses for `ssh`. Default: this Mac's name |
 | `worktreeRoot` | The directory for ticket worktrees |
 | `routines` | Optional scheduled tickets: `{name, schedule, repo, title, prompt}`. See below |

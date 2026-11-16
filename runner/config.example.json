@@ -13,7 +13,7 @@
   "pollSeconds": 30,
   "maxLeads": 2,
   "minFreeMemoryPercent": 20,
-  "stallMinutes": 30,
+  "stallMinutes": 5,
   "host": "build-mac",
   "worktreeRoot": "/Users/you/dev/job-worktrees",
   "routines": [
