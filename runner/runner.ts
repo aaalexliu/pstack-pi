@@ -25,7 +25,7 @@ export type Config = {
   worktreeRoot: string;
   routines?: Routine[];
 };
-type Comment = { id: string; body: string; createdAt: string; user: { name: string; app?: boolean } | null; botActor?: { name: string } | null };
+type Comment = { id: string; body: string; createdAt: string; parentId?: string | null; user: { name: string; app?: boolean } | null; botActor?: { name: string } | null };
 /** Only a person's comment counts as Alex acting: not the runner, its leads, or any other app or bot. */
 const human = (c: Comment) => !!c.user && !c.user.app && !c.botActor;
 type Issue = { id: string; identifier: string; title: string; description: string | null; url: string; createdAt: string; state: { type: string }; labels: { nodes: { name: string }[] } };
@@ -139,7 +139,7 @@ function linearClient(config: Config, fetchFn: typeof fetch) {
     async ticket(id: string): Promise<Ticket | null> {
       type Wire = { state: { type: string }; delegate: { name: string } | null; comments: { nodes: Comment[] }; children: { nodes: Child[] } };
       const found = (await gql<{ issues: { nodes: Wire[] } }>(
-        `query IssueById($id: ID!) { issues(first: 1, filter: { id: { eq: $id } }) { nodes { state { type } delegate { name } comments(first: 100) { nodes { id body createdAt user { name app } botActor { name } } } children(first: 50) { nodes { ${CHILD} } } } } }`,
+        `query IssueById($id: ID!) { issues(first: 1, filter: { id: { eq: $id } }) { nodes { state { type } delegate { name } comments(first: 100) { nodes { id body createdAt parentId user { name app } botActor { name } } } children(first: 50) { nodes { ${CHILD} } } } } }`,
         { id },
       )).issues.nodes[0];
       if (!found) return null;
@@ -255,7 +255,7 @@ async function ack(ctx: Ctx, w: Work, ticket: Ticket, started: string, reason: s
   const closed = ticket.children.filter((c) => isDecision(ctx.config, c) && closedAt(c)! > started).map(closedAt).sort().at(-1);
   const latest = [comment?.createdAt, closed].filter((at) => at !== undefined).sort().at(-1);
   if (!latest || ticket.comments.some((c) => runner(c) && c.body.startsWith('Seen.') && c.createdAt > latest)) return;
-  await ctx.linear.comment(w.id, `Seen. Waiting to start: ${reason}.`, latest === comment?.createdAt ? comment.id : undefined);
+  await ctx.linear.comment(w.id, `Seen. Waiting to start: ${reason}.`, latest === comment?.createdAt ? comment.parentId ?? comment.id : undefined);
 }
 
 const repoLocks = new Map<string, Promise<unknown>>();

@@ -428,6 +428,23 @@ test('a blocked ticket with news acks it once, in the comment thread, naming wha
   assert.equal(t.leads().length, 1);
 });
 
+test('an ack to a reply in a thread goes to the thread root', async () => {
+  const screen = 'Make it work.\nNeeds: screen';
+  const job = issue(1, { description: screen });
+  const other = issue(2, { description: screen, delegate: null });
+  const t = setup([job, other]);
+  const log = console.log;
+  console.log = () => {};
+  try {
+    await t.run('--once');
+    other.delegate = RUNNER;
+    t.setLive('ALE-2');
+    job.comments.push({ id: 'h2', body: 'And green.', createdAt: later(), user: { name: 'Alex' }, parentId: 'root' });
+    await t.run('--once');
+  } finally { console.log = log; }
+  assert.deepEqual(job.comments.filter((c) => c.body.startsWith('Seen.')).map((c) => c.parentId), ['root']);
+});
+
 test('a ticket with news from Alex starts before tickets that never started', async () => {
   const job = issue(1);
   const t = setup([job, issue(2), issue(3)], { maxLeads: 1 });
