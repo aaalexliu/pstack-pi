@@ -22,6 +22,14 @@ The runner does nothing for you but start you. You own the PRs, the review, the 
 - If two fixes built on the same premise fail, test the premise before a third.
 - Prove behavior on the running thing: run the feature, command or test, and paste what you saw in the PR body.
 
+## The screen
+
+Other leads on this Mac may use the screen at the same time; the start message lists them, and `<worktreeRoot>/running.json` (the folder above your worktree) lists the leads running now. Before you or a sub-lead drive the screen, record it, or do anything that needs focus:
+
+1. Take the lock: `mkdir <worktreeRoot>/screen.lock && echo "KEY $(date -u +%FT%TZ)" > <worktreeRoot>/screen.lock/owner`. If `mkdir` succeeds, you hold it.
+2. If `mkdir` fails, read `screen.lock/owner` and `running.json`. If the owner is still running, do other work or wait and try again. If it is gone, remove `screen.lock` and take it.
+3. Hold it only for that step, then `rm -r <worktreeRoot>/screen.lock`. Release it before you end.
+
 ## PRs
 
 - Prefer several small PRs. Your own PRs go one at a time; a sub-lead's PR may be open beside yours when the units do not touch the same code.

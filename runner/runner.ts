@@ -222,14 +222,32 @@ export function renderStatus(w: Pick<Work, 'key' | 'dir' | 'branch'>, sessionId:
 }
 
 /** Why a lead cannot start now, or null. `freeMemory` is the percentage macOS `memory_pressure -Q` reports as free. */
-export function startBlock(o: { running: number; maxLeads: number; freeMemory: number; minFreeMemory: number; needsScreen: boolean; screenHolder: string | null }): string | null {
+export function startBlock(o: { running: number; maxLeads: number; freeMemory: number; minFreeMemory: number }): string | null {
   if (o.running >= o.maxLeads) return `all ${o.maxLeads} lead slots are busy`;
   if (o.freeMemory < o.minFreeMemory) return `only ${o.freeMemory}% of memory is free, under the ${o.minFreeMemory}% floor`;
-  if (o.needsScreen && o.screenHolder) return `${o.screenHolder} has the screen`;
   return null;
 }
 
 export const needsScreen = (description: string) => /^Needs:\s*screen\s*$/im.test(description);
+
+/** One running lead as `running.json` lists it, so leads can see who else may want the screen. */
+const runningEntry = (w: Work) => ({
+  key: w.key, title: w.title, tmux: w.key, worktree: w.dir, sessionId: sessionId(w), needsScreen: needsScreen(w.description), startedAt: lastStart(w),
+});
+const runningFile = (config: Config) => path.join(config.worktreeRoot, 'running.json');
+const screenLock = (config: Config) => path.join(config.worktreeRoot, 'screen.lock');
+
+/**
+ * Writes the running leads to `<worktreeRoot>/running.json`. Leads sequence the screen themselves with the
+ * `screen.lock` folder; the runner does not enforce it, but clears a lock whose owner ticket no longer runs,
+ * since that lead cannot release it any more.
+ */
+function writeRunning(config: Config, running: Work[]) {
+  mkdirSync(config.worktreeRoot, { recursive: true });
+  put(runningFile(config), `${JSON.stringify(running.map(runningEntry), null, 2)}\n`);
+  const owner = readOr(path.join(screenLock(config), 'owner'))?.trim().split(/\s/)[0];
+  if (owner && !running.some((w) => w.key === owner)) rmSync(screenLock(config), { recursive: true, force: true });
+}
 
 const rf = (w: Pick<Work, 'dir'>, name: string) => path.join(w.dir, '.runner', name);
 const sessionId = (w: Work) => readOr(rf(w, 'session-id'))?.trim() ?? '';
@@ -312,7 +330,7 @@ async function status(ctx: Ctx, w: Work, ticket: Ticket, state: string) {
 }
 
 /** The first message of each lead start: the ticket, the facts it needs to reach Linear, and what Alex did since. */
-function startMessage(ctx: Ctx, w: Work, news: string[]) {
+function startMessage(ctx: Ctx, w: Work, news: string[], running: Work[]) {
   return [
     `Issue ${w.key}: ${w.title}`,
     w.url,
@@ -324,6 +342,9 @@ function startMessage(ctx: Ctx, w: Work, news: string[]) {
     '',
     'Since your last start:',
     ...news.map((line) => `- ${line}`),
+    '',
+    `Other leads running now (the runner keeps the live list in ${runningFile(ctx.config)}; the screen lock is ${screenLock(ctx.config)}):`,
+    ...(running.length ? running.map((r) => `- ${r.key}: ${r.title} (tmux ${r.key}, worktree ${r.dir}${needsScreen(r.description) ? ', Needs: screen' : ''})`) : ['- none']),
   ].join('\n');
 }
 
@@ -349,10 +370,10 @@ function envScript(ctx: Ctx, w: Work, name: string) {
   ];
 }
 
-async function launch(ctx: Ctx, w: Work, news: string[]) {
+async function launch(ctx: Ctx, w: Work, news: string[], running: Work[]) {
   await worktree(ctx.config.repos[w.repo], w);
   if (!sessionId(w)) put(rf(w, 'session-id'), randomUUID());
-  put(rf(w, 'input.md'), startMessage(ctx, w, news));
+  put(rf(w, 'input.md'), startMessage(ctx, w, news, running));
   for (const file of ['takeover', 'held', 'stall.json']) rmSync(rf(w, file), { force: true });
   const pi = (...extra: string[]) => [bin('pi'), '--session-id', sessionId(w), '-e', SUBAGENT_DONE,
     '--model', w.models.lead, '--thinking', ctx.config.thinking, '--append-system-prompt', path.join(PROMPTS, 'lead.md'), ...extra].map(sh).join(' ');
@@ -584,7 +605,6 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void) {
       if (move.kind === 'decide') { await decide(ctx, w, ticket, 'the lead stopped with nothing open to wait for'); continue; }
       const reason = startBlock({
         running: running.length, maxLeads: config.maxLeads, freeMemory: free, minFreeMemory: config.minFreeMemoryPercent,
-        needsScreen: needsScreen(w.description), screenHolder: running.find((r) => needsScreen(r.w.description))?.w.key ?? null,
       });
       if (reason) {
         say(`Not starting ${w.key} yet: ${reason}`);
@@ -596,7 +616,7 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void) {
       // anywhere after it can only lead to a Decision issue, never a second start (model/Ticket.tla, NoSpin).
       if (ticket.state === 'unstarted') await linear.setState(w.id, 'In Progress');
       try {
-        await launch(ctx, w, move.news);
+        await launch(ctx, w, move.news, running.map((r) => r.w));
       } catch (error) {
         await decide(ctx, w, ticket, `the runner could not start the lead: ${message(error).split('\n')[0]}`);
         continue;
@@ -607,6 +627,7 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void) {
       console.error(`${w.key}: failed; the next poll tries again`, error);
     }
   }
+  if (!dryRun) writeRunning(config, running.map((r) => r.w));
 }
 
 export async function main(argv: string[], config: Config, fetchFn: typeof fetch = fetch) {

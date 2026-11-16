@@ -94,7 +94,7 @@ statechart runner/model/Ticket.tla --config runner/model/Ticket.cfg --view runne
 
 The model leaves out:
 
-- the stall check, lead slots, memory and the screen limit;
+- the stall check, lead slots, memory, `running.json` and the screen lock;
 - delegation versus comments as news (it has one `news` flag for any act of yours, so it lets delegation start a lead past an open Decision, which the runner does not);
 - PRs, review, CI and merge, which the runner no longer touches; the audit prompt covers them;
 - a ticket you close or take back while the lead runs;
@@ -102,13 +102,13 @@ The model leaves out:
 
 ## Shared resources
 
-Before it starts a lead, the runner checks three limits, and logs once why it waits:
+Before it starts a lead, the runner checks two limits, and logs once why it waits:
 
 - At most `maxLeads` leads run at once. A live tmux session holds its slot, including while the lead waits on CI.
 - On macOS, no lead starts while `memory_pressure -Q` reports less than `minFreeMemoryPercent` free.
-- At most one running ticket has `Needs: screen` in its description.
+The runner does not decide who uses the screen; leads take turns themselves. Each poll it writes the running leads to `<worktreeRoot>/running.json` (key, title, tmux session, worktree, Pi session id, whether the ticket says `Needs: screen`, and start time), and each start message lists the same leads and names that file. Before a lead drives the screen, records it, or needs focus, it takes the shared lock `<worktreeRoot>/screen.lock` with `mkdir`, writes its key and the time to `screen.lock/owner`, and removes the folder when that step ends. `lead.md` says how to wait for a held lock. The runner never enforces the lock, but clears one whose owner ticket no longer runs, because that lead can no longer release it.
 
-When a limit holds back a ticket you acted on, the runner replies once to your latest move, in the thread when it was a comment, with what it waits on, such as "Seen. Waiting to start: ALE-89 has the screen." It finds its earlier replies among the ticket's comments, so it keeps no state for this.
+When a limit holds back a ticket you acted on, the runner replies once to your latest move, in the thread when it was a comment, with what it waits on, such as "Seen. Waiting to start: all 2 lead slots are busy." It finds its earlier replies among the ticket's comments, so it keeps no state for this.
 
 The queue: tickets with news from you since their last start go first. The rest keep Linear's order: Todo first, then the oldest. A Todo ticket that started once and stopped still counts as Todo, so it can go before a newer ticket that never started.
 
@@ -121,7 +121,7 @@ Each ticket gets one runner comment, edited in place: the state, the host, the t
 ## Ticket lines
 
 - `Lead model: ...` and `Review model: ...` override `models` for this ticket.
-- `Needs: screen` marks work that drives the screen.
+- `Needs: screen` marks work that drives the screen. It only informs other leads through `running.json`; it does not hold a ticket back.
 
 The first label that names a repo in the config picks the repo. With no such label, the runner comments, clears the delegate, and skips the issue. The worktree is `<worktreeRoot>/job-<key>-<slug>` on branch `job/<key>-<slug>`, found by key and reused; the runner never removes a worktree or resets a branch.
 
