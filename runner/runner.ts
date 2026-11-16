@@ -658,8 +658,11 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void) {
     if (seen) tickets.push({ w, live: false, ticket: { state: issue.state.type, description: w.description, createdAt: issue.createdAt, children: issue.children.nodes, ...seen } });
   }
   // The ticket whose oldest unseen event is oldest goes first. Tickets with none keep Linear's order after them.
-  const oldest = (t: (typeof tickets)[number]) => (t.ticket ? newEvents(t.w.key, t.ticket, lastStart(t.w))[0]?.at : undefined) ?? '~';
-  tickets.sort((a, b) => oldest(a).localeCompare(oldest(b)));
+  const oldest = (t: (typeof tickets)[number]) => (t.ticket ? newEvents(t.w.key, t.ticket, lastStart(t.w))[0]?.at : undefined);
+  tickets.sort((a, b) => {
+    const [x, y] = [oldest(a), oldest(b)];
+    return x && y ? (x < y ? -1 : x > y ? 1 : 0) : Number(!x) - Number(!y);
+  });
   const running = tickets.filter((t) => t.live);
   for (const { w, ticket, live: isLive } of tickets) {
     try {

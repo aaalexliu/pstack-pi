@@ -654,6 +654,16 @@ test('the ticket whose oldest unseen event is oldest starts first', async () => 
   assert.deepEqual(t.leads().slice(3).map((l) => /Issue (ALE-\d)/.exec(l.input)![1]), ['ALE-2']);
 });
 
+test('a ticket with an event goes before a quiet ticket ahead of it in Linear order', async () => {
+  const busy = issue(2);
+  const t = setup([issue(1), busy]);
+  await t.run('--once');
+  await t.run('--once');
+  busy.comments.push({ id: 'h1', body: 'One more thing.', createdAt: later(), user: { name: ALEX } });
+  await t.run('--dry-run');
+  assert.deepEqual(t.printed.logs.filter((l) => /^ALE-\d: /.test(l)), ['ALE-2: start', 'ALE-1: wait']);
+});
+
 test('low free memory starts no lead', async () => {
   const job = issue(1);
   const t = setup([job]);
