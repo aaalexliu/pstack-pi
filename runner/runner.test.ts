@@ -511,6 +511,24 @@ test('an Alex comment beats a Todo ticket whose old start brings only the delega
   assert.match(t.leads()[before].input, /Issue ALE-1/);
 });
 
+test('a Decision Alex closed beats a Todo ticket whose old start brings only the delegation', async () => {
+  const review = issue(1);
+  const todo = issue(2);
+  const t = setup([review, todo], { maxLeads: 2 });
+  await t.run('--once');
+  await t.run('--once');
+  const [mine] = t.decisions('id-1');
+  const [theirs] = t.decisions('id-2');
+  review.state = 'In Review';
+  todo.state = 'Todo';
+  t.close(mine);
+  theirs.closedBy = RUNNER;
+  t.close(theirs);
+  const before = t.leads().length;
+  await t.run('--once');
+  assert.match(t.leads()[before].input, /Issue ALE-1/);
+});
+
 test('low free memory starts no lead', async () => {
   const job = issue(1);
   const t = setup([job]);

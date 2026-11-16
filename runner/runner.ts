@@ -484,8 +484,9 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void) {
     const ticket = await linear.ticket(issue.id);
     if (ticket) tickets.push({ w, ticket, live: await live(w) });
   }
-  // Tickets with news from Alex start before tickets that never started; the sort keeps Linear's order otherwise.
-  // Delegation alone is not news from Alex, even on a Todo ticket with an old start.
+  // Tickets with news from Alex start first; delegation alone is not news, even on a Todo ticket with an old start.
+  // All other tickets tie and keep Linear's order (Todo first, then oldest), so an older Todo ticket with an old
+  // start still goes before a newer one that never started: there is no separate never-started tier.
   const hasNews = (t: (typeof tickets)[number]) => {
     if (t.live || lastStart(t.w) === null) return false;
     const move = nextMove(config, t.ticket, lastStart(t.w));
