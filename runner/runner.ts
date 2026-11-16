@@ -240,13 +240,14 @@ const screenLock = (config: Config) => path.join(config.worktreeRoot, 'screen.lo
 /**
  * Writes the running leads to `<worktreeRoot>/running.json`. Leads sequence the screen themselves with the
  * `screen.lock` folder; the runner does not enforce it, but clears a lock whose owner has no tmux session,
- * since that lead cannot release it. The list can lag a start, so the session is the truth, not the list.
+ * since that lead cannot release it, and one with no owner file after a minute, left by a cut-off take. The list can lag a start, so the session is the truth, not the list.
  */
 async function writeRunning(config: Config, running: Work[]) {
   mkdirSync(config.worktreeRoot, { recursive: true });
   put(runningFile(config), `${JSON.stringify(running.map(runningEntry), null, 2)}\n`);
   const owner = readOr(path.join(screenLock(config), 'owner'))?.trim().split(/\s/)[0];
-  if (owner && !(await live({ key: owner }))) rmSync(screenLock(config), { recursive: true, force: true });
+  const orphan = !owner && existsSync(screenLock(config)) && Date.now() - statSync(screenLock(config)).mtimeMs > 60000;
+  if (orphan || (owner && !(await live({ key: owner })))) rmSync(screenLock(config), { recursive: true, force: true });
 }
 
 const rf = (w: Pick<Work, 'dir'>, name: string) => path.join(w.dir, '.runner', name);

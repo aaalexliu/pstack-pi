@@ -549,6 +549,13 @@ test('two screen tickets start together, and running.json lists the running lead
   await t.run('--once');
   assert.deepEqual(list().map((r) => r.key), ['ALE-2', 'ALE-3'], 'a finished lead drops off the list');
   assert.ok(!existsSync(path.join(t.config.worktreeRoot, 'screen.lock')), 'a lock whose owner stopped is cleared');
+  const lock = path.join(t.config.worktreeRoot, 'screen.lock');
+  mkdirSync(lock);
+  await t.run('--once');
+  assert.ok(existsSync(lock), 'a fresh lock with no owner file may be mid-take, so it stays');
+  utimesSync(lock, new Date(Date.now() - 120000), new Date(Date.now() - 120000));
+  await t.run('--once');
+  assert.ok(!existsSync(lock), 'a lock with no owner file for over a minute is cleared');
 });
 
 test('an ack to a reply in a thread goes to the thread root', async () => {
