@@ -32,6 +32,7 @@ type Issue = { id: string; identifier: string; title: string; description: strin
 /**
  * A sub-issue of a ticket. One assigned to `decisionAssignee` is a Decision issue: Alex owes a move on it.
  * `closedBy` names who last moved it to Done or Canceled, from its history, so a lead's own closure is not news.
+ * Linear lists history newest first, so the latest closure sits in the first page unless 50 changes followed it.
  */
 export type Child = { id: string; identifier: string; title: string; url: string; createdAt: string; completedAt: string | null; canceledAt: string | null; closedBy: string | null; assignee: { name: string } | null };
 type History = { nodes: { createdAt: string; actor: { name: string } | null; toState: { type: string } | null }[] };

@@ -10,7 +10,7 @@ type FakeComment = { id: string; body: string; createdAt: string; user: { name: 
 type FakeIssue = {
   id: string; identifier: string; title: string; description: string; url: string; createdAt: string;
   team: string; state: string; delegate: string | null; assignee: string | null; parent: string | null; labels: string[]; comments: FakeComment[];
-  completedAt: string | null; canceledAt: string | null; closedBy?: string;
+  completedAt: string | null; canceledAt: string | null; closedBy?: string; history?: { createdAt: string; actor: { name: string } | null; toState: { type: string } | null }[];
 };
 
 const RUNNER = 'runner test';
@@ -124,7 +124,8 @@ else if (args[0] === 'list-windows') { try { process.stdout.write(fs.readFileSyn
       const i = issues.find((x) => x.id === v.id && !gone.has(x.id));
       return data({ issues: { nodes: i ? [{
         state: { type: TYPES[i.state] }, delegate: i.delegate ? { name: i.delegate } : null, comments: { nodes: i.comments.map((c) => asQueried(c, query)) },
-        children: { nodes: issues.filter((c) => c.parent === i.id).map(({ closedBy, ...c }) => ({ ...c, assignee: c.assignee ? { name: c.assignee } : null, history: { nodes: closedBy ? [{ createdAt: c.completedAt ?? c.canceledAt, actor: { name: closedBy }, toState: { type: TYPES[c.state] } }] : [] } })) },
+        children: { nodes: issues.filter((c) => c.parent === i.id).map(({ closedBy, ...c }) => ({ ...c, assignee: c.assignee ? { name: c.assignee } : null, history: { nodes: [...(c.history ?? []), ...(closedBy ? [{ createdAt: c.completedAt ?? c.canceledAt, actor: { name: closedBy }, toState: { type: TYPES[c.state] } }] : [])]
+          .reverse().slice(0, Number(/history\(first: (\d+)/.exec(query)?.[1])) } })) },
       }] : [] } });
     }
     if (op === 'State') return data({ workflowStates: { nodes: missingStates.has(v.name) ? [] : [{ id: `state-${v.name}` }] } });
@@ -229,6 +230,18 @@ test('closing a Decision issue, Done or Canceled, wakes the same lead session on
     assert.match(leads[1].input, new RegExp(`Alex ${how === 'Done' ? 'closed' : 'canceled'} ${decision.identifier}`));
     assert.equal(t.decisions().length, 2, 'after the woken lead stops, a new ask');
   }
+});
+
+test('a busy Decision issue still wakes the lead when Alex closes it: Linear lists history newest first', async () => {
+  const t = setup([issue(1)]);
+  await t.run('--once');
+  await t.run('--once');
+  const [decision] = t.decisions();
+  decision.history = Array.from({ length: 60 }, (_, i) => ({ createdAt: `2026-01-01T00:00:${String(i).padStart(2, '0')}Z`, actor: { name: ALEX }, toState: null }));
+  t.close(decision);
+  await t.run('--once');
+  assert.equal(t.leads().length, 2);
+  assert.match(t.leads()[1].input, new RegExp(`Alex closed ${decision.identifier}`));
 });
 
 test('a human comment after the last start wakes the lead; the runner\'s own comments do not', async () => {
