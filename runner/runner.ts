@@ -33,7 +33,7 @@ export type Config = {
   worktreeRoot: string;
   routines?: Routine[];
 };
-type Comment = { id: string; body: string; createdAt: string; parentId?: string | null; user: { name: string } | null; botActor?: { name: string } | null; reactions?: { emoji: string; user: { name: string } | null }[] };
+type Comment = { id: string; body: string; url?: string; createdAt: string; parentId?: string | null; user: { name: string } | null; botActor?: { name: string } | null; reactions?: { emoji: string; user: { name: string } | null }[] };
 /** One entry of an issue's history. A `botActor` marks an integration; `attachment` is the link it added. */
 type Change = {
   createdAt: string; actor: { name: string } | null; botActor: { name: string } | null; attachment: { sourceType: string } | null;
@@ -53,7 +53,7 @@ export type Child = { id: string; identifier: string; title: string; url: string
  * Something someone other than the runner did on the ticket or a sub-issue. `comment` is set for a comment, so an ack
  * can react to it or reply in its thread; `reacted` says the runner already put its 👀 on it.
  */
-export type Event = { at: string; what: string; issue?: string; comment?: { id: string; issueId: string; thread: string; reacted: boolean } };
+export type Event = { at: string; what: string; issue?: string; comment?: { id: string; issueId: string; thread: string; reacted: boolean; url?: string } };
 /**
  * What Linear says about a ticket this poll. `state` is the state type: `unstarted` for Todo, `started` for In Progress or In Review.
  * `events` and `mine`, the runner's comments, cover the ticket and its sub-issues back to the lead's last start.
@@ -179,7 +179,7 @@ function linearClient(config: Config, fetchFn: typeof fetch) {
       return body.data;
     }
   }
-  const COMMENT = 'id body createdAt parentId user { name } botActor { name } reactions { emoji user { name } }';
+  const COMMENT = 'id body url createdAt parentId user { name } botActor { name } reactions { emoji user { name } }';
   const CHANGE = 'createdAt actor { name } botActor { name } attachment { sourceType } toState { name } toDelegate { name } fromDelegate { name } toAssignee { name } addedLabelIds removedLabelIds toTitle updatedDescription';
   const page = (conn: string, fields: string, after = '') => `${conn}(first: 25${after}) { nodes { ${fields} } pageInfo { hasNextPage endCursor } }`;
   /**
@@ -209,7 +209,7 @@ function linearClient(config: Config, fetchFn: typeof fetch) {
       ...comments.filter((c) => c.user && !c.botActor && c.user.name !== config.runnerUser)
         .map((c) => ({
           at: c.createdAt, what: `${key}: ${c.user!.name} commented: ${c.body}`, issue: id,
-          comment: { id: c.id, issueId: id, thread: c.parentId ?? c.id, reacted: !!c.reactions?.some((r) => r.emoji === EYES && r.user?.name === config.runnerUser) },
+          comment: { id: c.id, issueId: id, thread: c.parentId ?? c.id, url: c.url, reacted: !!c.reactions?.some((r) => r.emoji === EYES && r.user?.name === config.runnerUser) },
         })),
       ...history.filter((h) => h.actor && h.actor.name !== config.runnerUser && !byIntegration(h))
         .map((h) => ({ at: h.createdAt, what: `${key}: ${h.actor!.name} ${change(h)}`, issue: id })),
@@ -359,7 +359,7 @@ const attemptFile = (config: Config, key: string) => path.join(config.worktreeRo
  * Events before it are seen, so only a new event retries a failed start.
  */
 const lastAttempt = (config: Config, w: Pick<Work, 'dir' | 'key'>) =>
-  [lastStart(w) ?? '', readOr(attemptFile(config, w.key))?.trim() ?? ''].sort().at(-1) || null;
+  [lastStart(w) ?? '', readOr(attemptFile(config, w.key))?.trim() ?? '', readOr(rf(w, 'passed'))?.trim() ?? ''].sort().at(-1) || null;
 const isDecision = (config: Config, c: Child) => c.assignee?.name === config.decisionAssignee;
 const closedAt = (c: Child) => c.completedAt ?? c.canceledAt;
 const decisionTitle = (key: string, why: string) => `Decision for ${key}: ${why}`;
@@ -374,6 +374,28 @@ function change(h: Change) {
   if (h.toTitle) return `retitled it "${h.toTitle}"`;
   if (h.updatedDescription) return 'edited its description';
   return 'changed it';
+}
+
+/**
+ * Types each event into the live lead's pane, as Alex would, when the runner started it there, and records the newest in `.runner/passed`, so it counts
+ * as seen: it is typed once and does not start the lead again after it exits. No Escape: Pi queues a message typed
+ * during a step and hands it over once the step's tools finish. Skipped while a person holds the session.
+ */
+async function pass(ctx: Ctx, w: Work, ticket: Ticket, events: Event[]) {
+  if (!existsSync(rf(w, 'pane')) || existsSync(rf(w, 'held')) || existsSync(rf(w, 'takeover'))) return;
+  const target = readOr(rf(w, 'pane'))!.trim();
+  for (const e of events) {
+    const child = ticket.children.find((c) => c.id === e.issue);
+    const where = !child ? 'on the ticket' : isDecision(ctx.config, child) ? `on Decision ${child.identifier} "${child.title}"` : `on sub-issue ${child.identifier}`;
+    let what = e.what.replace(/^\S+: /, '').replace(/\s+/g, ' ').trim();
+    if (what.length > 1500) what = `${what.slice(0, 1500)}...`;
+    const text = `Linear event on ${w.key} while you run, ${where}: ${what}${e.comment?.url ? ` (${e.comment.url})` : ''}. Read it and act on it; if it answers an open Decision, close that Decision.`;
+    await must(bin('tmux'), ['send-keys', '-t', target, '-l', text], w.dir);
+    await must(bin('tmux'), ['send-keys', '-t', target, 'Enter'], w.dir);
+    put(rf(w, 'passed'), e.at);
+  }
+  await react(ctx, events);
+  await status(ctx, w, `Lead running. Passed to the running lead: ${events.at(-1)!.what.split('\n')[0].slice(0, 120)}`);
 }
 
 /** The newest change or comment Linear shows on the ticket or a sub-issue. A sub-issue's change does not touch the ticket's `updatedAt`, nor does a comment. */
@@ -700,13 +722,13 @@ async function reapClosed(ctx: Ctx, open: Issue[]) {
  * delegated to the runner is not in the list, so a webhook about it does nothing. `audit` marks the backup poll,
  * which logs each event no webhook delivered.
  */
-async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void, pass: { only?: string[]; audit?: boolean } = {}) {
+async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void, opts: { only?: string[]; audit?: boolean } = {}) {
   const { config, linear } = ctx;
   const free = await freeMemory();
   const tickets: { w: Work; ticket: Ticket | null; live: boolean }[] = [];
   const issues = await linear.issues();
-  if (!dryRun && !pass.only) await reapClosed(ctx, issues);
-  const only = pass.only;
+  if (!dryRun && !opts.only) await reapClosed(ctx, issues);
+  const only = opts.only;
   const mine = (i: Issue) => !only || only.includes(i.id) || i.children.nodes.some((c) => only.includes(c.id));
   for (const issue of issues) {
     // Lead slots and the screen count every live lead, so a webhook pass still looks at the tickets it does not act on.
@@ -723,14 +745,16 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void, pass
       continue;
     }
     // A live lead's heartbeat needs no Linear. A ticket nothing touched since the lead saw it, or since the
-    // runner last read it and found no events, has none now.
-    if (await live(w)) { tickets.push({ w, ticket: null, live: true }); ctx.leads.set(w.key, w); continue; }
+    // runner last read it and found no events, has none now. A live lead gets its events typed in.
+    const isLive = await live(w);
+    if (isLive) ctx.leads.set(w.key, w);
     const since = lastAttempt(config, w) ?? '';
     const at = touched(issue);
     const fresh = at > since && ctx.quiet.get(w.key) !== `${since} ${at}`;
     const seen = fresh ? await linear.events(issue, since) : { events: [], mine: [] };
     if (fresh && seen && !seen.events.length) ctx.quiet.set(w.key, `${since} ${at}`);
-    if (seen) tickets.push({ w, live: false, ticket: { state: issue.state.type, description: w.description, createdAt: issue.createdAt, children: issue.children.nodes, ...seen } });
+    if (isLive) tickets.push({ w, live: true, ticket: seen && seen.events.length ? { state: issue.state.type, description: w.description, createdAt: issue.createdAt, children: issue.children.nodes, ...seen } : null });
+    else if (seen) tickets.push({ w, live: false, ticket: { state: issue.state.type, description: w.description, createdAt: issue.createdAt, children: issue.children.nodes, ...seen } });
   }
   // The ticket whose oldest unseen event is oldest goes first. Tickets with none keep Linear's order after them.
   const oldest = (t: (typeof tickets)[number]) => (t.ticket ? newEvents(t.ticket, lastAttempt(config, t.w))[0]?.at : undefined);
@@ -739,12 +763,21 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void, pass
     return x && y ? (x < y ? -1 : x > y ? 1 : 0) : Number(!x) - Number(!y);
   });
   const running = tickets.filter((t) => t.live);
+  /** Marks events as acted on; the backup poll logs each one no webhook delivered. */
+  const note = (w: Work, events: Event[]) => {
+    for (const e of events) {
+      const id = `${w.key} ${e.at} ${e.what}`;
+      if (opts.audit && ctx.webhook && e.at >= ctx.since && !ctx.handled.has(id) && !(e.issue && (ctx.delivered.get(e.issue) ?? '') >= e.at)) console.log(`missed: ${w.key} ${e.at} ${e.what.split('\n')[0].slice(0, 120)}`);
+      ctx.handled.add(id);
+    }
+  };
   for (const { w, ticket, live: isLive } of tickets) {
     try {
       if (isLive) {
-        if (dryRun) console.log(`${w.key}: lead running`);
+        if (dryRun) { console.log(`${w.key}: lead running`); continue; }
+        if (ticket) { note(w, ticket.events); await pass(ctx, w, ticket, ticket.events); }
         // With a webhook, the heartbeat checks live leads on its own timer.
-        else if (!ctx.webhook) await checkStall(ctx, w);
+        if (!ctx.webhook) await checkStall(ctx, w);
         continue;
       }
       if (!ticket) continue;
@@ -752,11 +785,7 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void, pass
       if (dryRun) { console.log(`${w.key}: ${move.kind}`); continue; }
       if (move.kind === 'wait') continue;
       if (move.kind === 'start') {
-        for (const e of move.events) {
-          const id = `${w.key} ${e.at} ${e.what}`;
-          if (pass.audit && ctx.webhook && e.at >= ctx.since && !ctx.handled.has(id) && !(e.issue && (ctx.delivered.get(e.issue) ?? '') >= e.at)) console.log(`missed: ${w.key} ${e.at} ${e.what.split('\n')[0].slice(0, 120)}`);
-          ctx.handled.add(id);
-        }
+        note(w, move.events);
         await react(ctx, move.events);
       }
       if (move.kind === 'decide') { await decide(ctx, w, ticket.children, 'the lead stopped with nothing open to wait for'); continue; }
