@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 
 export const SNAPSHOT_STALLED_AFTER_MS = 60_000;
 export const DEFAULT_STATUS_LINE_LIMIT = 4;
+export const DEFAULT_QUIET_MINUTES = 10;
 export const MAX_STATUS_NAME_LENGTH = 72;
 export const MAX_STATUS_LINE_LENGTH = 120;
 
@@ -20,6 +21,8 @@ export type StatusActivityPhase = "starting" | "active" | "waiting" | "done";
 export interface StatusConfig {
   enabled: boolean;
   lineLimit: number;
+  /** Minutes an autonomous child's session log may go unwritten before the parent gets a ping. */
+  quietMinutes: number;
 }
 
 export type StatusObservation =
@@ -140,12 +143,17 @@ function activityLabel(snapshot: Pick<StatusSnapshot, "activityLabel" | "activeS
 export function parseStatusConfig(rawConfig: unknown, source = "config.json"): StatusConfig {
   const config = requireObject(rawConfig, source, "root");
   const status = requireObject(config.status, source, "status");
-  rejectUnsupportedKeys(status, ["enabled"], source, "status");
+  rejectUnsupportedKeys(status, ["enabled", "quietMinutes"], source, "status");
   const enabled = requireBoolean(status.enabled, source, "status.enabled");
+  const quietMinutes = status.quietMinutes ?? DEFAULT_QUIET_MINUTES;
+  if (typeof quietMinutes !== "number" || !(quietMinutes > 0)) {
+    throw new Error(`Invalid subagent config ${source}: status.quietMinutes must be a positive number`);
+  }
 
   return {
     enabled,
     lineLimit: DEFAULT_STATUS_LINE_LIMIT,
+    quietMinutes,
   };
 }
 
@@ -510,4 +518,55 @@ export function formatStatusAggregate(lines: string[], lineLimit: number): strin
   const bulletLines = visibleLines.map((line) => `• ${line}`);
   if (overflow > 0) bulletLines.push(`• +${overflow} more running.`);
   return `Subagent status:\n${bulletLines.join("\n")}`;
+}
+
+/** pstack-pi: one quiet stretch of a child's session log. `pinged` keeps it to one ping per stretch. */
+export interface QuietState {
+  lastWriteMs: number;
+  pinged: boolean;
+}
+
+/**
+ * pstack-pi: track writes to a child's session log. Returns ping: true once
+ * when the log has gone `quietMs` without a write; a new write starts a new stretch.
+ */
+export function advanceQuiet(
+  state: QuietState,
+  mtimeMs: number | undefined,
+  now: number,
+  quietMs: number,
+): { state: QuietState; ping: boolean } {
+  if (mtimeMs !== undefined && mtimeMs > state.lastWriteMs) {
+    return { state: { lastWriteMs: mtimeMs, pinged: false }, ping: false };
+  }
+  if (state.pinged || now - state.lastWriteMs < quietMs) return { state, ping: false };
+  return { state: { ...state, pinged: true }, ping: true };
+}
+
+/** pstack-pi: say what a Pi session log's last line shows the child doing. */
+export function describeSessionTail(lastLine: string | undefined): string {
+  let entry: any;
+  try {
+    entry = lastLine ? JSON.parse(lastLine) : undefined;
+  } catch {
+    return "its log's last line could not be read";
+  }
+  const message = entry?.type === "message" ? entry.message : undefined;
+  if (!message) return "its log has no messages yet";
+  if (message.role === "assistant") {
+    const calls = Array.isArray(message.content)
+      ? message.content.filter((part: any) => part?.type === "toolCall").map((part: any) => part.name)
+      : [];
+    if (calls.length > 0) return `it is mid tool call: ${calls.join(", ")}`;
+    return "its turn ended, so it may be sitting at its prompt";
+  }
+  return "it is waiting on the model";
+}
+
+export function formatQuietPing(name: string, quietMs: number, tail: string): string {
+  const minutes = Math.round(quietMs / 60_000);
+  return (
+    `Subagent "${name}" has made no progress for ${minutes} min: ${tail}. ` +
+    "Read its pane or session, steer it, interrupt it with subagent_interrupt, or close it and go on."
+  );
 }

@@ -1,6 +1,6 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, readFileSync, mkdirSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, mkdirSync, rmSync, statSync, utimesSync } from "node:fs";
 import { join } from "node:path";
 import { homedir, tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -47,6 +47,7 @@ import {
   observeStatus,
   loadStatusConfig,
   parseStatusConfig,
+  describeSessionTail,
 } from "../pi-extension/subagents/status.ts";
 import {
   createSubagentActivityRecorder,
@@ -595,6 +596,54 @@ describe("session.ts", () => {
   });
 });
 
+describe("quiet child pings", () => {
+  const { checkQuietSubagent } = subagentsModule.__test__;
+  const quietMs = 10 * 60_000;
+
+  function child(dir: string, interactive = false) {
+    const sessionFile = join(dir, "child.jsonl");
+    const toolCall = { type: "message", message: { role: "assistant", content: [{ type: "toolCall", name: "bash" }], stopReason: "toolUse" } };
+    writeFileSync(sessionFile, JSON.stringify(toolCall) + "\n");
+    const start = statSync(sessionFile).mtimeMs;
+    return { running: { name: "worker", interactive, sessionFile, startTime: start } as any, start };
+  }
+
+  it("pings once when the log stops for quietMinutes and names the pending tool", () => {
+    withTempDir((dir) => {
+      const { running, start } = child(dir);
+      assert.equal(checkQuietSubagent(running, start + quietMs - 1, quietMs), null);
+      const ping = checkQuietSubagent(running, start + quietMs, quietMs);
+      assert.match(ping!, /Subagent "worker" has made no progress for 10 min: it is mid tool call: bash\./);
+      assert.match(ping!, /subagent_interrupt/);
+      assert.equal(checkQuietSubagent(running, start + 3 * quietMs, quietMs), null);
+    });
+  });
+
+  it("starts a new stretch after a write", () => {
+    withTempDir((dir) => {
+      const { running, start } = child(dir);
+      assert.ok(checkQuietSubagent(running, start + quietMs, quietMs));
+      const later = new Date(start + quietMs + 1000);
+      utimesSync(running.sessionFile, later, later);
+      assert.equal(checkQuietSubagent(running, start + quietMs + 2000, quietMs), null);
+      assert.ok(checkQuietSubagent(running, start + 2 * quietMs + 1000, quietMs));
+    });
+  });
+
+  it("never pings for an interactive child", () => {
+    withTempDir((dir) => {
+      const { running, start } = child(dir, true);
+      assert.equal(checkQuietSubagent(running, start + 5 * quietMs, quietMs), null);
+    });
+  });
+
+  it("describes the log's last line", () => {
+    const line = (message: unknown) => JSON.stringify({ type: "message", message });
+    assert.equal(describeSessionTail(line({ role: "toolResult" })), "it is waiting on the model");
+    assert.match(describeSessionTail(line({ role: "assistant", content: [{ type: "text" }] })), /turn ended/);
+  });
+});
+
 describe("status.ts", () => {
   it("parses strict config objects", () => {
     const disabled = parseStatusConfig({ status: { enabled: false } });
@@ -602,6 +651,7 @@ describe("status.ts", () => {
     assert.deepEqual(disabled, {
       enabled: false,
       lineLimit: 4,
+      quietMinutes: 10,
     });
   });
 
@@ -612,6 +662,7 @@ describe("status.ts", () => {
     assert.deepEqual(config, {
       enabled: true,
       lineLimit: 4,
+      quietMinutes: 10,
     });
   });
 
@@ -628,6 +679,7 @@ describe("status.ts", () => {
       assert.deepEqual(config, {
         enabled: true,
         lineLimit: 4,
+        quietMinutes: 10,
       });
     });
   });
