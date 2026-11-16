@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import { format } from 'node:util';
-import { commands, heartbeat, main, nextMove, put, renderStatus, startBlock, type Child, type Config, type Ticket } from './runner.ts';
+import { commands, main, nextMove, put, renderStatus, startBlock, type Child, type Config, type Ticket } from './runner.ts';
 
 type FakeComment = { id: string; body: string; createdAt: string; user: { name: string; app?: boolean } | null; botActor?: { name: string } | null; parentId?: string };
 type FakeIssue = {
@@ -27,6 +27,17 @@ const asQueried = ({ botActor, user, ...c }: FakeComment, query: string) => ({
   user: user && (/user \{ name app \}/.test(query) ? user : { name: user.name }),
 });
 const later = () => new Date().toISOString();
+/** Writes a Pi session log for `cwd` whose last message is `last`, last written `minutes` ago. */
+function sessionLog(agent: string, cwd: string, name: string, minutes: number, last: Record<string, unknown>) {
+  const folder = path.join(agent, 'sessions', `--${cwd.replace(/^\//, '').replace(/[/:]/g, '-')}--`);
+  mkdirSync(folder, { recursive: true });
+  const file = path.join(folder, `${name}.jsonl`);
+  writeFileSync(file, `{"type":"session","id":"${name}"}\n${JSON.stringify({ type: 'message', message: last })}\n`);
+  const at = new Date(Date.now() - minutes * 60000);
+  utimesSync(file, at, at);
+}
+const IDLE = { role: 'assistant', stopReason: 'stop', content: [{ type: 'text', text: 'Waiting on the reviewer.' }] };
+const TOOL_CALL = { role: 'assistant', stopReason: 'toolUse', content: [] };
 
 function issue(n: number, fields: Partial<FakeIssue> = {}): FakeIssue {
   return {
@@ -85,7 +96,7 @@ else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? J
     linearTokenCommand: `cat ${file('token')}`, team: 'ALE', runnerUser: RUNNER, decisionAssignee: ALEX,
     repos: { 'pstack-pi': { path: repo, base: 'main' } },
     models: { lead: 'lead-model', review: 'review-model' }, thinking: 'high', pollSeconds: 0.01, maxLeads: options.maxLeads ?? 2,
-    minFreeMemoryPercent: 20, stallMinutes: options.stallMinutes ?? 30, host: 'test-host', worktreeRoot: file('worktrees'),
+    minFreeMemoryPercent: 20, stallMinutes: options.stallMinutes ?? 30, toolQuietMinutes: 60, host: 'test-host', worktreeRoot: file('worktrees'),
     ...(options.ghTokenCommand ? { ghTokenCommand: options.ghTokenCommand } : {}),
   };
   let nextId = 0;
@@ -192,7 +203,7 @@ test('a delegated ticket starts one lead in tmux with the session, the subagent_
   assert.equal(lead.autoExit, undefined, 'the lead decides when to exit');
   assert.ok(lead.extension.endsWith('subagent-done.ts') && existsSync(lead.extension));
   assert.equal(lead.token, 'test-token');
-  assert.deepEqual(lead.piVars, ['PI_AUTH_PROFILE', 'PI_SUBAGENT_ACTIVITY_FILE', 'PI_SUBAGENT_ID'], 'outer PI_*, PSTACK_* and CMUX_* are gone, digits included');
+  assert.deepEqual(lead.piVars, ['PI_AUTH_PROFILE', 'PI_SUBAGENT_ID'], 'outer PI_*, PSTACK_* and CMUX_* are gone, digits included');
   assert.ok(!readFileSync(path.join(dir, '.runner', 'lead.sh'), 'utf8').includes('test-token'), 'the token never lands on disk');
   assert.match(lead.input, /^Issue ALE-1: Job number 1[\s\S]*Linear issue id: id-1\.[\s\S]*- The ticket was delegated to you\./);
   assert.deepEqual(t.tmux().find((a) => a[0] === 'new-session')!.slice(0, 4), ['new-session', '-d', '-s', 'ALE-1']);
@@ -331,47 +342,85 @@ test('the runner never starts or kills a live lead, even after a comment or a cl
   assert.deepEqual(t.tmux().filter((a) => a[0] === 'new-session' || a[0] === 'kill-session').map((a) => a[0]), ['kill-session', 'new-session'], 'only the first start');
 });
 
-test('a quiet live lead gets one nudge, then one investigator and no Decision issue; takeover holds it off and a new heartbeat resets', async () => {
+test('a quiet live lead gets Escape and one nudge, then one investigator and no Decision issue; takeover holds it off and a write after the nudge resets', async () => {
   const job = issue(1, { state: 'In Progress' });
   const t = setup([job], { stallMinutes: 5 });
-  await t.run('--once');
-  t.setLive('ALE-1');
-  await t.run('--once');
-  const runner = path.join(t.dirOf(1), '.runner');
-  const nudges = () => t.tmux().filter((a) => a[0] === 'send-keys' && a.includes('-l'));
-  const investigators = () => t.tmux().filter((a) => a[0] === 'new-session' && a.includes('ALE-1-stall'));
-  assert.equal(nudges().length, 0, 'a lead that just started is left alone');
-  put(path.join(runner, 'started'), new Date(Date.now() - 20 * 60000).toISOString());
-  put(path.join(runner, 'activity.json'), JSON.stringify({ updatedAt: Date.now() - 10 * 60000 }));
-  put(path.join(runner, 'takeover'), '');
-  await t.run('--once');
-  assert.equal(nudges().length, 0, 'a person took it over');
-  rmSync(path.join(runner, 'takeover'));
-  await t.run('--once');
-  await t.run('--once');
-  assert.equal(nudges().length, 1, 'one nudge per quiet stretch');
-  assert.match(nudges()[0].at(-1)!, /No progress from you or your subagents for 10 minutes/);
-  assert.deepEqual(t.tmux().filter((a) => a[0] === 'send-keys').at(-1)!.slice(-1), ['Enter']);
-  assert.match(job.comments.find((c) => c.body.startsWith('**Runner:**'))!.body, /nudged it/);
-  assert.equal(investigators().length, 0, 'the investigator waits another stallMinutes');
-  const stall = path.join(runner, 'stall.json');
-  put(stall, JSON.stringify({ nudgedAt: Date.now() - 5.5 * 60000 }));
-  await t.run('--once');
-  await t.run('--once');
-  assert.equal(investigators().length, 1, 'silence for stallMinutes after the nudge: one investigator');
-  assert.equal(nudges().length, 1);
-  assert.equal(t.decisions().length, 0, 'the investigator, not the runner, decides whether Alex must act');
-  assert.match(readFileSync(path.join(runner, 'stall.sh'), 'utf8'), /pi -p --model lead-model[\s\S]*prompts\/stall\.md/);
-  assert.ok(t.leads().some((l) => /no heartbeat for \d+ minutes, including 5 after a nudge/.test(l.input)), 'the investigator ran with its facts');
-  for (const investigated of [false, true]) {
-    const nudgedAt = Date.now() - 12 * 60000;
-    put(stall, JSON.stringify({ nudgedAt, ...(investigated ? { investigatedAt: nudgedAt + 5 * 60000 } : {}) }));
-    put(path.join(runner, 'activity.json'), JSON.stringify({ updatedAt: nudgedAt + 2 * 60000 }));
-    const [n, i] = [nudges().length, investigators().length];
+  const agent = path.join(t.root, 'agent');
+  process.env.PI_CODING_AGENT_DIR = agent;
+  try {
     await t.run('--once');
-    assert.deepEqual([nudges().length - n, investigators().length - i], [1, 0], `work after the nudge${investigated ? ' and the investigator' : ''} starts a new stretch: a fresh nudge`);
+    t.setLive('ALE-1');
+    const dir = t.dirOf(1);
+    const runner = path.join(dir, '.runner');
+    const keys = () => t.tmux().filter((a) => a[0] === 'send-keys').map((a) => (a.includes('-l') ? 'nudge' : a.at(-1)));
+    const nudges = () => keys().filter((k) => k === 'nudge').length;
+    const investigators = () => t.tmux().filter((a) => a[0] === 'new-session' && a.includes('ALE-1-stall')).length;
+    await t.run('--once');
+    assert.equal(nudges(), 0, 'a lead that just started is left alone');
+    put(path.join(runner, 'started'), new Date(Date.now() - 20 * 60000).toISOString());
+    sessionLog(agent, dir, 'lead', 10, IDLE);
+    sessionLog(agent, dir, 'reviewer', 2, IDLE);
+    await t.run('--once');
+    assert.equal(nudges(), 0, 'a subagent that wrote 2 minutes ago keeps the lead alive');
+    sessionLog(agent, dir, 'reviewer', 6, IDLE);
+    sessionLog(agent, path.join(dir, '.runner'), 'investigator', 0, IDLE);
+    put(path.join(runner, 'takeover'), '');
+    await t.run('--once');
+    assert.equal(nudges(), 0, 'a person took it over');
+    rmSync(path.join(runner, 'takeover'));
+    await t.run('--once');
+    await t.run('--once');
+    assert.deepEqual(keys(), ['Escape', 'nudge', 'Enter'], 'every log idle for 5 minutes: Escape closes any selector, then one nudge; the investigator log does not count');
+    assert.match(t.tmux().find((a) => a.includes('-l'))!.at(-1)!, /No progress from you or your subagents for 6 minutes\. Check each subagent/);
+    assert.match(job.comments.find((c) => c.body.startsWith('**Runner:**'))!.body, /nudged it/);
+    assert.equal(investigators(), 0, 'the investigator waits another stallMinutes');
+    const stall = path.join(runner, 'stall.json');
+    put(stall, JSON.stringify({ nudgedAt: Date.now() - 5.5 * 60000 }));
+    sessionLog(agent, dir, 'lead', 5.4, { role: 'user', content: 'No progress from you or your subagents for 6 minutes. Check each subagent.' });
+    await t.run('--once');
+    await t.run('--once');
+    assert.equal(investigators(), 1, 'nothing but the nudge itself for stallMinutes: one investigator');
+    assert.equal(nudges(), 1);
+    assert.equal(t.decisions().length, 0, 'the investigator, not the runner, decides whether Alex must act');
+    const script = readFileSync(path.join(runner, 'stall.sh'), 'utf8');
+    assert.match(script, /cd .*\.runner \|\| exit 1\n.*pi -p --model lead-model[\s\S]*prompts\/stall\.md/, 'the investigator runs from .runner, so its log lands outside the lead folder');
+    assert.ok(t.leads().some((l) => /no write for \d+ minutes, other than a nudge/.test(l.input)), 'the investigator ran with its facts');
+    for (const investigated of [false, true]) {
+      const nudgedAt = Date.now() - 12 * 60000;
+      put(stall, JSON.stringify({ nudgedAt, ...(investigated ? { investigatedAt: nudgedAt + 5 * 60000 } : {}) }));
+      sessionLog(agent, dir, 'lead', 10, IDLE);
+      const [n, i] = [nudges(), investigators()];
+      await t.run('--once');
+      assert.deepEqual([nudges() - n, investigators() - i], [1, 0], `a write after the nudge${investigated ? ' and the investigator' : ''} starts a new stretch: a fresh nudge`);
+    }
+    assert.equal(t.leads().filter((l) => l.session === t.leads()[0].session).length, 1, 'never a restart');
+  } finally {
+    delete process.env.PI_CODING_AGENT_DIR;
   }
-  assert.equal(t.leads().filter((l) => l.session === t.leads()[0].session).length, 1, 'never a restart');
+});
+
+test('a pending tool call keeps the lead alive for toolQuietMinutes, then gets Escape and a nudge', async () => {
+  const t = setup([issue(1, { state: 'In Progress' })], { stallMinutes: 5 });
+  const agent = path.join(t.root, 'agent');
+  process.env.PI_CODING_AGENT_DIR = agent;
+  try {
+    await t.run('--once');
+    t.setLive('ALE-1');
+    put(path.join(t.dirOf(1), '.runner', 'started'), new Date(Date.now() - 120 * 60000).toISOString());
+    const keys = () => t.tmux().filter((a) => a[0] === 'send-keys').map((a) => (a.includes('-l') ? a.at(-1) : a.at(-1)));
+    sessionLog(agent, t.dirOf(1), 'lead', 59, TOOL_CALL);
+    await t.run('--once');
+    sessionLog(agent, t.dirOf(1), 'lead', 30, { role: 'toolResult', content: [] });
+    await t.run('--once');
+    assert.deepEqual(keys(), [], 'a tool call or a model call in flight under 60 minutes is alive');
+    sessionLog(agent, t.dirOf(1), 'lead', 61, TOOL_CALL);
+    await t.run('--once');
+    assert.equal(keys()[0], 'Escape');
+    assert.match(keys()[1]!, /for 61 minutes, so the runner pressed Escape to stop your tool or wait/);
+    assert.equal(keys()[2], 'Enter');
+  } finally {
+    delete process.env.PI_CODING_AGENT_DIR;
+  }
 });
 
 test('the runner kills only a session it tagged whose ticket Linear confirms is closed, never a taken-over one', async () => {
@@ -676,33 +725,6 @@ test('on a real tmux server, a window the lead opens gets its tokens and none of
     assert.deepEqual(env.filter((l) => /^(PI_SUBAGENT_NAME|PI_X2_TOKEN|PSTACK_9|CMUX_SURFACE_ID)=/.test(l)), []);
   } finally {
     try { execFileSync('tmux', ['-L', socket, 'kill-server'], { stdio: 'ignore' }); } catch { /* already gone */ }
-  }
-});
-
-test('the heartbeat is the newest agent event of the lead or its subagents; a running tool counts, a waiting subagent call and redraws do not', () => {
-  const root = mkdtempSync(path.join(os.tmpdir(), 'job-runner-heartbeat-'));
-  const dir = path.join(root, 'work');
-  const now = Date.now();
-  const w = { id: 'id-1', key: 'ALE-1', title: '', url: '', description: '', repo: 'r', branch: 'b', dir, models: { lead: 'l', review: 'r' } };
-  mkdirSync(path.join(dir, '.runner'), { recursive: true });
-  writeFileSync(path.join(dir, '.runner', 'session-id'), 'lead-session');
-  writeFileSync(path.join(dir, '.runner', 'started'), new Date(now - 60 * 60000).toISOString());
-  const children = path.join(root, 'agent', 'sessions', '--work--', 'artifacts', 'lead-session', 'subagent-activity');
-  mkdirSync(children, { recursive: true });
-  const before = process.env.PI_CODING_AGENT_DIR;
-  process.env.PI_CODING_AGENT_DIR = path.join(root, 'agent');
-  try {
-    assert.equal(heartbeat(w, now), now - 60 * 60000, 'the start is the floor');
-    writeFileSync(path.join(dir, '.runner', 'activity.json'), JSON.stringify({ updatedAt: now - 30 * 60000, toolActive: true, toolName: 'subagent' }));
-    assert.equal(heartbeat(w, now), now - 30 * 60000, 'a waiting subagent call alone is not alive');
-    writeFileSync(path.join(children, 'reviewer.json'), JSON.stringify({ updatedAt: now - 20 * 60000, phase: 'waiting' }));
-    assert.equal(heartbeat(w, now), now - 20 * 60000, 'a child idle at its prompt counts only its last event');
-    writeFileSync(path.join(children, 'worker.json'), JSON.stringify({ updatedAt: now - 9 * 60000, toolActive: true, toolName: 'bash' }));
-    assert.equal(heartbeat(w, now), now, 'a running tool keeps it alive');
-    writeFileSync(path.join(children, 'worker.json'), JSON.stringify({ updatedAt: now - 9 * 60000, providerActive: true }));
-    assert.equal(heartbeat(w, now), now, 'a provider call keeps it alive');
-  } finally {
-    if (before === undefined) delete process.env.PI_CODING_AGENT_DIR; else process.env.PI_CODING_AGENT_DIR = before;
   }
 });
 

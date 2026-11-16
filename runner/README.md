@@ -22,15 +22,15 @@ else                                  -> file a Decision issue: "the lead stoppe
 
 A live lead belongs to the lead: the runner never starts, restarts or kills it. Your comments and Decision answers reach it when you attach and type, or after it exits, since the next start carries them.
 
-The lead's heartbeat is the newest agent event in its `.runner/activity.json` or in the activity file of any subagent it runs (`<sessions>/<cwd>/artifacts/<lead session id>/subagent-activity/`, written by panes and headless children alike). A running tool or provider call keeps it alive, except a `subagent` call with `wait: true`: there the child's own heartbeat decides, so a lead waiting on a child idle at its prompt is quiet. Redraws in tmux do not count; the subagent panel's "waiting" timer redraws forever.
+The lead's heartbeat is the newest write to any Pi session log in its worktree's session folder (`~/.pi/agent/sessions/<encoded worktree path>/`). The lead and every subagent it starts, sub-leads in sibling worktrees included, write their logs there. The runner reads the last message of that newest log: a tool call with no result yet, or a user message or tool result with no reply yet, is busy; anything else is idle. tmux redraws do not count; the subagent panel's "waiting" timer redraws forever.
 
 ```text
-last heartbeat      +stallMinutes             +stallMinutes
-      |------ quiet ------|------ still quiet ------|
-                       nudge                   investigator
+last write      +stallMinutes (idle) or +toolQuietMinutes (busy)      +same limit
+    |------------------------ quiet ------------------------|---- still quiet ----|
+                                              Escape + nudge               investigator
 ```
 
-After `stallMinutes` with no heartbeat, the runner types one nudge into the lead's pane: check each subagent, take any finished result, close the ones that are done, then continue or end. If no heartbeat lands for another `stallMinutes` after the nudge, it starts one investigator: `pi -p` with [prompts/stall.md](prompts/stall.md) in the tmux session `KEY-stall`, in the worktree, on the lead model. It reads the lead's session, its subagents' panes and sessions, the activity files, the ticket and the PRs, changes nothing, and posts its findings as one comment, filing a Decision issue only if you must act. It takes no lead slot. Any heartbeat after the nudge ends the stretch. Each step happens once per quiet stretch, tracked in `.runner/stall.json`, and none happens while `.runner/takeover` or `.runner/held` exists.
+When the heartbeat is quiet for `stallMinutes` while idle, or `toolQuietMinutes` while busy, the runner presses Escape in the lead's pane (closing any selector, or stopping a hung tool or wait) and types one nudge: check each subagent, take any finished result, close the ones that are done, then continue or end. If nothing but the nudge itself lands for the same limit again, it starts one investigator: `pi -p` with [prompts/stall.md](prompts/stall.md) in the tmux session `KEY-stall`, on the lead model, run from `.runner` so its own log never counts as the lead's heartbeat. It reads the lead's session, its subagents' panes and sessions, the ticket and the PRs, changes nothing, and posts its findings as one comment, filing a Decision issue only if you must act. It takes no lead slot. Any other write after the nudge ends the stretch. Each step happens once per quiet stretch, tracked in `.runner/stall.json`, and none happens while `.runner/takeover` or `.runner/held` exists.
 
 The runner kills a ticket's tmux session only when it started that session (it tags each session it creates with the tmux option `@job-runner`), nobody holds it through `.runner/takeover` or `.runner/held`, and Linear, asked about that one ticket, says it is Done, Canceled, or no longer delegated to `runnerUser`. On any Linear error it leaves the session alone. Sessions started by a runner older than this tag are never reaped; stop them by hand with `tmux kill-session -t '=KEY'`.
 
@@ -44,7 +44,7 @@ Closing a Decision issue, Done or Canceled, wakes the lead in the same Pi sessio
 
 ### The lead
 
-The runner starts `pi --session-id <uuid> @.runner/input.md` with [prompts/lead.md](prompts/lead.md) in a detached tmux session named for the ticket, in the ticket's worktree. `input.md` holds the ticket, the Linear ids the lead needs, the review model, the prompts folder, and what you did since its last start. Pi loads pstack-pi's `subagent-done.ts` without `PI_SUBAGENT_AUTO_EXIT`, so ending a turn does not end the session: the lead can wait for its own subagents, such as a reviewer started with the `subagent` tool. It exits when it calls `subagent_done`, once its ending is in place: the last PR merged and the ticket Done, the report posted and the ticket Done, or a Decision issue filed with nothing left running. The extension also writes activity to `.runner/activity.json` for the stall check.
+The runner starts `pi --session-id <uuid> @.runner/input.md` with [prompts/lead.md](prompts/lead.md) in a detached tmux session named for the ticket, in the ticket's worktree. `input.md` holds the ticket, the Linear ids the lead needs, the review model, the prompts folder, and what you did since its last start. Pi loads pstack-pi's `subagent-done.ts` without `PI_SUBAGENT_AUTO_EXIT`, so ending a turn does not end the session: the lead can wait for its own subagents, such as a reviewer started with the `subagent` tool. It exits when it calls `subagent_done`, once its ending is in place: the last PR merged and the ticket Done, the report posted and the ticket Done, or a Decision issue filed with nothing left running.
 
 The lead splits the work into units it can verify alone. It builds a unit itself or hands it to a sub-lead: it makes a worktree and branch, then calls `subagent` with the bundled [`sub-lead`](../additions/agents/sub-lead.md) agent, that path as `cwd`, and its own model. The sub-lead follows this prompt's Build, PRs and merge gate sections for its unit and opens its own PR. It exits when its turn ends, so it blocks on every wait, and the lead checks the unit's PR merged, resuming the sub-lead with `subagent_resume` if not. That is two levels at most, enforced by Pi, not only the prompt. A `sub-lead` child gets `PI_DENY_TOOLS` with every spawning tool; a `pi -p` it runs from bash inherits it. [tests/pi/depth.test.mjs](../tests/pi/depth.test.mjs) proves this in a real Pi. A child that clears those variables on purpose could still start a full Pi; only the prompt stops that. The lead stays in the ticket's repo, except that an agent-tooling ticket may touch pstack-pi, agent-memory, agent-orchestration and dotfiles.
 
@@ -143,7 +143,8 @@ The runner reads `~/.config/job-runner/config.json`, or the file named by `JOB_R
 | `pollSeconds` | Seconds between polls. Default 30 |
 | `maxLeads` | Leads that run at once. Default 2 |
 | `minFreeMemoryPercent` | No lead starts while less memory than this is free. Default 20 |
-| `stallMinutes` | Minutes without a heartbeat from the lead or its subagents before the runner nudges the lead, and again before it starts an investigator. Default 5 |
+| `stallMinutes` | Minutes with no session log write, while the lead is idle, before the runner nudges it, and again before it starts an investigator. Default 5 |
+| `toolQuietMinutes` | The same limit while a tool or model call is in flight; the nudge first presses Escape to stop it. Default 60 |
 | `host` | The host name the status comment uses for `ssh`. Default: this Mac's name |
 | `worktreeRoot` | The directory for ticket worktrees |
 | `routines` | Optional scheduled tickets: `{name, schedule, repo, title, prompt}`. See below |
