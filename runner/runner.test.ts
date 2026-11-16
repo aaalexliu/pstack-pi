@@ -445,6 +445,32 @@ test('an ack to a reply in a thread goes to the thread root', async () => {
   assert.deepEqual(job.comments.filter((c) => c.body.startsWith('Seen.')).map((c) => c.parentId), ['root']);
 });
 
+test('each later Alex move gets its own ack, his own "Seen." does not suppress one, and acks are not news', async () => {
+  const screen = 'Make it work.\nNeeds: screen';
+  const job = issue(1, { description: screen });
+  const other = issue(2, { description: screen, delegate: null });
+  const t = setup([job, other]);
+  const acks = () => job.comments.filter((c) => c.user?.name === RUNNER && c.body.startsWith('Seen.')).length;
+  const log = console.log;
+  console.log = () => {};
+  try {
+    await t.run('--once');
+    other.delegate = RUNNER;
+    t.setLive('ALE-2');
+    job.comments.push({ id: 'h1', body: 'Use the blue icon.', createdAt: later(), user: { name: 'Alex' } });
+    await t.run('--once');
+    assert.equal(acks(), 1);
+    job.comments.push({ id: 'h2', body: 'Seen. Also make it round.', createdAt: later(), user: { name: 'Alex' } });
+    await t.run('--once');
+    await t.run('--once');
+    assert.equal(acks(), 2, 'a later comment gets a fresh ack, even when it says "Seen."');
+    t.setLive();
+    await t.run('--once');
+  } finally { console.log = log; }
+  const input = t.leads().find((l) => l.input.includes('Issue ALE-1') && l.input.includes('blue'))!.input;
+  assert.doesNotMatch(input, /Waiting to start/, 'the runner\'s acks are not news');
+});
+
 test('a ticket with news from Alex starts before tickets that never started', async () => {
   const job = issue(1);
   const t = setup([job, issue(2), issue(3)], { maxLeads: 1 });
