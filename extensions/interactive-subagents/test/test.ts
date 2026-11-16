@@ -637,6 +637,17 @@ describe("quiet child pings", () => {
     });
   });
 
+  it("never pings for a Claude Code child, which has no Pi session log", () => {
+    withTempDir((dir) => {
+      const start = Date.now();
+      const missing = join(dir, "missing.jsonl");
+      const pi = { name: "pi", interactive: false, sessionFile: missing, startTime: start } as any;
+      const claude = { ...pi, name: "claude-code", cli: "claude" };
+      assert.ok(checkQuietSubagent(pi, start + quietMs, quietMs));
+      assert.equal(checkQuietSubagent(claude, start + quietMs, quietMs), null);
+    });
+  });
+
   it("describes the log's last line", () => {
     const line = (message: unknown) => JSON.stringify({ type: "message", message });
     assert.equal(describeSessionTail(line({ role: "toolResult" })), "it is waiting on the model");

@@ -1085,10 +1085,11 @@ function handleSubagentInterrupt(
 
 /**
  * pstack-pi: an autonomous child whose session log goes `quietMs` without a
- * write returns one ping line per quiet stretch. Interactive children never ping.
+ * write returns one ping line per quiet stretch. Interactive children never ping,
+ * and neither do Claude Code children, which write no Pi session log while they run.
  */
 function checkQuietSubagent(running: RunningSubagent, now: number, quietMs: number): string | null {
-  if (running.interactive) return null;
+  if (running.interactive || running.cli === "claude") return null;
   let mtimeMs: number | undefined;
   try {
     mtimeMs = statSync(running.sessionFile).mtimeMs;
