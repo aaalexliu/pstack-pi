@@ -127,7 +127,7 @@ const SubagentParams = Type.Object({
   interactive: Type.Optional(
     Type.Boolean({
       description:
-        "Mark the subagent as interactive (long-running, user drives the conversation in its own pane). When true, the main session is not woken by status transitions (stalled/recovered) for this subagent. If omitted, falls back to the agent's `interactive` frontmatter, otherwise the inverse of `auto-exit` (agents that auto-exit are autonomous and get stall pings; agents that don't are interactive and stay quiet).",
+        "Mark the subagent as interactive (long-running, user drives the conversation in its own pane). When true, the child also never auto-exits, and the main session is not woken by status transitions (stalled/recovered) for this subagent. If omitted, falls back to the agent's `interactive` frontmatter, otherwise the inverse of `auto-exit` (agents that auto-exit are autonomous and get stall pings; agents that don't are interactive and stay quiet).",
     }),
   ),
   wait: Type.Optional(
@@ -1245,7 +1245,9 @@ async function launchSubagent(
   const effectiveTools = params.tools ?? agentDefs?.tools;
   const effectiveSkills = params.skills ?? agentDefs?.skills;
   const effectiveInteractive = resolveEffectiveInteractive(params, agentDefs);
-  const autoExit = options?.autoExit ?? agentDefs?.autoExit;
+  // pstack-pi: an interactive spawn, such as a person's `/subagent`, stays open
+  // whatever its agent file says.
+  const autoExit = options?.autoExit ?? (params.interactive === true ? false : agentDefs?.autoExit);
 
   const sessionFile = ctx.sessionManager.getSessionFile();
   if (!sessionFile) throw new Error("No session file");
@@ -2493,7 +2495,7 @@ export default function subagentsExtension(pi: ExtensionAPI) {
 
       const taskText = task || `You are the ${agentName} agent. Wait for instructions.`;
       const displayName = agentName[0].toUpperCase() + agentName.slice(1);
-      const toolCall = `Use subagent with agent: "${agentName}", name: "${displayName}", task: ${JSON.stringify(taskText)}`;
+      const toolCall = `Use subagent with agent: "${agentName}", name: "${displayName}", task: ${JSON.stringify(taskText)}, interactive: true`;
       pi.sendUserMessage(toolCall);
     },
   });

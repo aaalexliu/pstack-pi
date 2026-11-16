@@ -2201,6 +2201,15 @@ describe("concurrency cap", () => {
         const child = JSON.parse(result.summary.slice("done ".length));
         assert.equal(child.autoExit, "1", "the child shuts down when its turn ends");
         assert.ok(child.args[child.args.indexOf("--tools") + 1].split(",").includes("subagent_done"));
+
+        // A person's `/subagent pr-reviewer` asks for an interactive spawn, which stays open.
+        const { api, registeredCommands, sentUserMessages } = createMockExtensionApi();
+        (subagentsModule as any).default(api);
+        await registeredCommands.find((command: any) => command.name === "subagent").handler("pr-reviewer", { ui: { notify() {} } });
+        assert.match(sentUserMessages[0], /interactive: true/);
+        const byHand = await testApi.launchSubagent({ name: "Rev", task: "Wait for instructions.", agent: "pr-reviewer", interactive: true }, ctx, { thinking: undefined });
+        const handChild = JSON.parse((await testApi.watchSubagent(byHand, new AbortController().signal)).summary.slice("done ".length));
+        assert.equal(handChild.autoExit, undefined, "a child a person starts never auto-exits");
       } finally {
         process.argv[1] = savedScript;
         testApi.spawnSlots.clear();
