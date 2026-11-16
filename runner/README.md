@@ -15,7 +15,7 @@ Each poll, for each open issue delegated to `runnerUser` (`Todo`, or any started
 
 ```text
 lead live in tmux                     -> leave it; file a Decision issue if it went quiet for stallMinutes
-open Decision issue                   -> wait
+open Decision issue, no news          -> wait (a comment or another closed Decision is news: start)
 you acted after the lead's last start -> start the lead (if a slot is free) and save the start time
 else                                  -> file a Decision issue: "the lead stopped with nothing open to wait for"
 ```
@@ -30,7 +30,7 @@ A ticket marked Done or Canceled, or with its delegate cleared, is no longer the
 
 A Decision issue is a sub-issue of the ticket assigned to `decisionAssignee`. The runner files its own with `parentId` in the one `issueCreate` call, so no crash can leave it unfindable, and finds them as open children. The lead files them the same way. A sub-issue assigned to anyone else does not block the ticket.
 
-Closing a Decision issue, Done or Canceled, wakes the lead in the same Pi session with your comments. To stop the work instead, mark the ticket Done or Canceled, or clear its delegate.
+Closing a Decision issue, Done or Canceled, wakes the lead in the same Pi session with your comments. So does a comment on the ticket while a Decision is still open: the lead judges whether it answers the Decision and closes the Decision if so. To stop the work instead, mark the ticket Done or Canceled, or clear its delegate.
 
 ### The lead
 
@@ -69,11 +69,11 @@ A routine can file this audit as a ticket on a schedule; see `routines` below.
 
 ## The model
 
-[model/Ticket.tla](model/Ticket.tla) is a TLC model of one ticket under the runner. `nextMove()` in `runner.ts` is its `StartsLead` and `FilesDecision` guards: wait on an open Decision issue, start on news, else file one.
+[model/Ticket.tla](model/Ticket.tla) is a TLC model of one ticket under the runner. `nextMove()` in `runner.ts` is its `StartsLead` and `FilesDecision` guards: start on news, else wait on an open Decision issue, else file one. Delegation alone does not override an open Decision.
 
 | Config | Result |
 | --- | --- |
-| [model/Ticket.cfg](model/Ticket.cfg) | `NoSpin`, `OneDecisionPerAsk` and no deadlock hold. 5 states. |
+| [model/Ticket.cfg](model/Ticket.cfg) | `NoSpin`, `OneDecisionPerAsk` and no deadlock hold. 12 states. |
 | [model/TicketSpin.cfg](model/TicketSpin.cfg) | Without the news check, `NoSpin` breaks in 3 steps: the runner restarts a lead with nothing new. |
 | [model/TicketTwoStep.cfg](model/TicketTwoStep.cfg) | Filing then linking, instead of one write with a parent, breaks `OneDecisionPerAsk` in 4 steps. |
 
@@ -86,7 +86,7 @@ statechart runner/model/Ticket.tla --config runner/model/Ticket.cfg --view runne
 The model leaves out:
 
 - the stall check, lead slots, memory and the screen limit;
-- comments as news (it has one `news` flag for any act of yours);
+- delegation versus comments as news (it has one `news` flag for any act of yours, so it lets delegation start a lead past an open Decision, which the runner does not);
 - PRs, review, CI and merge, which the runner no longer touches; the audit prompt covers them;
 - a ticket you close or take back while the lead runs;
 - the launch failing, which files a Decision issue like a stopped lead.

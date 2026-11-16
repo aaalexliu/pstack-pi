@@ -29,8 +29,13 @@ type Comment = { id: string; body: string; createdAt: string; parentId?: string 
 /** Only a person's comment counts as Alex acting: not the runner, its leads, or any other app or bot. */
 const human = (c: Comment) => !!c.user && !c.user.app && !c.botActor;
 type Issue = { id: string; identifier: string; title: string; description: string | null; url: string; createdAt: string; state: { type: string }; labels: { nodes: { name: string }[] } };
-/** A sub-issue of a ticket. One assigned to `decisionAssignee` is a Decision issue: Alex owes a move on it. */
-export type Child = { id: string; identifier: string; title: string; url: string; createdAt: string; completedAt: string | null; canceledAt: string | null; assignee: { name: string } | null };
+/**
+ * A sub-issue of a ticket. One assigned to `decisionAssignee` is a Decision issue: Alex owes a move on it.
+ * `closedBy` names who last moved it to Done or Canceled, from its history, so a lead's own closure is not news.
+ * Linear lists history newest first, so the latest closure sits in the first page unless 50 changes followed it.
+ */
+export type Child = { id: string; identifier: string; title: string; url: string; createdAt: string; completedAt: string | null; canceledAt: string | null; closedBy: string | null; assignee: { name: string } | null };
+type History = { nodes: { createdAt: string; actor: { name: string } | null; toState: { type: string } | null }[] };
 /** What Linear says about a ticket this poll. `state` is the state type: `unstarted` for Todo, `started` for In Progress or In Review. */
 export type Ticket = { state: string; delegate: string | null; comments: Comment[]; children: Child[] };
 /** A ticket as the runner sees it this poll. */
@@ -107,7 +112,7 @@ function linearClient(config: Config, fetchFn: typeof fetch) {
     if (!res.ok || body.errors || !body.data) throw new Error(`Linear ${res.status}: ${JSON.stringify(body.errors ?? body)}`);
     return body.data;
   }
-  const CHILD = 'id identifier title url createdAt completedAt canceledAt assignee { name }';
+  const CHILD = 'id identifier title url createdAt completedAt canceledAt assignee { name } history(first: 50) { nodes { createdAt actor { name } toState { type } } }';
   return {
     /**
      * Open tickets delegated to the runner: Todo (unstarted) and any started state, such as In Progress or the
@@ -137,7 +142,7 @@ function linearClient(config: Config, fetchFn: typeof fetch) {
     },
     /** The ticket's state, comments and sub-issues in one read, or null when no issue has that id. */
     async ticket(id: string): Promise<Ticket | null> {
-      type Wire = { state: { type: string }; delegate: { name: string } | null; comments: { nodes: Comment[] }; children: { nodes: Child[] } };
+      type Wire = { state: { type: string }; delegate: { name: string } | null; comments: { nodes: Comment[] }; children: { nodes: (Omit<Child, 'closedBy'> & { history: History })[] } };
       const found = (await gql<{ issues: { nodes: Wire[] } }>(
         `query IssueById($id: ID!) { issues(first: 1, filter: { id: { eq: $id } }) { nodes { state { type } delegate { name } comments(first: 100) { nodes { id body createdAt parentId user { name app } botActor { name } } } children(first: 50) { nodes { ${CHILD} } } } } }`,
         { id },
@@ -145,7 +150,12 @@ function linearClient(config: Config, fetchFn: typeof fetch) {
       if (!found) return null;
       return {
         state: found.state.type, delegate: found.delegate?.name ?? null,
-        comments: found.comments.nodes.sort((a, b) => a.createdAt.localeCompare(b.createdAt)), children: found.children.nodes,
+        comments: found.comments.nodes.sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+        children: found.children.nodes.map(({ history, ...c }) => ({
+          ...c,
+          closedBy: history.nodes.filter((h) => ['completed', 'canceled'].includes(h.toState?.type ?? ''))
+            .sort((a, b) => a.createdAt.localeCompare(b.createdAt)).at(-1)?.actor?.name ?? null,
+        })),
       };
     },
     async setState(id: string, state: string) {
@@ -226,22 +236,26 @@ const sessionId = (w: Work) => readOr(rf(w, 'session-id'))?.trim() ?? '';
 export const lastStart = (w: Pick<Work, 'dir'>) => readOr(rf(w, 'started'))?.trim() || null;
 const isDecision = (config: Config, c: Child) => c.assignee?.name === config.decisionAssignee;
 const closedAt = (c: Child) => c.completedAt ?? c.canceledAt;
+/** When Alex closed this Decision issue, or null if it is open or the runner's token (the runner or a lead) closed it. */
+const answeredAt = (config: Config, c: Child) => isDecision(config, c) && c.closedBy !== null && c.closedBy !== config.runnerUser ? closedAt(c) : null;
 
 /**
  * The runner's move for a ticket whose lead is not running, from Linear and the last start time alone.
  * News is anything Alex did after that start: delegated the ticket (it sits in Todo), closed a Decision issue, or commented.
+ * An open Decision issue makes the runner wait unless Alex commented or closed another Decision since the start:
+ * he may answer on the ticket instead, and the lead judges whether that answers the open one.
  */
 export function nextMove(config: Config, ticket: Ticket, started: string | null): Move {
-  const open = ticket.children.find((c) => isDecision(config, c) && !closedAt(c));
-  if (open) return { kind: 'wait', on: open };
   const after = (at: string) => started === null || at > started;
-  const news = [
-    ...(started === null || ticket.state === 'unstarted' ? ['The ticket was delegated to you.'] : []),
-    ...ticket.children.filter((c) => isDecision(config, c) && after(closedAt(c)!))
+  const answers = [
+    ...ticket.children.filter((c) => answeredAt(config, c) && after(answeredAt(config, c)!))
       .map((c) => `Alex ${c.completedAt ? 'closed' : 'canceled'} ${c.identifier} (${c.title}): ${c.url}`),
     ...ticket.comments.filter((c) => human(c) && c.user?.name !== config.runnerUser && after(c.createdAt))
       .map((c) => `${c.user?.name ?? 'Someone'} commented: ${c.body}`),
   ];
+  const open = ticket.children.find((c) => isDecision(config, c) && !closedAt(c));
+  if (open && !answers.length) return { kind: 'wait', on: open };
+  const news = [...(!open && (started === null || ticket.state === 'unstarted') ? ['The ticket was delegated to you.'] : []), ...answers];
   return news.length ? { kind: 'start', news } : { kind: 'decide' };
 }
 
@@ -252,7 +266,7 @@ export function nextMove(config: Config, ticket: Ticket, started: string | null)
 async function ack(ctx: Ctx, w: Work, ticket: Ticket, started: string, reason: string) {
   const runner = (c: Comment) => c.user?.name === ctx.config.runnerUser;
   const comment = ticket.comments.filter((c) => human(c) && !runner(c) && c.createdAt > started).at(-1);
-  const closed = ticket.children.filter((c) => isDecision(ctx.config, c) && closedAt(c)! > started).map(closedAt).sort().at(-1);
+  const closed = ticket.children.map((c) => answeredAt(ctx.config, c)).filter((at) => at !== null && at > started).sort().at(-1);
   const latest = [comment?.createdAt, closed].filter((at) => at !== undefined).sort().at(-1);
   if (!latest || ticket.comments.some((c) => runner(c) && c.body.startsWith('Seen.') && c.createdAt > latest)) return;
   await ctx.linear.comment(w.id, `Seen. Waiting to start: ${reason}.`, latest === comment?.createdAt ? comment.parentId ?? comment.id : undefined);

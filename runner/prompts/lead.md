@@ -53,7 +53,7 @@ The runner does nothing for you but start you. You own the PRs, the review, the 
 
 ## Ask Alex
 
-File a Decision issue as a sub-issue of the ticket, assigned to Alex, then call `subagent_done` once every sub-lead has returned. One question, your recommendation first, at most 3 options on one axis, each finishing "Pick this if ...". When he closes it, the runner starts you again in this session.
+File a Decision issue as a sub-issue of the ticket, assigned to Alex, then call `subagent_done` once every sub-lead has returned. One question, your recommendation first, at most 3 options on one axis, each finishing "Pick this if ...". When he closes it, the runner starts you again in this session. He may answer on the ticket instead: if his comment answers an open Decision issue, close that issue yourself.
 
 ## Linear
 
