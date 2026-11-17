@@ -1,0 +1,91 @@
+#!/usr/bin/env node
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { configFile, linearClient, loadConfig, type Config, type Work } from './runner.ts';
+
+const USAGE = `usage: ticket show
+       ticket comment <file>
+       ticket done [SUB-ISSUE KEY]
+       ticket decision "<title>" <file>
+A <file> of - reads standard input.`;
+
+class Usage extends Error {}
+
+type Shown = {
+  identifier: string; title: string; url: string; description: string | null; state: { name: string };
+  comments: { nodes: { createdAt: string; body: string; user: { name: string } | null; botActor: { name: string } | null }[]; pageInfo: { hasNextPage: boolean } };
+  children: { nodes: { id: string; identifier: string; title: string; state: { name: string }; assignee: { name: string } | null }[] };
+};
+
+/** The ticket the runner started this lead for: `.runner/work.json` in `cwd` or the nearest folder above it. */
+export function findWork(cwd: string): Work {
+  for (let dir = path.resolve(cwd); ; dir = path.dirname(dir)) {
+    const file = path.join(dir, '.runner', 'work.json');
+    if (existsSync(file)) return JSON.parse(readFileSync(file, 'utf8'));
+    if (dir === path.dirname(dir)) throw new Error(`no .runner/work.json in ${cwd} or above it; run ticket in the worktree the runner started you in`);
+  }
+}
+
+/** A Linear time in this Mac's time zone, with its name: `Nov 17, 6:18 PM EST`. */
+const local = (at: string) => new Date(at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
+
+/**
+ * The lead's Linear commands for its own ticket. They go through the runner's Linear client, so a lead files a
+ * Decision issue exactly as the runner does. Returns what to print.
+ */
+export async function ticket(argv: string[], o: { cwd: string; config?: Config; fetchFn?: typeof fetch; stdin?: () => string }): Promise<string> {
+  const [command, ...args] = argv;
+  const arity: Record<string, number[]> = { show: [0], comment: [1], done: [0, 1], decision: [2] };
+  if (!command || !arity[command]?.includes(args.length)) throw new Usage(USAGE);
+  const body = (file: string) => {
+    const text = file === '-' ? (o.stdin ?? (() => readFileSync(0, 'utf8')))() : readFileSync(file, 'utf8');
+    if (!text.trim()) throw new Error(`${file === '-' ? 'standard input' : file} is empty`);
+    return text;
+  };
+  const work = findWork(o.cwd);
+  const config = o.config ?? loadConfig(configFile());
+  const linear = linearClient(config, o.fetchFn ?? fetch);
+  const read = async () => (await linear.gql<{ issue: Shown }>(
+    'query Ticket($id: String!) { issue(id: $id) { identifier title url description state { name } comments(first: 50, orderBy: createdAt) { nodes { createdAt body user { name } botActor { name } } pageInfo { hasNextPage } } children(first: 100) { nodes { id identifier title state { name } assignee { name } } } } }',
+    { id: work.id },
+  )).issue;
+  if (command === 'show') {
+    const i = await read();
+    const comments = [...i.comments.nodes].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    return [
+      `${i.identifier}: ${i.title} (${i.state.name})`, i.url, '', i.description ?? '', '',
+      'Sub-issues:', ...(i.children.nodes.length ? i.children.nodes.map((c) => `- ${c.identifier} (${c.state.name}${c.assignee ? `, ${c.assignee.name}` : ''}): ${c.title}`) : ['- none']), '',
+      `Comments, oldest first${i.comments.pageInfo.hasNextPage ? ` (the newest ${comments.length}; older ones not shown)` : ''}:`,
+      ...(comments.length ? comments.map((c) => `\n${c.user?.name ?? c.botActor?.name ?? 'someone'}, ${local(c.createdAt)}:\n${c.body}`) : ['- none']),
+    ].join('\n');
+  }
+  if (command === 'comment') {
+    await linear.comment(work.id, body(args[0]));
+    return `Commented on ${work.key}.`;
+  }
+  if (command === 'done') {
+    const key = args[0] ?? work.key;
+    let id = work.id;
+    if (key !== work.key) {
+      const child = (await read()).children.nodes.find((c) => c.identifier === key);
+      if (!child) throw new Error(`${key} is not ${work.key} or one of its sub-issues`);
+      id = child.id;
+    }
+    await linear.setState(id, 'Done');
+    return `Moved ${key} to Done.`;
+  }
+  const title = args[0].trim();
+  if (!title) throw new Usage(USAGE);
+  const issue = await linear.fileDecision(work.id, title, body(args[1]));
+  return `Filed ${issue.identifier}, assigned to ${config.decisionAssignee}: ${issue.url}`;
+}
+
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  try {
+    console.log(await ticket(process.argv.slice(2), { cwd: process.cwd() }));
+  } catch (error) {
+    console.error(error instanceof Usage ? error.message : `ticket: ${error instanceof Error ? error.message : String(error)}`);
+    process.exitCode = error instanceof Usage ? 64 : 1;
+  }
+}

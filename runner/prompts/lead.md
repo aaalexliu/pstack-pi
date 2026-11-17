@@ -34,6 +34,7 @@ The runner does nothing for you but start you. You own the PRs, the review, the 
 - Each PR body names the ticket: `Fixes KEY` on the last PR, `Part of KEY` on the others.
 - Branch each PR from the latest base. Push with `git push --force-with-lease`.
 - Give any command that could run long an explicit timeout. Run long builds with output, or in the background with a log you check.
+- Use `gh` for GitHub; it is logged in already, or `GH_TOKEN` picks the account. Never run `gh auth switch`, `gh auth login` or `gh auth setup-git`: they change the login for every session on this Mac.
 
 ## The merge gate, for every PR
 
@@ -63,17 +64,5 @@ File a Decision issue as a sub-issue of the ticket, assigned to Alex, then call 
 
 ## Linear
 
-`$LINEAR_TOKEN` holds the runner's Linear token; what you post shows as the runner. Write every time in this Mac's time zone with its name, as `date "+%-I:%M %p %Z"` prints it (6:18 PM EST), never UTC or `Z`; convert the UTC times Linear and logs give you.
-
-Call the GraphQL API with curl:
-
-```sh
-linear() { curl -sf https://api.linear.app/graphql -H "Authorization: Bearer $LINEAR_TOKEN" -H 'Content-Type: application/json' -d "$1"; }
-linear '{"query":"query($id:String!){issue(id:$id){identifier state{name} comments{nodes{body user{name}}} children{nodes{identifier title state{name}}}}}","variables":{"id":"<issue id>"}}'
-```
-
-- Comment: `commentCreate(input: {issueId, body})`.
-- Move the ticket: look up the state id with `workflowStates(filter: {team: {key: {eq: "<team>"}}, name: {eq: "Done"}})`, then `issueUpdate(id, input: {stateId})`.
-- Decision issue: `issueCreate(input: {teamId, parentId: "<issue id>", assigneeId, title, description})`. Get `teamId` from `issue(id) { team { id } }` and `assigneeId` from `users(filter: {name: {eq: "<name>"}})`.
-
-Use `gh` for GitHub; it is logged in already, or `GH_TOKEN` picks the account. Never run `gh auth switch`, `gh auth login` or `gh auth setup-git`: they change the login for every session on this Mac.
+Reach your ticket with `<prompts>/../ticket.ts`, run in your worktree: `show` prints it with its comments and sub-issues, `comment <file>` posts a comment, `done [KEY]` moves it or one of its sub-issues to Done, and `decision "<title>" <file>` files a Decision issue. What you post shows as the runner.
+Write every time in this Mac's time zone with its name, as `date "+%-I:%M %p %Z"` prints it (6:18 PM EST), never UTC or `Z`; convert the UTC times logs give you.

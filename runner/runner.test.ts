@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import { format } from 'node:util';
 import { createHmac } from 'node:crypto';
 import { auditDelay, commands, main, nextMove, put, renderStatus, serve, signed, startBlock, type Child, type Config, type Ticket } from './runner.ts';
+import { ticket as ticketCommand } from './ticket.ts';
 
 type FakeComment = { id: string; body: string; url?: string; createdAt: string; user: { name: string } | null; botActor?: { name: string } | null; parentId?: string; reactions?: { emoji: string; user: { name: string } }[] };
 /** A history entry: who changed what. Linear returns every field the query names, null when unset. */
@@ -164,8 +165,20 @@ else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? J
     if (op === 'State') return data({ workflowStates: { nodes: missingStates.has(v.name) ? [] : [{ id: `state-${v.name}` }] } });
     if (op === 'Team') return data({ teams: { nodes: [{ id: 'team-ale' }] } });
     if (op === 'User') return data({ users: { nodes: v.name === ALEX ? [{ id: 'user-alex' }] : [] } });
+    if (op === 'Ticket') {
+      const i = find(v.id);
+      const newest = [...i.comments].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      return data({ issue: {
+        identifier: i.identifier, title: i.title, url: i.url, description: i.description, state: { name: i.state },
+        comments: { nodes: newest.slice(0, 50).map((c) => ({ createdAt: c.createdAt, body: c.body, user: c.user, botActor: c.botActor ?? null })), pageInfo: { hasNextPage: newest.length > 50 } },
+        children: { nodes: issues.filter((c) => c.parent === i.id).map((c) => ({ id: c.id, identifier: c.identifier, title: c.title, state: { name: c.state }, assignee: c.assignee ? { name: c.assignee } : null })) },
+      } });
+    }
     if (op === 'Update') {
+      // Like Linear, a move to a completed or canceled state stamps its time.
       if (v.input.stateId) find(v.id).state = v.input.stateId.slice(6);
+      if (v.input.stateId === 'state-Done') find(v.id).completedAt = new Date().toISOString();
+      if (v.input.stateId === 'state-Canceled') find(v.id).canceledAt = new Date().toISOString();
       if ('delegateId' in v.input) find(v.id).delegate = v.input.delegateId;
       find(v.id).history.push({ createdAt: new Date().toISOString(), actor: { name: RUNNER }, ...(v.input.stateId ? { toState: { name: v.input.stateId.slice(6) } } : {}) });
       return data({ issueUpdate: { success: true } });
@@ -235,6 +248,8 @@ else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? J
         },
       };
     },
+    /** Runs the lead's `ticket` command in `cwd`, a lead's worktree by default, against this fake Linear. */
+    ticket: (cwd: string, ...argv: string[]) => ticketCommand(argv, { cwd, config, fetchFn: fakeFetch as typeof fetch, stdin: () => 'From standard input.\n' }),
     leads: () => lines(file('pi.log')).map((line) => JSON.parse(line)),
     tmux: () => lines(file('tmux.log')).map((line) => JSON.parse(line) as string[]),
     decisions: (parent = 'id-1') => issues.filter((i) => i.parent === parent),
@@ -295,6 +310,91 @@ test('a Decision issue the lead filed is waited on, not doubled', async () => {
   await t.run('--once');
   assert.equal(t.leads().length, 1);
   assert.deepEqual(t.decisions().map((d) => d.identifier), ['ALE-50']);
+});
+
+test('ticket decision files the same Decision issue the runner would, and the runner waits on it', async () => {
+  const t = setup([issue(1)]);
+  await t.run('--once');
+  const ask = path.join(t.root, 'ask.md');
+  writeFileSync(ask, 'Plan A or B?\n\nI recommend A. Pick this if ...\n');
+  const out = await t.ticket(t.dirOf(1), 'decision', 'Decision for ALE-1: plan A or B', ask);
+  const [d] = t.decisions();
+  assert.equal(out, `Filed ${d.identifier}, assigned to ${ALEX}: ${d.url}`);
+  assert.deepEqual([d.title, d.description, d.assignee, d.state], ['Decision for ALE-1: plan A or B', 'Plan A or B?\n\nI recommend A. Pick this if ...\n', ALEX, 'Todo']);
+  await t.run('--once');
+  assert.equal(t.leads().length, 1);
+  assert.equal(t.decisions().length, 1, 'the runner files no Decision of its own beside the lead\'s');
+});
+
+test('ticket comment posts as the runner from the worktree or a folder in it, so it never wakes the lead', async () => {
+  const job = issue(1);
+  const t = setup([job]);
+  await t.run('--once');
+  const note = path.join(t.root, 'note.md');
+  writeFileSync(note, 'Start note.\n');
+  assert.equal(await t.ticket(t.dirOf(1), 'comment', note), 'Commented on ALE-1.');
+  assert.equal(await t.ticket(path.join(t.dirOf(1), '.runner'), 'comment', '-'), 'Commented on ALE-1.');
+  assert.deepEqual(job.comments.filter((c) => !c.body.startsWith('**Runner:**')).map((c) => [c.body, c.user?.name]), [['Start note.\n', RUNNER], ['From standard input.\n', RUNNER]]);
+  await t.run('--once');
+  assert.equal(t.leads().length, 1, 'a lead\'s own comment is no event');
+});
+
+test('ticket done moves the ticket to Done, or closes one of its sub-issues, and the runner then leaves it alone', async () => {
+  const job = issue(1);
+  const other = issue(2, { delegate: null });
+  const t = setup([job, other]);
+  await t.run('--once');
+  const asked = issue(50, { parent: 'id-1', assignee: ALEX, delegate: null, labels: [], createdAt: later(), history: [] });
+  t.addIssue(asked);
+  assert.equal(await t.ticket(t.dirOf(1), 'done', 'ALE-50'), 'Moved ALE-50 to Done.');
+  assert.equal(asked.state, 'Done');
+  await assert.rejects(t.ticket(t.dirOf(1), 'done', 'ALE-2'), /ALE-2 is not ALE-1 or one of its sub-issues/);
+  assert.equal(other.state, 'Todo', 'never another ticket');
+  assert.equal(await t.ticket(t.dirOf(1), 'done'), 'Moved ALE-1 to Done.');
+  assert.equal(job.state, 'Done');
+  await t.run('--once');
+  assert.equal(t.leads().length, 1);
+  assert.equal(t.decisions().length, 1, 'no Decision for a Done ticket');
+});
+
+test('ticket show prints the ticket, its sub-issues, and its comments oldest first in local time', async () => {
+  const job = issue(1, { state: 'In Progress', comments: [
+    { id: 'c2', body: 'Second.', createdAt: '2026-01-02T15:00:00Z', user: { name: ALEX } },
+    { id: 'c1', body: 'First.', createdAt: '2026-01-02T14:00:00Z', user: null, botActor: { name: 'GitHub' } },
+  ] });
+  const t = setup([job]);
+  await t.run('--once');
+  t.addIssue(issue(50, { parent: 'id-1', assignee: ALEX, delegate: null, labels: [], title: 'Plan A or B?' }));
+  const out = await t.ticket(t.dirOf(1), 'show');
+  assert.match(out, /^ALE-1: Job number 1 \(In Progress\)\nhttps:\/\/linear\.app\/x\/issue\/ALE-1\n\nMake it work\.\n\nSub-issues:\n- ALE-50 \(Todo, Alex Example\): Plan A or B\?\n\nComments, oldest first:\n/);
+  const at = (iso: string) => new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
+  assert.ok(out.includes(`\nGitHub, ${at('2026-01-02T14:00:00Z')}:\nFirst.\n\n${ALEX}, ${at('2026-01-02T15:00:00Z')}:\nSecond.\n`), out);
+  assert.match(at('2026-01-02T15:00:00Z'), /^Jan 2, \d+:00 [AP]M \S+$/);
+});
+
+test('ticket checks its arguments and its file before it calls Linear', async () => {
+  const t = setup([issue(1)]);
+  await t.run('--once');
+  const empty = path.join(t.root, 'empty.md');
+  writeFileSync(empty, '\n');
+  const before = t.ops.length;
+  for (const argv of [[], ['comment'], ['done', 'ALE-50', 'x'], ['decision', 'Title only'], ['decision', ' ', empty], ['close']]) {
+    await assert.rejects(t.ticket(t.dirOf(1), ...argv), /^Error: usage: ticket show\n/, argv.join(' '));
+  }
+  await assert.rejects(t.ticket(t.dirOf(1), 'comment', empty), /empty\.md is empty/);
+  await assert.rejects(t.ticket(t.root, 'show'), /no \.runner\/work\.json in .* or above it/);
+  assert.equal(t.ops.length, before, 'no Linear call');
+});
+
+test('the ticket CLI prints usage with exit 64, and an error with exit 1', () => {
+  const cli = path.join(import.meta.dirname, 'ticket.ts');
+  const run = (...args: string[]) => spawnSync(cli, args, { cwd: os.tmpdir(), encoding: 'utf8', env: { ...process.env, JOB_RUNNER_CONFIG: '/nonexistent' } });
+  const usage = run('decision', 'no file');
+  assert.deepEqual([usage.status, usage.stdout], [64, '']);
+  assert.match(usage.stderr, /^usage: ticket show\n/);
+  const outside = run('show');
+  assert.equal(outside.status, 1);
+  assert.match(outside.stderr, /^ticket: no \.runner\/work\.json in /);
 });
 
 test('closing a Decision issue, Done or Canceled, wakes the same lead session once', async () => {
