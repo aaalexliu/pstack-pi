@@ -454,11 +454,14 @@ async function pass(ctx: Ctx, w: Work, ticket: Ticket, events: Event[]) {
 const newest = (i: Newest) => [i.updatedAt, ...i.comments.nodes.map((c) => c.createdAt)].sort().at(-1)!;
 const touched = (issue: Issue) => [issue, ...issue.children.nodes].map(newest).sort().at(-1)!;
 
-/** The events since the runner's last attempt to start the lead. A routine's ticket counts its creation, since the runner made it on Alex's schedule. */
+/**
+ * The events since the runner's last attempt to start the lead. A ticket the runner never tried to start counts its
+ * creation: Linear's history has no delegation entry for a ticket filed already delegated, and a routine files its own.
+ */
 export function newEvents(ticket: Ticket, attempted: string | null): Event[] {
   const since = attempted ?? '';
-  const routine = !since && ticket.description.includes(ROUTINE_MARK) ? [{ at: ticket.createdAt, what: 'A routine filed this ticket.' }] : [];
-  return [...routine, ...ticket.events.filter((e) => e.at > since)];
+  const filed = since ? [] : [{ at: ticket.createdAt, what: ticket.description.includes(ROUTINE_MARK) ? 'A routine filed this ticket.' : 'The ticket was filed.' }];
+  return [...filed, ...ticket.events.filter((e) => e.at > since)];
 }
 
 /**

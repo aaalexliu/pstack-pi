@@ -281,12 +281,21 @@ test('a delegated ticket starts one lead in tmux with the session, the subagent_
   assert.equal(lead.token, 'test-token');
   assert.deepEqual(lead.piVars, ['PI_AUTH_PROFILE', 'PI_SUBAGENT_ID'], 'outer PI_*, PSTACK_* and CMUX_* are gone, digits included');
   assert.ok(!readFileSync(path.join(dir, '.runner', 'lead.sh'), 'utf8').includes('test-token'), 'the token never lands on disk');
-  assert.match(lead.input, /^Issue ALE-1: Job number 1[\s\S]*Linear issue id: id-1\.[\s\S]*Events since your last start:\n- 2026-01-01T00:00:01Z ALE-1: Alex Example delegated it to runner test\n\nOther leads running now [^\n]*\n- none$/);
+  assert.match(lead.input, /^Issue ALE-1: Job number 1[\s\S]*Linear issue id: id-1\.[\s\S]*Events since your last start:\n- 2026-01-01T00:00:00Z The ticket was filed.\n- 2026-01-01T00:00:01Z ALE-1: Alex Example delegated it to runner test\n\nOther leads running now [^\n]*\n- none$/);
   assert.deepEqual(t.tmux().find((a) => a[0] === 'new-session')!.slice(0, 4), ['new-session', '-d', '-s', 'ALE-1']);
   const status = job.comments.filter((c) => c.body.startsWith('**Runner:**'));
   assert.equal(status.length, 1);
   assert.match(status[0].body, /^\*\*Runner:\*\* Lead running/);
   assert.ok(existsSync(path.join(dir, '.runner', 'started')));
+});
+
+test('a ticket filed already delegated starts its lead: Linear history has no delegation entry for it', async () => {
+  const t = setup([issue(1, { history: [] })]);
+  await t.run('--once');
+  await t.run('--once');
+  assert.equal(t.leads().length, 1, 'its creation is the one event, so it starts once');
+  assert.match(t.leads()[0].input, /Events since your last start:\n- 2026-01-01T00:00:00Z The ticket was filed\.\n\n/);
+  assert.match(t.decisions()[0]?.title ?? '', /the lead stopped with nothing open to wait for/, 'after that run, nothing new means a Decision');
 });
 
 test('NoSpin: a lead that exits with nothing new is not started again; the runner files one Decision issue instead', async () => {
@@ -941,7 +950,9 @@ test('nextMove follows the model: start on an event, else wait on an open Decisi
   assert.equal(nextMove(cfg, ticket({ children: [child({})] }), started).kind, 'wait');
   assert.equal(nextMove(cfg, ticket({ children: [child({ assignee: null })] }), started).kind, 'decide', 'a sub-issue not assigned to Alex is not a Decision');
   assert.equal(nextMove(cfg, ticket({ children: [child({})], events: [event] }), '2026-01-04T00:00:00Z').kind, 'wait', 'a failed attempt after the event has seen it');
-  assert.equal(nextMove(cfg, ticket({ description: 'Do it.\n\nrunner-routine audit 2026-01-01T09:00:00.000Z' }), null).kind, 'start', 'a routine ticket starts on its creation');
+  assert.deepEqual(nextMove(cfg, ticket({ description: 'Do it.\n\nrunner-routine audit 2026-01-01T09:00:00.000Z' }), null), { kind: 'start', events: [{ at: '2026-01-01T00:00:00Z', what: 'A routine filed this ticket.' }] }, 'a routine ticket starts on its creation');
+  assert.deepEqual(nextMove(cfg, ticket({}), null), { kind: 'start', events: [{ at: '2026-01-01T00:00:00Z', what: 'The ticket was filed.' }] }, 'a ticket never started starts on its creation');
+  assert.equal(nextMove(cfg, ticket({}), started).kind, 'decide', 'its creation counts once');
 });
 
 const shells = ['sh', 'zsh'].filter((shell) => { try { execFileSync(shell, ['-c', 'true']); return true; } catch { return false; } });
