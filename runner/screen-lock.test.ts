@@ -3,9 +3,14 @@ import { spawn } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { test } from 'node:test';
+import { after, test } from 'node:test';
 
 const SCREEN_LOCK = path.join(import.meta.dirname, 'screen-lock');
+/** Every process group a test starts, killed at the end so a failed test leaves no orphans. */
+const groups = new Set<number>();
+after(() => {
+  for (const pid of groups) try { process.kill(-pid, 'SIGKILL'); } catch {}
+});
 const skip = !existsSync('/usr/bin/lockf') && 'screen-lock needs the macOS lockf';
 
 /**
@@ -20,12 +25,19 @@ function setup() {
   chmodSync(path.join(dir, 'bin', 'caffeinate'), 0o755);
   const env = { ...process.env, SCREEN_LOCK: path.join(dir, 'screen.lock'), PATH: `${path.join(dir, 'bin')}:${process.env.PATH}` };
   const lines = () => (existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n') : []);
-  /** Starts `screen-lock` in its own process group; `done` resolves with its exit code and stderr. */
+  /** Starts `screen-lock` in its own process group; `done` resolves with its exit code and stderr, or kills the group and rejects after 15 s. */
   const run = (...args: string[]) => {
     const child = spawn(SCREEN_LOCK, args, { env, cwd: dir, detached: true, stdio: ['ignore', 'ignore', 'pipe'] });
     let stderr = '';
     child.stderr.on('data', (chunk) => { stderr += chunk; });
-    const done = new Promise<{ code: number | null; stderr: string }>((resolve) => child.on('close', (code) => resolve({ code, stderr })));
+    groups.add(child.pid!);
+    const done = new Promise<{ code: number | null; stderr: string }>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        try { process.kill(-child.pid!, 'SIGKILL'); } catch {}
+        reject(new Error(`screen-lock ${args.join(' ')} did not finish in 15 s`));
+      }, 15_000);
+      child.on('close', (code) => { clearTimeout(timer); resolve({ code, stderr }); });
+    });
     return { child, done };
   };
   const step = (key: string, body: string) => run('run', key, '--', 'sh', '-c', `echo "${key} start" >> "$0"; ${body}; echo "${key} end" >> "$0"`, log);
@@ -55,9 +67,11 @@ test('two concurrent runs take turns, and the second says who holds the screen',
 
 test('a killed command does not block the next run', { skip }, async () => {
   const t = setup();
-  const first = t.step('ALE-1', 'sleep 30');
+  // exec, so no fork races the group kill and leaves a sleep holding the screen.
+  const first = t.step('ALE-1', 'exec sleep 30');
   await until(() => t.lines().includes('ALE-1 start'));
   process.kill(-first.child.pid!, 'SIGKILL');
+  await first.done;
   const started = Date.now();
   assert.equal((await t.step('ALE-2', 'true').done).code, 0);
   assert.ok(Date.now() - started < 2000, 'the next run did not wait for the killed holder');
