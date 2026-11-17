@@ -9,7 +9,7 @@ The runner keeps process only where a stopped or absent model cannot act for its
 1. **Start or resume the lead** on any event since its last start.
 2. **File a Decision issue** when the lead stopped and nothing is open to wait for.
 
-Around those two moves the runner makes 23 kinds of write and process start, across Linear, tmux and the disk. The [mechanism ledger](#mechanism-ledger) lists each one, the PR that added it, and how often it has fired.
+Around those two moves the runner makes 22 kinds of write and process start, across Linear, tmux and the disk. The [mechanism ledger](#mechanism-ledger) lists each one, the PR that added it, and how often it has fired.
 
 Linear is an event log. An event is anything in Linear on the ticket or its sub-issues: a comment, a state, delegate, assignee, label, title or description change, or a Decision issue closed. Only events by someone other than `runnerUser` count, and not those of integrations such as GitHub or Slack. Leads post with the runner's token, so the runner's own moves and its leads' never wake anyone.
 
@@ -40,7 +40,7 @@ When an event by a person lands, by webhook or poll, the runner acks it within s
 
 - a comment gets a 👀 reaction (`reactionCreate`, emoji `eyes`). The runner skips a comment that already has its 👀, so webhook retries, the backup poll and restarts never add a second.
 - an event that is not a comment, such as a delegation or a closed Decision, gets the status comment update when the lead starts.
-- when a limit blocks the start, the runner also replies "Seen. Waiting to start: <reason>" once.
+- when a limit blocks the start, the runner posts no reply. It logs once why the start waits, and the 👀 stays the ack.
 
 ### Events for a running lead
 
@@ -56,13 +56,13 @@ It names where the event happened (the ticket, a Decision or another sub-issue),
 each pass, per open ticket delegated to runnerUser (Todo, or a started state such as In Progress or In Review):
   lead live in tmux            -> leave it; nudge it once if it went quiet
   any event since its start    -> start the lead; its start message lists the events, and it judges what they mean
-                                  if a limit blocks the start: reply "Seen. Waiting to start: <reason>" once
+                                  if a limit blocks the start: log why, once, and wait
   no event, open Decision      -> wait
   no event, no open Decision   -> file a Decision issue: "the lead stopped with nothing open to wait for"
 order: the ticket whose oldest unseen event is oldest goes first
 ```
 
-The start rule reads one fact per ticket: when the runner last tried to start the lead. In all the runner keeps 30 facts: 13 files, 1 tmux option, 5 marks in Linear and 11 in memory; the [mechanism ledger](#mechanism-ledger) lists them. A start that works is kept in `<worktree>/.runner/started`, which the heartbeat also counts from. A start that fails is kept in `<worktreeRoot>/.attempts/KEY`, never inside a folder the runner may have refused. Events before the last attempt are seen, so only a new event retries a failed start. The runner never files a second Decision issue while its own (titled `Decision for KEY: ...`) is open. A ticket a routine filed counts its creation as an event, since the runner made it on your schedule.
+The start rule reads one fact per ticket: when the runner last tried to start the lead. In all the runner keeps 29 facts: 13 files, 1 tmux option, 4 marks in Linear and 11 in memory; the [mechanism ledger](#mechanism-ledger) lists them. A start that works is kept in `<worktree>/.runner/started`, which the heartbeat also counts from. A start that fails is kept in `<worktreeRoot>/.attempts/KEY`, never inside a folder the runner may have refused. Events before the last attempt are seen, so only a new event retries a failed start. The runner never files a second Decision issue while its own (titled `Decision for KEY: ...`) is open. A ticket a routine filed counts its creation as an event, since the runner made it on your schedule.
 
 The runner moves a `Todo` ticket to `In Progress` before it records the start. That move is the runner's own, so it is no event: a crash before the start is recorded starts the lead once more on the same events, never in a loop.
 
@@ -166,7 +166,7 @@ Before it starts a lead, the runner checks two limits, and logs once why it wait
 - On macOS, no lead starts while `memory_pressure -Q` reports less than `minFreeMemoryPercent` free.
 The runner does not decide who uses the screen; leads take turns themselves. Each poll, and after each start, it writes the running leads to `<worktreeRoot>/running.json` (key, title, tmux session, worktree, Pi session id, whether the ticket says `Needs: screen`, and start time), and each start message lists the same leads and names that file. Before a lead drives the screen, records it, or needs focus, it takes the shared lock `<worktreeRoot>/screen.lock` with `mkdir`, writes its key and the time to `screen.lock/owner`, and removes the folder when that step ends. `lead.md` says how to wait for a held lock. The runner never enforces the lock, but clears one whose owner has no tmux session, because that lead can no longer release it, and one with no `owner` file after a minute.
 
-When a limit holds back a ticket with an event, the runner replies once to the latest event, in its thread when it was a comment, with what it waits on, such as "Seen. Waiting to start: all 2 lead slots are busy." It finds its earlier replies among its comments on the ticket and its sub-issues, so it keeps no state for this.
+When a limit holds back a ticket with an event, the runner posts nothing more on the ticket: a comment already has its 👀. The log says what it waits on, such as "Not starting ALE-3 yet: all 2 lead slots are busy", once while that stays true.
 
 The queue: the ticket whose oldest unseen event is oldest goes first. Tickets with no event keep Linear's order after them: Todo first, then the oldest.
 
@@ -185,7 +185,7 @@ The first label that names a repo in the config picks the repo. With no such lab
 
 ## Mechanism ledger
 
-Every mechanism in `runner.ts` and `routines.ts`: 23 writes and processes, 30 facts, 19 config fields, 9 other inputs and 17 timers. [ledger.test.ts](ledger.test.ts) fails when the ledger misses a config field, a state file, a Linear mutation or a tmux command the code has, or names a config field or function the code no longer has. It cannot check the timers, the "Paid for by" column or the "Fired" column; a person fills those in.
+Every mechanism in `runner.ts` and `routines.ts`: 22 writes and processes, 29 facts, 19 config fields, 9 other inputs and 17 timers. [ledger.test.ts](ledger.test.ts) fails when the ledger misses a config field, a state file, a Linear mutation or a tmux command the code has, or names a config field or function the code no longer has. It cannot check the timers, the "Paid for by" column or the "Fired" column; a person fills those in.
 
 The last column counts fires on the one live host from 2026-11-14 to 2026-11-17 10:00 EST. It has three sources:
 
@@ -204,7 +204,6 @@ The runner does not log a Linear write, a webhook delivery or a pass, so those r
 | Linear: clear the delegate of a ticket with no repo label (`issueUpdate`) | `poll`, `clearDelegate` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61). None found | Log does not show it |
 | Linear: "No repo label" comment (`commentCreate`) | `poll` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61). None found | Log does not show it |
 | Linear: the status comment, posted once (`commentCreate`) then edited (`commentUpdate`) | `status`, `renderStatus`, `commands` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68): the lead moved into tmux, so a person needs the commands to reach it. None found | Log does not show it. At least one write per lead start (15), nudge (1) and Decision. Passed events: new, no history |
-| Linear: "Seen. Waiting to start" reply (`commentCreate`) | `ack` | [#100](https://github.com/aaalexliu/pstack-pi/pull/100): a comment on a blocked ticket got no answer for hours | Log does not show it. The log has 57 "Not starting" lines, all on the screen limit that [#108](https://github.com/aaalexliu/pstack-pi/pull/108) removed, and 0 on slots or memory |
 | Linear: 👀 on a person's comment (`reactionCreate`) | `react` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110): an ack within seconds. None found | Log does not show it; 0 failed reactions |
 | Linear: file a routine's ticket (`issueCreate`) | `createDueRoutines` | [#70](https://github.com/aaalexliu/pstack-pi/pull/70): Linear's recurring issues are UI only and whole days only. None found | 0. The live config has no `routines` |
 | tmux: `new-session` for the lead | `launch` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68) | 15 starts on 12 tickets (session logs) |
@@ -244,7 +243,6 @@ A file path with no folder is in `<worktree>/.runner/`.
 | `<worktreeRoot>/screen.lock`: leads make it; the runner only removes a stale one | `writeRunning`, `screenLock` | [#108](https://github.com/aaalexliu/pstack-pi/pull/108) | Log does not show it. Not there now |
 | tmux option `@job-runner`: marks a session the runner made | `launch`, `reapClosed`, `serve` | [#78](https://github.com/aaalexliu/pstack-pi/pull/78) | Each start since [#78](https://github.com/aaalexliu/pstack-pi/pull/78) |
 | Linear: the status comment, found by its `**Runner:**` start | `status`, `statusComment` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68) | Log does not show it |
-| Linear: a `Seen.` reply newer than the event means "acked" | `ack` | [#100](https://github.com/aaalexliu/pstack-pi/pull/100) | Log does not show it |
 | Linear: the runner's own 👀 means "reacted" | `react`, `eventsOf` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110) | Log does not show it |
 | Linear: an open `Decision for KEY:` issue blocks a second | `decide`, `decisionTitle` | [#109](https://github.com/aaalexliu/pstack-pi/pull/109): 62 Decisions in 26 minutes | Log does not show it |
 | Linear: the `runner-routine <name> <time>` line marks a filed run | `createDueRoutines`, `newEvents` | [#70](https://github.com/aaalexliu/pstack-pi/pull/70) | 0 |

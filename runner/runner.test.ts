@@ -627,7 +627,7 @@ test('lead slots: at most maxLeads run, a live lead holds its slot, and the runn
   assert.deepEqual(t.leads().map((l) => /Issue (ALE-\d)/.exec(l.input)![1]), ['ALE-1', 'ALE-2', 'ALE-3'], 'the live lead holds one of the two slots');
 });
 
-test('a blocked ticket with an event acks it once, in the comment thread, naming what it waits on', async () => {
+test('a blocked ticket with an event gets a 👀 and one log line, no reply, and starts when the slot frees', async () => {
   const job = issue(1);
   const other = issue(2, { delegate: null });
   const t = setup([job, other], { maxLeads: 1 });
@@ -636,11 +636,16 @@ test('a blocked ticket with an event acks it once, in the comment thread, naming
   t.setLive('ALE-2');
   mkdirSync(t.dirOf(2), { recursive: true });
   job.comments.push({ id: 'h1', body: 'Use the blue icon.', createdAt: later(), user: { name: 'Alex' } });
+  const before = job.comments.length;
   await t.run('--once');
   await t.run('--once');
-  const acks = job.comments.filter((c) => c.body.startsWith('Seen.'));
-  assert.deepEqual(acks.map((c) => [c.body, c.parentId]), [['Seen. Waiting to start: all 1 lead slots are busy.', 'h1']]);
+  assert.equal(job.comments.length, before, 'the runner posts no reply while the start waits');
+  assert.deepEqual(job.comments.find((c) => c.id === 'h1')!.reactions, [{ emoji: 'eyes', user: { name: RUNNER } }], 'the 👀 is the ack, put once');
+  assert.ok(t.printed.logs.includes('Not starting ALE-1 yet: all 1 lead slots are busy'), 'the log says why the start waits');
   assert.equal(t.leads().length, 1);
+  t.setLive();
+  await t.run('--once');
+  assert.ok(t.leads().some((l) => l.input.includes('Issue ALE-1') && l.input.includes('blue')), 'the event starts the lead once the slot is free');
 });
 
 test('two screen tickets start together, and running.json lists the running leads with the screen flag', async () => {
@@ -679,41 +684,6 @@ test('two screen tickets start together, and running.json lists the running lead
   utimesSync(lock, new Date(Date.now() - 120000), new Date(Date.now() - 120000));
   await t.run('--once');
   assert.ok(!existsSync(lock), 'a lock with no owner file for over a minute is cleared');
-});
-
-test('an ack to a reply in a thread goes to the thread root', async () => {
-  const job = issue(1);
-  const other = issue(2, { delegate: null });
-  const t = setup([job, other], { maxLeads: 1 });
-  await t.run('--once');
-  other.delegate = RUNNER;
-  t.setLive('ALE-2');
-  mkdirSync(t.dirOf(2), { recursive: true });
-  job.comments.push({ id: 'h2', body: 'And green.', createdAt: later(), user: { name: 'Alex' }, parentId: 'root' });
-  await t.run('--once');
-  assert.deepEqual(job.comments.filter((c) => c.body.startsWith('Seen.')).map((c) => c.parentId), ['root']);
-});
-
-test('each later Alex move gets its own ack, his own "Seen." does not suppress one, and acks are not events', async () => {
-  const job = issue(1);
-  const other = issue(2, { delegate: null });
-  const t = setup([job, other], { maxLeads: 1 });
-  const acks = () => job.comments.filter((c) => c.user?.name === RUNNER && c.body.startsWith('Seen.')).length;
-  await t.run('--once');
-  other.delegate = RUNNER;
-  t.setLive('ALE-2');
-  mkdirSync(t.dirOf(2), { recursive: true });
-  job.comments.push({ id: 'h1', body: 'Use the blue icon.', createdAt: later(), user: { name: 'Alex' } });
-  await t.run('--once');
-  assert.equal(acks(), 1);
-  job.comments.push({ id: 'h2', body: 'Seen. Also make it round.', createdAt: later(), user: { name: 'Alex' } });
-  await t.run('--once');
-  await t.run('--once');
-  assert.equal(acks(), 2, 'a later comment gets a fresh ack, even when it says "Seen."');
-  t.setLive();
-  await t.run('--once');
-  const input = t.leads().find((l) => l.input.includes('Issue ALE-1') && l.input.includes('blue'))!.input;
-  assert.doesNotMatch(input, /Waiting to start/, 'the runner\'s acks are not events');
 });
 
 test('the ticket whose oldest unseen event is oldest starts first', async () => {
@@ -837,7 +807,7 @@ test('--dry-run prints each move and writes nothing', async () => {
 });
 
 const child = (fields: Partial<Child>): Child => ({ id: 'c', identifier: 'ALE-9', title: 't', url: 'u', createdAt: '2026-01-01T00:00:00Z', completedAt: null, canceledAt: null, assignee: { name: ALEX }, ...fields });
-const ticket = (fields: Partial<Ticket>): Ticket => ({ state: 'started', description: '', createdAt: '2026-01-01T00:00:00Z', mine: [], children: [], events: [], ...fields });
+const ticket = (fields: Partial<Ticket>): Ticket => ({ state: 'started', description: '', createdAt: '2026-01-01T00:00:00Z', children: [], events: [], ...fields });
 const cfg = { decisionAssignee: ALEX, runnerUser: RUNNER } as Config;
 
 test('nextMove follows the model: start on an event, else wait on an open Decision, else decide', () => {
