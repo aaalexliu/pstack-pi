@@ -525,9 +525,9 @@ function startMessage(ctx: Ctx, w: Work, events: Event[], running: Work[]) {
  * The launch script drops every Pi variable the tmux server holds from another session, and reads the tokens itself,
  * so they never land on disk. It mirrors both into the tmux session, so windows the lead's subagents open match it.
  */
-function envScript(ctx: Ctx, w: Work) {
+function envScript(ctx: Ctx, w: Work, name: string) {
   const keep = KEEP_ENV.filter((env) => process.env[env]);
-  const tmuxEnv = `${sh(bin('tmux'))} set-environment -t ${sh(session(w.key))}`;
+  const tmuxEnv = `${sh(bin('tmux'))} set-environment -t ${sh(session(name))}`;
   const tokens = [['LINEAR_TOKEN', ctx.config.linearTokenCommand], ...(ctx.config.ghTokenCommand ? [['GH_TOKEN', ctx.config.ghTokenCommand]] : [])];
   return [
     '#!/bin/sh',
@@ -551,7 +551,7 @@ async function launch(ctx: Ctx, w: Work, events: Event[], running: Work[]) {
   const pi = (...extra: string[]) => [bin('pi'), '--session-id', sessionId(w), '-e', SUBAGENT_DONE,
     '--model', w.models.lead, '--thinking', ctx.config.thinking, '--append-system-prompt', path.join(PROMPTS, 'lead.md'), ...extra].map(sh).join(' ');
   put(rf(w, 'lead.sh'), [
-    ...envScript(ctx, w),
+    ...envScript(ctx, w, w.key),
     `PI_SUBAGENT_ID=${sh(w.key)} ${pi(`@${rf(w, 'input.md')}`)}`,
     '# A person who touched .runner/takeover keeps the session, with no stall nudges, until they quit Pi.',
     `if [ -f .runner/takeover ]; then mv .runner/takeover .runner/held; ${pi()}; rm -f .runner/held; fi`,
@@ -586,7 +586,7 @@ const sessionFolder = (cwd: string) => path.join(agentDir(), 'sessions', `--${cw
  * The last message in the last 1 MB of a session log, or null. A tail with no whole message, such as one huge
  * screenshot result, reads as `unknown`, which counts as busy so the longer limit applies.
  */
-function lastMessage(file: string): { role?: string; stopReason?: string; unknown?: boolean } | null {
+function lastMessage(file: string): { role?: string; stopReason?: string; text?: string; unknown?: boolean } | null {
   const fd = openSync(file, 'r');
   try {
     const size = fstatSync(fd).size;
@@ -596,7 +596,8 @@ function lastMessage(file: string): { role?: string; stopReason?: string; unknow
       try {
         const entry = JSON.parse(line);
         if (entry.type !== 'message') continue;
-        return entry.message;
+        const content = entry.message?.content;
+        return { ...entry.message, text: typeof content === 'string' ? content : Array.isArray(content) ? content.map((c: { text?: string }) => c.text ?? '').join('') : '' };
       } catch { /* a partial first line */ }
     }
     return buffer.length < size ? { unknown: true } : null;
@@ -605,7 +606,7 @@ function lastMessage(file: string): { role?: string; stopReason?: string; unknow
 
 /**
  * The lead's heartbeat: the newest write to any Pi session log of the worktree or a sibling named `<worktree>-<unit>`,
- * where sub-leads work; each cwd has its own folder. Also whether that log's last message is mid-step. A tool call with no result,
+ * where sub-leads work; each cwd has its own folder. The investigator's (`.runner`) is left out. Also whether that log's last message is mid-step. A tool call with no result,
  * or a user message or tool result with no reply, is busy; anything else is idle. The lead start is the floor.
  */
 export function heartbeat(w: Pick<Work, 'dir'>) {
@@ -613,7 +614,9 @@ export function heartbeat(w: Pick<Work, 'dir'>) {
   let newest = { at: started ? Date.parse(started) : 0, file: '' };
   const sessions = path.join(agentDir(), 'sessions');
   const prefixes = [...new Set([w.dir, existsSync(w.dir) ? realpathSync(w.dir) : w.dir])].map((dir) => path.basename(sessionFolder(dir)).slice(0, -1));
-  const folders = existsSync(sessions) ? readdirSync(sessions).filter((f) => prefixes.some((p) => f.startsWith(p))) : [];
+  const dirs = [...new Set([w.dir, existsSync(w.dir) ? realpathSync(w.dir) : w.dir])];
+  const notLead = dirs.map((dir) => path.basename(sessionFolder(path.join(dir, '.runner'))));
+  const folders = existsSync(sessions) ? readdirSync(sessions).filter((f) => prefixes.some((p) => f.startsWith(p)) && !notLead.includes(f)) : [];
   for (const folder of folders.map((f) => path.join(sessions, f))) {
     for (const name of readdirSync(folder).filter((f) => f.endsWith('.jsonl'))) {
       const at = statSync(path.join(folder, name)).mtimeMs;
@@ -622,29 +625,62 @@ export function heartbeat(w: Pick<Work, 'dir'>) {
   }
   const last = newest.file ? lastMessage(newest.file) : null;
   const busy = !!last && (!!last.unknown || (last.role === 'assistant' && last.stopReason === 'toolUse') || last.role === 'user' || last.role === 'toolResult');
-  return { at: newest.at, busy };
+  return { at: newest.at, busy, nudge: !!last && last.role === 'user' && last.text?.startsWith(NUDGE) };
 }
 
 const NUDGE = 'No progress from you or your subagents for';
+/** What the runner did about the current quiet stretch, kept in `.runner/stall.json`. */
+type Stall = { nudgedAt: number; investigatedAt?: number };
+
 /**
  * A live lead belongs to the lead: the runner never starts, restarts or kills it. A quiet stretch is `stallMinutes`
  * with no heartbeat while idle, or `toolQuietMinutes` while busy. The first in a lead run gets Escape (closing a
- * selector, or stopping the tool or wait) and one nudge, marked in `.runner/stall.json`. After that the runner does
- * nothing until it starts the lead again.
+ * selector, or stopping the tool or wait) and one nudge. The second, whether or not the lead wrote in between, starts
+ * one investigator that reports on the ticket. After that the runner does nothing until it starts the lead again.
  */
 async function checkStall(ctx: Ctx, w: Work) {
-  if (existsSync(rf(w, 'held')) || existsSync(rf(w, 'takeover')) || existsSync(rf(w, 'stall.json'))) return;
+  if (existsSync(rf(w, 'held')) || existsSync(rf(w, 'takeover'))) return;
   const beat = heartbeat(w);
-  const limit = (beat.busy ? ctx.config.toolQuietMinutes : ctx.config.stallMinutes) * 60000;
+  let stall: Stall | null = null;
+  try { stall = JSON.parse(readFileSync(rf(w, 'stall.json'), 'utf8')); } catch { /* no quiet stretch this run */ }
+  if (stall?.investigatedAt) return;
+  const limit = (beat.busy && !beat.nudge ? ctx.config.toolQuietMinutes : ctx.config.stallMinutes) * 60000;
   const quiet = Math.floor((Date.now() - beat.at) / 60000);
-  if (!beat.at || Date.now() - beat.at < limit) return;
-  const target = readOr(rf(w, 'pane'))?.trim() || `${session(w.key)}:`;
-  await must(bin('tmux'), ['send-keys', '-t', target, 'Escape'], w.dir);
-  await sleep(500);
-  await must(bin('tmux'), ['send-keys', '-t', target, '-l', `${NUDGE} ${quiet} minutes${beat.busy ? ', so the runner pressed Escape to stop your tool or wait' : ''}. Check each subagent, take any finished result (from its pane, its session or the PR), close the ones that are done, then continue or end.`], w.dir);
-  await must(bin('tmux'), ['send-keys', '-t', target, 'Enter'], w.dir);
-  put(rf(w, 'stall.json'), JSON.stringify({ nudgedAt: Date.now() }));
-  await status(ctx, w, `Lead running. No heartbeat for ${quiet} minutes${beat.busy ? ' with a step in flight' : ''}, so the runner nudged it.`);
+  if (!beat.at || Date.now() - Math.max(beat.at, stall?.nudgedAt ?? 0) < limit) return;
+  if (!stall) {
+    const target = readOr(rf(w, 'pane'))?.trim() || `${session(w.key)}:`;
+    await must(bin('tmux'), ['send-keys', '-t', target, 'Escape'], w.dir);
+    await sleep(500);
+    await must(bin('tmux'), ['send-keys', '-t', target, '-l', `${NUDGE} ${quiet} minutes${beat.busy ? ', so the runner pressed Escape to stop your tool or wait' : ''}. Check each subagent, take any finished result (from its pane, its session or the PR), close the ones that are done, then continue or end.`], w.dir);
+    await must(bin('tmux'), ['send-keys', '-t', target, 'Enter'], w.dir);
+    put(rf(w, 'stall.json'), JSON.stringify({ nudgedAt: Date.now() }));
+    await status(ctx, w, `Lead running. No heartbeat for ${quiet} minutes${beat.busy ? ' with a step in flight' : ''}, so the runner nudged it.`);
+  } else {
+    await investigate(ctx, w, quiet);
+    put(rf(w, 'stall.json'), JSON.stringify({ ...stall, investigatedAt: Date.now() }));
+    await status(ctx, w, `Lead running. Quiet again after the nudge, so an investigator (tmux session \`${w.key}-stall\`) is looking into it.`);
+  }
+}
+
+/** Starts a one-shot Pi in its own tmux session that finds out why the lead is stuck and comments on the ticket. It takes no lead slot. */
+async function investigate(ctx: Ctx, w: Work, quiet: number) {
+  put(rf(w, 'stall-input.md'), [
+    `Issue ${w.key}: ${w.title}`, w.url, '',
+    `Linear issue id: ${w.id}. Team: ${ctx.config.team}. File Decision issues as sub-issues assigned to ${ctx.config.decisionAssignee}.`,
+    `The lead went quiet a second time since the runner nudged it: its session logs have had no write for ${quiet} minutes.`,
+    `Lead tmux session: ${w.key}. Lead Pi session id: ${sessionId(w)}. Worktree: ${w.dir} on ${w.branch}.`,
+    `Session logs of the lead and its subagents: ${sessionFolder(w.dir)}.`,
+  ].join('\n'));
+  const script = rf(w, 'stall.sh');
+  put(script, [
+    ...envScript(ctx, w, `${w.key}-stall`),
+    '# Run from .runner so this session logs to its own folder, never the lead\'s heartbeat.',
+    `cd ${sh(rf(w, ''))} || exit 1`,
+    [bin('pi'), '-p', '--model', w.models.lead, '--thinking', ctx.config.thinking, '--append-system-prompt', path.join(PROMPTS, 'stall.md'), `@${rf(w, 'stall-input.md')}`].map(sh).join(' '),
+    '',
+  ].join('\n'));
+  await run(bin('tmux'), ['kill-session', '-t', session(`${w.key}-stall`)], w.dir);
+  await must(bin('tmux'), ['new-session', '-d', '-s', `${w.key}-stall`, '-x', '200', '-y', '50', '-c', rf(w, ''), `sh ${sh(script)}`], w.dir);
 }
 
 /** Files the runner's own Decision issue: the lead stopped, or could not start, with nothing open to wait for. */
@@ -870,7 +906,7 @@ export async function serve(config: Config, fetchFn: typeof fetch, secret: strin
     port: (server.address() as { port: number }).port,
     /** The backup poll: every ticket, logging each event no webhook delivered. */
     audit: () => { said = new Set(); return enqueue('backup poll', () => poll(ctx, false, say, { audit: true })); },
-    /** The heartbeat: nudges a quiet live lead, and rewrites running.json. It reads only tmux and session logs, unless it acts. */
+    /** The heartbeat: nudges or investigates a quiet live lead, and rewrites running.json. It reads only tmux and session logs, unless it acts. */
     heartbeat: () => enqueue('heartbeat', async () => {
       // The live leads are the tmux sessions the runner tagged, each with the ticket its launch saved in the worktree.
       // A lead started before work.json existed falls back to the last pass that read it.
