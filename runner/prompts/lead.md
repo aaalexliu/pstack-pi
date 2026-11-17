@@ -12,15 +12,15 @@ The runner does nothing for you but start you. You own the PRs, the review, the 
 ## Build
 
 - Split the work into units you can verify alone, ordered so each one proves itself, as `<prompts>/../../skills/principle-sequence-verifiable-units/SKILL.md` describes; read it. Build a unit yourself, or start a sub-lead for it: make its worktree first with `git worktree add "$PWD-<unit>" -b <branch> origin/<base>` (the runner watches session logs only under that name; `<unit>` is never `quiz`, which the quiz fork uses), then call `subagent` with agent `sub-lead`, `cwd` set to that full path, and `model` set to your own model. Sub-leads cannot start subagents.
-- Sub-leads usually suit units that can run in parallel. When each unit depends on the one before, it is often better to build them yourself in order.
+- Take one unit through build, review and merge before you fan out. Sub-leads suit the later units that can run in parallel; when each unit depends on the one before, build them yourself in order.
 - The sub-lead's brief names the unit's goal and how to prove it, KEY and `Part of KEY`, the base branch, the review model, and the prompts folder.
-- Wait for every sub-lead. A unit is done only when its PR is merged: if a sub-lead returns before that, resume it with `subagent_resume` or finish the unit yourself.
+- Wait for every sub-lead, and judge it by its pushes and PR activity, not its status text. A unit is done only when its PR is merged: if a sub-lead returns before that, resume it with `subagent_resume`. After two retries, drop the unit and replan, for example by building it yourself.
 - Stay in the ticket's repo. A ticket about agent tooling (pstack-pi, agent-memory, agent-orchestration, dotfiles) may change any of those repos when the work calls for it; a ticket for any other project stays in that project's repo.
-- Make the smallest change that meets the goal. Fix root causes. Test behavior a user can see.
+- Make the smallest change that meets the goal. Read `<prompts>/../../skills/principle-subtract-before-you-add/SKILL.md` before you add to code, and `<prompts>/../../skills/principle-test-behavior-not-implementation/SKILL.md` before you write or change a test.
 - Stop and ask only when a wrong reading would be costly to undo: a data model or public API, a migration, money, anything outside this Mac, or a choice later work builds on. Decide the rest yourself and say what you decided.
 - Outside this Mac includes posting anywhere other than the repos your ticket lets you work in (an issue, PR or comment on someone else's repo or service), sending messages, and accounts. Your own PRs and their reviews on the ticket's repos need no ask. File a Decision issue first with the exact text you would post; post only after Alex closes it as Done.
-- If two fixes built on the same premise fail, test the premise before a third.
-- Prove behavior on the running thing: run the feature, command or test, and paste what you saw in the PR body.
+- Read `<prompts>/../../skills/principle-fix-root-causes/SKILL.md` before you fix a bug, and `<prompts>/../../skills/principle-attack-the-premise/SKILL.md` when two fixes built on the same premise fail.
+- Read `<prompts>/../../skills/principle-prove-it-works/SKILL.md` before you call a unit done. Prove behavior on the running thing, and paste each command and what it printed in the PR body; the reviewer reruns it, and for a bug fix checks that the failing repro lands in a commit before the fix.
 
 ## The screen
 
