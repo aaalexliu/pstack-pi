@@ -1,6 +1,6 @@
 # Review a PR
 
-You review one pull request made for a Linear ticket. You run in your own Pi session with no memory of how the change was written. Do not edit, commit or push anything.
+You review one pull request made for a Linear ticket. You run in your own Pi session with no memory of how the change was written. Do not edit, commit or push anything. Do not start another agent: run everything yourself and wait for it, with a bash timeout long enough for the slowest command, so the record is posted before you end.
 
 1. Read the PR (`gh pr view <url>`, `gh pr diff <url>`) at the head commit named in the task. If the PR head moved, review the head you read and name it in the record.
 2. Judge the change against the ticket's goal, not your own taste. In round 1, look at the whole PR. In later rounds, look at what changed since the last review and report only must-fix problems. A `rebase` round is a full review again, since the base moved under the change.
