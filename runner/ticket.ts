@@ -7,13 +7,14 @@ import { configFile, linearClient, loadConfig, type Config, type Work } from './
 const USAGE = `usage: ticket show
        ticket comment <file>
        ticket done [SUB-ISSUE KEY]
-       ticket decision "<title>" <file>
+       ticket ask <file>
+       ticket unassign
 A <file> of - reads standard input.`;
 
 class Usage extends Error {}
 
 type Shown = {
-  identifier: string; title: string; url: string; description: string | null; state: { name: string };
+  identifier: string; title: string; url: string; description: string | null; state: { name: string }; assignee: { name: string } | null;
   comments: { nodes: { createdAt: string; body: string; user: { name: string } | null; botActor: { name: string } | null }[]; pageInfo: { hasNextPage: boolean } };
   children: { nodes: { id: string; identifier: string; title: string; state: { name: string }; assignee: { name: string } | null }[] };
 };
@@ -36,12 +37,12 @@ export function findWork(cwd: string): Work {
 const local = (at: string) => new Date(at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
 
 /**
- * The lead's Linear commands for its own ticket. They go through the runner's Linear client, so a lead files a
- * Decision issue exactly as the runner does. Returns what to print.
+ * The lead's Linear commands for its own ticket. They go through the runner's Linear client, so a lead asks Alex
+ * exactly as the runner does: assign him, then comment. Returns what to print.
  */
 export async function ticket(argv: string[], o: { cwd: string; config?: Config; fetchFn?: typeof fetch; stdin?: () => string }): Promise<string> {
   const [command, ...args] = argv;
-  const arity: Record<string, number[]> = { show: [0], comment: [1], done: [0, 1], decision: [2] };
+  const arity: Record<string, number[]> = { show: [0], comment: [1], done: [0, 1], ask: [1], unassign: [0] };
   if (!command || !arity[command]?.includes(args.length)) throw new Usage(USAGE);
   const body = (file: string) => {
     const text = file === '-' ? (o.stdin ?? (() => readFileSync(0, 'utf8')))() : readFileSync(file, 'utf8');
@@ -52,14 +53,14 @@ export async function ticket(argv: string[], o: { cwd: string; config?: Config; 
   const config = o.config ?? loadConfig(configFile());
   const linear = linearClient(config, o.fetchFn ?? fetch);
   const read = async () => (await linear.gql<{ issue: Shown }>(
-    'query Ticket($id: String!) { issue(id: $id) { identifier title url description state { name } comments(first: 50, orderBy: createdAt) { nodes { createdAt body user { name } botActor { name } } pageInfo { hasNextPage } } children(first: 100) { nodes { id identifier title state { name } assignee { name } } } } }',
+    'query Ticket($id: String!) { issue(id: $id) { identifier title url description state { name } assignee { name } comments(first: 50, orderBy: createdAt) { nodes { createdAt body user { name } botActor { name } } pageInfo { hasNextPage } } children(first: 100) { nodes { id identifier title state { name } assignee { name } } } } }',
     { id: work.id },
   )).issue;
   if (command === 'show') {
     const i = await read();
     const comments = [...i.comments.nodes].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     return [
-      `${i.identifier}: ${i.title} (${i.state.name})`, i.url, '', i.description ?? '', '',
+      `${i.identifier}: ${i.title} (${i.state.name}, ${i.assignee ? `assigned to ${i.assignee.name}` : 'unassigned'})`, i.url, '', i.description ?? '', '',
       'Sub-issues:', ...(i.children.nodes.length ? i.children.nodes.map((c) => `- ${c.identifier} (${c.state.name}${c.assignee ? `, ${c.assignee.name}` : ''}): ${c.title}`) : ['- none']), '',
       `Comments, oldest first${i.comments.pageInfo.hasNextPage ? ` (the newest ${comments.length}; older ones not shown)` : ''}:`,
       ...(comments.length ? comments.map((c) => `\n${c.user?.name ?? c.botActor?.name ?? 'someone'}, ${local(c.createdAt)}:\n${c.body}`) : ['- none']),
@@ -80,10 +81,14 @@ export async function ticket(argv: string[], o: { cwd: string; config?: Config; 
     await linear.setState(id, 'Done');
     return `Moved ${key} to Done.`;
   }
-  const title = args[0].trim();
-  if (!title) throw new Usage(USAGE);
-  const issue = await linear.fileDecision(work.id, title, body(args[1]));
-  return `Filed ${issue.identifier}, assigned to ${config.decisionAssignee}: ${issue.url}`;
+  if (command === 'unassign') {
+    await linear.assign(work.id, false);
+    return `Unassigned ${work.key}.`;
+  }
+  const text = body(args[0]);
+  await linear.assign(work.id, true);
+  await linear.comment(work.id, text);
+  return `Assigned ${work.key} to ${config.askAssignee} and posted the ask.`;
 }
 
 if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {

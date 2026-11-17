@@ -45,14 +45,14 @@ In `reviews`, a record is a review whose `body` starts with the line `runner-rev
    Run the audit on the runner host: `session_path` is a path there. If no record's `session_path` exists on this host, report this check once as "cannot check", not as a flag per PR.
 
    This shows a review session was started for this head. It does not prove who posted the record: lead and reviewer post with the same `gh` login.
-5. The record's `round` is above 3 and the ticket has no Decision sub-issue. Check with:
+5. The record's `round` is above 3 and Alex was never asked on the ticket. Check with:
 
    ```sh
    curl -sf https://api.linear.app/graphql -H "Authorization: Bearer $LINEAR_TOKEN" -H 'Content-Type: application/json' \
-     -d '{"query":"query($id:String!){issue(id:$id){children{nodes{identifier assignee{name}}}}}","variables":{"id":"<TEAM-n>"}}'
+     -d '{"query":"query($id:String!){issue(id:$id){comments(filter:{body:{startsWith:\"**Needs Alex:**\"}}){nodes{createdAt}}}}","variables":{"id":"<TEAM-n>"}}'
    ```
 
-   A Decision sub-issue is a child assigned to the Decision assignee named in the start message.
+   An ask is a comment that starts with `**Needs Alex:**`.
 6. The checks on the merged head, as they stood at `mergedAt`, were not all green. Today's `statusCheckRollup` is not enough: a check rerun green after the merge would hide a red one. Fetch every run and status with its time:
 
    ```sh
@@ -69,6 +69,6 @@ In `reviews`, a record is a review whose `body` starts with the line `runner-rev
 
 ## 4. Report
 
-Comment on this ticket: the count checked and flagged at the top, any coverage note, then one line per PR (`ok` or `FLAG`, the url, the ticket key), each flag under its PR with its evidence. Then move this ticket to Done.
+Comment on this ticket: the count checked and flagged at the top, any coverage note, then one line per PR (`ok` or `FLAG`, the url, the ticket key), each flag under its PR with its evidence. With no flags, move this ticket to Done.
 
-If anything is flagged, also file one Decision issue as a sub-issue of this ticket, assigned to the Decision assignee: which PRs broke which check, and your recommendation (for repeated flags, enforcement in GitHub, such as required checks or a required review from a bot identity, not in the runner). With no flags, file nothing.
+If anything is flagged, leave the ticket open and ask Alex instead: assign the ticket to the Alex named in the start message, then comment, starting with `**Needs Alex:**`, which PRs broke which check, and your recommendation (for repeated flags, enforcement in GitHub, such as required checks or a required review from a bot identity, not in the runner).
