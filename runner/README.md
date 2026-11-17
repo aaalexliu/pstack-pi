@@ -24,6 +24,7 @@ Linear webhook (Issue, Comment) -> POST 127.0.0.1:8787/linear
     the issue id (an Issue's own id, a Comment's issueId) -> the open ticket it is, or whose sub-issue it is
     not a ticket delegated to runnerUser                  -> nothing
     else the per-ticket read and event rule below, for that ticket only
+    lead running -> pass the event to it
 backup poll on auditPoll (default every 10m): the same rule for every ticket, plus
   "missed: KEY <time> <event>" for each event no webhook had delivered
 heartbeat every 30 s: the stall check on live leads, running.json and the stale screen lock; no Linear calls unless it nudges or investigates
@@ -41,7 +42,15 @@ When an event by a person lands, by webhook or poll, the runner acks it within s
 - an event that is not a comment, such as a delegation or a closed Decision, gets the status comment update when the lead starts.
 - when a limit blocks the start, the runner also replies "Seen. Waiting to start: <reason>" once.
 
-Live leads do not get events yet; they see them at their next start.
+### Events for a running lead
+
+When a person acts on a ticket whose lead is live, the runner types the event into the lead's pane, as the stall nudge does, but with no Escape. Pi queues a message typed during a step as a steering message and hands it over once that step's tools finish, so the current tool keeps running. Each message is one line:
+
+```text
+Linear event on ALE-1 while you run, on Decision ALE-50 "Plan A or B?": Alex commented: Go with plan B. (<comment link>). Read it and act on it; if it answers an open Decision, close that Decision.
+```
+
+It names where the event happened (the ticket, a Decision or another sub-issue), who did what, and a comment's text, cut at 1500 characters, with its link. An event counts as seen only when its message shows up as a user message in the lead's session log, which Pi writes when it hands the message to the model. Then the runner writes its time to `.runner/passed`: webhook retries and the backup poll do not type it again, and it does not start the lead again after the lead exits. Until then the runner retypes it at most once a minute, so a message a dialog swallowed is not lost, and a lead that exits before it gets the message is started with it, as for any event. The status comment says "Passed to the running lead"; the 👀 stays the ack. While `.runner/takeover` or `.runner/held` exists, the runner types nothing, and the event starts the lead after it exits.
 
 ```text
 each pass, per open ticket delegated to runnerUser (Todo, or a started state such as In Progress or In Review):
