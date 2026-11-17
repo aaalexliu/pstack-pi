@@ -4,10 +4,12 @@ The job runner starts a Pi lead for each Linear issue delegated to its app user 
 
 ## What the runner does
 
-The runner keeps process only where a stopped or absent model cannot act for itself. It makes two writes:
+The runner keeps process only where a stopped or absent model cannot act for itself. Two moves decide a ticket:
 
 1. **Start or resume the lead** on any event since its last start.
 2. **File a Decision issue** when the lead stopped and nothing is open to wait for.
+
+Around those two moves the runner makes 25 kinds of write and process start, across Linear, tmux and the disk. The [mechanism ledger](#mechanism-ledger) lists each one, the PR that added it, and how often it has fired.
 
 Linear is an event log. An event is anything in Linear on the ticket or its sub-issues: a comment, a state, delegate, assignee, label, title or description change, or a Decision issue closed. Only events by someone other than `runnerUser` count, and not those of integrations such as GitHub or Slack. Leads post with the runner's token, so the runner's own moves and its leads' never wake anyone.
 
@@ -60,7 +62,7 @@ each pass, per open ticket delegated to runnerUser (Todo, or a started state suc
 order: the ticket whose oldest unseen event is oldest goes first
 ```
 
-It remembers one fact per ticket: when it last tried to start the lead. A start that works is kept in `<worktree>/.runner/started`, which the heartbeat also counts from. A start that fails is kept in `<worktreeRoot>/.attempts/KEY`, never inside a folder the runner may have refused. Events before the last attempt are seen, so only a new event retries a failed start. The runner never files a second Decision issue while its own (titled `Decision for KEY: ...`) is open. A ticket a routine filed counts its creation as an event, since the runner made it on your schedule.
+The start rule reads one fact per ticket: when the runner last tried to start the lead. In all the runner keeps 32 facts: 15 files, 1 tmux option, 5 marks in Linear and 11 in memory; the [mechanism ledger](#mechanism-ledger) lists them. A start that works is kept in `<worktree>/.runner/started`, which the heartbeat also counts from. A start that fails is kept in `<worktreeRoot>/.attempts/KEY`, never inside a folder the runner may have refused. Events before the last attempt are seen, so only a new event retries a failed start. The runner never files a second Decision issue while its own (titled `Decision for KEY: ...`) is open. A ticket a routine filed counts its creation as an event, since the runner made it on your schedule.
 
 The runner moves a `Todo` ticket to `In Progress` before it records the start. That move is the runner's own, so it is no event: a crash before the start is recorded starts the lead once more on the same events, never in a loop.
 
@@ -180,6 +182,151 @@ Each ticket gets one runner comment, edited in place: the state, the host, the t
 - `Needs: screen` marks work that drives the screen. It only informs other leads through `running.json`; it does not hold a ticket back.
 
 The first label that names a repo in the config picks the repo. With no such label, the runner comments, clears the delegate, and skips the issue. The worktree is `<worktreeRoot>/job-<key>-<slug>` on branch `job/<key>-<slug>`, found by key and reused; the runner never removes a worktree or resets a branch.
+
+## Mechanism ledger
+
+Every mechanism in `runner.ts` and `routines.ts`: 25 writes and processes, 32 facts, 19 config fields, 9 other inputs and 17 timers. [ledger.test.ts](ledger.test.ts) fails when the ledger misses a config field, a state file, a Linear mutation or a tmux command the code has, or names a config field or function the code no longer has. It cannot check the timers, the "Paid for by" column or the "Fired" column; a person fills those in.
+
+The last column counts fires on the one live host from 2026-11-14 to 2026-11-17 10:00 EST. It has three sources:
+
+- the launchd log: 58 lines with no timestamps. Output from before launchd, when the runner ran by hand in tmux, was not kept.
+- the `.runner/` folders of the 12 ticket worktrees and the files under `worktreeRoot`, as they stood at the end.
+- the Pi session logs of those 12 tickets.
+
+The runner does not log a Linear write, a webhook delivery or a pass, so those rows say "log does not show it". Webhook mode went live on 2026-11-17 09:56 EST, 10 minutes before the count, so its rows have almost no history. "None found" means no PR or review names an incident. "New, no history" marks a row that merged after the count.
+
+### Writes and processes
+
+| Mechanism | Where | Paid for by | Fired |
+| --- | --- | --- | --- |
+| Linear: file a Decision issue (`issueCreate` with `parentId`) | `decide`, `fileDecision` | [#71](https://github.com/aaalexliu/pstack-pi/pull/71): one write, so a crash cannot leave it unfindable. [#109](https://github.com/aaalexliu/pstack-pi/pull/109): at most one open, after 62 Decisions on one ticket in 26 minutes | Log does not show it. At least 62, from [#109](https://github.com/aaalexliu/pstack-pi/pull/109) |
+| Linear: move a Todo ticket to In Progress (`issueUpdate`) | `poll`, `setState` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61). None found | Log does not show it. At most once per ticket; 12 tickets started |
+| Linear: clear the delegate of a ticket with no repo label (`issueUpdate`) | `poll`, `clearDelegate` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61). None found | Log does not show it |
+| Linear: "No repo label" comment (`commentCreate`) | `poll` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61). None found | Log does not show it |
+| Linear: the status comment, posted once (`commentCreate`) then edited (`commentUpdate`) | `status`, `renderStatus`, `commands` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68): the lead moved into tmux, so a person needs the commands to reach it. None found | Log does not show it. At least one write per lead start (15), nudge (1) and Decision. Passed events: new, no history |
+| Linear: "Seen. Waiting to start" reply (`commentCreate`) | `ack` | [#100](https://github.com/aaalexliu/pstack-pi/pull/100): a comment on a blocked ticket got no answer for hours | Log does not show it. The log has 57 "Not starting" lines, all on the screen limit that [#108](https://github.com/aaalexliu/pstack-pi/pull/108) removed, and 0 on slots or memory |
+| Linear: 👀 on a person's comment (`reactionCreate`) | `react` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110): an ack within seconds. None found | Log does not show it; 0 failed reactions |
+| Linear: file a routine's ticket (`issueCreate`) | `createDueRoutines` | [#70](https://github.com/aaalexliu/pstack-pi/pull/70): Linear's recurring issues are UI only and whole days only. None found | 0. The live config has no `routines` |
+| tmux: `new-session` for the lead | `launch` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68) | 15 starts on 12 tickets (session logs) |
+| tmux: `kill-session` on a leftover session of the same name, before a start | `launch` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68). None found | Log does not show it |
+| tmux: `set-option @job-runner`, and `kill-session` if the tag fails | `launch` | [#78](https://github.com/aaalexliu/pstack-pi/pull/78): the review of [#74](https://github.com/aaalexliu/pstack-pi/pull/74) found the reaper could kill a session a person made | Tag: each start since [#78](https://github.com/aaalexliu/pstack-pi/pull/78). Failed tag: log does not show it |
+| tmux: `kill-session` on a closed ticket's session | `reapClosed` | [#74](https://github.com/aaalexliu/pstack-pi/pull/74), [#78](https://github.com/aaalexliu/pstack-pi/pull/78) | Log does not show it; 0 failed checks |
+| tmux: `set-environment`, so subagent windows match the lead | `envScript` | [#74](https://github.com/aaalexliu/pstack-pi/pull/74). [#81](https://github.com/aaalexliu/pstack-pi/pull/81): `CMUX_*` from another session broke the `subagent` tool | Each start (15) |
+| tmux: `send-keys` Escape, the nudge, Enter | `checkStall` | [#105](https://github.com/aaalexliu/pstack-pi/pull/105): a lead sat idle for 21 hours | 1, on 2026-11-16 (session logs) |
+| tmux: `send-keys` a person's event, then Enter, into a live lead | `pass`, `eventText` | [#112](https://github.com/aaalexliu/pstack-pi/pull/112): a running lead did not hear a comment or a closed Decision until it exited | New, no history |
+| tmux: `kill-session` then `new-session` for `KEY-stall` | `investigate` | [#105](https://github.com/aaalexliu/pstack-pi/pull/105) | 0. No `stall.sh`, `stall-input.md` or investigator session exists |
+| Process: the lead, `pi --session-id` | `launch` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68). [#74](https://github.com/aaalexliu/pstack-pi/pull/74): the lead decides when to exit | 15 |
+| Process: a second `pi` under `.runner/held` after a take over | `launch` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68). None found | Log does not show it. No `takeover` or `held` file exists |
+| Process: the investigator, `pi -p` with `stall.md` | `investigate` | [#105](https://github.com/aaalexliu/pstack-pi/pull/105) | 0 |
+| Process: `/bin/sh -c` for `linearTokenCommand` (each Linear call), `ghTokenCommand` (each start) and `webhookSecretCommand` (once) | `gql`, `envScript`, `main` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61), [#74](https://github.com/aaalexliu/pstack-pi/pull/74), [#110](https://github.com/aaalexliu/pstack-pi/pull/110): tokens never land on disk | Log does not show it |
+| Process: `git fetch`, `git worktree prune`, `git worktree add` | `makeWorktree`, `worktree` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61), [#68](https://github.com/aaalexliu/pstack-pi/pull/68) | 12 worktrees |
+| Process: `memory_pressure -Q` | `freeMemory` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68). None found | Each pass. It blocked 0 starts in the log |
+| Process: an HTTP server on `127.0.0.1:<webhookPort>` | `serve` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110) | Started once, 2026-11-17 09:56 EST. Deliveries: log does not show it |
+| File: the ticket's worktree folder and branch `job/<key>-<slug>` | `makeWorktree`, `workFor` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61) | 12 |
+| File: a `.runner/` line in the repo's `.git/info/exclude` | `makeWorktree` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61) | Log does not show it. Once per repo |
+
+### State and remembered facts
+
+A file path with no folder is in `<worktree>/.runner/`.
+
+| Mechanism | Where | Paid for by | Fired |
+| --- | --- | --- | --- |
+| `session-id`: the lead's Pi session, kept across starts | `launch`, `sessionId` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68) | In 12 of 12 worktrees |
+| `input.md`: the start message | `launch`, `startMessage` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68) | Written 15 times |
+| `work.json`: the ticket, so the heartbeat needs no Linear call | `launch`, `serve` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110) | In 0 worktrees: no lead has started in webhook mode |
+| `lead.sh`: the launch script | `launch`, `envScript` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68) | In 12 worktrees |
+| `started`: when the lead last started | `launch`, `lastStart` | [#71](https://github.com/aaalexliu/pstack-pi/pull/71) | In 12 worktrees |
+| `pane`: the lead's tmux pane, for the nudge and for passed events | `launch`, `checkStall`, `pass` | [#105](https://github.com/aaalexliu/pstack-pi/pull/105) | In 3 worktrees |
+| `passed`: the newest event the lead's own log shows it got, so it is not typed again and does not start the lead | `settle`, `inLog`, `lastAttempt` | [#112](https://github.com/aaalexliu/pstack-pi/pull/112) | New, no history |
+| `stall.json`: what the runner did about this run's quiet stretches | `checkStall` | [#105](https://github.com/aaalexliu/pstack-pi/pull/105) | In 1 worktree, nudge only. Each start deletes it |
+| `stall-input.md`: the investigator's task | `investigate` | [#105](https://github.com/aaalexliu/pstack-pi/pull/105) | 0 |
+| `stall.sh`: the investigator's launch script | `investigate` | [#105](https://github.com/aaalexliu/pstack-pi/pull/105) | 0 |
+| `takeover`: a person touches it; the runner stops nudging and reaping | `launch`, `checkStall`, `reapClosed`, `commands` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68), [#78](https://github.com/aaalexliu/pstack-pi/pull/78). None found | In 0 worktrees. Log does not show past use |
+| `held`: `lead.sh` renames `takeover` to it while the second `pi` runs | `launch`, `checkStall`, `reapClosed` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68), [#78](https://github.com/aaalexliu/pstack-pi/pull/78). None found | In 0 worktrees. Log does not show past use |
+| `<worktreeRoot>/.attempts/KEY`: when a start last failed | `poll`, `attemptFile`, `lastAttempt` | [#109](https://github.com/aaalexliu/pstack-pi/pull/109): 62 Decisions in 26 minutes. [#107](https://github.com/aaalexliu/pstack-pi/pull/107) moved it out of the worktree | 0. The folder does not exist |
+| `<worktreeRoot>/running.json`: the live leads, for other leads | `writeRunning`, `runningEntry` | [#108](https://github.com/aaalexliu/pstack-pi/pull/108): two screen tickets could not run at once | Rewritten each pass and heartbeat. It lists 0 leads now |
+| `<worktreeRoot>/screen.lock`: leads make it; the runner only removes a stale one | `writeRunning`, `screenLock` | [#108](https://github.com/aaalexliu/pstack-pi/pull/108) | Log does not show it. Not there now |
+| tmux option `@job-runner`: marks a session the runner made | `launch`, `reapClosed`, `serve` | [#78](https://github.com/aaalexliu/pstack-pi/pull/78) | Each start since [#78](https://github.com/aaalexliu/pstack-pi/pull/78) |
+| Linear: the status comment, found by its `**Runner:**` start | `status`, `statusComment` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68) | Log does not show it |
+| Linear: a `Seen.` reply newer than the event means "acked" | `ack` | [#100](https://github.com/aaalexliu/pstack-pi/pull/100) | Log does not show it |
+| Linear: the runner's own 👀 means "reacted" | `react`, `eventsOf` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110) | Log does not show it |
+| Linear: an open `Decision for KEY:` issue blocks a second | `decide`, `decisionTitle` | [#109](https://github.com/aaalexliu/pstack-pi/pull/109): 62 Decisions in 26 minutes | Log does not show it |
+| Linear: the `runner-routine <name> <time>` line marks a filed run | `createDueRoutines`, `newEvents` | [#70](https://github.com/aaalexliu/pstack-pi/pull/70) | 0 |
+| Memory: `quiet`, tickets read with no events, so they are not read again | `poll` | [#107](https://github.com/aaalexliu/pstack-pi/pull/107): the per-ticket read costs about 310 points of a shared budget | Log does not show it |
+| Memory: `reacted`, comments given a 👀 this run | `react` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110) | Log does not show it |
+| Memory: `typed`, when each event was last typed into a live lead | `pass` | [#112](https://github.com/aaalexliu/pstack-pi/pull/112) | New, no history |
+| Memory: `leads`, the live leads a pass saw, for a lead with no `work.json` | `poll`, `serve` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110) | Log does not show it |
+| Memory: `handled`, `delivered` and `since`, behind the "missed:" lines | `poll`, `serve` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110) | 0 "missed:" lines |
+| Memory: `deliveries`, the last 1,000 webhook delivery ids | `serve` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110) | Log does not show it |
+| Memory: `queue`, one pass at a time | `serve` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110) | Log does not show it |
+| Memory: `said`, lines already logged | `main`, `serve` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68) | 57 lines got through |
+| Memory: `repoLocks`, one git setup per repo at a time | `worktree` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68): two starts fought over `.git/config.lock` | Log does not show it |
+| Memory: `decisionIds`, the team and assignee ids | `fileDecision` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68) | Log does not show it |
+| Memory: `low`, budgets already logged as low | `gql` | [#107](https://github.com/aaalexliu/pstack-pi/pull/107) | 0 low-budget lines |
+
+### Config fields
+
+"Fired" says what the live config sets.
+
+| Mechanism | Where | Paid for by | Fired |
+| --- | --- | --- | --- |
+| `linearTokenCommand` | `gql`, `envScript`, `createDueRoutines` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61) | Set |
+| `ghTokenCommand` | `envScript` | [#74](https://github.com/aaalexliu/pstack-pi/pull/74) | Set |
+| `team` | `linearClient`, `startMessage`, `createDueRoutines` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61) | Set |
+| `runnerUser` | `linearClient`, `createDueRoutines` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61) | Set |
+| `decisionAssignee` | `isDecision`, `fileDecision`, `startMessage` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68) | Set |
+| `repos` | `workFor`, `launch`, `poll` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61) | 6 labels for 4 clones |
+| `models` | `workFor` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61) | Set |
+| `thinking` | `launch`, `investigate` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61) | `high`, the default |
+| `pollSeconds` | `main` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61) | 30, the default |
+| `webhookSecretCommand` | `main` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110) | Set. Webhook mode since 2026-11-17 |
+| `webhookPort` | `serve` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110) | Not set; default 8787 |
+| `auditPoll` | `auditDelay`, `main` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110) | Not set; default `every 10m` |
+| `maxLeads` | `startBlock`, `poll` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68) | 20. It blocked 0 starts in the log |
+| `minFreeMemoryPercent` | `startBlock`, `poll` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68) | 20, the default. It blocked 0 starts in the log |
+| `stallMinutes` | `checkStall` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68). [#105](https://github.com/aaalexliu/pstack-pi/pull/105) cut the default to 5 | 5, the default. 1 nudge |
+| `toolQuietMinutes` | `checkStall` | [#105](https://github.com/aaalexliu/pstack-pi/pull/105): a busy lead must not be nudged at 5 minutes | Not set; default 60. 0 fires |
+| `host` | `status`, `decide` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61) | Set |
+| `worktreeRoot` | `workFor`, `writeRunning`, `attemptFile` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61) | Set |
+| `routines` | `loadConfig`, `createDueRoutines` | [#70](https://github.com/aaalexliu/pstack-pi/pull/70) | Not set. 0 routine tickets |
+
+### Other inputs
+
+| Mechanism | Where | Paid for by | Fired |
+| --- | --- | --- | --- |
+| `JOB_RUNNER_CONFIG`: the config file | `loadConfig` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61) | Log does not show it |
+| `JOB_RUNNER_PI`, `JOB_RUNNER_TMUX`, `JOB_RUNNER_MEMORY_PRESSURE`: stand-in binaries | `bin` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61): the tests | Tests only |
+| `PI_AUTH_PROFILE`, `PI_CODING_AGENT_DIR`: the two Pi variables a lead keeps | `KEEP_ENV`, `envScript`, `agentDir` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68) | Log does not show it |
+| `--dry-run` | `main`, `poll` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61) | Log does not show it |
+| `--once` | `main` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61) | Log does not show it |
+| Ticket line `Lead model:` or `Implement model:` | `workFor` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61), [#68](https://github.com/aaalexliu/pstack-pi/pull/68) | Log does not show it |
+| Ticket line `Review model:` | `workFor` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61) | Log does not show it |
+| Ticket line `Needs: screen` | `needsScreen`, `runningEntry`, `startMessage` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68). [#108](https://github.com/aaalexliu/pstack-pi/pull/108) made it a note for other leads | On 7 of 12 tickets. 57 "Not starting" log lines before [#108](https://github.com/aaalexliu/pstack-pi/pull/108), none since |
+| The repo label | `workFor`, `poll` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61) | 12 tickets |
+
+### Timers and schedules
+
+| Mechanism | Where | Paid for by | Fired |
+| --- | --- | --- | --- |
+| Poll every `pollSeconds`, with no webhook | `main` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61) | Ran until 2026-11-17 09:56 EST. Passes: log does not show it |
+| Routine check every `pollSeconds` | `main`, `createDueRoutines` | [#70](https://github.com/aaalexliu/pstack-pi/pull/70) | Runs; 0 routines to file |
+| Heartbeat every 30 s, with a webhook | `main`, `serve` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110) | Since 2026-11-17 09:56 EST. Log does not show it |
+| Backup poll on `auditPoll`: `every <n>m`, `every <n>h`, `daily HH:MM`, `weekly Mon HH:MM` | `auditDelay`, `main` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110). None found | Every 10 minutes for 10 minutes; 0 "missed:" lines. `daily` and `weekly`: 0 |
+| Quiet limit while idle: `stallMinutes` | `checkStall`, `heartbeat` | [#105](https://github.com/aaalexliu/pstack-pi/pull/105): a lead sat idle for 21 hours | 1 nudge |
+| Quiet limit while busy: `toolQuietMinutes` | `checkStall`, `heartbeat` | [#105](https://github.com/aaalexliu/pstack-pi/pull/105) | 0 |
+| 500 ms between Escape and the nudge | `checkStall` | [#105](https://github.com/aaalexliu/pstack-pi/pull/105) | 1 |
+| An event the lead's log does not show is typed again at most once in 60 s | `pass` | [#112](https://github.com/aaalexliu/pstack-pi/pull/112): a dialog can swallow typed text | New, no history |
+| Webhook timestamp window: 60 s | `serve` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110): the endpoint is public, so a replay must fail | Log does not show it |
+| Linear 429: wait `Retry-After` or 60 s, then try again, with no limit | `gql` | [#107](https://github.com/aaalexliu/pstack-pi/pull/107) | 0 "rate limit hit" lines |
+| Low budget line under 20% left | `gql` | [#107](https://github.com/aaalexliu/pstack-pi/pull/107) | 0 |
+| A state or assignee change within 2 s after an integration's link is the integration's | `eventsOf` | [#107](https://github.com/aaalexliu/pstack-pi/pull/107): an opened PR looked like a person's move | Log does not show it |
+| A `screen.lock` with no owner file is stale after 60 s | `writeRunning` | [#108](https://github.com/aaalexliu/pstack-pi/pull/108) | Log does not show it |
+| Routine Linear call and token command: 30 s limit | `createDueRoutines` | [#70](https://github.com/aaalexliu/pstack-pi/pull/70) | 0 |
+| Routine schedule: `daily HH:MM`, `weekly Mon HH:MM` | `parseSchedule`, `lastDue` | [#70](https://github.com/aaalexliu/pstack-pi/pull/70) | 0 |
+| A failed pass waits for the next pass | `poll`, `main` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61) | 0 "failed" lines |
+| A failed start waits for a new event | `poll`, `lastAttempt` | [#109](https://github.com/aaalexliu/pstack-pi/pull/109): 62 Decisions in 26 minutes | 0 failed starts on disk |
+
+Size limits are not in the ledger: 100 sub-issues, pages of 25, a 1 MB webhook body, a 1 MB log tail and a passed event cut at 1,500 characters.
 
 ## Config
 
