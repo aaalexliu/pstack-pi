@@ -18,12 +18,17 @@ type Shown = {
   children: { nodes: { id: string; identifier: string; title: string; state: { name: string }; assignee: { name: string } | null }[] };
 };
 
-/** The ticket the runner started this lead for: `.runner/work.json` in `cwd` or the nearest folder above it. */
+/**
+ * The ticket the runner started this lead for: `.runner/work.json` in `cwd` or the nearest folder above it. A sub-lead's
+ * worktree is the lead's path plus `-<unit>`, so each folder also tries the folders its name extends, longest first.
+ */
 export function findWork(cwd: string): Work {
   for (let dir = path.resolve(cwd); ; dir = path.dirname(dir)) {
-    const file = path.join(dir, '.runner', 'work.json');
-    if (existsSync(file)) return JSON.parse(readFileSync(file, 'utf8'));
-    if (dir === path.dirname(dir)) throw new Error(`no .runner/work.json in ${cwd} or above it; run ticket in the worktree the runner started you in`);
+    const name = path.basename(dir);
+    const leads = [...name.matchAll(/-/g)].reverse().map((dash) => path.join(path.dirname(dir), name.slice(0, dash.index)));
+    const file = [dir, ...leads].map((folder) => path.join(folder, '.runner', 'work.json')).find((f) => existsSync(f));
+    if (file) return JSON.parse(readFileSync(file, 'utf8'));
+    if (dir === path.dirname(dir)) throw new Error(`no .runner/work.json in ${cwd} or above it; run this in the worktree the runner, or your lead, started you in`);
   }
 }
 
