@@ -61,13 +61,13 @@ export type Ticket = { state: string; description: string; createdAt: string; ch
 export type Work = { id: string; key: string; title: string; url: string; description: string; repo: string; branch: string; dir: string; models: { lead: string; review: string } };
 /**
  * `quiet` holds, per ticket, the newest touch the runner read with no events, so it reads that ticket again only once something changes.
- * With a webhook, `webhook` is set: `leads` holds the live leads the heartbeat checks, `handled` the events a pass has acted on,
+ * With a webhook, `webhook` is set: `handled` holds the events a pass has acted on,
  * so the backup poll can name one no webhook delivered, and `since` is when the runner started listening.
  * `reacted` holds comments the runner put its 👀 on this run, before Linear shows the reaction.
  */
 type Ctx = {
   config: Config; linear: ReturnType<typeof linearClient>; quiet: Map<string, string>; reacted: Set<string>;
-  webhook: boolean; since: string; leads: Map<string, Work>; handled: Set<string>;
+  webhook: boolean; since: string; handled: Set<string>;
   /** Per issue id, when its last webhook arrived: an event on it no later than that was delivered, even if a live lead meant no pass acted on it. */
   delivered: Map<string, string>;
   /** Per message typed into a live lead, when the runner last typed it, so it retypes at most once a minute. */
@@ -775,7 +775,6 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void, opts
     // A live lead's heartbeat needs no Linear. A ticket nothing touched since the lead saw it, or since the
     // runner last read it and found no events, has none now. A live lead gets its events typed in.
     const isLive = await live(w);
-    if (isLive) ctx.leads.set(w.key, w);
     const since = lastAttempt(config, w) ?? '';
     const at = touched(issue);
     const fresh = at > since && ctx.quiet.get(w.key) !== `${since} ${at}`;
@@ -835,7 +834,6 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void, opts
         continue;
       }
       running.push({ w, ticket: null, live: true });
-      ctx.leads.set(w.key, w);
       writeRunning(config, running.map((r) => r.w));
       // For an event that is not a comment, such as a delegation or a closed Decision, this edit is the ack.
       await status(ctx, w, 'Lead running');
@@ -847,7 +845,7 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void, opts
 }
 
 const newCtx = (config: Config, fetchFn: typeof fetch, webhook: boolean): Ctx => ({
-  config, linear: linearClient(config, fetchFn), quiet: new Map(), reacted: new Set(), webhook, since: new Date().toISOString(), leads: new Map(), handled: new Set(), delivered: new Map(), typed: new Map(),
+  config, linear: linearClient(config, fetchFn), quiet: new Map(), reacted: new Set(), webhook, since: new Date().toISOString(), handled: new Set(), delivered: new Map(), typed: new Map(),
 });
 
 /** Whether a Linear webhook delivery carries a valid `Linear-Signature`, the hex HMAC-SHA256 of the raw body. */
@@ -909,14 +907,12 @@ export async function serve(config: Config, fetchFn: typeof fetch, secret: strin
     /** The heartbeat: nudges or investigates a quiet live lead, and rewrites running.json. It reads only tmux and session logs, unless it acts. */
     heartbeat: () => enqueue('heartbeat', async () => {
       // The live leads are the tmux sessions the runner tagged, each with the ticket its launch saved in the worktree.
-      // A lead started before work.json existed falls back to the last pass that read it.
       const folders = existsSync(config.worktreeRoot) ? readdirSync(config.worktreeRoot) : [];
       const leads: Work[] = [];
       for (const name of await leadSessions()) {
         const folder = folders.filter((f) => f.startsWith(`job-${name.toLowerCase()}-`)).sort((a, b) => a.length - b.length)[0];
         const saved = folder && readOr(path.join(config.worktreeRoot, folder, '.runner', 'work.json'));
-        const w: Work | undefined = saved ? JSON.parse(saved) : ctx.leads.get(name);
-        if (w) leads.push(w);
+        if (saved) leads.push(JSON.parse(saved));
       }
       for (const w of leads) {
         try { await checkStall(ctx, w); } catch (error) { console.error(`${w.key}: stall check failed`, error); }

@@ -62,7 +62,7 @@ each pass, per open ticket delegated to runnerUser (Todo, or a started state suc
 order: the ticket whose oldest unseen event is oldest goes first
 ```
 
-The start rule reads one fact per ticket: when the runner last tried to start the lead. In all the runner keeps 28 facts: 14 files, 1 tmux option, 4 marks in Linear and 9 in memory; the [mechanism ledger](#mechanism-ledger) lists them. A start that works is kept in `<worktree>/.runner/started`, which the heartbeat also counts from. A start that fails is kept in `<worktreeRoot>/.attempts/KEY`, never inside a folder the runner may have refused. Events before the last attempt are seen, so only a new event retries a failed start. The runner never files a second Decision issue while its own (titled `Decision for KEY: ...`) is open. A ticket a routine filed counts its creation as an event, since the runner made it on your schedule.
+The start rule reads one fact per ticket: when the runner last tried to start the lead. In all the runner keeps 27 facts: 14 files, 1 tmux option, 4 marks in Linear and 8 in memory; the [mechanism ledger](#mechanism-ledger) lists them. A start that works is kept in `<worktree>/.runner/started`, which the heartbeat also counts from. A start that fails is kept in `<worktreeRoot>/.attempts/KEY`, never inside a folder the runner may have refused. Events before the last attempt are seen, so only a new event retries a failed start. The runner never files a second Decision issue while its own (titled `Decision for KEY: ...`) is open. A ticket a routine filed counts its creation as an event, since the runner made it on your schedule.
 
 The runner moves a `Todo` ticket to `In Progress` before it records the start. That move is the runner's own, so it is no event: a crash before the start is recorded starts the lead once more on the same events, never in a loop.
 
@@ -198,7 +198,7 @@ The first label that names a repo in the config picks the repo. With no such lab
 
 ## Mechanism ledger
 
-Every mechanism in `runner.ts` and `routines.ts`: 24 writes and processes, 28 facts, 18 config fields, 9 other inputs and 15 timers. [ledger.test.ts](ledger.test.ts) fails when the ledger misses a config field, a state file, a Linear mutation or a tmux command the code has, or names a config field or function the code no longer has. It cannot check the timers, the "Paid for by" column or the "Fired" column; a person fills those in.
+Every mechanism in `runner.ts` and `routines.ts`: 24 writes and processes, 27 facts, 18 config fields, 9 other inputs and 15 timers. [ledger.test.ts](ledger.test.ts) fails when the ledger misses a config field, a state file, a Linear mutation or a tmux command the code has, or names a config field or function the code no longer has. It cannot check the timers, the "Paid for by" column or the "Fired" column; a person fills those in.
 
 The last column counts fires on the one live host from 2026-11-14 to 2026-11-17 10:00 EST. It has three sources:
 
@@ -245,7 +245,7 @@ A file path with no folder is in `<worktree>/.runner/`.
 | --- | --- | --- | --- |
 | `session-id`: the lead's Pi session, kept across starts | `launch`, `sessionId` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68) | In 12 of 12 worktrees |
 | `input.md`: the start message | `launch`, `startMessage` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68) | Written 15 times |
-| `work.json`: the ticket, so the heartbeat needs no Linear call | `launch`, `serve` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110) | In 0 worktrees: no lead has started in webhook mode |
+| `work.json`: the ticket, so the heartbeat needs no Linear call | `launch`, `serve` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110) | In 7 worktrees, every live lead, on 2026-11-17 |
 | `lead.sh`: the launch script | `launch`, `envScript` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68) | In 12 worktrees |
 | `started`: when the lead last started | `launch`, `lastStart` | [#71](https://github.com/aaalexliu/pstack-pi/pull/71) | In 12 worktrees |
 | `pane`: the lead's tmux pane, for the nudge and for passed events | `launch`, `checkStall`, `pass` | [#105](https://github.com/aaalexliu/pstack-pi/pull/105) | In 3 worktrees |
@@ -265,7 +265,6 @@ A file path with no folder is in `<worktree>/.runner/`.
 | Memory: `quiet`, tickets read with no events, so they are not read again | `poll` | [#107](https://github.com/aaalexliu/pstack-pi/pull/107): the per-ticket read costs about 310 points of a shared budget | Log does not show it |
 | Memory: `reacted`, comments given a 👀 this run | `react` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110) | Log does not show it |
 | Memory: `typed`, when each event was last typed into a live lead | `pass` | [#112](https://github.com/aaalexliu/pstack-pi/pull/112) | New, no history |
-| Memory: `leads`, the live leads a pass saw, for a lead with no `work.json` | `poll`, `serve` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110) | Log does not show it |
 | Memory: `handled`, `delivered` and `since`, behind the "missed:" lines | `poll`, `serve` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110) | 0 "missed:" lines |
 | Memory: `queue`, one pass at a time | `serve` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110) | Log does not show it |
 | Memory: `said`, lines already logged | `main`, `serve` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68) | 57 lines got through |
