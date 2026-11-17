@@ -8,7 +8,7 @@ import { format } from 'node:util';
 import { createHmac } from 'node:crypto';
 import { auditDelay, commands, main, nextMove, put, renderStatus, serve, signed, startBlock, type Child, type Config, type Ticket } from './runner.ts';
 
-type FakeComment = { id: string; body: string; createdAt: string; user: { name: string } | null; botActor?: { name: string } | null; parentId?: string; reactions?: { emoji: string; user: { name: string } }[] };
+type FakeComment = { id: string; body: string; url?: string; createdAt: string; user: { name: string } | null; botActor?: { name: string } | null; parentId?: string; reactions?: { emoji: string; user: { name: string } }[] };
 /** A history entry: who changed what. Linear returns every field the query names, null when unset. */
 type FakeChange = { createdAt: string; actor?: { name: string } | null; botActor?: { name: string } | null; attachment?: { sourceType: string }; toState?: { name: string }; toDelegate?: { name: string }; addedLabelIds?: string[]; toTitle?: string };
 type FakeIssue = {
@@ -238,6 +238,7 @@ else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? J
     leads: () => lines(file('pi.log')).map((line) => JSON.parse(line)),
     tmux: () => lines(file('tmux.log')).map((line) => JSON.parse(line) as string[]),
     decisions: (parent = 'id-1') => issues.filter((i) => i.parent === parent),
+    addIssue: (x: FakeIssue) => { issues.push(x); },
     setLive: (...keys: string[]) => writeFileSync(file('live.json'), JSON.stringify(keys)),
     /** Marks sessions as the runner's, as its `set-option @job-runner` does. */
     tag: (...keys: string[]) => writeFileSync(file('tags.json'), JSON.stringify(Object.fromEntries(keys.map((k) => [k, k])))),
@@ -384,13 +385,17 @@ test('an Alex label edit 1 s after an integration entry still counts', async () 
   assert.match(t.leads()[1].input, /ALE-1: Alex Example changed its labels/);
 });
 
-test('a live lead costs no per-ticket read', async () => {
+test('a live lead costs one per-ticket read for the runner\'s own touch, then none until something changes', async () => {
   const t = setup([issue(1)]);
   await t.run('--once');
   t.setLive('ALE-1');
-  t.ops.length = 0;
-  await t.run('--once');
-  assert.deepEqual(t.ops, ['Issues']);
+  const srv = await t.serve();
+  try {
+    await srv.audit();
+    t.ops.length = 0;
+    await srv.audit();
+    assert.deepEqual(t.ops, ['Issues']);
+  } finally { await srv.close(); }
 });
 
 test('a 429 waits Retry-After and tries again; a low budget is logged once', async () => {
@@ -481,7 +486,7 @@ test('a quiet live lead gets Escape and one nudge, then one investigator and no 
     t.setLive('ALE-1');
     const dir = t.dirOf(1);
     const runner = path.join(dir, '.runner');
-    const keys = () => t.tmux().filter((a) => a[0] === 'send-keys').map((a) => (a.includes('-l') ? 'nudge' : a.at(-1)));
+    const keys = () => t.tmux().filter((a) => a[0] === 'send-keys' && !a.at(-1)!.startsWith('Linear event')).map((a) => (a.includes('-l') ? 'nudge' : a.at(-1)));
     const nudges = () => keys().filter((k) => k === 'nudge').length;
     const investigators = () => t.tmux().filter((a) => a[0] === 'new-session' && a.includes('ALE-1-stall')).length;
     await t.run('--once');
@@ -1030,20 +1035,101 @@ test('a client that sends part of a body and drops the socket does not stop the 
   } finally { await srv.close(); }
 });
 
-test('a webhook that lands while the lead runs is not later logged as missed', async () => {
-  const job = issue(1);
+/** Writes the lead's session log with `texts` as user messages, as Pi does once it hands a typed message over. */
+function leadLog(agent: string, dir: string, texts: string[]) {
+  const id = readFileSync(path.join(dir, '.runner', 'session-id'), 'utf8').trim();
+  const folder = path.join(agent, 'sessions', `--${realpathSync(dir).replace(/^\//, '').replace(/[/:]/g, '-')}--`);
+  mkdirSync(folder, { recursive: true });
+  writeFileSync(path.join(folder, `2026-01-01T00-00-00-000Z_${id}.jsonl`), texts.map((text) => JSON.stringify({ type: 'message', message: { role: 'user', content: [{ type: 'text', text }] } })).join('\n') + '\n');
+}
+
+/** A live lead with a fake pane, a session log folder, and a Decision Alex can comment on. */
+async function liveLead() {
+  const job = issue(1, { state: 'In Progress' });
   const t = setup([job]);
+  const agent = path.join(t.root, 'agent');
+  process.env.PI_CODING_AGENT_DIR = agent;
   await t.run('--once');
+  const decision = issue(50, { parent: 'id-1', assignee: ALEX, delegate: null, labels: [], title: 'Plan A or B?', createdAt: '2026-01-01T00:00:02Z', history: [] });
+  t.addIssue(decision);
+  t.setLive('ALE-1');
+  decision.comments.push({ id: 'c1', body: 'Go with\nplan B.', url: 'https://linear.app/x/issue/ALE-50#comment-c1', createdAt: later(), user: { name: ALEX } });
+  const typed = () => t.tmux().filter((a) => a[0] === 'send-keys');
+  const log = (...texts: string[]) => leadLog(agent, t.dirOf(1), texts);
+  return { t, job, decision, typed, log };
+}
+const TYPED = 'Linear event on ALE-1 while you run, on Decision ALE-50 "Plan A or B?": Alex Example commented: Go with plan B. (https://linear.app/x/issue/ALE-50#comment-c1). Read it and act on it; if it answers an open Decision, close that Decision.';
+
+test('a comment while the lead runs is typed into its pane with no Escape, at most once a minute, and once in the lead log never again nor restarts it', async () => {
+  const { t, job, decision, typed, log } = await liveLead();
   const srv = await t.serve();
   try {
-    t.setLive('ALE-1');
-    job.comments.push({ id: 'c1', body: 'Also the footer.', createdAt: later(), user: { name: ALEX } });
-    assert.equal(await srv.post({ type: 'Comment', data: { id: 'c1', issueId: 'id-1' } }), 200);
+    const delivery = { type: 'Comment', data: { id: 'c1', issueId: 'id-50' } };
+    assert.equal(await srv.post(delivery, { delivery: 'd1' }), 200);
+    assert.equal(await srv.post(delivery, { delivery: 'd2' }), 200);
+    assert.deepEqual(typed().map((a) => a.at(-1)), [TYPED, 'Enter'], 'typed once, then Enter; no Escape; not retyped within a minute');
+    assert.equal(decision.comments[0].reactions!.length, 1, 'the 👀 stays the ack');
+    assert.match(job.comments.find((c) => c.body.startsWith('**Runner:**'))!.body, /Passed to the running lead/);
+    assert.equal(job.comments.filter((c) => c.user?.name === RUNNER).length, 1, 'no new comment, only the status');
+    log(TYPED);
+    await srv.audit();
+    assert.equal(typed().length, 2);
     t.setLive();
     await srv.audit();
-    assert.equal(t.leads().length, 2);
+    assert.equal(t.leads().length, 1, 'an event in the lead log does not restart the lead');
     assert.ok(!t.printed.logs.some((l) => l.startsWith('missed:')), t.printed.logs.join('\n'));
-  } finally { await srv.close(); }
+  } finally { await srv.close(); delete process.env.PI_CODING_AGENT_DIR; }
+});
+
+test('an event swallowed by a dialog, or still queued when the lead exits, stays unanswered and starts the lead', async () => {
+  const { t, typed } = await liveLead();
+  try {
+    await t.run('--once');
+    assert.equal(typed().length, 2, 'typed, but the lead log never shows it');
+    t.setLive();
+    await t.run('--once');
+    assert.equal(t.leads().length, 2);
+    assert.match(t.leads()[1].input, /ALE-50: Alex Example commented: Go with\nplan B\./);
+  } finally { delete process.env.PI_CODING_AGENT_DIR; }
+});
+
+test('a lead that logs a typed event and exits before the next poll is not started again for it', async () => {
+  const { t, typed, log } = await liveLead();
+  try {
+    await t.run('--once');
+    assert.equal(typed().length, 2);
+    log(TYPED);
+    t.setLive();
+    await t.run('--once');
+    assert.equal(t.leads().length, 1, 'the ended lead\'s log shows it was answered');
+  } finally { delete process.env.PI_CODING_AGENT_DIR; }
+});
+
+test('an event already in the lead log is not typed', async () => {
+  const { t, typed, log } = await liveLead();
+  try {
+    log(TYPED);
+    await t.run('--once');
+    assert.equal(typed().length, 0);
+    t.setLive();
+    await t.run('--once');
+    assert.equal(t.leads().length, 1);
+  } finally { delete process.env.PI_CODING_AGENT_DIR; }
+});
+
+test('takeover skips typing; an event with no lead running still starts one', async () => {
+  const job = issue(1, { state: 'In Progress' });
+  const t = setup([job]);
+  await t.run('--once');
+  t.setLive('ALE-1');
+  put(path.join(t.dirOf(1), '.runner', 'takeover'), '');
+  job.comments.push({ id: 'c1', body: 'Ship it.', createdAt: later(), user: { name: ALEX } });
+  await t.run('--once');
+  assert.equal(t.tmux().filter((a) => a[0] === 'send-keys').length, 0, 'Alex is at the keyboard');
+  t.setLive();
+  await t.run('--once');
+  assert.equal(t.leads().length, 2);
+  assert.match(t.leads()[1].input, /Alex Example commented: Ship it\./);
 });
 
 test('with a webhook, the 30 s heartbeat keeps running.json fresh between backup polls', async () => {
