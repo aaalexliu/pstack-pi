@@ -333,7 +333,7 @@ export const needsScreen = (description: string) => /^Needs:\s*screen\s*$/im.tes
 
 /** One running lead as `running.json` lists it, so leads can see who else may want the screen. */
 const runningEntry = (w: Work) => ({
-  key: w.key, title: w.title, tmux: w.key, worktree: w.dir, sessionId: sessionId(w), needsScreen: needsScreen(w.description), startedAt: lastStart(w),
+  key: w.key, title: w.title, tmux: w.key, worktree: w.dir, sessionId: sessionId(w), needsScreen: needsScreen(w.description),
 });
 const runningFile = (config: Config) => path.join(config.worktreeRoot, 'running.json');
 
@@ -345,16 +345,19 @@ function writeRunning(config: Config, running: Work[]) {
 
 const rf = (w: Pick<Work, 'dir'>, name: string) => path.join(w.dir, '.runner', name);
 const sessionId = (w: Work) => readOr(rf(w, 'session-id'))?.trim() ?? '';
-/** When the runner last started the lead. The heartbeat counts from it. */
-export const lastStart = (w: Pick<Work, 'dir'>) => readOr(rf(w, 'started'))?.trim() || null;
-/** A failed start is kept under `worktreeRoot`, never in the ticket's folder: the runner may have refused that folder. */
-const attemptFile = (config: Config, key: string) => path.join(config.worktreeRoot, '.attempts', key);
-/**
- * The one fact the runner keeps per ticket: when it last tried to start the lead, whether the start worked or not.
- * Events before it are seen, so only a new event retries a failed start.
- */
-const lastAttempt = (config: Config, w: Pick<Work, 'dir' | 'key'>) =>
-  [lastStart(w) ?? '', readOr(attemptFile(config, w.key))?.trim() ?? '', readOr(rf(w, 'passed'))?.trim() ?? ''].sort().at(-1) || null;
+/** What the runner keeps per ticket, written whole or not at all: `seen`, the time up to which the lead saw every event, and this lead run's `stall`. */
+type State = { seen: string; stall?: { nudgedAt: number; investigatedAt?: number } };
+const stateFile = (config: Config, key: string) => path.join(config.worktreeRoot, '.state', `${key}.json`);
+/** The state, or null if no lead ever started; a lead from before it has only `.runner/started`. `seen` must be an ISO UTC time, since events compare to it as strings. Throws on a corrupt file, or none where a lead ran: `poll` then counts only events from now. */
+export function readState(config: Config, w: Pick<Work, 'dir' | 'key'>): State | null {
+  const file = stateFile(config, w.key), old = readOr(rf(w, 'started'))?.trim();
+  if (!existsSync(file) && !old) { if (existsSync(rf(w, 'session-id'))) throw new Error(`${file} is missing`); return null; }
+  let s: State | undefined;
+  try { s = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : { seen: old }; } catch { /* corrupt */ }
+  if (!/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z$/.test(String(s?.seen)) || !Number.isFinite(Date.parse(s!.seen)) || (s!.stall && typeof s!.stall.nudgedAt !== 'number')) throw new Error(`${file} is corrupt`);
+  return s!;
+}
+const writeState = (config: Config, key: string, state: State) => { mkdirSync(path.dirname(stateFile(config, key)), { recursive: true }); put(stateFile(config, key), JSON.stringify(state)); };
 const isDecision = (config: Config, c: Child) => c.assignee?.name === config.decisionAssignee;
 const closedAt = (c: Child) => c.completedAt ?? c.canceledAt;
 const decisionTitle = (key: string, why: string) => `Decision for ${key}: ${why}`;
@@ -398,7 +401,7 @@ function eventText(ctx: Ctx, w: Work, ticket: Ticket, e: Event) {
 function settle(ctx: Ctx, w: Work, ticket: Ticket, events: Event[]) {
   const done = events.findIndex((e) => !inLog(w, eventText(ctx, w, ticket, e)));
   const seen = done === -1 ? events : events.slice(0, done);
-  if (seen.length) put(rf(w, 'passed'), seen.at(-1)!.at);
+  if (seen.length) writeState(ctx.config, w.key, { ...readState(ctx.config, w), seen: seen.at(-1)!.at });
   return done === -1 ? [] : events.slice(done);
 }
 
@@ -559,7 +562,7 @@ async function launch(ctx: Ctx, w: Work, events: Event[], running: Work[]) {
   put(rf(w, 'input.md'), startMessage(ctx, w, events, running));
   // The heartbeat reads the ticket from here, so it needs no Linear call and survives a runner restart.
   put(rf(w, 'work.json'), JSON.stringify(w));
-  for (const file of ['takeover', 'held', 'stall.json']) rmSync(rf(w, file), { force: true });
+  for (const file of ['takeover', 'held', 'started', 'passed', 'stall.json']) rmSync(rf(w, file), { force: true });
   const pi = (...extra: string[]) => [bin('pi'), '--session-id', sessionId(w), '-e', SUBAGENT_DONE,
     '--model', w.models.lead, '--thinking', ctx.config.thinking, '--append-system-prompt', path.join(PROMPTS, 'lead.md'), ...extra].map(sh).join(' ');
   put(rf(w, 'lead.sh'), [
@@ -569,7 +572,7 @@ async function launch(ctx: Ctx, w: Work, events: Event[], running: Work[]) {
     `if [ -f .runner/takeover ]; then mv .runner/takeover .runner/held; ${pi()}; rm -f .runner/held; fi`,
     '',
   ].join('\n'));
-  put(rf(w, 'started'), new Date().toISOString());
+  writeState(ctx.config, w.key, { seen: new Date().toISOString() });
   await run(bin('tmux'), ['kill-session', '-t', session(w.key)], w.dir);
   const pane = await must(bin('tmux'), ['new-session', '-d', '-s', w.key, '-x', '200', '-y', '50', '-c', w.dir, '-P', '-F', '#{pane_id}', `sh ${sh(rf(w, 'lead.sh'))}`], w.dir);
   put(rf(w, 'pane'), pane);
@@ -619,16 +622,14 @@ function lastMessage(file: string): { role?: string; stopReason?: string; text?:
 /**
  * The lead's heartbeat: the newest write to any Pi session log of the worktree or a sibling named `<worktree>-<unit>`,
  * where sub-leads work; each cwd has its own folder. The investigator's (`.runner`) is left out. Also whether that log's last message is mid-step. A tool call with no result,
- * or a user message or tool result with no reply, is busy; anything else is idle. The lead start is the floor.
+ * or a user message or tool result with no reply, is busy; anything else is idle. `since`, the lead start or a later event it got, is the floor.
  */
-export function heartbeat(w: Pick<Work, 'dir'>) {
-  const started = lastStart(w);
-  let newest = { at: started ? Date.parse(started) : 0, file: '' };
+export function heartbeat(w: Pick<Work, 'dir'>, since: string) {
+  let newest = { at: Date.parse(since), file: '' };
   const sessions = path.join(agentDir(), 'sessions');
-  const prefixes = [...new Set([w.dir, existsSync(w.dir) ? realpathSync(w.dir) : w.dir])].map((dir) => path.basename(sessionFolder(dir)).slice(0, -1));
   const dirs = [...new Set([w.dir, existsSync(w.dir) ? realpathSync(w.dir) : w.dir])];
   const notLead = dirs.map((dir) => path.basename(sessionFolder(path.join(dir, '.runner'))));
-  const folders = existsSync(sessions) ? readdirSync(sessions).filter((f) => prefixes.some((p) => f.startsWith(p)) && !notLead.includes(f)) : [];
+  const folders = existsSync(sessions) ? readdirSync(sessions).filter((f) => dirs.some((d) => f.startsWith(path.basename(sessionFolder(d)).slice(0, -1))) && !notLead.includes(f)) : [];
   for (const folder of folders.map((f) => path.join(sessions, f))) {
     for (const name of readdirSync(folder).filter((f) => f.endsWith('.jsonl'))) {
       const at = statSync(path.join(folder, name)).mtimeMs;
@@ -641,8 +642,6 @@ export function heartbeat(w: Pick<Work, 'dir'>) {
 }
 
 const NUDGE = 'No progress from you or your subagents for';
-/** What the runner did about the current quiet stretch, kept in `.runner/stall.json`. */
-type Stall = { nudgedAt: number; investigatedAt?: number };
 
 /**
  * A live lead belongs to the lead: the runner never starts, restarts or kills it. A quiet stretch is `stallMinutes`
@@ -652,10 +651,9 @@ type Stall = { nudgedAt: number; investigatedAt?: number };
  */
 async function checkStall(ctx: Ctx, w: Work) {
   if (existsSync(rf(w, 'held')) || existsSync(rf(w, 'takeover'))) return;
-  const beat = heartbeat(w);
-  let stall: Stall | null = null;
-  try { stall = JSON.parse(readFileSync(rf(w, 'stall.json'), 'utf8')); } catch { /* no quiet stretch this run */ }
-  if (stall?.investigatedAt) return;
+  const state = (() => { try { return readState(ctx.config, w); } catch { return null; } })();
+  if (!state || state.stall?.investigatedAt) return;
+  const { stall } = state, beat = heartbeat(w, state.seen);
   const limit = (beat.busy && !beat.nudge ? ctx.config.toolQuietMinutes : ctx.config.stallMinutes) * 60000;
   const quiet = Math.floor((Date.now() - beat.at) / 60000);
   if (!beat.at || Date.now() - Math.max(beat.at, stall?.nudgedAt ?? 0) < limit) return;
@@ -665,11 +663,11 @@ async function checkStall(ctx: Ctx, w: Work) {
     await sleep(500);
     await must(bin('tmux'), ['send-keys', '-t', target, '-l', `${NUDGE} ${quiet} minutes${beat.busy ? ', so the runner pressed Escape to stop your tool or wait' : ''}. Check each subagent, take any finished result (from its pane, its session or the PR), close the ones that are done, then continue or end.`], w.dir);
     await must(bin('tmux'), ['send-keys', '-t', target, 'Enter'], w.dir);
-    put(rf(w, 'stall.json'), JSON.stringify({ nudgedAt: Date.now() }));
+    writeState(ctx.config, w.key, { ...state, stall: { nudgedAt: Date.now() } });
     await status(ctx, w, `Lead running. No heartbeat for ${quiet} minutes${beat.busy ? ' with a step in flight' : ''}, so the runner nudged it.`);
   } else {
     await investigate(ctx, w, quiet);
-    put(rf(w, 'stall.json'), JSON.stringify({ ...stall, investigatedAt: Date.now() }));
+    writeState(ctx.config, w.key, { ...state, stall: { ...stall!, investigatedAt: Date.now() } });
     await status(ctx, w, `Lead running. Quiet again after the nudge, so an investigator (tmux session \`${w.key}-stall\`) is looking into it.`);
   }
 }
@@ -765,7 +763,7 @@ async function reapClosed(ctx: Ctx, open: Issue[]) {
 async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void, opts: { only?: string[]; audit?: boolean } = {}) {
   const { config, linear } = ctx;
   const free = await freeMemory();
-  const tickets: { w: Work; ticket: Ticket | null; live: boolean }[] = [];
+  const tickets: { w: Work; ticket: Ticket | null; live: boolean; lost?: string }[] = [];
   const issues = await linear.issues();
   if (!dryRun && !opts.only) await reapClosed(ctx, issues);
   const only = opts.only;
@@ -787,16 +785,19 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void, opts
     // A live lead's heartbeat needs no Linear. A ticket nothing touched since the lead saw it, or since the
     // runner last read it and found no events, has none now. A live lead gets its events typed in.
     const isLive = await live(w);
-    const since = lastAttempt(config, w) ?? '';
+    let state: State | null, lost: string | undefined;
+    try { state = readState(config, w); } catch (error) { lost = `the runner lost its state (${message(error)}), so it counts only events from now`; state = { seen: new Date().toISOString() }; }
+    if (lost && !dryRun) writeState(config, w.key, state!);
+    const since = state?.seen ?? '';
     const at = touched(issue);
     const fresh = at > since && ctx.quiet.get(w.key) !== `${since} ${at}`;
     const seen = fresh ? await linear.events(issue, since) : { events: [], mine: [] };
     if (fresh && seen && !seen.events.length) ctx.quiet.set(w.key, `${since} ${at}`);
     if (isLive) tickets.push({ w, live: true, ticket: seen && seen.events.length ? { state: issue.state.type, description: w.description, createdAt: issue.createdAt, children: issue.children.nodes, ...seen } : null });
-    else if (seen) tickets.push({ w, live: false, ticket: { state: issue.state.type, description: w.description, createdAt: issue.createdAt, children: issue.children.nodes, ...seen } });
+    else if (seen) tickets.push({ w, live: false, lost, ticket: { state: issue.state.type, description: w.description, createdAt: issue.createdAt, children: issue.children.nodes, ...seen } });
   }
   // The ticket whose oldest unseen event is oldest goes first. Tickets with none keep Linear's order after them.
-  const oldest = (t: (typeof tickets)[number]) => (t.ticket ? newEvents(t.ticket, lastAttempt(config, t.w))[0]?.at : undefined);
+  const oldest = (t: (typeof tickets)[number]) => (t.ticket ? newEvents(t.ticket, readState(config, t.w)?.seen ?? null)[0]?.at : undefined);
   tickets.sort((a, b) => {
     const [x, y] = [oldest(a), oldest(b)];
     return x && y ? (x < y ? -1 : x > y ? 1 : 0) : Number(!x) - Number(!y);
@@ -810,7 +811,7 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void, opts
       ctx.handled.add(id);
     }
   };
-  for (const { w, ticket, live: isLive } of tickets) {
+  for (const { w, ticket, live: isLive, lost } of tickets) {
     try {
       if (isLive) {
         if (dryRun) { console.log(`${w.key}: lead running`); continue; }
@@ -820,15 +821,15 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void, opts
         continue;
       }
       if (!ticket) continue;
-      if (!dryRun && existsSync(rf(w, 'pane'))) settle(ctx, w, ticket, newEvents(ticket, lastAttempt(config, w)));
-      const move = nextMove(config, ticket, lastAttempt(config, w));
+      if (!dryRun && existsSync(rf(w, 'pane'))) settle(ctx, w, ticket, newEvents(ticket, readState(config, w)?.seen ?? null));
+      const move = nextMove(config, ticket, readState(config, w)?.seen ?? null);
       if (dryRun) { console.log(`${w.key}: ${move.kind}`); continue; }
       if (move.kind === 'wait') continue;
       if (move.kind === 'start') {
         note(w, move.events);
         await react(ctx, move.events);
       }
-      if (move.kind === 'decide') { await decide(ctx, w, ticket.children, 'the lead stopped with nothing open to wait for'); continue; }
+      if (move.kind === 'decide') { await decide(ctx, w, ticket.children, lost ?? 'the lead stopped with nothing open to wait for'); continue; }
       const reason = startBlock({
         running: running.length, maxLeads: config.maxLeads, freeMemory: free, minFreeMemory: config.minFreeMemoryPercent,
       });
@@ -844,8 +845,7 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void, opts
         await launch(ctx, w, move.events, running.map((r) => r.w));
       } catch (error) {
         // Record the attempt, so only a new event retries a failed start.
-        mkdirSync(path.dirname(attemptFile(config, w.key)), { recursive: true });
-        put(attemptFile(config, w.key), new Date().toISOString());
+        writeState(config, w.key, { ...readState(config, w), seen: new Date().toISOString() });
         await decide(ctx, w, ticket.children, `the runner could not start the lead: ${message(error).split('\n')[0]}`);
         continue;
       }
