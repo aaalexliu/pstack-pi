@@ -67,7 +67,9 @@ File a Decision issue as a sub-issue of the ticket, assigned to Alex, then call 
 
 ## Linear
 
-`$LINEAR_TOKEN` holds the runner's Linear token; what you post shows as the runner. Call the GraphQL API with curl:
+`$LINEAR_TOKEN` holds the runner's Linear token; what you post shows as the runner. Write every time in this Mac's time zone with its name, as `date "+%-I:%M %p %Z"` prints it (6:18 PM EST), never UTC or `Z`; convert the UTC times Linear and logs give you.
+
+Call the GraphQL API with curl:
 
 ```sh
 linear() { curl -sf https://api.linear.app/graphql -H "Authorization: Bearer $LINEAR_TOKEN" -H 'Content-Type: application/json' -d "$1"; }
