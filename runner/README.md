@@ -27,7 +27,7 @@ Linear webhook (Issue, Comment) -> POST 127.0.0.1:8787/linear
     lead running -> pass the event to it
 backup poll on auditPoll (default every 10m): the same rule for every ticket, plus
   "missed: KEY <time> <event>" for each event no webhook had delivered
-heartbeat every 30 s: the stall check on live leads, running.json and the stale screen lock; no Linear calls unless it nudges or investigates
+heartbeat every 30 s: the stall check on live leads and running.json; no Linear calls unless it nudges or investigates
 ```
 
 All passes run one at a time. Linear retries a failed delivery after 1 minute, 1 hour and 6 hours, and the runner skips a delivery id it already handled. Every pass is idempotent anyway: it starts a lead only on events since the last start. Linear sends a label added to or removed from an issue as an Issue update; its IssueLabel events are about the label itself and carry no issue, so the runner ignores them. If "missed:" lines stay rare, set `auditPoll` slower, such as `every 1h` or `daily 06:00`. An event from before the runner started is never called missed.
@@ -152,7 +152,7 @@ statechart runner/model/Ticket.tla --config runner/model/Ticket.cfg --view runne
 
 The model leaves out:
 
-- the stall check, lead slots, memory, `running.json` and the screen lock;
+- the stall check, lead slots, memory and `running.json`;
 - the kinds of event, which it folds into one `event` flag;
 - PRs, review, CI and merge, which the runner no longer touches; the audit prompt covers them;
 - a ticket you close or take back while the lead runs;
@@ -164,7 +164,7 @@ Before it starts a lead, the runner checks two limits, and logs once why it wait
 
 - At most `maxLeads` leads run at once. A live tmux session holds its slot, including while the lead waits on CI.
 - On macOS, no lead starts while `memory_pressure -Q` reports less than `minFreeMemoryPercent` free.
-The runner does not decide who uses the screen; leads take turns themselves. Each poll, and after each start, it writes the running leads to `<worktreeRoot>/running.json` (key, title, tmux session, worktree, Pi session id, whether the ticket says `Needs: screen`, and start time), and each start message lists the same leads and names that file. Before a lead drives the screen, records it, or needs focus, it takes the shared lock `<worktreeRoot>/screen.lock` with `mkdir`, writes its key and the time to `screen.lock/owner`, and removes the folder when that step ends. `lead.md` says how to wait for a held lock. The runner never enforces the lock, but clears one whose owner has no tmux session, because that lead can no longer release it, and one with no `owner` file after a minute.
+The runner does not decide who uses the screen; leads take turns themselves. Each poll, and after each start, it writes the running leads to `<worktreeRoot>/running.json` (key, title, tmux session, worktree, Pi session id, whether the ticket says `Needs: screen`, and start time), and each start message lists the same leads and names that file. A lead runs each step that drives the screen, records it, or needs focus as `runner/screen-lock run KEY -- <command>`. The command waits for the screen, wakes the display, keeps it awake with `caffeinate`, and frees the screen when the command ends. It takes a kernel file lock on `/tmp/screen.lock` with `lockf`, on an open file the command and its children inherit. The lock lasts while any of them runs and ends with the last one, however it ends, so no lock goes stale and no two steps overlap. A background job the command leaves running keeps the screen until it ends. The file names its last holder, and a waiting run prints it. `runner/screen-lock.test.ts` proves two runs take turns, a killed command does not block the next, and killing `screen-lock` alone does not let the next run start while the command still runs.
 
 When a limit holds back a ticket with an event, the runner replies once to the latest event, in its thread when it was a comment, with what it waits on, such as "Seen. Waiting to start: all 2 lead slots are busy." It finds its earlier replies among its comments on the ticket and its sub-issues, so it keeps no state for this.
 
