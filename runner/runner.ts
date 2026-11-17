@@ -368,8 +368,11 @@ function writeRunning(config: Config, running: Work[]) {
 
 const rf = (w: Pick<Work, 'dir'>, name: string) => path.join(w.dir, '.runner', name);
 const sessionId = (w: Work) => readOr(rf(w, 'session-id'))?.trim() ?? '';
-/** What the runner keeps per ticket, written whole or not at all: `seen`, the time up to which the lead saw every event, and this lead run's `stall`. */
-type State = { seen: string; stall?: { nudgedAt: number; investigatedAt?: number } };
+/**
+ * What the runner keeps per ticket, written whole or not at all: `seen`, the time up to which the lead saw every event, this lead run's `stall`,
+ * and `dir`, the folder the lead ran in. A lead in a new folder, as in the repo's worktree once a ticket gets its repo label, starts as if none ran.
+ */
+type State = { seen: string; dir?: string; stall?: { nudgedAt: number; investigatedAt?: number } };
 const stateFile = (config: Config, key: string) => path.join(config.worktreeRoot, '.state', `${key}.json`);
 /** The state, or null if no lead ever started; a lead from before it has only `.runner/started`. `seen` must be an ISO UTC time, since events compare to it as strings. Throws on a corrupt file, or none where a lead ran: `poll` then counts only events from now. */
 export function readState(config: Config, w: Pick<Work, 'dir' | 'key'>): State | null {
@@ -378,7 +381,7 @@ export function readState(config: Config, w: Pick<Work, 'dir' | 'key'>): State |
   let s: State | undefined;
   try { s = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : { seen: old }; } catch { /* corrupt */ }
   if (!/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z$/.test(String(s?.seen)) || !Number.isFinite(Date.parse(s!.seen)) || (s!.stall && typeof s!.stall.nudgedAt !== 'number')) throw new Error(`${file} is corrupt`);
-  return s!;
+  return s!.dir && s!.dir !== w.dir ? null : s!;
 }
 const writeState = (config: Config, key: string, state: State) => { mkdirSync(path.dirname(stateFile(config, key)), { recursive: true }); put(stateFile(config, key), JSON.stringify(state)); };
 const isDecision = (config: Config, c: Child) => c.assignee?.name === config.decisionAssignee;
@@ -595,7 +598,7 @@ async function launch(ctx: Ctx, w: Work, events: Event[], running: Work[]) {
     `if [ -f .runner/takeover ]; then mv .runner/takeover .runner/held; ${pi()}; rm -f .runner/held; fi`,
     '',
   ].join('\n'));
-  writeState(ctx.config, w.key, { seen: new Date().toISOString() });
+  writeState(ctx.config, w.key, { seen: new Date().toISOString(), dir: w.dir });
   await run(bin('tmux'), ['kill-session', '-t', session(w.key)], w.dir);
   const pane = await must(bin('tmux'), ['new-session', '-d', '-s', w.key, '-x', '200', '-y', '50', '-c', w.dir, '-P', '-F', '#{pane_id}', `sh ${sh(rf(w, 'lead.sh'))}`], w.dir);
   put(rf(w, 'pane'), pane);

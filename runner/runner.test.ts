@@ -974,6 +974,8 @@ test('readState reads the start an older runner kept, and rejects a state it can
   }
   put(path.join(root, '.state', 'ALE-1.json'), '{"seen":"2026-01-02T00:00:00Z","stall":{"nudgedAt":5}}');
   assert.deepEqual(readState(config, w), { seen: '2026-01-02T00:00:00Z', stall: { nudgedAt: 5 } });
+  put(path.join(root, '.state', 'ALE-1.json'), JSON.stringify({ seen: '2026-01-02T00:00:00Z', dir: path.join(root, 'job-ale-1') }));
+  assert.equal(readState(config, w), null, 'a lead that ran in another folder, such as one with no repo, is not this folder\'s lead');
 });
 
 test('a lead running under the old files keeps working: its old start counts, and its next start moves to the state file', async () => {
