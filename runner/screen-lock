@@ -15,7 +15,8 @@ lock=${SCREEN_LOCK:-/tmp/screen.lock}
 exec 9>>"$lock" || exit 73
 if ! lockf -s -t 0 9; then
   echo "screen-lock: $key waits for the screen, held by $(cat "$lock"); lsof $lock lists what has it open" >&2
-  lockf -s 9 || exit
+  # macOS lockf busy-loops on flock when it waits on an fd, burning a core, so poll once a second instead.
+  until lockf -s -t 0 9; do sleep 1; done
 fi
 echo "$key since $(date "+%-I:%M %p %Z")" >"$lock"
 exec caffeinate -du -- "$@"

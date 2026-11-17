@@ -1,17 +1,17 @@
 # Job runner
 
-The job runner starts a Pi lead for each Linear issue delegated to its app user that is in `Todo` or a started state, and wakes it on any event that is not its own. The lead does the rest: it builds, opens small PRs, gets each one reviewed by a separate Pi session, merges after CI, asks you through Decision issues, and closes the ticket. The runner is one TypeScript file with no dependencies, plus two commands for leads: `screen-lock` and `ticket.ts`. It is not part of the Pi package, and `npm pack` leaves it out.
+The job runner starts a Pi lead for each Linear issue delegated to its app user that is in `Todo` or a started state, and wakes it on any event that is not its own. The lead does the rest: it builds, opens small PRs, gets each one reviewed by a separate Pi session, merges after CI, asks you on the ticket, and closes the ticket. A ticket assigned to you is one you must act on. The runner is one TypeScript file with no dependencies, plus two commands for leads: `screen-lock` and `ticket.ts`. It is not part of the Pi package, and `npm pack` leaves it out.
 
 ## What the runner does
 
 The runner keeps process only where a stopped or absent model cannot act for itself. Two moves decide a ticket:
 
 1. **Start or resume the lead** on any event since its last start.
-2. **File a Decision issue** when the lead stopped and nothing is open to wait for.
+2. **Ask you** when the lead stopped with nothing handed in and the ticket is not assigned to you: assign you, then comment.
 
 Around those two moves the runner makes 24 kinds of write and process start, across Linear, tmux and the disk. The [mechanism ledger](#mechanism-ledger) lists each one, the PR that added it, and how often it has fired.
 
-Linear is an event log. An event is anything in Linear on the ticket or its sub-issues: a comment, a state, delegate, assignee, label, title or description change, or a Decision issue closed. Only events by someone other than `runnerUser` count, and not those of integrations such as GitHub or Slack. Leads post with the runner's token, so the runner's own moves and its leads' never wake anyone.
+Linear is an event log. An event is anything in Linear on the ticket or its sub-issues: a comment, a state, delegate, assignee, label, title or description change. Only events by someone other than `runnerUser` count, and not those of integrations such as GitHub or Slack. Leads post with the runner's token, so the runner's own moves and its leads' never wake anyone.
 
 ### Event flow
 
@@ -27,7 +27,8 @@ Linear webhook (Issue, Comment) -> POST 127.0.0.1:8787/linear
     lead running -> pass the event to it
 backup poll every 10 minutes: the same rule for every ticket, plus
   "missed: KEY <time> <event>" for each event no webhook had delivered
-heartbeat every 30 s: the stall check on live leads and running.json; no Linear calls unless it nudges or investigates
+heartbeat every 30 s: the stall check on live leads and running.json; a lead gone from running.json gets the pass for its ticket,
+  so a lead that stopped gets its ask within 30 s; no other Linear calls unless it nudges or investigates
 ```
 
 All passes run one at a time. Linear retries a failed delivery after 1 minute, 1 hour and 6 hours. A retry runs the pass again and changes nothing, since every pass is idempotent: it starts a lead only on events since the last start. Linear sends a label added to or removed from an issue as an Issue update; its IssueLabel events are about the label itself and carry no issue, so the runner ignores them. An event from before the runner started is never called missed.
@@ -39,7 +40,7 @@ With no `webhookSecretCommand`, the runner runs no server and polls every `pollS
 When an event by a person lands, by webhook or poll, the runner acks it within seconds, once per event:
 
 - a comment gets a 👀 reaction (`reactionCreate`, emoji `eyes`). The runner skips a comment that already has its 👀, so webhook retries, the backup poll and restarts never add a second.
-- an event that is not a comment, such as a delegation or a closed Decision, gets the status comment update when the lead starts.
+- an event that is not a comment, such as a delegation, gets the status comment update when the lead starts.
 - when a limit blocks the start, the runner also replies "Seen. Waiting to start: <reason>" once.
 
 ### Events for a running lead
@@ -47,26 +48,26 @@ When an event by a person lands, by webhook or poll, the runner acks it within s
 When a person acts on a ticket whose lead is live, the runner types the event into the lead's pane, as the stall nudge does, but with no Escape. Pi queues a message typed during a step as a steering message and hands it over once that step's tools finish, so the current tool keeps running. Each message is one line:
 
 ```text
-Linear event on ALE-1 while you run, on Decision ALE-50 "Plan A or B?": Alex commented: Go with plan B. (<comment link>). Read it and act on it; if it answers an open Decision, close that Decision.
+Linear event on ALE-1 while you run, on the ticket: Alex commented: Go with plan B. (<comment link>). Read it and act on it.
 ```
 
-It names where the event happened (the ticket, a Decision or another sub-issue), who did what, and a comment's text, cut at 1500 characters, with its link. An event counts as seen only when its message shows up as a user message in the lead's session log, which Pi writes when it hands the message to the model. Then the runner moves the ticket's `seen` time past it: webhook retries and the backup poll do not type it again, and it does not start the lead again after the lead exits. Until then the runner retypes it at most once a minute, so a message a dialog swallowed is not lost, and a lead that exits before it gets the message is started with it, as for any event. The status comment says "Passed to the running lead"; the 👀 stays the ack. While `.runner/takeover` or `.runner/held` exists, the runner types nothing, and the event starts the lead after it exits.
+It names where the event happened (the ticket or a sub-issue), who did what, and a comment's text, cut at 1500 characters, with its link. An event counts as seen only when its message shows up as a user message in the lead's session log, which Pi writes when it hands the message to the model. Then the runner moves the ticket's `seen` time past it: webhook retries and the backup poll do not type it again, and it does not start the lead again after the lead exits. Until then the runner retypes it at most once a minute, so a message a dialog swallowed is not lost, and a lead that exits before it gets the message is started with it, as for any event. The status comment says "Passed to the running lead"; the 👀 stays the ack. While `.runner/takeover` or `.runner/held` exists, the runner types nothing, and the event starts the lead after it exits.
 
 ```text
 each pass, per open ticket delegated to runnerUser (Todo, or a started state such as In Progress or In Review):
   lead live in tmux            -> leave it; nudge it, then start an investigator, if it went quiet
   any event since its start    -> start the lead; its start message lists the events, and it judges what they mean
                                   if a limit blocks the start: reply "Seen. Waiting to start: <reason>" once
-  no event, open Decision      -> wait
-  no event, no open Decision   -> file a Decision issue: "the lead stopped with nothing open to wait for"
+  no event, open ask           -> wait (Alex assigned)
+  no event, no open ask        -> assign Alex, then comment: "the lead stopped with nothing handed in"
 order: the ticket whose oldest unseen event is oldest goes first
 ```
 
 The start rule reads one fact per ticket: `seen`, the time up to which the lead has seen every event. It lives in one state file per ticket, `<worktreeRoot>/.state/KEY.json`, never inside a folder the runner may have refused, and the runner writes it whole or not at all (temp file, flush, rename). A start sets `seen` to now and `dir` to the lead's folder, and the heartbeat counts from it. A state whose `dir` is another folder reads as no state, so a lead's first start in a new folder gets every event since the ticket was filed. A failed start and an event a live lead's log shows also move it, so only a new event retries a failed start. The stall check adds `stall` to the same file. In all the runner keeps 26 facts: 12 files, 1 tmux option, 5 marks in Linear and 8 in memory; the [mechanism ledger](#mechanism-ledger) lists them.
 
-A corrupt state file, or a missing one where a lead has run (the worktree has `.runner/session-id`), means the runner cannot tell which events the lead saw. It writes a fresh state whose `seen` is now, so it never starts a lead on its own. With nothing new, the next move files a Decision issue, "the runner lost its state (<file> is corrupt), so it counts only events from now", and closing it is a new event that starts the lead: the ticket is not stranded. A crash between the reset and the Decision still ends in a Decision, the usual "the lead stopped with nothing open to wait for". A live lead keeps running; if it exits with nothing new, that usual Decision follows. A runner from before the state file kept the start in `<worktree>/.runner/started`; with no state file, the runner reads `seen` from it, and the next lead start deletes it along with the older `.runner/passed` and `.runner/stall.json`. It does not read `passed`, `stall.json` or `<worktreeRoot>/.attempts/KEY`: at the switch, an event an older runner passed to a live lead may start that lead once more after it exits, a quiet lead may get one more nudge, and a refused start is tried once more. On 2026-11-17 alex-m1 had no `passed` or `.attempts` file and one `stall.json`.
+A corrupt state file, or a missing one where a lead has run (the worktree has `.runner/session-id`), means the runner cannot tell which events the lead saw. It writes a fresh state whose `seen` is now, so it never starts a lead on its own. With nothing new, the next move asks you, "the runner lost its state (<file> is corrupt), so it counts only events from now", and your reply is a new event that starts the lead: the ticket is not stranded. A crash between the reset and the ask still ends in an ask, the usual "the lead stopped with nothing handed in". A live lead keeps running; if it exits with nothing new, that usual ask follows. A runner from before the state file kept the start in `<worktree>/.runner/started`; with no state file, the runner reads `seen` from it, and the next lead start deletes it along with the older `.runner/passed` and `.runner/stall.json`. It does not read `passed`, `stall.json` or `<worktreeRoot>/.attempts/KEY`: at the switch, an event an older runner passed to a live lead may start that lead once more after it exits, a quiet lead may get one more nudge, and a refused start is tried once more. On 2026-11-17 alex-m1 had no `passed` or `.attempts` file and one `stall.json`.
 
-The runner moves a `Todo` ticket to `In Progress` before it records the start. That move is the runner's own, so it is no event: a crash before the start is recorded starts the lead once more on the same events, never in a loop. On a ticket's first start, the session id is written a moment before the state, so a crash in between files the missing-state Decision instead.
+The runner moves a `Todo` ticket to `In Progress`, and unassigns you unless an ask is open, in one write before it records the start; a started ticket is only unassigned. That move is the runner's own, so it is no event: a crash before the start is recorded starts the lead once more on the same events, never in a loop. On a ticket's first start, the session id is written a moment before the state, so a crash in between gets the missing-state ask instead.
 
 ### Reading Linear
 
@@ -89,21 +90,23 @@ lead start .. quiet stretch 1 .. (lead may write) .. quiet stretch 2 .. quiet st
                   Escape + nudge                         investigator     nothing
 ```
 
-A quiet stretch is `stallMinutes` with no write while the lead is idle, or `toolQuietMinutes` while busy. The runner counts stretches per lead run in the ticket's state file, and a new lead start resets the count. The first stretch gets Escape in the lead's pane (closing any selector, or stopping a hung tool or wait) and one nudge: check each subagent, take any finished result, close the ones that are done, then continue or end. The second, whether or not the lead wrote in between, starts one investigator: `pi -p` with [prompts/stall.md](prompts/stall.md) in the tmux session `KEY-stall`, on the lead model, run from `.runner` so its own log never counts as the lead's heartbeat. After that the runner does nothing more for that run. The investigator reads the lead's session, its subagents' panes and sessions, the ticket and the PRs, changes nothing, and posts its findings as one comment, filing a Decision issue only if you must act. It takes no lead slot. Neither step happens while `.runner/takeover` or `.runner/held` exists.
+A quiet stretch is `stallMinutes` with no write while the lead is idle, or `toolQuietMinutes` while busy. The runner counts stretches per lead run in the ticket's state file, and a new lead start resets the count. The first stretch gets Escape in the lead's pane (closing any selector, or stopping a hung tool or wait) and one nudge: check each subagent, take any finished result, close the ones that are done, then continue or end. The second, whether or not the lead wrote in between, starts one investigator: `pi -p` with [prompts/stall.md](prompts/stall.md) in the tmux session `KEY-stall`, on the lead model, run from `.runner` so its own log never counts as the lead's heartbeat. After that the runner does nothing more for that run. The investigator reads the lead's session, its subagents' panes and sessions, the ticket and the PRs, changes nothing, and posts its findings as one comment, asking you only if you must act. It takes no lead slot. Neither step happens while `.runner/takeover` or `.runner/held` exists.
 
 The runner kills a ticket's tmux session only when it started that session (it tags each session it creates with the tmux option `@job-runner`), nobody holds it through `.runner/takeover` or `.runner/held`, and Linear, asked about that one ticket, says it is Done, Canceled, or no longer delegated to `runnerUser`. On any Linear error it leaves the session alone. Sessions started by a runner older than this tag are never reaped; stop them by hand with `tmux kill-session -t '=KEY'`.
 
 A ticket marked Done or Canceled, or with its delegate cleared, is no longer the runner's. `In Review` still is: Linear's GitHub link moves a ticket there when the lead opens its first PR, long before the work is done.
 
-### Decision issues
+### Asks
 
-A Decision issue is a sub-issue of the ticket assigned to `decisionAssignee`. The runner files its own with `parentId` in the one `issueCreate` call, so no crash can leave it unfindable, and finds them as open children. The lead files them with `ticket.ts decision`, which calls the same `fileDecision`. A sub-issue assigned to anyone else does not block the ticket.
+The ticket's assignee is who must act next, so "assigned to me" in Linear is the list of tickets waiting on you. An ask is a comment by the runner's user that starts with `**Needs Alex:**`. It is open while no comment by `askAssignee` comes after it. The list query reads the newest of each, so each pass knows without reading history, which Linear writes late and merges.
 
-Closing a Decision issue, Done or Canceled, wakes the lead in the same Pi session. So does any other event while a Decision is still open, such as a comment on the Decision or the ticket: the lead judges whether it answers the Decision and closes the Decision if so. To stop the work instead, mark the ticket Done or Canceled, or clear its delegate.
+Each pass sets the assignee from that: an open ask means you; no open ask with a live lead means nobody; no open ask, no lead and nothing new means the runner asks. So the runner undoes any other assign, such as Linear's GitHub link assigning the PR author when a PR links to an unassigned ticket (its docs name no setting to turn that off), and a ticket you filed assigned to yourself does not park it. The runner and `ticket.ts ask` assign first and then comment: a failed assign posts nothing, and an open ask waits instead of getting a second.
+
+Your comment closes the ask and wakes the lead in the same Pi session, as any event does. Anything outside this Mac needs your explicit yes to the exact text. To stop the work instead, mark the ticket Done or Canceled, or clear its delegate.
 
 ### The lead
 
-The runner starts `pi --session-id <uuid> @.runner/input.md` with [prompts/lead.md](prompts/lead.md) in a detached tmux session named for the ticket, in the ticket's worktree, or in a folder with no repo until the ticket has a repo label. `input.md` holds the ticket, the Linear ids the lead needs, the review model, the prompts folder, and the events since its last start. Pi loads pstack-pi's `subagent-done.ts` without `PI_SUBAGENT_AUTO_EXIT`, so ending a turn does not end the session: the lead can wait for its own subagents, such as a reviewer started with the `subagent` tool. It exits when it calls `subagent_done`, once its ending is in place: the last PR merged and the ticket Done, the report posted and the ticket Done, or a Decision issue filed with nothing left running.
+The runner starts `pi --session-id <uuid> @.runner/input.md` with [prompts/lead.md](prompts/lead.md) in a detached tmux session named for the ticket, in the ticket's worktree, or in a folder with no repo until the ticket has a repo label. `input.md` holds the ticket, the Linear ids the lead needs, the review model, the prompts folder, and the events since its last start. Pi loads pstack-pi's `subagent-done.ts` without `PI_SUBAGENT_AUTO_EXIT`, so ending a turn does not end the session: the lead can wait for its own subagents, such as a reviewer started with the `subagent` tool. It exits when it calls `subagent_done`, once its ending is in place: the last PR merged and the ticket Done, the report posted and the ticket Done, or an ask posted with nothing left running.
 
 The lead splits the work into units it can verify alone. It builds a unit itself or hands it to a sub-lead: it makes a worktree and branch, then calls `subagent` with the bundled [`sub-lead`](../additions/agents/sub-lead.md) agent, that path as `cwd`, and its own model. The sub-lead follows this prompt's Build, PRs and merge gate sections for its unit and opens its own PR. It exits when its turn ends, so it blocks on every wait, and the lead checks the unit's PR merged, resuming the sub-lead with `subagent_resume` if not. That is two levels at most, enforced by Pi, not only the prompt. A `sub-lead` child gets `PI_DENY_TOOLS` with every spawning tool; a `pi -p` it runs from bash inherits it. [tests/pi/depth.test.mjs](../tests/pi/depth.test.mjs) proves this in a real Pi. A child that clears those variables on purpose could still start a full Pi; only the prompt stops that. The lead stays in the ticket's repo, except that an agent-tooling ticket may touch pstack-pi, agent-memory, agent-orchestration and dotfiles.
 
@@ -114,17 +117,17 @@ The launch script drops every `PI_*` and `PSTACK_*` variable the tmux server hol
 The lead reaches Linear only through [ticket.ts](ticket.ts), run in its worktree:
 
 ```text
-ticket.ts show                        the ticket, its sub-issues, and its comments oldest first, in local time
-ticket.ts comment <file>              post a comment on the ticket
-ticket.ts done [KEY]                  move the ticket, or one of its sub-issues, to Done
-ticket.ts decision "<title>" <file>   file a Decision issue: a sub-issue assigned to decisionAssignee
+ticket.ts show              the ticket, its assignee, its sub-issues, and its comments oldest first, in local time
+ticket.ts comment <file> [ID]  post a comment on the ticket, or a reply in the thread of comment ID
+ticket.ts done [KEY]        move the ticket, or one of its sub-issues, to Done
+ticket.ts ask <file>        assign the ticket to askAssignee, then post the ask as a comment
 ```
 
-It finds its ticket in `.runner/work.json`, which the launch writes, in the folder it runs in or the nearest one above. A sub-lead's worktree is the lead's path plus `-<unit>`, so each folder also tries the folders its name extends. It reads the runner's config and calls Linear through the runner's own client, so it shares the token command, the 429 wait and `fileDecision`. A `<file>` of `-` reads standard input. It checks its arguments and file before it calls Linear, and a usage error exits 64. The fake-Linear tests in `runner.test.ts` cover each command.
+It finds its ticket in `.runner/work.json`, which the launch writes, in the folder it runs in or the nearest one above. A sub-lead's worktree is the lead's path plus `-<unit>`, so each folder also tries the folders its name extends. It reads the runner's config and calls Linear through the runner's own client, so it shares the token command, the 429 wait and `assign`. A `<file>` of `-` reads standard input. It checks its arguments and file before it calls Linear, and a usage error exits 64. The fake-Linear tests in `runner.test.ts` cover each command.
 
 ### The merge gate lives in the lead prompt
 
-[prompts/lead.md](prompts/lead.md) tells the lead to open small PRs, its own one at a time, each naming the ticket (`Fixes KEY` on the last, `Part of KEY` on the others); run `.agents/verify`; get a review from a separate Pi session with fresh context through `runner/review.ts`; fix caused must-fixes; after 3 rounds on one PR cut scope or file a Decision issue; and merge only after CI passes and the latest review names the head commit with `verdict: clean`. After its last PR merges, the lead moves the ticket to Done itself, so it does not depend on Linear's GitHub link.
+[prompts/lead.md](prompts/lead.md) tells the lead to open small PRs, its own one at a time, each naming the ticket (`Fixes KEY` on the last, `Part of KEY` on the others); run `.agents/verify`; get a review from a separate Pi session with fresh context through `runner/review.ts`; fix caused must-fixes; after 3 rounds on one PR cut scope or ask you; and merge only after CI passes and the latest review names the head commit with `verdict: clean`. After its last PR merges, the lead moves the ticket to Done itself, so it does not depend on Linear's GitHub link.
 
 The reviewer follows [prompts/review.md](prompts/review.md). It reruns the proof in the PR body; no proof, a proof that does not rerun, an inconclusive or wrong-surface check, or a bug fix whose failing repro does not land in an earlier commit is a caused must-fix. It posts its own record on the PR with `gh pr review --comment` (GitHub refuses an approval from the PR's author). Its first lines are `runner-review v1`, `verdict`, `caused_must_fix`, `head`, `round`, `trigger` (`first`, `fix` or `rebase onto <full base sha>`, for people reading the PR; a rebase still gets a full round), `agent`, `model`, `session_id`, `session_path`, `session_title` and `asked_by`, one per line; the findings follow as JSON.
 
@@ -142,24 +145,24 @@ To audit, delegate a ticket whose description says `Follow <prompts>/audit.md` (
 - the record's `head` is not the merged head commit;
 - `caused_must_fix` is above 0;
 - the record does not trace to a separate review session: `session_id` equals `asked_by`, or the file at `session_path` is missing, has another id, or is not a review of this PR's head (lead and reviewer share a `gh` login, so this is not proof of who posted);
-- `round` is above 3 with no Decision sub-issue on the ticket;
+- `round` is above 3 with no ask on the ticket;
 - a check on the merged head was not green as of `mergedAt`, from timestamped check runs and statuses, or green cannot be proven.
 
 It pages through the window and says when coverage is incomplete.
 
-It posts a report comment on its ticket, moves it to Done, and files a Decision issue only if something is flagged. If flags repeat, add enforcement in GitHub (required checks, a required review from a bot identity), not in the runner.
+It posts a report comment on its ticket and moves it to Done, or, if something is flagged, leaves it open and asks you. If flags repeat, add enforcement in GitHub (required checks, a required review from a bot identity), not in the runner.
 
 A routine can file this audit as a ticket on a schedule; see `routines` below.
 
 ## The model
 
-[model/Ticket.tla](model/Ticket.tla) is a TLC model of one ticket under the runner. `nextMove()` in `runner.ts` is its `StartsLead` and `FilesDecision` guards: start on an event, else wait on an open Decision issue, else file one.
+[model/Ticket.tla](model/Ticket.tla) is a TLC model of one ticket under the runner. `nextMove()` in `runner.ts` is its `StartsLead` and `AskStarts` guards: start on an event, else wait on an open ask, else ask Alex.
 
 | Config | Result |
 | --- | --- |
-| [model/Ticket.cfg](model/Ticket.cfg) | `NoSpin`, `OneDecisionPerAsk` and no deadlock hold. 12 states. |
+| [model/Ticket.cfg](model/Ticket.cfg) | `NoSpin`, `OneAskPerWait` and no deadlock hold. 12 states. |
 | [model/TicketSpin.cfg](model/TicketSpin.cfg) | Without the event check, `NoSpin` breaks in 3 steps: the runner restarts a lead with nothing new. |
-| [model/TicketTwoStep.cfg](model/TicketTwoStep.cfg) | Filing then linking, instead of one write with a parent, breaks `OneDecisionPerAsk` in 4 steps. |
+| [model/TicketCommentFirst.cfg](model/TicketCommentFirst.cfg) | Commenting the ask before assigning Alex, then failing to assign, breaks `OneAskPerWait` in 5 steps: the next pass comments again. |
 
 Draw the charts with the statechart skill:
 
@@ -173,7 +176,8 @@ The model leaves out:
 - the kinds of event, which it folds into one `event` flag;
 - PRs, review, CI and merge, which the runner no longer touches; the audit prompt covers them;
 - a ticket you close or take back while the lead runs;
-- the launch failing, which files a Decision issue like a stopped lead.
+- the launch failing, which asks Alex like a stopped lead;
+- other assigns, such as the GitHub link's, which the next pass corrects.
 
 ## Shared resources
 
@@ -216,9 +220,9 @@ The runner does not log a Linear write, a webhook delivery or a pass, so those r
 
 | Mechanism | Where | Paid for by | Fired |
 | --- | --- | --- | --- |
-| Linear: file a Decision issue (`issueCreate` with `parentId`) | `decide`, `fileDecision` | [#71](https://github.com/aaalexliu/pstack-pi/pull/71): one write, so a crash cannot leave it unfindable. [#109](https://github.com/aaalexliu/pstack-pi/pull/109): at most one open, after 62 Decisions on one ticket in 26 minutes | Log does not show it. At least 62, from [#109](https://github.com/aaalexliu/pstack-pi/pull/109) |
+| Linear: set the assignee from the open ask each pass, assign you before an ask, unassign you at a start (`issueUpdate`) | `ask`, `assign`, `setState`, `poll` | [#71](https://github.com/aaalexliu/pstack-pi/pull/71) and [#109](https://github.com/aaalexliu/pstack-pi/pull/109) for the ask it replaced: one write, at most one open, after 62 asks on one ticket in 26 minutes. Now assign first, then comment | New, no history |
 | Linear: move a Todo ticket to In Progress (`issueUpdate`) | `poll`, `setState` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61). None found | Log does not show it. At most once per ticket; 12 tickets started |
-| Linear: the status comment, posted once (`commentCreate`) then edited (`commentUpdate`) | `status`, `renderStatus`, `commands` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68): the lead moved into tmux, so a person needs the commands to reach it. None found | Log does not show it. At least one write per lead start (15), nudge (1) and Decision. Passed events: new, no history |
+| Linear: the status comment, posted once (`commentCreate`) then edited (`commentUpdate`) | `status`, `renderStatus`, `commands` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68): the lead moved into tmux, so a person needs the commands to reach it. None found | Log does not show it. At least one write per lead start (15), nudge (1) and ask. Passed events: new, no history |
 | Linear: "Seen. Waiting to start" reply (`commentCreate`) | `ack` | [#100](https://github.com/aaalexliu/pstack-pi/pull/100): a comment on a blocked ticket got no answer for hours | Log does not show it. The log has 57 "Not starting" lines, all on the screen limit that [#108](https://github.com/aaalexliu/pstack-pi/pull/108) removed, and 0 on slots or memory |
 | Linear: 👀 on a person's comment (`reactionCreate`) | `react` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110): an ack within seconds. None found | Log does not show it; 0 failed reactions |
 | Linear: file a routine's ticket (`issueCreate`) | `createDueRoutines` | [#70](https://github.com/aaalexliu/pstack-pi/pull/70): Linear's recurring issues are UI only and whole days only. None found | 0. The live config has no `routines` |
@@ -228,7 +232,7 @@ The runner does not log a Linear write, a webhook delivery or a pass, so those r
 | tmux: `kill-session` on a closed ticket's session | `reapClosed` | [#74](https://github.com/aaalexliu/pstack-pi/pull/74), [#78](https://github.com/aaalexliu/pstack-pi/pull/78) | Log does not show it; 0 failed checks |
 | tmux: `set-environment`, so subagent windows match the lead | `envScript` | [#74](https://github.com/aaalexliu/pstack-pi/pull/74). [#81](https://github.com/aaalexliu/pstack-pi/pull/81): `CMUX_*` from another session broke the `subagent` tool | Each start (15) |
 | tmux: `send-keys` Escape, the nudge, Enter | `checkStall` | [#105](https://github.com/aaalexliu/pstack-pi/pull/105): a lead sat idle for 21 hours | 1, on 2026-11-16 (session logs) |
-| tmux: `send-keys` a person's event, then Enter, into a live lead | `pass`, `eventText` | [#112](https://github.com/aaalexliu/pstack-pi/pull/112): a running lead did not hear a comment or a closed Decision until it exited | New, no history |
+| tmux: `send-keys` a person's event, then Enter, into a live lead | `pass`, `eventText` | [#112](https://github.com/aaalexliu/pstack-pi/pull/112): a running lead did not hear a comment or a closed sub-issue until it exited | New, no history |
 | tmux: `kill-session` then `new-session` for `KEY-stall` | `investigate` | [#105](https://github.com/aaalexliu/pstack-pi/pull/105) | 0. No `stall.sh`, `stall-input.md` or investigator session exists |
 | Process: the lead, `pi --session-id` | `launch` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68). [#74](https://github.com/aaalexliu/pstack-pi/pull/74): the lead decides when to exit | 15 |
 | Process: a second `pi` under `.runner/held` after a take over | `launch` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68). None found | Log does not show it. No `takeover` or `held` file exists |
@@ -256,14 +260,14 @@ A file path with no folder is in `<worktree>/.runner/`.
 | `stall.sh`: the investigator's launch script | `investigate` | [#105](https://github.com/aaalexliu/pstack-pi/pull/105) | 0 |
 | `takeover`: a person touches it; the runner stops nudging and reaping | `launch`, `checkStall`, `reapClosed`, `commands` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68), [#78](https://github.com/aaalexliu/pstack-pi/pull/78). None found | In 0 worktrees. Log does not show past use |
 | `held`: `lead.sh` renames `takeover` to it while the second `pi` runs | `launch`, `checkStall`, `reapClosed` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68), [#78](https://github.com/aaalexliu/pstack-pi/pull/78). None found | In 0 worktrees. Log does not show past use |
-| `<worktreeRoot>/.state/KEY.json`: the ticket's `seen` time, the lead's `dir` and this lead run's `stall` | `readState`, `writeState`, `poll` | [#71](https://github.com/aaalexliu/pstack-pi/pull/71) (start), [#105](https://github.com/aaalexliu/pstack-pi/pull/105) (stall), [#109](https://github.com/aaalexliu/pstack-pi/pull/109): 62 Decisions in 26 minutes (failed start), [#112](https://github.com/aaalexliu/pstack-pi/pull/112) (passed events). [ALE-202](https://linear.app/aaalexliu/issue/ALE-202) folded their four files into this one | New, no history |
+| `<worktreeRoot>/.state/KEY.json`: the ticket's `seen` time, the lead's `dir` and this lead run's `stall` | `readState`, `writeState`, `poll` | [#71](https://github.com/aaalexliu/pstack-pi/pull/71) (start), [#105](https://github.com/aaalexliu/pstack-pi/pull/105) (stall), [#109](https://github.com/aaalexliu/pstack-pi/pull/109): 62 asks in 26 minutes (failed start), [#112](https://github.com/aaalexliu/pstack-pi/pull/112) (passed events). [ALE-202](https://linear.app/aaalexliu/issue/ALE-202) folded their four files into this one | New, no history |
 | `started`: a runner from before the state file kept the start here; read when a ticket has no state file, deleted by its next lead start | `readState`, `launch` | [ALE-202](https://linear.app/aaalexliu/issue/ALE-202): leads running at the switch keep their start | In 17 worktrees on 2026-11-17. Delete once none is left |
 | `<worktreeRoot>/running.json`: the live leads, for other leads | `writeRunning`, `runningEntry` | [#108](https://github.com/aaalexliu/pstack-pi/pull/108): two screen tickets could not run at once | Rewritten each pass and heartbeat. It lists 0 leads now |
 | tmux option `@job-runner`: marks a session the runner made; its `session_path` is the lead's folder | `launch`, `leadSessions` | [#78](https://github.com/aaalexliu/pstack-pi/pull/78) | Each start since [#78](https://github.com/aaalexliu/pstack-pi/pull/78) |
 | Linear: the status comment, found by its `**Runner:**` start | `status`, `statusComment` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68) | Log does not show it |
 | Linear: a `Seen.` reply newer than the event means "acked" | `ack` | [#100](https://github.com/aaalexliu/pstack-pi/pull/100) | Log does not show it |
 | Linear: the runner's own 👀 means "reacted" | `react`, `eventsOf` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110) | Log does not show it |
-| Linear: an open `Decision for KEY:` issue blocks a second | `decide`, `decisionTitle` | [#109](https://github.com/aaalexliu/pstack-pi/pull/109): 62 Decisions in 26 minutes | Log does not show it |
+| Linear: a `**Needs Alex:**` comment with no comment by `askAssignee` after it is an open ask | `nextMove`, `poll`, `ask` | [#109](https://github.com/aaalexliu/pstack-pi/pull/109): 62 asks in 26 minutes; the open ask is the circuit breaker | New, no history |
 | Linear: the `runner-routine <name> <time>` line marks a filed run | `createDueRoutines`, `newEvents` | [#70](https://github.com/aaalexliu/pstack-pi/pull/70) | 0 |
 | Memory: `quiet`, tickets read with no events, so they are not read again | `poll` | [#107](https://github.com/aaalexliu/pstack-pi/pull/107): the per-ticket read costs about 310 points of a shared budget | Log does not show it |
 | Memory: `reacted`, comments given a 👀 this run | `react` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110) | Log does not show it |
@@ -272,7 +276,7 @@ A file path with no folder is in `<worktree>/.runner/`.
 | Memory: `queue`, one pass at a time | `serve` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110) | Log does not show it |
 | Memory: `said`, lines already logged | `main`, `serve` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68) | 57 lines got through |
 | Memory: `repoLocks`, one git setup per repo at a time | `worktree` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68): two starts fought over `.git/config.lock` | Log does not show it |
-| Memory: `decisionIds`, the team and assignee ids | `fileDecision` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68) | Log does not show it |
+| Memory: `askAssigneeId`, your Linear user id | `assign` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68) | Log does not show it |
 
 ### Config fields
 
@@ -284,7 +288,7 @@ A file path with no folder is in `<worktree>/.runner/`.
 | `ghTokenCommand` | `envScript` | [#74](https://github.com/aaalexliu/pstack-pi/pull/74) | Set |
 | `team` | `linearClient`, `startMessage`, `createDueRoutines` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61) | Set |
 | `runnerUser` | `linearClient`, `createDueRoutines` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61) | Set |
-| `decisionAssignee` | `isDecision`, `fileDecision`, `startMessage` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68) | Set |
+| `askAssignee` | `poll`, `assign`, `startMessage` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68) | Set |
 | `repos` | `workFor`, `launch`, `startMessage` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61) | 6 labels for 4 clones |
 | `models` | `workFor` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61) | Set |
 | `thinking` | `launch`, `investigate` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61) | `high`, the default |
@@ -295,7 +299,7 @@ A file path with no folder is in `<worktree>/.runner/`.
 | `minFreeMemoryPercent` | `startBlock`, `poll` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68) | 20, the default. It blocked 0 starts in the log |
 | `stallMinutes` | `checkStall` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68). [#105](https://github.com/aaalexliu/pstack-pi/pull/105) cut the default to 5 | 5, the default. 1 nudge |
 | `toolQuietMinutes` | `checkStall` | [#105](https://github.com/aaalexliu/pstack-pi/pull/105): a busy lead must not be nudged at 5 minutes | Not set; default 60. 0 fires |
-| `host` | `status`, `decide` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61) | Set |
+| `host` | `status`, `ask` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61) | Set |
 | `worktreeRoot` | `workFor`, `writeRunning`, `stateFile` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61) | Set |
 | `routines` | `loadConfig`, `createDueRoutines` | [#70](https://github.com/aaalexliu/pstack-pi/pull/70) | Not set. 0 routine tickets |
 
@@ -331,7 +335,7 @@ A file path with no folder is in `<worktree>/.runner/`.
 | Routine Linear call and token command: 30 s limit | `createDueRoutines` | [#70](https://github.com/aaalexliu/pstack-pi/pull/70) | 0 |
 | Routine schedule: `daily HH:MM`, `weekly Mon HH:MM` | `parseSchedule`, `lastDue` | [#70](https://github.com/aaalexliu/pstack-pi/pull/70) | 0 |
 | A failed pass waits for the next pass | `poll`, `main` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61) | 0 "failed" lines |
-| A failed start waits for a new event | `poll`, `writeState` | [#109](https://github.com/aaalexliu/pstack-pi/pull/109): 62 Decisions in 26 minutes | 0 failed starts on disk |
+| A failed start waits for a new event | `poll`, `writeState` | [#109](https://github.com/aaalexliu/pstack-pi/pull/109): 62 asks in 26 minutes | 0 failed starts on disk |
 
 Size limits are not in the ledger: 100 sub-issues, pages of 25, a 1 MB webhook body, a 1 MB log tail and a passed event cut at 1,500 characters.
 
@@ -345,7 +349,7 @@ The runner reads `~/.config/job-runner/config.json`, or the file named by `JOB_R
 | `ghTokenCommand` | Optional. A shell command that prints a GitHub token; the lead and its subagents get it as `GH_TOKEN` |
 | `team` | The Linear team key, such as `ENG` |
 | `runnerUser` | The app user's name as Linear shows it on the delegate field |
-| `decisionAssignee` | The person Decision issues go to |
+| `askAssignee` | Your name in Linear. A ticket assigned to you waits for you; the runner and leads assign you to ask |
 | `repos` | Linear label name to `{path, base}`. `path` is a local clone with an `origin` remote |
 | `models` | `lead` and `review`, each a `pi --model` value. The lead passes `review` to its reviewer. Pick `review` from a different model family than `lead`, such as OpenAI against Anthropic, so the reviewer does not share its author's blind spots |
 | `thinking` | The lead's `pi --thinking` level. Default `high` |
