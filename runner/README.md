@@ -381,3 +381,7 @@ node --test runner/*.test.ts
 ```
 
 The tests use a fake Linear behind an injected `fetch`, stub `pi`, `tmux` and `memory_pressure` scripts, and real git repos in a temp directory. They make no network calls.
+
+### Size budgets
+
+The runner is meant to stay thin. [budget.test.ts](budget.test.ts) fails when `runner.ts`, `prompts/lead.md` or the number of top-level `Config` fields passes its budget in [budget.json](budget.json). CI runs the runner tests on every push and pull request. Lower a budget any time. To raise one, get Alex to record the new number in the decision log of `~/dev/agent-orchestration/README.md` first, then change `budget.json`.
