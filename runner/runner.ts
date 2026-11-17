@@ -31,7 +31,7 @@ export type Config = {
   worktreeRoot: string;
   routines?: Routine[];
 };
-type Comment = { id: string; body: string; url?: string; createdAt: string; user: { name: string } | null; botActor?: { name: string } | null; reactions?: { emoji: string; user: { name: string } | null }[] };
+type Comment = { id: string; body: string; url?: string; createdAt: string; parentId?: string | null; user: { name: string } | null; botActor?: { name: string } | null; reactions?: { emoji: string; user: { name: string } | null }[] };
 /** One entry of an issue's history. A `botActor` marks an integration; `attachment` is the link it added. */
 type Change = {
   createdAt: string; actor: { name: string } | null; botActor: { name: string } | null; attachment: { sourceType: string } | null;
@@ -48,15 +48,15 @@ type Page<T> = { nodes: T[]; pageInfo: { hasNextPage: boolean; endCursor: string
 /** A sub-issue of a ticket. One assigned to `decisionAssignee` is a Decision issue: Alex owes a move on it. */
 export type Child = { id: string; identifier: string; title: string; url: string; createdAt: string; completedAt: string | null; canceledAt: string | null; assignee: { name: string } | null };
 /**
- * Something someone other than the runner did on the ticket or a sub-issue. `comment` is set for a comment, so the
- * runner can react to it; `reacted` says the runner already put its 👀 on it.
+ * Something someone other than the runner did on the ticket or a sub-issue. `comment` is set for a comment, so an ack
+ * can react to it or reply in its thread; `reacted` says the runner already put its 👀 on it.
  */
-export type Event = { at: string; what: string; issue?: string; comment?: { id: string; reacted: boolean; url?: string } };
+export type Event = { at: string; what: string; issue?: string; comment?: { id: string; issueId: string; thread: string; reacted: boolean; url?: string } };
 /**
  * What Linear says about a ticket this poll. `state` is the state type: `unstarted` for Todo, `started` for In Progress or In Review.
- * `events` cover the ticket and its sub-issues back to the lead's last start.
+ * `events` and `mine`, the runner's comments, cover the ticket and its sub-issues back to the lead's last start.
  */
-export type Ticket = { state: string; description: string; createdAt: string; children: Child[]; events: Event[] };
+export type Ticket = { state: string; description: string; createdAt: string; mine: Comment[]; children: Child[]; events: Event[] };
 /** A ticket as the runner sees it this poll. */
 export type Work = { id: string; key: string; title: string; url: string; description: string; repo: string; branch: string; dir: string; models: { lead: string; review: string } };
 /**
@@ -162,7 +162,7 @@ export function linearClient(config: Config, fetchFn: typeof fetch) {
       return body.data;
     }
   }
-  const COMMENT = 'id body url createdAt user { name } botActor { name } reactions { emoji user { name } }';
+  const COMMENT = 'id body url createdAt parentId user { name } botActor { name } reactions { emoji user { name } }';
   const CHANGE = 'createdAt actor { name } botActor { name } attachment { sourceType } toState { name } toDelegate { name } fromDelegate { name } toAssignee { name } addedLabelIds removedLabelIds toTitle updatedDescription';
   const page = (conn: string, fields: string, after = '') => `${conn}(first: 25${after}) { nodes { ${fields} } pageInfo { hasNextPage endCursor } }`;
   /**
@@ -192,7 +192,7 @@ export function linearClient(config: Config, fetchFn: typeof fetch) {
       ...comments.filter((c) => c.user && !c.botActor && c.user.name !== config.runnerUser)
         .map((c) => ({
           at: c.createdAt, what: `${key}: ${c.user!.name} commented: ${c.body}`, issue: id,
-          comment: { id: c.id, url: c.url, reacted: !!c.reactions?.some((r) => r.emoji === EYES && r.user?.name === config.runnerUser) },
+          comment: { id: c.id, issueId: id, thread: c.parentId ?? c.id, url: c.url, reacted: !!c.reactions?.some((r) => r.emoji === EYES && r.user?.name === config.runnerUser) },
         })),
       ...history.filter((h) => h.actor && h.actor.name !== config.runnerUser && !byIntegration(h))
         .map((h) => ({ at: h.createdAt, what: `${key}: ${h.actor!.name} ${change(h)}`, issue: id })),
@@ -229,10 +229,10 @@ export function linearClient(config: Config, fetchFn: typeof fetch) {
       return ['completed', 'canceled'].includes(issue.state.type) || issue.delegate?.name !== config.runnerUser;
     },
     /**
-     * The events since `since` on the ticket and its sub-issues, or null when Linear finds
+     * The events and the runner's comments since `since` on the ticket and its sub-issues, or null when Linear finds
      * none of them. It reads only the issues the list query shows changed since then: complexity grows with each page asked for.
      */
-    async events(issue: Issue, since: string): Promise<Pick<Ticket, 'events'> | null> {
+    async events(issue: Issue, since: string): Promise<Pick<Ticket, 'events' | 'mine'> | null> {
       const ids = [issue, ...issue.children.nodes].filter((i) => newest(i) > since).map((i) => i.id);
       type Wire = { id: string; identifier: string; comments: Page<Comment>; history: Page<Change> };
       const found = (await gql<{ issues: { nodes: Wire[] } }>(
@@ -241,11 +241,13 @@ export function linearClient(config: Config, fetchFn: typeof fetch) {
       )).issues.nodes;
       if (!found.length) return null;
       const events: Event[] = [];
+      const mine: Comment[] = [];
       for (const i of found) {
         const comments = await back(i.id, 'comments', COMMENT, i.comments, since);
         events.push(...eventsOf(i.identifier, i.id, comments, await back(i.id, 'history', CHANGE, i.history, since)));
+        mine.push(...comments.filter((c) => c.user?.name === config.runnerUser));
       }
-      return { events: events.filter((e) => e.at > since).sort((a, b) => a.at.localeCompare(b.at)) };
+      return { events: events.filter((e) => e.at > since).sort((a, b) => a.at.localeCompare(b.at)), mine };
     },
     /** The runner's status comment on a ticket, if it posted one. */
     async statusComment(id: string): Promise<Comment | undefined> {
@@ -267,8 +269,8 @@ export function linearClient(config: Config, fetchFn: typeof fetch) {
     async clearDelegate(id: string) {
       await gql('mutation Update($id: String!, $input: IssueUpdateInput!) { issueUpdate(id: $id, input: $input) { success } }', { id, input: { delegateId: null } });
     },
-    async comment(issueId: string, body: string) {
-      await gql('mutation Comment($input: CommentCreateInput!) { commentCreate(input: $input) { success } }', { input: { issueId, body } });
+    async comment(issueId: string, body: string, parentId?: string) {
+      await gql('mutation Comment($input: CommentCreateInput!) { commentCreate(input: $input) { success } }', { input: { issueId, body, ...(parentId ? { parentId } : {}) } });
     },
     /** Puts the runner's 👀 on a comment. */
     async react(commentId: string) {
@@ -446,6 +448,16 @@ export function nextMove(config: Config, ticket: Ticket, attempted: string | nul
   if (events.length) return { kind: 'start', events };
   const open = ticket.children.find((c) => isDecision(config, c) && !closedAt(c));
   return open ? { kind: 'wait', on: open } : { kind: 'decide' };
+}
+
+/**
+ * Tells Alex the runner saw the latest event on a ticket it cannot start yet, and why it waits. It replies once per event:
+ * it skips one it already acked, judged from its own comments, so it keeps no state. A comment gets a reply in its thread.
+ */
+async function ack(ctx: Ctx, w: Work, ticket: Ticket, events: Event[], reason: string) {
+  const latest = events.at(-1)!;
+  if (ticket.mine.some((c) => c.body.startsWith('Seen.') && c.createdAt > latest.at)) return;
+  await ctx.linear.comment(latest.comment?.issueId ?? w.id, `Seen. Waiting to start: ${reason}.`, latest.comment?.thread);
 }
 
 /**
@@ -778,7 +790,7 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void, opts
     const since = lastAttempt(config, w) ?? '';
     const at = touched(issue);
     const fresh = at > since && ctx.quiet.get(w.key) !== `${since} ${at}`;
-    const seen = fresh ? await linear.events(issue, since) : { events: [] };
+    const seen = fresh ? await linear.events(issue, since) : { events: [], mine: [] };
     if (fresh && seen && !seen.events.length) ctx.quiet.set(w.key, `${since} ${at}`);
     if (isLive) tickets.push({ w, live: true, ticket: seen && seen.events.length ? { state: issue.state.type, description: w.description, createdAt: issue.createdAt, children: issue.children.nodes, ...seen } : null });
     else if (seen) tickets.push({ w, live: false, ticket: { state: issue.state.type, description: w.description, createdAt: issue.createdAt, children: issue.children.nodes, ...seen } });
@@ -820,7 +832,11 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void, opts
       const reason = startBlock({
         running: running.length, maxLeads: config.maxLeads, freeMemory: free, minFreeMemory: config.minFreeMemoryPercent,
       });
-      if (reason) { say(`Not starting ${w.key} yet: ${reason}`); continue; }
+      if (reason) {
+        say(`Not starting ${w.key} yet: ${reason}`);
+        await ack(ctx, w, ticket, move.events, reason);
+        continue;
+      }
       // The move is the runner's own, so it is not an event. A crash before the start is recorded starts the lead
       // once more on the same events; after it, nothing new means a Decision issue (model/Ticket.tla, NoSpin).
       if (ticket.state === 'unstarted') await linear.setState(w.id, 'In Progress');
