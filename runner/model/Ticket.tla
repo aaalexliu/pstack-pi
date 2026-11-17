@@ -4,8 +4,8 @@
 \* ticket, all through GitHub and Linear itself. The runner knows nothing about
 \* PRs. It starts the lead, unassigning Alex in the same write, and asks Alex
 \* when the lead stopped with nothing handed in: it assigns him, then comments.
-\* The ticket's assignee is who must act next. The runner remembers one fact:
-\* when it last started the lead.
+\* The ticket's assignee is who must act next. The runner remembers one fact
+\* per ticket: up to when the lead saw every event.
 CONSTANTS EVENT_CHECK,    \* fix: start the lead only on an event since its last start
           COMMENT_FIRST   \* bug: comment the ask, then assign Alex, instead of assign, then comment
 

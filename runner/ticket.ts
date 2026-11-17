@@ -8,6 +8,7 @@ const USAGE = `usage: ticket show
        ticket comment <file> [COMMENT ID]
        ticket done [SUB-ISSUE KEY]
        ticket ask <file>
+       ticket label <repo label>
 A <file> of - reads standard input.`;
 
 class Usage extends Error {}
@@ -41,7 +42,7 @@ const local = (at: string) => new Date(at).toLocaleString('en-US', { month: 'sho
  */
 export async function ticket(argv: string[], o: { cwd: string; config?: Config; fetchFn?: typeof fetch; stdin?: () => string }): Promise<string> {
   const [command, ...args] = argv;
-  const arity: Record<string, number[]> = { show: [0], comment: [1, 2], done: [0, 1], ask: [1] };
+  const arity: Record<string, number[]> = { show: [0], comment: [1, 2], done: [0, 1], ask: [1], label: [1] };
   if (!command || !arity[command]?.includes(args.length)) throw new Usage(USAGE);
   const body = (file: string) => {
     const text = file === '-' ? (o.stdin ?? (() => readFileSync(0, 'utf8')))() : readFileSync(file, 'utf8');
@@ -79,6 +80,18 @@ export async function ticket(argv: string[], o: { cwd: string; config?: Config; 
     }
     await linear.setState(id, 'Done');
     return `Moved ${key} to Done.`;
+  }
+  if (command === 'label') {
+    // Only a label the runner maps to a repo: the lead picks it, and the runner then starts a lead in that repo's worktree.
+    const name = args[0];
+    if (!Object.hasOwn(config.repos, name)) throw new Error(`"${name}" names no repo in the runner config; the repo labels are ${Object.keys(config.repos).join(', ')}`);
+    const { issueLabels } = await linear.gql<{ issueLabels: { nodes: { id: string; team: { key: string } | null }[] } }>(
+      'query Label($name: String!) { issueLabels(filter: { name: { eq: $name } }) { nodes { id team { key } } } }', { name },
+    );
+    const label = issueLabels.nodes.find((l) => !l.team || l.team.key === config.team);
+    if (!label) throw new Error(`Linear team ${config.team} has no label "${name}"`);
+    await linear.gql('mutation AddLabel($id: String!, $label: String!) { issueAddLabel(id: $id, labelId: $label) { success } }', { id: work.id, label: label.id });
+    return `Labeled ${work.key} ${name}.`;
   }
   const text = body(args[0]);
   await linear.assign(work.id, true);

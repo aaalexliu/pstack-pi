@@ -6,7 +6,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { format } from 'node:util';
 import { createHmac } from 'node:crypto';
-import { auditDelay, commands, main, nextMove, put, renderStatus, serve, signed, startBlock, type Config, type Ticket } from './runner.ts';
+import { auditDelay, commands, main, nextMove, put, readState, renderStatus, serve, signed, startBlock, type Config, type Ticket } from './runner.ts';
 import { ticket as ticketCommand } from './ticket.ts';
 
 type FakeComment = { id: string; body: string; url?: string; createdAt: string; user: { name: string } | null; botActor?: { name: string } | null; parentId?: string; reactions?: { emoji: string; user: { name: string } }[] };
@@ -36,6 +36,10 @@ function sessionLog(agent: string, cwd: string, name: string, minutes: number, l
   const at = new Date(Date.now() - minutes * 60000);
   utimesSync(file, at, at);
 }
+/** The ticket's state file, and a change to it, as the runner writes it. */
+const stateOf = (config: Config, n: number) => path.join(config.worktreeRoot, '.state', `ALE-${n}.json`);
+const readStateOf = (config: Config, n: number) => JSON.parse(readFileSync(stateOf(config, n), 'utf8'));
+const patchState = (config: Config, n: number, patch: Record<string, unknown>) => put(stateOf(config, n), JSON.stringify({ ...readStateOf(config, n), ...patch }));
 const IDLE = { role: 'assistant', stopReason: 'stop', content: [{ type: 'text', text: 'Waiting on the reviewer.' }] };
 const TOOL_CALL = { role: 'assistant', stopReason: 'toolUse', content: [] };
 
@@ -71,7 +75,9 @@ fs.appendFileSync(${JSON.stringify(file('pi.log'))}, JSON.stringify({
   piVars: Object.keys(process.env).filter((k) => /^(PI|PSTACK|CMUX)_/.test(k)).sort(),
 }) + '\\n');
 `, { mode: 0o755 });
-  // Fake tmux: runs a new session to completion. live.json names a lead that is still running.
+  // Fake tmux: runs a new session to completion. live.json names a lead that is still running. paths.json keeps the
+  // folder each session started in; a session a test made live by hand is in its ticket's usual worktree. Like tmux
+  // with no UTF-8 locale, as under launchd, list-sessions prints each control character as `_`.
   writeFileSync(file('tmux'), `#!/usr/bin/env node
 const fs = require('node:fs');
 const { execFileSync } = require('node:child_process');
@@ -79,13 +85,15 @@ const args = process.argv.slice(2);
 fs.appendFileSync(${JSON.stringify(file('tmux.log'))}, JSON.stringify(args) + '\\n');
 const liveFile = ${JSON.stringify(file('live.json'))};
 const tagsFile = ${JSON.stringify(file('tags.json'))};
+const pathsFile = ${JSON.stringify(file('paths.json'))};
+const paths = fs.existsSync(pathsFile) ? JSON.parse(fs.readFileSync(pathsFile, 'utf8')) : {};
 const live = fs.existsSync(liveFile) ? JSON.parse(fs.readFileSync(liveFile, 'utf8')) : [];
 const target = args[args.indexOf('-t') + 1]?.replace(/^=|:$/g, '');
-if (args[0] === 'new-session') { if (fs.existsSync(liveFile.replace(/live\.json$/, 'live-on-start'))) fs.writeFileSync(liveFile, JSON.stringify([...live, args[args.indexOf('-s') + 1]])); try { execFileSync('sh', ['-c', args.at(-1)], { cwd: args[args.indexOf('-c') + 1], stdio: 'ignore' }); } catch {} }
+if (args[0] === 'new-session') { fs.writeFileSync(pathsFile, JSON.stringify({ ...paths, [args[args.indexOf('-s') + 1]]: args[args.indexOf('-c') + 1] })); if (fs.existsSync(liveFile.replace(/live\.json$/, 'live-on-start'))) fs.writeFileSync(liveFile, JSON.stringify([...live, args[args.indexOf('-s') + 1]])); try { execFileSync('sh', ['-c', args.at(-1)], { cwd: args[args.indexOf('-c') + 1], stdio: 'ignore' }); } catch {} }
 else if (args[0] === 'has-session') process.exit(live.includes(target) ? 0 : 1);
 else if (args[0] === 'kill-session') { if (!live.includes(target)) process.exit(1); fs.writeFileSync(liveFile, JSON.stringify(live.filter((k) => k !== target))); }
 else if (args[0] === 'set-option') { if (!/^=.+:$/.test(args[args.indexOf('-t') + 1] ?? '') || fs.existsSync(tagsFile + '.fail')) { console.error('no such session'); process.exit(1); } const tags = fs.existsSync(tagsFile) ? JSON.parse(fs.readFileSync(tagsFile, 'utf8')) : {}; fs.writeFileSync(tagsFile, JSON.stringify({ ...tags, [target]: args.at(-1) })); }
-else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? JSON.parse(fs.readFileSync(tagsFile, 'utf8')) : {}; console.log(live.map((k) => k + ' ' + (tags[k] ?? '')).join('\\n')); }
+else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? JSON.parse(fs.readFileSync(tagsFile, 'utf8')) : {}; const fields = { session_name: (k) => k, '@job-runner': (k) => tags[k] ?? '', session_path: (k) => paths[k] ?? ${JSON.stringify(file('worktrees'))} + '/job-' + k.toLowerCase() + '-job-number-' + k.slice(4) }; console.log(live.map((k) => args[args.indexOf('-F') + 1].replace(/#\\{([^}]+)\\}/g, (_, name) => fields[name](k)).replace(/[\\x00-\\x1f]/g, '_')).join('\\n')); }
 `, { mode: 0o755 });
   writeFileSync(file('memory_pressure'), `#!/bin/sh\necho "System-wide memory free percentage: $(cat ${JSON.stringify(file('free'))} 2>/dev/null || echo 60)%"\n`, { mode: 0o755 });
   Object.assign(process.env, {
@@ -177,6 +185,12 @@ else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? J
         comments: { nodes: newest.slice(0, 50).map((c) => ({ id: c.id, createdAt: c.createdAt, body: c.body, user: c.user, botActor: c.botActor ?? null })), pageInfo: { hasNextPage: newest.length > 50 } },
         children: { nodes: issues.filter((c) => c.parent === i.id).map((c) => ({ id: c.id, identifier: c.identifier, title: c.title, state: { name: c.state }, assignee: c.assignee ? { name: c.assignee } : null })) },
       } });
+    }
+    if (op === 'Label') return data({ issueLabels: { nodes: ['pstack-pi', 'Firstmate', 'Papercut'].includes(v.name) ? [{ id: `label-${v.name}`, team: { key: 'ALE' } }, { id: 'other-team', team: { key: 'OTH' } }] : [] } });
+    if (op === 'AddLabel') {
+      find(v.id).labels.push(v.label.slice(6));
+      find(v.id).history.push({ createdAt: new Date().toISOString(), actor: { name: RUNNER }, addedLabelIds: [v.label] });
+      return data({ issueAddLabel: { success: true } });
     }
     if (op === 'Update') {
       if (v.input.stateId) find(v.id).state = v.input.stateId.slice(6);
@@ -278,7 +292,8 @@ test('a delegated ticket starts one lead in tmux with the session, the subagent_
   const status = job.comments.filter((c) => c.body.startsWith('**Runner:**'));
   assert.equal(status.length, 1);
   assert.match(status[0].body, /^\*\*Runner:\*\* Lead running/);
-  assert.ok(existsSync(path.join(dir, '.runner', 'started')));
+  assert.ok(Date.parse(readStateOf(t.config, 1).seen) > Date.parse('2026-01-02'), 'the one state file records the start');
+  assert.ok(!existsSync(path.join(dir, '.runner', 'started')));
 });
 
 test('a ticket filed already delegated starts its lead: Linear history has no delegation entry for it', async () => {
@@ -609,7 +624,7 @@ test('the runner never starts or kills a live lead, even after a comment', async
   t.setLive('ALE-1');
   job.comments.push({ id: 'c-1', body: 'Merge it and call subagent_done.', createdAt: later(), user: { name: ALEX } });
   const runner = path.join(t.dirOf(1), '.runner');
-  put(path.join(runner, 'started'), new Date(Date.now() - 20 * 60000).toISOString());
+  patchState(t.config, 1, { seen: new Date(Date.now() - 20 * 60000).toISOString() });
   put(path.join(runner, 'takeover'), '');
   await t.run('--once');
   rmSync(path.join(runner, 'takeover'));
@@ -634,7 +649,7 @@ test('a quiet live lead gets Escape and one nudge, then one investigator and no 
     const investigators = () => t.tmux().filter((a) => a[0] === 'new-session' && a.includes('ALE-1-stall')).length;
     await t.run('--once');
     assert.equal(nudges(), 0, 'a lead that just started is left alone');
-    put(path.join(runner, 'started'), new Date(Date.now() - 20 * 60000).toISOString());
+    patchState(t.config, 1, { seen: new Date(Date.now() - 20 * 60000).toISOString() });
     sessionLog(agent, dir, 'lead', 10, IDLE);
     sessionLog(agent, dir, 'reviewer', 2, IDLE);
     await t.run('--once');
@@ -657,9 +672,8 @@ test('a quiet live lead gets Escape and one nudge, then one investigator and no 
     assert.match(t.tmux().find((a) => a.includes('-l'))!.at(-1)!, /No progress from you or your subagents for 6 minutes\. Check each subagent/);
     assert.match(job.comments.find((c) => c.body.startsWith('**Runner:**'))!.body, /nudged it/);
     assert.equal(investigators(), 0, 'the investigator waits another stallMinutes');
-    const stall = path.join(runner, 'stall.json');
-    const nudgedAt = Date.now() - 12 * 60000;
-    put(stall, JSON.stringify({ nudgedAt }));
+    assert.equal(typeof readStateOf(t.config, 1).stall.nudgedAt, 'number', 'the nudge is kept in the state file');
+    patchState(t.config, 1, { stall: { nudgedAt: Date.now() - 12 * 60000 } });
     sessionLog(agent, dir, 'lead', 3, IDLE);
     await t.run('--once');
     assert.equal(investigators(), 0, 'the lead answered the nudge 3 minutes ago: not quiet yet');
@@ -678,7 +692,8 @@ test('a quiet live lead gets Escape and one nudge, then one investigator and no 
     job.comments.push({ id: 'c-2', body: 'Go on.', createdAt: later(), user: { name: ALEX } });
     await t.run('--once');
     t.setLive('ALE-1');
-    put(path.join(runner, 'started'), new Date(Date.now() - 20 * 60000).toISOString());
+    assert.equal(readStateOf(t.config, 1).stall, undefined, 'a new start drops the stall count');
+    patchState(t.config, 1, { seen: new Date(Date.now() - 20 * 60000).toISOString() });
     await t.run('--once');
     assert.deepEqual([nudges(), investigators()], [2, 1], 'a new lead start resets the count: a fresh nudge');
   } finally {
@@ -693,7 +708,7 @@ test('a pending tool call keeps the lead alive for toolQuietMinutes, then gets E
   try {
     await t.run('--once');
     t.setLive('ALE-1');
-    put(path.join(t.dirOf(1), '.runner', 'started'), new Date(Date.now() - 120 * 60000).toISOString());
+    patchState(t.config, 1, { seen: new Date(Date.now() - 120 * 60000).toISOString() });
     const keys = () => t.tmux().filter((a) => a[0] === 'send-keys').map((a) => (a.includes('-l') ? a.at(-1) : a.at(-1)));
     sessionLog(agent, t.dirOf(1), 'lead', 59, TOOL_CALL);
     await t.run('--once');
@@ -800,12 +815,11 @@ test('a blocked ticket with an event acks it once, in the comment thread, naming
 test('two screen tickets start together, and running.json lists the running leads with the screen flag', async () => {
   const screen = 'Make it work.\nNeeds: screen';
   const t = setup([issue(1, { description: screen }), issue(2, { description: screen }), issue(3)], { maxLeads: 3 });
-  const list = () => JSON.parse(readFileSync(path.join(t.config.worktreeRoot, 'running.json'), 'utf8')) as { key: string; needsScreen: boolean; worktree: string; startedAt: string }[];
+  const list = () => JSON.parse(readFileSync(path.join(t.config.worktreeRoot, 'running.json'), 'utf8')) as { key: string; needsScreen: boolean; worktree: string }[];
   await t.run('--once');
   assert.deepEqual(t.leads().map((l) => /Issue (ALE-\d)/.exec(l.input)![1]), ['ALE-1', 'ALE-2', 'ALE-3']);
   assert.deepEqual(list().map((r) => [r.key, r.needsScreen]), [['ALE-1', true], ['ALE-2', true], ['ALE-3', false]]);
   assert.equal(list()[0].worktree, t.dirOf(1));
-  assert.ok(list()[0].startedAt);
   const third = t.leads()[2].input;
   assert.match(third, /running\.json/);
   assert.match(third, /- ALE-1: .*Needs: screen\)/);
@@ -927,13 +941,120 @@ test('a failed start asks once across polls with no new event, and a new comment
   assert.equal(t.leads().length, 1);
 });
 
+for (const bad of ['{"seen": "2026-', '{"seen":"1"}', '{"seen":1}']) test(`a corrupt state file (${bad}) asks once and starts no lead on its own; Alex's reply starts it, so the ticket is not stranded`, async () => {
+  const job = issue(1, { state: 'In Progress' });
+  const t = setup([job]);
+  await t.run('--once');
+  job.comments.push({ id: 'c-1', body: 'Also fix the docs.', createdAt: later(), user: { name: ALEX } });
+  writeFileSync(stateOf(t.config, 1), bad);
+  for (let i = 0; i < 3; i++) await t.run('--once');
+  assert.equal(t.leads().length, 1, 'no start while the runner cannot tell which events the lead saw');
+  assert.equal(t.asks().length, 1);
+  assert.match(t.asks()[0].body, /^\*\*Needs Alex:\*\* the runner lost its state \(\S+ALE-1\.json is corrupt\), so it counts only events from now\./);
+  assert.equal(job.assignee, ALEX);
+  assert.match(job.comments.find((c) => c.body.startsWith('**Runner:**'))!.body, /^\*\*Runner:\*\* Waiting on Alex/);
+  assert.ok(readStateOf(t.config, 1).seen, 'a fresh state replaced it');
+  job.comments.push({ id: 'c-2', body: 'Go on.', createdAt: later(), user: { name: ALEX } });
+  await t.run('--once');
+  await t.run('--once');
+  assert.equal(t.leads().length, 2, 'his reply is a new event, so the lead starts once');
+  assert.match(t.leads()[1].input, /Events since your last start:\n- \S+ ALE-1: Alex Example commented: Go on\.\n\n/);
+});
+
+test('a missing state file where a lead ran asks once and starts no lead on its own', async () => {
+  const job = issue(1, { state: 'In Progress' });
+  const t = setup([job]);
+  await t.run('--once');
+  rmSync(stateOf(t.config, 1));
+  job.comments.push({ id: 'c-1', body: 'Go on.', createdAt: later(), user: { name: ALEX } });
+  await t.run('--once');
+  await t.run('--once');
+  assert.equal(t.leads().length, 1);
+  assert.equal(t.asks().length, 1);
+  assert.match(t.asks()[0].body, /the runner lost its state \(\S+ALE-1\.json is missing\), so it counts only events from now\./);
+});
+
+test('a corrupt state file under a live lead leaves the lead running; it counts only events from now, so its exit gets the ask', async () => {
+  const t = setup([issue(1, { state: 'In Progress' })]);
+  await t.run('--once');
+  t.setLive('ALE-1');
+  t.tag('ALE-1');
+  writeFileSync(stateOf(t.config, 1), '[]');
+  await t.run('--once');
+  await t.run('--once');
+  assert.deepEqual(t.tmux().filter((a) => a[0] === 'new-session' || a[0] === 'kill-session').map((a) => a[0]), ['kill-session', 'new-session'], 'only the first start');
+  assert.match(readFileSync(path.join(t.config.worktreeRoot, 'running.json'), 'utf8'), /"key": "ALE-1"/, 'the live lead still holds its slot');
+  assert.ok(readStateOf(t.config, 1).seen, 'a fresh state replaced it');
+  t.setLive();
+  await t.run('--once');
+  assert.equal(t.leads().length, 1);
+  assert.match(t.asks()[0]?.body ?? '', /the lead stopped with nothing handed in/);
+});
+
+test('readState reads the start an older runner kept, and rejects a state it cannot trust', () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), 'job-runner-state-'));
+  const config = { worktreeRoot: root } as Config;
+  const w = { key: 'ALE-1', dir: path.join(root, 'job-ale-1-x') };
+  const runner = path.join(w.dir, '.runner');
+  mkdirSync(runner, { recursive: true });
+  assert.equal(readState(config, w), null, 'a ticket never started has no state');
+  put(path.join(runner, 'started'), '2026-01-01T00:00:00.000Z\n');
+  put(path.join(runner, 'session-id'), 'abc');
+  assert.deepEqual(readState(config, w), { seen: '2026-01-01T00:00:00.000Z' }, 'an older lead start counts');
+  rmSync(path.join(runner, 'started'));
+  assert.throws(() => readState(config, w), /ALE-1\.json is missing/);
+  mkdirSync(path.join(root, '.state'));
+  for (const bad of ['', 'null', '[]', '"x"', '{}', '{"seen":"soon"}', '{"seen":"1"}', '{"seen":1}', '{"seen":"2026-01-01"}', '{"seen":"2026-13-01T00:00:00Z"}', '{"seen":"2026-01-01T00:00:00Z","stall":{"nudgedAt":"x"}}']) {
+    put(path.join(root, '.state', 'ALE-1.json'), bad);
+    assert.throws(() => readState(config, w), /ALE-1\.json is corrupt/, `${JSON.stringify(bad)} is corrupt`);
+  }
+  put(path.join(root, '.state', 'ALE-1.json'), '{"seen":"2026-01-02T00:00:00Z","stall":{"nudgedAt":5}}');
+  assert.deepEqual(readState(config, w), { seen: '2026-01-02T00:00:00Z', stall: { nudgedAt: 5 } });
+  put(path.join(root, '.state', 'ALE-1.json'), JSON.stringify({ seen: '2026-01-02T00:00:00Z', dir: path.join(root, 'job-ale-1') }));
+  assert.equal(readState(config, w), null, 'a lead that ran in another folder, such as one with no repo, is not this folder\'s lead');
+});
+
+test('a lead running under the old files keeps working: its old start counts, and its next start moves to the state file', async () => {
+  const job = issue(1, { state: 'In Progress' });
+  const t = setup([job], { stallMinutes: 5 });
+  const agent = path.join(t.root, 'agent');
+  process.env.PI_CODING_AGENT_DIR = agent;
+  try {
+    await t.run('--once');
+    const runner = path.join(t.dirOf(1), '.runner');
+    // As an older runner left a lead it started 20 minutes ago: no state file.
+    const started = new Date(Date.now() - 20 * 60000).toISOString();
+    rmSync(stateOf(t.config, 1));
+    put(path.join(runner, 'started'), started);
+    t.setLive('ALE-1');
+    await t.run('--once');
+    assert.deepEqual(t.tmux().filter((a) => a[0] === 'send-keys').map((a) => a.at(-1)!.slice(0, 20)), ['Escape', 'No progress from you', 'Enter'], 'quiet since its old start: one nudge');
+    assert.equal(readStateOf(t.config, 1).seen, started, 'the nudge wrote the old start into the state file');
+    assert.equal(t.asks().length, 0);
+    // An older lead that exited: only a comment after its start starts it again.
+    t.setLive();
+    rmSync(stateOf(t.config, 1));
+    put(path.join(runner, 'started'), later());
+    job.comments.push({ id: 'r-1', body: '**Needs Alex:** A or B?', createdAt: started, user: { name: RUNNER } });
+    await t.run('--once');
+    assert.equal(t.leads().length, 1, 'nothing since its start: the open ask is waited on');
+    job.comments.push({ id: 'c-1', body: 'Go on.', createdAt: later(), user: { name: ALEX } });
+    await t.run('--once');
+    assert.equal(t.leads().length, 2);
+    assert.match(t.leads()[1].input, /Events since your last start:\n- \S+ ALE-1: Alex Example commented: Go on\.\n\n/);
+    assert.ok(!existsSync(path.join(runner, 'started')), 'the start dropped the old file');
+  } finally {
+    delete process.env.PI_CODING_AGENT_DIR;
+  }
+});
+
 test('a refused folder gets no runner files; the failed attempt is kept outside it', async () => {
   const t = setup([issue(1)]);
   mkdirSync(t.dirOf(1), { recursive: true });
   await t.run('--once');
   await t.run('--once');
   assert.deepEqual(readdirSync(t.dirOf(1)), []);
-  assert.ok(existsSync(path.join(t.config.worktreeRoot, '.attempts', 'ALE-1')));
+  assert.ok(readStateOf(t.config, 1).seen, 'the attempt is in the state file under worktreeRoot');
   assert.equal(t.asks().length, 1);
 });
 
@@ -964,12 +1085,72 @@ test('the runner\'s own ask assigns Alex before it comments; a failed assign pos
   assert.deepEqual(t.errorLines(), ['ALE-1: failed; the next poll tries again Error: injected Update failure']);
 });
 
-test('an issue with no repo label is skipped with a comment and handed back', async () => {
+test('a ticket with no repo label starts a lead in a folder with no repo, keeps its delegate, and gets only the status comment', async () => {
   const job = issue(1, { labels: ['Papercut'] });
   const t = setup([job]);
   await t.run('--once');
-  assert.equal(job.delegate, null);
-  assert.match(job.comments[0].body, /No repo label.*pstack-pi, or map its label to a repo .* and restart the runner/);
+  assert.equal(job.delegate, RUNNER, 'the runner keeps the ticket');
+  assert.deepEqual(job.comments.map((c) => c.body.split('\n')[0]), ['**Runner:** Lead running']);
+  assert.equal(job.state, 'In Progress');
+  const neutral = path.join(t.config.worktreeRoot, 'job-ale-1');
+  const [lead] = t.leads();
+  assert.equal(lead.cwd, realpathSync(neutral));
+  assert.ok(!existsSync(path.join(neutral, '.git')), 'the folder is no worktree of any repo');
+  assert.match(lead.input, /\nNo repo label yet, so you run in a folder with no repo\. Repo labels: pstack-pi\. Review model: review-model\./);
+  assert.match(job.comments[0].body, /- Folder: `[^`]*job-ale-1`, with no repo until the lead adds a repo label\n/);
+  assert.match(job.comments[0].body, /Quiz a fork: `ssh -t test-host "mkdir -p [^`]*job-ale-1\.quiz && cd /);
+});
+
+test('once the no-repo lead adds the repo label and exits, the next poll starts a lead in that repo\'s worktree with no new delegation', async () => {
+  const job = issue(1, { labels: [] });
+  const t = setup([job]);
+  await t.run('--once');
+  const neutral = path.join(t.config.worktreeRoot, 'job-ale-1');
+  // Alex quizzes the lead with the status comment's command, through stand-in ssh and tmux.
+  const fakes = path.join(t.root, 'bin');
+  mkdirSync(fakes);
+  writeFileSync(path.join(fakes, 'ssh'), '#!/bin/sh\nshift 2\nexec sh -c "$*"\n', { mode: 0o755 });
+  writeFileSync(path.join(fakes, 'tmux'), '#!/bin/sh\n', { mode: 0o755 });
+  const quiz = /Quiz a fork: `(.*)`/.exec(job.comments[0].body)![1];
+  execFileSync('sh', ['-c', quiz], { env: { ...process.env, PATH: `${fakes}:${process.env.PATH}` } });
+  await assert.rejects(t.ticket(neutral, 'label', 'Firstmate'), /"Firstmate" names no repo in the runner config; the repo labels are pstack-pi/);
+  assert.equal(await t.ticket(neutral, 'label', 'pstack-pi'), 'Labeled ALE-1 pstack-pi.');
+  assert.deepEqual(job.labels, ['pstack-pi']);
+  await t.run('--once');
+  const [, lead] = t.leads();
+  assert.equal(lead?.cwd, realpathSync(t.dirOf(1)), 'the second lead runs in the repo worktree');
+  assert.equal(git(t.dirOf(1), 'rev-parse', '--abbrev-ref', 'HEAD'), 'job/ale-1-job-number-1');
+  assert.match(lead.input, /\nBranch: job\/ale-1-job-number-1\. Base: main\. Review model: review-model\./);
+  assert.match(lead.input, /Events since your last start:\n- 2026-01-01T00:00:00Z The ticket was filed\.\n- 2026-01-01T00:00:01Z ALE-1: Alex Example delegated it to runner test\n\n/);
+  assert.notEqual(lead.session, t.leads()[0].session, 'a fresh session in the worktree');
+  assert.equal(t.asks().length, 0);
+  assert.match(job.comments.find((c) => c.body.startsWith('**Runner:**'))!.body, /- Worktree: `[^`]*job-ale-1-job-number-1` on `job\/ale-1-job-number-1`/);
+  job.comments.push({ id: 'c1', body: 'One more thing.', createdAt: later(), user: { name: ALEX } });
+  await t.run('--once');
+  assert.equal(t.leads()[2]?.cwd, realpathSync(t.dirOf(1)), 'later starts stay in the repo worktree');
+});
+
+test('a no-repo lead follows the same assignee rules: its start unassigns Alex, and its stop assigns him with one ask', async () => {
+  const job = issue(1, { labels: [], assignee: ALEX });
+  const t = setup([job]);
+  await t.run('--once');
+  assert.deepEqual([t.leads().length, job.assignee], [1, null]);
+  await t.run('--once');
+  await t.run('--once');
+  assert.deepEqual([job.assignee, t.asks().length], [ALEX, 1]);
+});
+
+test('the heartbeat finds a no-repo lead in its folder', async () => {
+  const t = setup([issue(1, { labels: [] })]);
+  await t.run('--once');
+  t.setLive('ALE-1');
+  t.tag('ALE-1');
+  const srv = await t.serve();
+  try {
+    await srv.heartbeat();
+    const [entry] = JSON.parse(readFileSync(path.join(t.config.worktreeRoot, 'running.json'), 'utf8'));
+    assert.equal(entry.worktree, path.join(t.config.worktreeRoot, 'job-ale-1'));
+  } finally { await srv.close(); }
 });
 
 test('--dry-run prints each move and writes nothing', async () => {
@@ -1024,6 +1205,10 @@ for (const shell of ['sh', 'zsh']) {
     execFileSync('sh', ['-c', c.quiz], { env, stdio: 'ignore' });
     assert.equal(git(`${dir}-quiz`, 'rev-parse', '--abbrev-ref', 'HEAD'), 'job/ale-7-x-quiz');
     assert.deepEqual(tmuxArgs(), ['new', '-s', 'ALE-7-quiz', 'pi', '--fork', 'abc-123']);
+    const neutral = path.join(root, 'Work Projects', "it's", 'job-ale-8');
+    execFileSync('sh', ['-c', commands({ key: 'ALE-8', dir: neutral, branch: '' }, 'abc-456', 'mini').quiz], { env });
+    assert.ok(existsSync(`${neutral}.quiz`), 'a lead with no repo is quizzed from a plain folder beside it');
+    assert.deepEqual(tmuxArgs(), ['new', '-s', 'ALE-8-quiz', 'pi', '--fork', 'abc-456']);
   });
 }
 
