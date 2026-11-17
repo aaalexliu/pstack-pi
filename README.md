@@ -271,7 +271,7 @@ Pi-owned files live in `additions/`, apart from the 573 upstream paths, and ship
 | `additions/agents/sub-lead.md` | Builds one unit of a [job runner](runner/README.md) ticket through the lead's merge gate, with auto-exit on and no spawning tools. |
 | `additions/skills/deeper/SKILL.md` | Turns a task into a deeper prompt. It predates upstream `sharpen`, which the manifest omits in its favor. |
 | `additions/skills/show-me/` | Adapts the MIT-licensed `show-me` skill from [humanlayer/skills](https://github.com/humanlayer/skills) with bug views and set nodes. Ships the license notice in `references/humanlayer-license.md`. |
-| `additions/skills/intake/SKILL.md` | Tells any session that files a ticket for an agent to write Goal, Reference and Not doing, then delegate it. The [job runner](runner/README.md) leads read those headings. |
+| `additions/skills/intake/SKILL.md` | Tells any session that files a ticket for an agent to check the ask against the project's decisions in a fresh session, write Goal, Reference and Not doing, then delegate it. The [job runner](runner/README.md) leads read those headings. |
 | `additions/skills/list-writing/SKILL.md` | Turns the checklist in [Agent text at scale](https://fsdatalab.github.io/blog/agent-text-at-scale/) into rules for lists and breakdowns. |
 | `additions/skills/principles/SKILL.md` | Lists each principle skill with when it applies and its path, so the model can read one without all 24 in its skill list. |
 

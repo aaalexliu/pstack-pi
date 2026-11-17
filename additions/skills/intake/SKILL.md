@@ -9,7 +9,7 @@ A ticket that an agent builds starts while the person who asked is still here. T
 
 ## Steps
 
-1. Restate the goal in your own words, not the user's. Show it to them before you file. A misreading costs one line now and a whole build later.
+1. Restate the goal in your own words, not the user's. Show it to them before you file. A misreading costs one line now and a whole build later. Run the check under "Check the ask against what is decided" and show its objections with the goal.
 2. Write the ticket with these headings, in this order:
 
    ```markdown
@@ -29,6 +29,22 @@ A ticket that an agent builds starts while the person who asked is still here. T
 3. Add the label that names the repo, if the runner picks repos by label. Add `Needs: screen` on its own line when the work drives the Mac's screen, a browser, or a simulator.
 4. Set the ticket's state to `Todo` and delegate it to the runner's app user in the same step. The runner picks up only `Todo` tickets delegated to it. Do not assign it to the person; an assignee means it is their move.
 5. Tell the user the ticket link and the goal line you wrote.
+
+## Check the ask against what is decided
+
+People reverse their own rules without noticing, and a session that has been talking with them tends to agree. So the check runs in a separate session with fresh context, such as a subagent. Give it only three things: the ask as you restated it, the project's design record (its principles, its decision log, and its list of what was tried and dropped; the repo's agent instructions name it when one exists), and the titles of the open tickets. Do not give it this conversation.
+
+Ask it for at most three objections, one line each, each with a link to the line or ticket it rests on:
+
+- The ask breaks a principle or reverses a logged decision.
+- The ask brings back something that was tried and dropped.
+- The ask overlaps or conflicts with an open ticket.
+
+When the work is costly to undo, ask it one more question: what must be true for this to be the right thing to build, and what is the cheapest way to test that?
+
+An objection with no link does not count. With no objection, say nothing about the check. Otherwise the person answers each one with "amend" or "drop". Amend means the rule changes: add a line to the decision log, or write under Goal that the agent must. Drop means the ask changes or goes.
+
+The check never holds a ticket back. If the person is not there to answer, file the ticket with a `Conflict:` line under Goal for each objection, and follow their newest instruction. If you cannot start a separate session, run the check yourself and say that you did. A project with no design record gets only the open-ticket check.
 
 ## Rules
 
