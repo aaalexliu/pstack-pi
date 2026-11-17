@@ -888,7 +888,7 @@ test('an issue with no repo label is skipped with a comment and handed back', as
   const t = setup([job]);
   await t.run('--once');
   assert.equal(job.delegate, null);
-  assert.match(job.comments[0].body, /No repo label.*pstack-pi/);
+  assert.match(job.comments[0].body, /No repo label.*pstack-pi, or map its label to a repo .* and restart the runner/);
 });
 
 test('--dry-run prints each move and writes nothing', async () => {
