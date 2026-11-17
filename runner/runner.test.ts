@@ -1093,6 +1093,18 @@ test('an event swallowed by a dialog, or still queued when the lead exits, stays
   } finally { delete process.env.PI_CODING_AGENT_DIR; }
 });
 
+test('a lead that logs a typed event and exits before the next poll is not started again for it', async () => {
+  const { t, typed, log } = await liveLead();
+  try {
+    await t.run('--once');
+    assert.equal(typed().length, 2);
+    log(TYPED);
+    t.setLive();
+    await t.run('--once');
+    assert.equal(t.leads().length, 1, 'the ended lead\'s log shows it was answered');
+  } finally { delete process.env.PI_CODING_AGENT_DIR; }
+});
+
 test('an event already in the lead log is not typed', async () => {
   const { t, typed, log } = await liveLead();
   try {

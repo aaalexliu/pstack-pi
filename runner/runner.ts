@@ -408,6 +408,26 @@ function inLog(w: Work, text: string) {
     existsSync(folder) && readdirSync(folder).some((f) => f.endsWith(`_${id}.jsonl`) && readFileSync(path.join(folder, f), 'utf8').includes(needle)));
 }
 
+/** The one line the runner types into a live lead for an event. */
+function eventText(ctx: Ctx, w: Work, ticket: Ticket, e: Event) {
+  const child = ticket.children.find((c) => c.id === e.issue);
+  const where = !child ? 'on the ticket' : isDecision(ctx.config, child) ? `on Decision ${child.identifier} "${child.title}"` : `on sub-issue ${child.identifier}`;
+  let what = e.what.replace(/^\S+: /, '').replace(/\s+/g, ' ').trim();
+  if (what.length > 1500) what = `${what.slice(0, 1500)}...`;
+  return `Linear event on ${w.key} while you run, ${where}: ${what}${e.comment?.url ? ` (${e.comment.url})` : ''}. Read it and act on it; if it answers an open Decision, close that Decision.`;
+}
+
+/**
+ * Moves `.runner/passed` past each leading event the lead's log shows, and returns the rest. It runs for a live lead
+ * and for one that ended, since a lead may log an event and exit before the runner looks.
+ */
+function settle(ctx: Ctx, w: Work, ticket: Ticket, events: Event[]) {
+  const done = events.findIndex((e) => !inLog(w, eventText(ctx, w, ticket, e)));
+  const seen = done === -1 ? events : events.slice(0, done);
+  if (seen.length) put(rf(w, 'passed'), seen.at(-1)!.at);
+  return done === -1 ? [] : events.slice(done);
+}
+
 /**
  * Types each event into the live lead's pane, as Alex would, when the runner started it there. No Escape: Pi queues
  * a message typed during a step and hands it over once the step's tools finish. An event counts as seen only once
@@ -418,16 +438,9 @@ function inLog(w: Work, text: string) {
 async function pass(ctx: Ctx, w: Work, ticket: Ticket, events: Event[]) {
   if (!existsSync(rf(w, 'pane')) || existsSync(rf(w, 'held')) || existsSync(rf(w, 'takeover')) || !(await leadSessions()).includes(w.key)) return;
   const target = readOr(rf(w, 'pane'))!.trim();
-  let answered = true;
   let typed = false;
-  for (const e of events) {
-    const child = ticket.children.find((c) => c.id === e.issue);
-    const where = !child ? 'on the ticket' : isDecision(ctx.config, child) ? `on Decision ${child.identifier} "${child.title}"` : `on sub-issue ${child.identifier}`;
-    let what = e.what.replace(/^\S+: /, '').replace(/\s+/g, ' ').trim();
-    if (what.length > 1500) what = `${what.slice(0, 1500)}...`;
-    const text = `Linear event on ${w.key} while you run, ${where}: ${what}${e.comment?.url ? ` (${e.comment.url})` : ''}. Read it and act on it; if it answers an open Decision, close that Decision.`;
-    if (inLog(w, text)) { if (answered) put(rf(w, 'passed'), e.at); continue; }
-    answered = false;
+  for (const e of settle(ctx, w, ticket, events)) {
+    const text = eventText(ctx, w, ticket, e);
     if (Date.now() - (ctx.typed.get(text) ?? 0) < 60_000) continue;
     await must(bin('tmux'), ['send-keys', '-t', target, '-l', text], w.dir);
     await must(bin('tmux'), ['send-keys', '-t', target, 'Enter'], w.dir);
@@ -832,6 +845,7 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void, opts
         continue;
       }
       if (!ticket) continue;
+      if (!dryRun && existsSync(rf(w, 'pane'))) settle(ctx, w, ticket, newEvents(ticket, lastAttempt(config, w)));
       const move = nextMove(config, ticket, lastAttempt(config, w));
       if (dryRun) { console.log(`${w.key}: ${move.kind}`); continue; }
       if (move.kind === 'wait') continue;
