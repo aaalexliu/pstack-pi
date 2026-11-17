@@ -80,7 +80,7 @@ The runner and every lead share the app user's Linear budgets: 5,000 requests an
 
 A live lead belongs to the lead: the runner never starts, restarts or kills it. Events reach it when you attach and type, or after it exits, since the next start lists them.
 
-The lead's heartbeat is the newest write to any Pi session log in the session folder of its worktree or of a sibling worktree named `<worktree>-<unit>` (any unit name but `quiz`, which the quiz fork uses) (`~/.pi/agent/sessions/<encoded path>/`). Pi files each session under its cwd, so the lead and its subagents log to the worktree's folder, and sub-leads, which the lead prompt puts in `<worktree>-<unit>`, log to theirs. The quiz fork's folder (`<worktree>-quiz`) does not count. The runner reads the last message of that newest log: a tool call with no result yet, or a user message or tool result with no reply yet, is busy; anything else is idle. tmux redraws do not count; the subagent panel's "waiting" timer redraws forever.
+The lead's heartbeat is the newest write to any Pi session log in the session folder of its worktree or of a sibling worktree named `<worktree>-<unit>` (`~/.pi/agent/sessions/<encoded path>/`). Pi files each session under its cwd, so the lead and its subagents log to the worktree's folder, and sub-leads, which the lead prompt puts in `<worktree>-<unit>`, log to theirs. The runner reads the last message of that newest log: a tool call with no result yet, or a user message or tool result with no reply yet, is busy; anything else is idle. tmux redraws do not count; the subagent panel's "waiting" timer redraws forever.
 
 ```text
 lead start .. quiet stretch 1 .. (lead may write) .. quiet stretch 2
@@ -174,7 +174,7 @@ Run one runner per Linear team.
 
 ## The status comment
 
-Each ticket gets one runner comment, edited in place: the state, the host, the tmux session, the Pi session id, the worktree, and commands to watch the lead (`tmux attach`), take it over (touch `.runner/takeover` first, so the runner does not nudge until you quit Pi; if the lead exits first, a second Pi starts under `.runner/held`), or quiz a fork of it in its own worktree.
+Each ticket gets one runner comment, edited in place: the state, the host, the tmux session, the Pi session id, the worktree, and commands to watch the lead (`tmux attach`) or take it over (touch `.runner/takeover` first, so the runner does not nudge until you quit Pi; if the lead exits first, a second Pi starts under `.runner/held`).
 
 ## Ticket lines
 

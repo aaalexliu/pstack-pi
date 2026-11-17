@@ -501,7 +501,6 @@ test('a quiet live lead gets Escape and one nudge; takeover holds it off; a seco
     await t.run('--once');
     assert.equal(nudges(), 0, 'a sub-lead writing now in a sibling worktree keeps the lead alive');
     sessionLog(agent, `${dir}-unit`, 'sublead', 6, IDLE);
-    sessionLog(agent, `${dir}-quiz`, 'quiz', 0, IDLE);
     sessionLog(agent, dir.replace('job-ale-1-', 'job-ale-10-'), 'other-ticket', 0, IDLE);
     put(path.join(runner, 'takeover'), '');
     await t.run('--once');
@@ -509,7 +508,7 @@ test('a quiet live lead gets Escape and one nudge; takeover holds it off; a seco
     rmSync(path.join(runner, 'takeover'));
     await t.run('--once');
     await t.run('--once');
-    assert.deepEqual(keys(), ['Escape', 'nudge', 'Enter'], 'every log idle for 5 minutes: Escape closes any selector, then one nudge; a quiz fork writing now does not count');
+    assert.deepEqual(keys(), ['Escape', 'nudge', 'Enter'], 'every log idle for 5 minutes: Escape closes any selector, then one nudge');
     assert.match(t.tmux().find((a) => a.includes('-l'))!.at(-1)!, /No progress from you or your subagents for 6 minutes\. Check each subagent/);
     assert.match(job.comments.find((c) => c.body.startsWith('**Runner:**'))!.body, /nudged it/);
     sessionLog(agent, dir, 'lead', 3, IDLE);
@@ -828,8 +827,6 @@ for (const shell of ['sh', 'zsh']) {
     const root = mkdtempSync(path.join(os.tmpdir(), 'job-runner-quote-'));
     const dir = path.join(root, 'Work Projects', "it's", 'job-ale-7-x');
     mkdirSync(dir, { recursive: true });
-    git(dir, 'init', '-q', '-b', 'job/ale-7-x');
-    git(dir, '-c', 'user.name=t', '-c', 'user.email=t@e', 'commit', '-q', '--allow-empty', '-m', 'init');
     mkdirSync(path.join(dir, '.runner'));
     const fakes = path.join(root, 'bin');
     mkdirSync(fakes);
@@ -837,16 +834,13 @@ for (const shell of ['sh', 'zsh']) {
     writeFileSync(path.join(fakes, 'tmux'), `#!/bin/sh\nprintf '%s\\n' "$@" > ${JSON.stringify(path.join(root, 'tmux-args'))}\n`, { mode: 0o755 });
     const env = { ...process.env, PATH: `${fakes}:${process.env.PATH}` };
     const tmuxArgs = () => readFileSync(path.join(root, 'tmux-args'), 'utf8').trim().split('\n');
-    const c = commands({ key: 'ALE-7', dir, branch: 'job/ale-7-x' }, 'abc-123', 'mini');
+    const c = commands({ key: 'ALE-7', dir }, 'mini');
     execFileSync('sh', ['-c', c.watch], { env });
     assert.deepEqual(tmuxArgs(), ['attach', '-t', '=ALE-7']);
     execFileSync('sh', ['-c', c.stop], { env });
     assert.deepEqual(tmuxArgs(), ['kill-session', '-t', '=ALE-7']);
     execFileSync('sh', ['-c', c.takeOver], { env });
     assert.ok(existsSync(path.join(dir, '.runner', 'takeover')));
-    execFileSync('sh', ['-c', c.quiz], { env, stdio: 'ignore' });
-    assert.equal(git(`${dir}-quiz`, 'rev-parse', '--abbrev-ref', 'HEAD'), 'job/ale-7-x-quiz');
-    assert.deepEqual(tmuxArgs(), ['new', '-s', 'ALE-7-quiz', 'pi', '--fork', 'abc-123']);
   });
 }
 

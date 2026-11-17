@@ -299,19 +299,17 @@ function linearClient(config: Config, fetchFn: typeof fetch) {
 }
 
 /** The commands Alex copies from the status comment. Each word is quoted for the local shell and again for the remote one. */
-export function commands(w: Pick<Work, 'key' | 'dir' | 'branch'>, sessionId: string, host: string) {
+export function commands(w: Pick<Work, 'key' | 'dir'>, host: string) {
   const ssh = (...remote: string[]) => `ssh -t ${sh(host)} ${sh(remote.join(' '))}`;
-  const quiz = `${w.dir}-quiz`;
   return {
     watch: ssh('tmux attach -t', sh(session(w.key))),
     takeOver: ssh('touch', sh(path.join(w.dir, '.runner', 'takeover')), '&& tmux attach -t', sh(session(w.key))),
-    quiz: ssh('cd', sh(w.dir), '&& git worktree add -B', sh(`${w.branch}-quiz`), sh(quiz), 'HEAD && cd', sh(quiz), '&& tmux new -s', sh(`${w.key}-quiz`), 'pi --fork', sh(sessionId)),
     stop: ssh('tmux kill-session -t', sh(session(w.key))),
   };
 }
 
 export function renderStatus(w: Pick<Work, 'key' | 'dir' | 'branch'>, sessionId: string, host: string, state: string) {
-  const c = commands(w, sessionId, host);
+  const c = commands(w, host);
   return [
     `**Runner:** ${state}`,
     '',
@@ -321,7 +319,6 @@ export function renderStatus(w: Pick<Work, 'key' | 'dir' | 'branch'>, sessionId:
     `- Worktree: \`${w.dir}\` on \`${w.branch}\``,
     `- Watch or steer: \`${c.watch}\``,
     `- Take over (no stall nudges until you quit Pi): \`${c.takeOver}\``,
-    `- Quiz a fork: \`${c.quiz}\``,
   ].join('\n');
 }
 
@@ -615,7 +612,7 @@ function lastMessage(file: string): { role?: string; stopReason?: string; unknow
 
 /**
  * The lead's heartbeat: the newest write to any Pi session log of the worktree or a sibling named `<worktree>-<unit>`,
- * where sub-leads work; each cwd has its own folder. Alex's quiz fork (`<worktree>-quiz`) is left out. Also whether that log's last message is mid-step. A tool call with no result,
+ * where sub-leads work; each cwd has its own folder. Also whether that log's last message is mid-step. A tool call with no result,
  * or a user message or tool result with no reply, is busy; anything else is idle. The lead start is the floor.
  */
 export function heartbeat(w: Pick<Work, 'dir'>) {
@@ -623,9 +620,7 @@ export function heartbeat(w: Pick<Work, 'dir'>) {
   let newest = { at: started ? Date.parse(started) : 0, file: '' };
   const sessions = path.join(agentDir(), 'sessions');
   const prefixes = [...new Set([w.dir, existsSync(w.dir) ? realpathSync(w.dir) : w.dir])].map((dir) => path.basename(sessionFolder(dir)).slice(0, -1));
-  const dirs = [...new Set([w.dir, existsSync(w.dir) ? realpathSync(w.dir) : w.dir])];
-  const notLead = dirs.map((dir) => path.basename(sessionFolder(`${dir}-quiz`)));
-  const folders = existsSync(sessions) ? readdirSync(sessions).filter((f) => prefixes.some((p) => f.startsWith(p)) && !notLead.includes(f)) : [];
+  const folders = existsSync(sessions) ? readdirSync(sessions).filter((f) => prefixes.some((p) => f.startsWith(p))) : [];
   for (const folder of folders.map((f) => path.join(sessions, f))) {
     for (const name of readdirSync(folder).filter((f) => f.endsWith('.jsonl'))) {
       const at = statSync(path.join(folder, name)).mtimeMs;
@@ -663,16 +658,15 @@ async function checkStall(ctx: Ctx, w: Work) {
 async function decide(ctx: Ctx, w: Work, children: Child[], why: string) {
   // Circuit breaker: never a second open runner Decision on one ticket, whatever loop asks for it.
   if (children.some((c) => isDecision(ctx.config, c) && !closedAt(c) && c.title.startsWith(decisionTitle(w.key, '')))) return;
-  const c = commands(w, sessionId(w), ctx.config.host);
   const issue = await ctx.linear.fileDecision(w.id, decisionTitle(w.key, why), [
     `${why}. The ticket is still open and delegated to the runner.`,
-    `Read the ticket and its PRs, or quiz the lead with \`${c.quiz}\`. Comment what it should do, then close this issue (Done or Canceled). Any comment or change you make starts the lead again.`,
+    `Read the ticket and its PRs. Comment what it should do, then close this issue (Done or Canceled). Any comment or change you make starts the lead again.`,
     `To stop the work instead, mark ${w.key} Done or Canceled, or clear its delegate, first.`,
   ].join('\n\n'));
   await status(ctx, w, `Waiting on [${issue.identifier}](${issue.url}). The lead holds no slot.`);
 }
 
-/** The ticket's worktree is the shortest folder named for its key, so a title change or a quiz worktree does not move it. */
+/** The ticket's worktree is the shortest folder named for its key, so a title change or a sub-lead's worktree does not move it. */
 export function workFor(config: Config, issue: Issue): Work | null {
   const repo = issue.labels.nodes.map((l) => l.name).find((name) => Object.hasOwn(config.repos, name));
   if (!repo) return null;
