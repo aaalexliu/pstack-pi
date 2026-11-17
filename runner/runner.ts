@@ -59,7 +59,7 @@ export type Event = { at: string; what: string; issue?: string; comment?: { id: 
  * `events` and `mine`, the runner's comments, cover the ticket and its sub-issues back to the lead's last start.
  */
 export type Ticket = { state: string; description: string; createdAt: string; mine: Comment[]; children: Child[]; events: Event[] };
-/** A ticket as the runner sees it this poll. */
+/** A ticket as the runner sees it this poll. With no repo label, `repo` and `branch` are empty and `dir` is a folder with no repo. */
 export type Work = { id: string; key: string; title: string; url: string; description: string; repo: string; branch: string; dir: string; models: { lead: string; review: string } };
 /**
  * `quiet` holds, per ticket, the newest touch the runner read with no events, so it reads that ticket again only once something changes.
@@ -288,9 +288,6 @@ export function linearClient(config: Config, fetchFn: typeof fetch) {
       const { issueUpdate } = await gql<{ issueUpdate: { success: boolean } }>('mutation Update($id: String!, $input: IssueUpdateInput!) { issueUpdate(id: $id, input: $input) { success } }', { id, input: { stateId } });
       if (!issueUpdate.success) throw new Error(`Linear did not move ${id} to ${state}`);
     },
-    async clearDelegate(id: string) {
-      await gql('mutation Update($id: String!, $input: IssueUpdateInput!) { issueUpdate(id: $id, input: $input) { success } }', { id, input: { delegateId: null } });
-    },
     async comment(issueId: string, body: string, parentId?: string) {
       await gql('mutation Comment($input: CommentCreateInput!) { commentCreate(input: $input) { success } }', { input: { issueId, body, ...(parentId ? { parentId } : {}) } });
     },
@@ -324,10 +321,11 @@ export function linearClient(config: Config, fetchFn: typeof fetch) {
 export function commands(w: Pick<Work, 'key' | 'dir' | 'branch'>, sessionId: string, host: string) {
   const ssh = (...remote: string[]) => `ssh -t ${sh(host)} ${sh(remote.join(' '))}`;
   const quiz = `${w.dir}-quiz`;
+  const fork = w.branch ? ['cd', sh(w.dir), '&& git worktree add -B', sh(`${w.branch}-quiz`), sh(quiz), 'HEAD'] : ['mkdir -p', sh(quiz)];
   return {
     watch: ssh('tmux attach -t', sh(session(w.key))),
     takeOver: ssh('touch', sh(path.join(w.dir, '.runner', 'takeover')), '&& tmux attach -t', sh(session(w.key))),
-    quiz: ssh('cd', sh(w.dir), '&& git worktree add -B', sh(`${w.branch}-quiz`), sh(quiz), 'HEAD && cd', sh(quiz), '&& tmux new -s', sh(`${w.key}-quiz`), 'pi --fork', sh(sessionId)),
+    quiz: ssh(...fork, '&& cd', sh(quiz), '&& tmux new -s', sh(`${w.key}-quiz`), 'pi --fork', sh(sessionId)),
     stop: ssh('tmux kill-session -t', sh(session(w.key))),
   };
 }
@@ -340,7 +338,7 @@ export function renderStatus(w: Pick<Work, 'key' | 'dir' | 'branch'>, sessionId:
     `- Host: ${host}`,
     `- tmux session: \`${w.key}\``,
     `- Session id: \`${sessionId}\``,
-    `- Worktree: \`${w.dir}\` on \`${w.branch}\``,
+    w.branch ? `- Worktree: \`${w.dir}\` on \`${w.branch}\`` : `- Folder: \`${w.dir}\`, with no repo until the lead adds a repo label`,
     `- Watch or steer: \`${c.watch}\``,
     `- Take over (no stall nudges until you quit Pi): \`${c.takeOver}\``,
     `- Quiz a fork: \`${c.quiz}\``,
@@ -438,7 +436,7 @@ function settle(ctx: Ctx, w: Work, ticket: Ticket, events: Event[]) {
  * without it is started with it, as for any event. Skipped while a person holds the session.
  */
 async function pass(ctx: Ctx, w: Work, ticket: Ticket, events: Event[]) {
-  if (!existsSync(rf(w, 'pane')) || existsSync(rf(w, 'held')) || existsSync(rf(w, 'takeover')) || !(await leadSessions()).includes(w.key)) return;
+  if (!existsSync(rf(w, 'pane')) || existsSync(rf(w, 'held')) || existsSync(rf(w, 'takeover')) || !(await leadSessions()).some((s) => s.key === w.key)) return;
   const target = readOr(rf(w, 'pane'))!.trim();
   let typed = false;
   for (const e of settle(ctx, w, ticket, events)) {
@@ -549,7 +547,7 @@ function startMessage(ctx: Ctx, w: Work, events: Event[], running: Work[]) {
     w.description,
     '',
     `Linear issue id: ${w.id}. Team: ${ctx.config.team}. File Decision issues as sub-issues assigned to ${ctx.config.decisionAssignee}.`,
-    `Branch: ${w.branch}. Base: ${ctx.config.repos[w.repo].base}. Review model: ${w.models.review}. Prompts: ${PROMPTS}.`,
+    `${w.repo ? `Branch: ${w.branch}. Base: ${ctx.config.repos[w.repo].base}.` : `No repo label yet, so you run in a folder with no repo. Repo labels: ${Object.keys(ctx.config.repos).join(', ')}.`} Review model: ${w.models.review}. Prompts: ${PROMPTS}.`,
     '',
     'Events since your last start:',
     ...events.map((e) => `- ${e.at} ${e.what}`),
@@ -582,7 +580,7 @@ function envScript(ctx: Ctx, w: Work, name: string) {
 }
 
 async function launch(ctx: Ctx, w: Work, events: Event[], running: Work[]) {
-  await worktree(ctx.config.repos[w.repo], w);
+  if (w.repo) await worktree(ctx.config.repos[w.repo], w); else mkdirSync(rf(w, ''), { recursive: true });
   if (!sessionId(w)) put(rf(w, 'session-id'), randomUUID());
   put(rf(w, 'input.md'), startMessage(ctx, w, events, running));
   // The heartbeat reads the ticket from here, so it needs no Linear call and survives a runner restart.
@@ -610,10 +608,13 @@ async function launch(ctx: Ctx, w: Work, events: Event[], running: Work[]) {
   }
 }
 
-/** The tmux sessions the runner tagged as leads: the live leads the heartbeat checks and the runner types events into. */
+/**
+ * The tmux sessions the runner tagged as leads, each with the folder it started the lead in: the live leads the
+ * heartbeat checks, the reaper may stop, and the runner types events into.
+ */
 async function leadSessions() {
-  const { out } = await run(bin('tmux'), ['list-sessions', '-F', '#{session_name} #{@job-runner}'], process.cwd());
-  return out.split('\n').map((line) => line.split(' ')).filter(([name, tag]) => name && tag === name).map(([name]) => name);
+  const { out } = await run(bin('tmux'), ['list-sessions', '-F', '#{session_name}\t#{@job-runner}\t#{session_path}'], process.cwd());
+  return out.split('\n').map((line) => line.split('\t')).filter(([name, tag]) => name && tag === name).map(([key, , dir]) => ({ key, dir }));
 }
 
 const live = async (w: Pick<Work, 'key'>) => (await run(bin('tmux'), ['has-session', '-t', session(w.key)], process.cwd())).code === 0;
@@ -731,10 +732,12 @@ async function decide(ctx: Ctx, w: Work, children: Child[], why: string) {
   await status(ctx, w, `Waiting on [${issue.identifier}](${issue.url}). The lead holds no slot.`);
 }
 
-/** The ticket's worktree is the shortest folder named for its key, so a title change or a quiz worktree does not move it. */
-export function workFor(config: Config, issue: Issue): Work | null {
-  const repo = issue.labels.nodes.map((l) => l.name).find((name) => Object.hasOwn(config.repos, name));
-  if (!repo) return null;
+/**
+ * The ticket's worktree is the shortest folder named for its key, so a title change or a quiz worktree does not move it.
+ * With no repo label, the lead runs in `job-<key>` with no repo, so the repo's worktree starts its own lead once the label lands.
+ */
+export function workFor(config: Config, issue: Issue): Work {
+  const repo = issue.labels.nodes.map((l) => l.name).find((name) => Object.hasOwn(config.repos, name)) ?? '';
   const description = issue.description ?? '';
   const line = (key: string) => new RegExp(`^${key}:\\s*(\\S+)`, 'im').exec(description)?.[1];
   const prefix = `job-${issue.identifier.toLowerCase()}-`;
@@ -743,7 +746,7 @@ export function workFor(config: Config, issue: Issue): Work | null {
   const folder = existing ?? `${prefix}${slug}`;
   return {
     id: issue.id, key: issue.identifier, title: issue.title, url: issue.url, description, repo,
-    branch: `job/${folder.slice(4)}`, dir: path.join(config.worktreeRoot, folder),
+    branch: repo && `job/${folder.slice(4)}`, dir: path.join(config.worktreeRoot, repo ? folder : prefix.slice(0, -1)),
     models: { lead: line('(?:Lead|Implement) model') ?? config.models.lead, review: line('Review model') ?? config.models.review },
   };
 }
@@ -765,13 +768,8 @@ async function freeMemory(): Promise<number> {
  */
 async function reapClosed(ctx: Ctx, open: Issue[]) {
   const keys = new Set(open.map((i) => i.identifier));
-  const folders = existsSync(ctx.config.worktreeRoot) ? readdirSync(ctx.config.worktreeRoot) : [];
-  const { out } = await run(bin('tmux'), ['list-sessions', '-F', '#{session_name} #{@job-runner}'], process.cwd());
-  for (const [name, tag] of out.split('\n').map((line) => line.split(' '))) {
-    if (!name || tag !== name || keys.has(name)) continue;
-    const prefix = `job-${name.toLowerCase()}-`;
-    const held = (f: string) => ['takeover', 'held'].some((m) => existsSync(path.join(ctx.config.worktreeRoot, f, '.runner', m)));
-    if (folders.some((f) => f.startsWith(prefix) && held(f))) continue;
+  for (const { key: name, dir } of await leadSessions()) {
+    if (keys.has(name) || ['takeover', 'held'].some((m) => existsSync(path.join(dir, '.runner', m)))) continue;
     try {
       if (await ctx.linear.closed(name)) await run(bin('tmux'), ['kill-session', '-t', session(name)], process.cwd());
     } catch (error) {
@@ -796,16 +794,9 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void, opts
   const mine = (i: Issue) => !only || only.includes(i.id) || i.children.nodes.some((c) => only.includes(c.id));
   for (const issue of issues) {
     // Lead slots and the screen count every live lead, so a webhook pass still looks at the tickets it does not act on.
-    if (!mine(issue)) {
-      const w = workFor(config, issue);
-      if (w && await live(w)) tickets.push({ w, ticket: null, live: true });
-      continue;
-    }
     const w = workFor(config, issue);
-    if (!w) {
-      if (dryRun) { console.log(`${issue.identifier}: no repo label`); continue; }
-      await linear.comment(issue.id, `No repo label, so the runner skipped this. Add one of ${Object.keys(config.repos).join(', ')}, or map its label to a repo under "repos" in the runner config and restart the runner, then delegate it again.`);
-      await linear.clearDelegate(issue.id);
+    if (!mine(issue)) {
+      if (await live(w)) tickets.push({ w, ticket: null, live: true });
       continue;
     }
     // A live lead's heartbeat needs no Linear. A ticket nothing touched since the lead saw it, or since the
@@ -956,12 +947,10 @@ export async function serve(config: Config, fetchFn: typeof fetch, secret: strin
     audit: () => { said = new Set(); return enqueue('backup poll', () => poll(ctx, false, say, { audit: true })); },
     /** The heartbeat: nudges or investigates a quiet live lead, and rewrites running.json. It reads only tmux and session logs, unless it acts. */
     heartbeat: () => enqueue('heartbeat', async () => {
-      // The live leads are the tmux sessions the runner tagged, each with the ticket its launch saved in the worktree.
-      const folders = existsSync(config.worktreeRoot) ? readdirSync(config.worktreeRoot) : [];
+      // The live leads are the tmux sessions the runner tagged, each with the ticket its launch saved in the lead's folder.
       const leads: Work[] = [];
-      for (const name of await leadSessions()) {
-        const folder = folders.filter((f) => f.startsWith(`job-${name.toLowerCase()}-`)).sort((a, b) => a.length - b.length)[0];
-        const saved = folder && readOr(path.join(config.worktreeRoot, folder, '.runner', 'work.json'));
+      for (const { dir } of await leadSessions()) {
+        const saved = readOr(rf({ dir }, 'work.json'));
         if (saved) leads.push(JSON.parse(saved));
       }
       for (const w of leads) {

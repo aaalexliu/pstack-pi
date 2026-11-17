@@ -75,7 +75,8 @@ fs.appendFileSync(${JSON.stringify(file('pi.log'))}, JSON.stringify({
   piVars: Object.keys(process.env).filter((k) => /^(PI|PSTACK|CMUX)_/.test(k)).sort(),
 }) + '\\n');
 `, { mode: 0o755 });
-  // Fake tmux: runs a new session to completion. live.json names a lead that is still running.
+  // Fake tmux: runs a new session to completion. live.json names a lead that is still running. paths.json keeps the
+  // folder each session started in; a session a test made live by hand is in its ticket's usual worktree.
   writeFileSync(file('tmux'), `#!/usr/bin/env node
 const fs = require('node:fs');
 const { execFileSync } = require('node:child_process');
@@ -83,13 +84,15 @@ const args = process.argv.slice(2);
 fs.appendFileSync(${JSON.stringify(file('tmux.log'))}, JSON.stringify(args) + '\\n');
 const liveFile = ${JSON.stringify(file('live.json'))};
 const tagsFile = ${JSON.stringify(file('tags.json'))};
+const pathsFile = ${JSON.stringify(file('paths.json'))};
+const paths = fs.existsSync(pathsFile) ? JSON.parse(fs.readFileSync(pathsFile, 'utf8')) : {};
 const live = fs.existsSync(liveFile) ? JSON.parse(fs.readFileSync(liveFile, 'utf8')) : [];
 const target = args[args.indexOf('-t') + 1]?.replace(/^=|:$/g, '');
-if (args[0] === 'new-session') { if (fs.existsSync(liveFile.replace(/live\.json$/, 'live-on-start'))) fs.writeFileSync(liveFile, JSON.stringify([...live, args[args.indexOf('-s') + 1]])); try { execFileSync('sh', ['-c', args.at(-1)], { cwd: args[args.indexOf('-c') + 1], stdio: 'ignore' }); } catch {} }
+if (args[0] === 'new-session') { fs.writeFileSync(pathsFile, JSON.stringify({ ...paths, [args[args.indexOf('-s') + 1]]: args[args.indexOf('-c') + 1] })); if (fs.existsSync(liveFile.replace(/live\.json$/, 'live-on-start'))) fs.writeFileSync(liveFile, JSON.stringify([...live, args[args.indexOf('-s') + 1]])); try { execFileSync('sh', ['-c', args.at(-1)], { cwd: args[args.indexOf('-c') + 1], stdio: 'ignore' }); } catch {} }
 else if (args[0] === 'has-session') process.exit(live.includes(target) ? 0 : 1);
 else if (args[0] === 'kill-session') { if (!live.includes(target)) process.exit(1); fs.writeFileSync(liveFile, JSON.stringify(live.filter((k) => k !== target))); }
 else if (args[0] === 'set-option') { if (!/^=.+:$/.test(args[args.indexOf('-t') + 1] ?? '') || fs.existsSync(tagsFile + '.fail')) { console.error('no such session'); process.exit(1); } const tags = fs.existsSync(tagsFile) ? JSON.parse(fs.readFileSync(tagsFile, 'utf8')) : {}; fs.writeFileSync(tagsFile, JSON.stringify({ ...tags, [target]: args.at(-1) })); }
-else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? JSON.parse(fs.readFileSync(tagsFile, 'utf8')) : {}; console.log(live.map((k) => k + ' ' + (tags[k] ?? '')).join('\\n')); }
+else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? JSON.parse(fs.readFileSync(tagsFile, 'utf8')) : {}; console.log(live.map((k) => [k, tags[k] ?? '', paths[k] ?? ${JSON.stringify(file('worktrees'))} + '/job-' + k.toLowerCase() + '-job-number-' + k.slice(4)].join('\\t')).join('\\n')); }
 `, { mode: 0o755 });
   writeFileSync(file('memory_pressure'), `#!/bin/sh\necho "System-wide memory free percentage: $(cat ${JSON.stringify(file('free'))} 2>/dev/null || echo 60)%"\n`, { mode: 0o755 });
   Object.assign(process.env, {
@@ -1068,6 +1071,19 @@ test('once the no-repo lead adds the repo label and exits, the next poll starts 
   assert.match(job.comments.find((c) => c.body.startsWith('**Runner:**'))!.body, /- Worktree: `[^`]*job-ale-1-job-number-1` on `job\/ale-1-job-number-1`/);
 });
 
+test('the heartbeat finds a no-repo lead in its folder', async () => {
+  const t = setup([issue(1, { labels: [] })]);
+  await t.run('--once');
+  t.setLive('ALE-1');
+  t.tag('ALE-1');
+  const srv = await t.serve();
+  try {
+    await srv.heartbeat();
+    const [entry] = JSON.parse(readFileSync(path.join(t.config.worktreeRoot, 'running.json'), 'utf8'));
+    assert.equal(entry.worktree, path.join(t.config.worktreeRoot, 'job-ale-1'));
+  } finally { await srv.close(); }
+});
+
 test('--dry-run prints each move and writes nothing', async () => {
   const job = issue(1);
   const t = setup([job]);
@@ -1122,6 +1138,10 @@ for (const shell of ['sh', 'zsh']) {
     execFileSync('sh', ['-c', c.quiz], { env, stdio: 'ignore' });
     assert.equal(git(`${dir}-quiz`, 'rev-parse', '--abbrev-ref', 'HEAD'), 'job/ale-7-x-quiz');
     assert.deepEqual(tmuxArgs(), ['new', '-s', 'ALE-7-quiz', 'pi', '--fork', 'abc-123']);
+    const neutral = path.join(root, 'Work Projects', "it's", 'job-ale-8');
+    execFileSync('sh', ['-c', commands({ key: 'ALE-8', dir: neutral, branch: '' }, 'abc-456', 'mini').quiz], { env });
+    assert.ok(existsSync(`${neutral}-quiz`), 'a lead with no repo is quizzed from a plain folder beside it');
+    assert.deepEqual(tmuxArgs(), ['new', '-s', 'ALE-8-quiz', 'pi', '--fork', 'abc-456']);
   });
 }
 
