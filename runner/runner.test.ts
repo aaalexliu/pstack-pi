@@ -895,12 +895,12 @@ test('a failed start files one Decision across polls with no new event, and a ne
   assert.equal(t.leads().length, 1);
 });
 
-test('a corrupt state file files one Decision and starts no lead on its own; closing the Decision starts it, so the ticket is not stranded', async () => {
+for (const bad of ['{"seen": "2026-', '{"seen":"1"}', '{"seen":1}']) test(`a corrupt state file (${bad}) files one Decision and starts no lead on its own; closing the Decision starts it, so the ticket is not stranded`, async () => {
   const job = issue(1, { state: 'In Progress' });
   const t = setup([job]);
   await t.run('--once');
   job.comments.push({ id: 'c-1', body: 'Also fix the docs.', createdAt: later(), user: { name: ALEX } });
-  writeFileSync(stateOf(t.config, 1), '{"seen": "2026-');
+  writeFileSync(stateOf(t.config, 1), bad);
   for (let i = 0; i < 3; i++) await t.run('--once');
   assert.equal(t.leads().length, 1, 'no start while the runner cannot tell which events the lead saw');
   const decisions = t.decisions();
@@ -958,7 +958,7 @@ test('readState reads the start an older runner kept, and rejects a state it can
   rmSync(path.join(runner, 'started'));
   assert.throws(() => readState(config, w), /ALE-1\.json is missing/);
   mkdirSync(path.join(root, '.state'));
-  for (const bad of ['', 'null', '[]', '"x"', '{}', '{"seen":"soon"}', '{"seen":"2026-01-01T00:00:00Z","stall":{"nudgedAt":"x"}}']) {
+  for (const bad of ['', 'null', '[]', '"x"', '{}', '{"seen":"soon"}', '{"seen":"1"}', '{"seen":1}', '{"seen":"2026-01-01"}', '{"seen":"2026-13-01T00:00:00Z"}', '{"seen":"2026-01-01T00:00:00Z","stall":{"nudgedAt":"x"}}']) {
     put(path.join(root, '.state', 'ALE-1.json'), bad);
     assert.throws(() => readState(config, w), /ALE-1\.json is corrupt/, `${JSON.stringify(bad)} is corrupt`);
   }
