@@ -354,19 +354,11 @@ const runningEntry = (w: Work) => ({
   key: w.key, title: w.title, tmux: w.key, worktree: w.dir, sessionId: sessionId(w), needsScreen: needsScreen(w.description), startedAt: lastStart(w),
 });
 const runningFile = (config: Config) => path.join(config.worktreeRoot, 'running.json');
-const screenLock = (config: Config) => path.join(config.worktreeRoot, 'screen.lock');
 
-/**
- * Writes the running leads to `<worktreeRoot>/running.json`. Leads sequence the screen themselves with the
- * `screen.lock` folder; the runner does not enforce it, but clears a lock whose owner has no tmux session,
- * since that lead cannot release it, and one with no owner file after a minute, left by a cut-off take. The list can lag a start, so the session is the truth, not the list.
- */
-async function writeRunning(config: Config, running: Work[]) {
+/** Writes the running leads to `<worktreeRoot>/running.json`. Leads take turns with the screen through `runner/screen-lock`. */
+function writeRunning(config: Config, running: Work[]) {
   mkdirSync(config.worktreeRoot, { recursive: true });
   put(runningFile(config), `${JSON.stringify(running.map(runningEntry), null, 2)}\n`);
-  const owner = readOr(path.join(screenLock(config), 'owner'))?.trim().split(/\s/)[0];
-  const orphan = !owner && existsSync(screenLock(config)) && Date.now() - statSync(screenLock(config)).mtimeMs > 60000;
-  if (orphan || (owner && !(await live({ key: owner })))) rmSync(screenLock(config), { recursive: true, force: true });
 }
 
 const rf = (w: Pick<Work, 'dir'>, name: string) => path.join(w.dir, '.runner', name);
@@ -549,7 +541,7 @@ function startMessage(ctx: Ctx, w: Work, events: Event[], running: Work[]) {
     'Events since your last start:',
     ...events.map((e) => `- ${e.at} ${e.what}`),
     '',
-    `Other leads running now (the runner keeps the live list in ${runningFile(ctx.config)}; the screen lock is ${screenLock(ctx.config)}):`,
+    `Other leads running now (the runner keeps the live list in ${runningFile(ctx.config)}):`,
     ...(running.length ? running.map((r) => `- ${r.key}: ${r.title} (tmux ${r.key}, worktree ${r.dir}${needsScreen(r.description) ? ', Needs: screen' : ''})`) : ['- none']),
   ].join('\n');
 }
@@ -876,14 +868,14 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void, opts
       }
       running.push({ w, ticket: null, live: true });
       ctx.leads.set(w.key, w);
-      await writeRunning(config, running.map((r) => r.w));
+      writeRunning(config, running.map((r) => r.w));
       // For an event that is not a comment, such as a delegation or a closed Decision, this edit is the ack.
       await status(ctx, w, 'Lead running');
     } catch (error) {
       console.error(`${w.key}: failed; the next poll tries again`, error);
     }
   }
-  if (!dryRun) await writeRunning(config, running.map((r) => r.w));
+  if (!dryRun) writeRunning(config, running.map((r) => r.w));
 }
 
 const newCtx = (config: Config, fetchFn: typeof fetch, webhook: boolean): Ctx => ({
@@ -969,8 +961,8 @@ export async function serve(config: Config, fetchFn: typeof fetch, secret: strin
       for (const w of leads) {
         try { await checkStall(ctx, w); } catch (error) { console.error(`${w.key}: stall check failed`, error); }
       }
-      // The backup poll may be hours apart, so the heartbeat keeps running.json fresh and clears a stale screen lock.
-      await writeRunning(config, leads);
+      // The backup poll may be hours apart, so the heartbeat keeps running.json fresh.
+      writeRunning(config, leads);
     }),
     /** Resolves once every queued pass is done. */
     idle: () => queue,

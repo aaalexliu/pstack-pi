@@ -1,0 +1,16 @@
+#!/bin/sh
+# screen-lock run KEY -- <command> [args...]
+# Runs the command while it holds this Mac's screen, so leads take turns with it. It waits for the screen,
+# wakes the display, keeps it awake while the command runs, and frees the screen when the command ends.
+# The lock is a kernel file lock (lockf), so it ends with the process that holds it, however that process ends:
+# no lock goes stale. The lock file names its last holder. SCREEN_LOCK overrides its path, for tests.
+if [ $# -lt 4 ] || [ "$1" != run ] || [ "$3" != -- ]; then
+  echo 'usage: screen-lock run KEY -- <command> [args...]' >&2
+  exit 64
+fi
+key=$2
+shift 3
+lock=${SCREEN_LOCK:-/tmp/screen.lock}
+lockf -s -k -t 0 "$lock" true
+[ $? -eq 75 ] && echo "screen-lock: $key waits for the screen, held by $(cat "$lock" 2>/dev/null)" >&2
+exec lockf -k "$lock" sh -c 'echo "$1 since $(date "+%-I:%M %p %Z")" >"$2"; shift 2; exec caffeinate -du -- "$@"' screen-lock "$key" "$lock" "$@"
