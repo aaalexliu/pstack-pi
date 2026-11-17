@@ -30,7 +30,7 @@ backup poll every 10 minutes: the same rule for every ticket, plus
 heartbeat every 30 s: the stall check on live leads, running.json and the stale screen lock; no Linear calls unless it nudges
 ```
 
-All passes run one at a time. Linear retries a failed delivery after 1 minute, 1 hour and 6 hours, and the runner skips a delivery id it already handled. Every pass is idempotent anyway: it starts a lead only on events since the last start. Linear sends a label added to or removed from an issue as an Issue update; its IssueLabel events are about the label itself and carry no issue, so the runner ignores them. An event from before the runner started is never called missed.
+All passes run one at a time. Linear retries a failed delivery after 1 minute, 1 hour and 6 hours. A retry runs the pass again and changes nothing, since every pass is idempotent: it starts a lead only on events since the last start. Linear sends a label added to or removed from an issue as an Issue update; its IssueLabel events are about the label itself and carry no issue, so the runner ignores them. An event from before the runner started is never called missed.
 
 With no `webhookSecretCommand`, the runner runs no server and polls every `pollSeconds`, stall check included, as before.
 
@@ -62,7 +62,7 @@ each pass, per open ticket delegated to runnerUser (Todo, or a started state suc
 order: the ticket whose oldest unseen event is oldest goes first
 ```
 
-The start rule reads one fact per ticket: when the runner last tried to start the lead. In all the runner keeps 29 facts: 13 files, 1 tmux option, 4 marks in Linear and 11 in memory; the [mechanism ledger](#mechanism-ledger) lists them. A start that works is kept in `<worktree>/.runner/started`, which the heartbeat also counts from. A start that fails is kept in `<worktreeRoot>/.attempts/KEY`, never inside a folder the runner may have refused. Events before the last attempt are seen, so only a new event retries a failed start. The runner never files a second Decision issue while its own (titled `Decision for KEY: ...`) is open. A ticket a routine filed counts its creation as an event, since the runner made it on your schedule.
+The start rule reads one fact per ticket: when the runner last tried to start the lead. In all the runner keeps 28 facts: 13 files, 1 tmux option, 4 marks in Linear and 10 in memory; the [mechanism ledger](#mechanism-ledger) lists them. A start that works is kept in `<worktree>/.runner/started`, which the heartbeat also counts from. A start that fails is kept in `<worktreeRoot>/.attempts/KEY`, never inside a folder the runner may have refused. Events before the last attempt are seen, so only a new event retries a failed start. The runner never files a second Decision issue while its own (titled `Decision for KEY: ...`) is open. A ticket a routine filed counts its creation as an event, since the runner made it on your schedule.
 
 The runner moves a `Todo` ticket to `In Progress` before it records the start. That move is the runner's own, so it is no event: a crash before the start is recorded starts the lead once more on the same events, never in a loop.
 
@@ -185,7 +185,7 @@ The first label that names a repo in the config picks the repo. With no such lab
 
 ## Mechanism ledger
 
-Every mechanism in `runner.ts` and `routines.ts`: 22 writes and processes, 29 facts, 18 config fields, 9 other inputs and 17 timers. [ledger.test.ts](ledger.test.ts) fails when the ledger misses a config field, a state file, a Linear mutation or a tmux command the code has, or names a config field or function the code no longer has. It cannot check the timers, the "Paid for by" column or the "Fired" column; a person fills those in.
+Every mechanism in `runner.ts` and `routines.ts`: 22 writes and processes, 28 facts, 18 config fields, 9 other inputs and 17 timers. [ledger.test.ts](ledger.test.ts) fails when the ledger misses a config field, a state file, a Linear mutation or a tmux command the code has, or names a config field or function the code no longer has. It cannot check the timers, the "Paid for by" column or the "Fired" column; a person fills those in.
 
 The last column counts fires on the one live host from 2026-11-14 to 2026-11-17 10:00 EST. It has three sources:
 
@@ -251,7 +251,6 @@ A file path with no folder is in `<worktree>/.runner/`.
 | Memory: `typed`, when each event was last typed into a live lead | `pass` | [#112](https://github.com/aaalexliu/pstack-pi/pull/112) | New, no history |
 | Memory: `leads`, the live leads a pass saw, for a lead with no `work.json` | `poll`, `serve` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110) | Log does not show it |
 | Memory: `handled`, `delivered` and `since`, behind the "missed:" lines | `poll`, `serve` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110) | 0 "missed:" lines |
-| Memory: `deliveries`, the last 1,000 webhook delivery ids | `serve` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110) | Log does not show it |
 | Memory: `queue`, one pass at a time | `serve` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110) | Log does not show it |
 | Memory: `said`, lines already logged | `main`, `serve` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68) | 57 lines got through |
 | Memory: `repoLocks`, one git setup per repo at a time | `worktree` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68): two starts fought over `.git/config.lock` | Log does not show it |

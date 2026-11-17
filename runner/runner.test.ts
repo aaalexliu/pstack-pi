@@ -931,9 +931,7 @@ test('a comment webhook on a Decision starts the parent lead with one 👀; a re
     assert.equal(t.leads().length, 2);
     assert.match(t.leads()[1].input, /ALE-50: Alex Example commented: Go with plan B\./);
     assert.deepEqual(decision.comments[0].reactions, [{ emoji: 'eyes', user: { name: RUNNER } }]);
-    const reads = t.ops.length;
-    assert.equal(await srv.post(delivery, { delivery: 'd1' }), 200);
-    assert.equal(t.ops.length, reads, 'a repeated delivery id makes no Linear call');
+    assert.equal(await srv.post(delivery, { delivery: 'd1' }), 200, 'Linear retries a delivery under the same id; the pass runs again and changes nothing');
     await srv.post(delivery, { delivery: 'd2' });
     await srv.audit();
     assert.equal(t.leads().length, 2);

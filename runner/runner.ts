@@ -856,8 +856,6 @@ export async function serve(config: Config, fetchFn: typeof fetch, secret: strin
     queue = queue.then(work).catch((error) => console.error(`${what} failed`, error));
     return queue;
   };
-  /** Delivery ids already handled, so Linear's retry of one acts once. Passes are idempotent too; this skips the reads. */
-  const deliveries: string[] = [];
   // The endpoint is public through Funnel, so no request, however broken, may throw out of the handler.
   const server = createServer((req, res) => {
     res.on('error', () => {});
@@ -876,12 +874,6 @@ export async function serve(config: Config, fetchFn: typeof fetch, secret: strin
     // A replayed delivery carries an old timestamp; Linear's own retries are signed afresh.
     if (!(Math.abs(Date.now() - Number(payload.webhookTimestamp)) <= 60_000)) { res.writeHead(401).end(); return; }
     res.writeHead(200).end();
-    const delivery = req.headers['linear-delivery'] as string | undefined;
-    if (delivery) {
-      if (deliveries.includes(delivery)) return;
-      deliveries.push(delivery);
-      if (deliveries.length > 1000) deliveries.shift();
-    }
     const id = issueOf(payload);
     if (id) ctx.delivered.set(id, new Date().toISOString());
     if (id) enqueue(`webhook ${payload.type} ${id}`, () => poll(ctx, false, say, { only: [id] }));
