@@ -136,8 +136,6 @@ const readOr = (file: string) => (existsSync(file) ? readFileSync(file, 'utf8') 
 
 function linearClient(config: Config, fetchFn: typeof fetch) {
   let decisionIds: { team: string; assignee: string } | undefined;
-  /** The budgets under 20%, so each low budget is logged once until it recovers. */
-  const low = new Set<string>();
   /**
    * One GraphQL call. The runner and every lead share the app's hourly budgets of requests and complexity. On a
    * 429 the call waits as long as Linear's `Retry-After` says and tries again.
@@ -150,13 +148,6 @@ function linearClient(config: Config, fetchFn: typeof fetch) {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ query, variables }),
       });
-      for (const budget of ['Requests', 'Complexity']) {
-        const left = Number(res.headers.get(`X-RateLimit-${budget}-Remaining`));
-        const limit = Number(res.headers.get(`X-RateLimit-${budget}-Limit`));
-        if (!limit || left >= limit / 5) { low.delete(budget); continue; }
-        if (!low.has(budget)) console.log(`Linear ${budget.toLowerCase()} budget is low: ${left} of ${limit} left this hour`);
-        low.add(budget);
-      }
       const body = (await res.json()) as { data?: T; errors?: { extensions?: { code?: string } }[] };
       if (res.status === 429 || body.errors?.some((e) => e.extensions?.code === 'RATELIMITED')) {
         const wait = Number(res.headers.get('Retry-After')) || 60;

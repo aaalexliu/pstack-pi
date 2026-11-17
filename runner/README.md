@@ -62,7 +62,7 @@ each pass, per open ticket delegated to runnerUser (Todo, or a started state suc
 order: the ticket whose oldest unseen event is oldest goes first
 ```
 
-The start rule reads one fact per ticket: when the runner last tried to start the lead. In all the runner keeps 28 facts: 13 files, 1 tmux option, 4 marks in Linear and 10 in memory; the [mechanism ledger](#mechanism-ledger) lists them. A start that works is kept in `<worktree>/.runner/started`, which the heartbeat also counts from. A start that fails is kept in `<worktreeRoot>/.attempts/KEY`, never inside a folder the runner may have refused. Events before the last attempt are seen, so only a new event retries a failed start. The runner never files a second Decision issue while its own (titled `Decision for KEY: ...`) is open. A ticket a routine filed counts its creation as an event, since the runner made it on your schedule.
+The start rule reads one fact per ticket: when the runner last tried to start the lead. In all the runner keeps 27 facts: 13 files, 1 tmux option, 4 marks in Linear and 9 in memory; the [mechanism ledger](#mechanism-ledger) lists them. A start that works is kept in `<worktree>/.runner/started`, which the heartbeat also counts from. A start that fails is kept in `<worktreeRoot>/.attempts/KEY`, never inside a folder the runner may have refused. Events before the last attempt are seen, so only a new event retries a failed start. The runner never files a second Decision issue while its own (titled `Decision for KEY: ...`) is open. A ticket a routine filed counts its creation as an event, since the runner made it on your schedule.
 
 The runner moves a `Todo` ticket to `In Progress` before it records the start. That move is the runner's own, so it is no event: a crash before the start is recorded starts the lead once more on the same events, never in a loop.
 
@@ -76,7 +76,7 @@ What Linear showed on 2026-11-16, and what the runner does with it:
 - History, comments and children all come newest first. The runner pages back through comments and history until it passes the lead's last start, so a busy ticket cannot hide an event past the first page of 25.
 - A comment does not move an issue's `updatedAt`, and a change on a sub-issue does not move its parent's. So the list query fetches, for the ticket and each sub-issue, `updatedAt` and the newest comment. When none of them is newer than the lead's last start, or than the last read that found no events, the runner skips the per-ticket read. A live lead costs no per-ticket read either.
 
-The runner and every lead share the app user's Linear budgets: 5,000 requests and 2,000,000 complexity points an hour. One poll is one list query of about 17 points, plus, for each ticket that changed, one read of about 310 points per changed issue in it. Complexity grows with each page size asked for, so the read asks only for the ticket and sub-issues that changed, 25 entries a page; asking for all 100 sub-issues at 50 a page cost 1,236 points. On a 429 the runner waits as long as `Retry-After` says, logs it, and tries again. It logs once when `X-RateLimit-Requests-Remaining` or `X-RateLimit-Complexity-Remaining` drops under 20% of its limit.
+The runner and every lead share the app user's Linear budgets: 5,000 requests and 2,000,000 complexity points an hour. One poll is one list query of about 17 points, plus, for each ticket that changed, one read of about 310 points per changed issue in it. Complexity grows with each page size asked for, so the read asks only for the ticket and sub-issues that changed, 25 entries a page; asking for all 100 sub-issues at 50 a page cost 1,236 points. On a 429 the runner waits as long as `Retry-After` says, logs it, and tries again.
 
 A live lead belongs to the lead: the runner never starts, restarts or kills it. Events reach it when you attach and type, or after it exits, since the next start lists them.
 
@@ -185,7 +185,7 @@ The first label that names a repo in the config picks the repo. With no such lab
 
 ## Mechanism ledger
 
-Every mechanism in `runner.ts` and `routines.ts`: 22 writes and processes, 28 facts, 18 config fields, 9 other inputs and 17 timers. [ledger.test.ts](ledger.test.ts) fails when the ledger misses a config field, a state file, a Linear mutation or a tmux command the code has, or names a config field or function the code no longer has. It cannot check the timers, the "Paid for by" column or the "Fired" column; a person fills those in.
+Every mechanism in `runner.ts` and `routines.ts`: 22 writes and processes, 27 facts, 18 config fields, 9 other inputs and 16 timers. [ledger.test.ts](ledger.test.ts) fails when the ledger misses a config field, a state file, a Linear mutation or a tmux command the code has, or names a config field or function the code no longer has. It cannot check the timers, the "Paid for by" column or the "Fired" column; a person fills those in.
 
 The last column counts fires on the one live host from 2026-11-14 to 2026-11-17 10:00 EST. It has three sources:
 
@@ -255,7 +255,6 @@ A file path with no folder is in `<worktree>/.runner/`.
 | Memory: `said`, lines already logged | `main`, `serve` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68) | 57 lines got through |
 | Memory: `repoLocks`, one git setup per repo at a time | `worktree` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68): two starts fought over `.git/config.lock` | Log does not show it |
 | Memory: `decisionIds`, the team and assignee ids | `fileDecision` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68) | Log does not show it |
-| Memory: `low`, budgets already logged as low | `gql` | [#107](https://github.com/aaalexliu/pstack-pi/pull/107) | 0 low-budget lines |
 
 ### Config fields
 
@@ -310,7 +309,6 @@ A file path with no folder is in `<worktree>/.runner/`.
 | An event the lead's log does not show is typed again at most once in 60 s | `pass` | [#112](https://github.com/aaalexliu/pstack-pi/pull/112): a dialog can swallow typed text | New, no history |
 | Webhook timestamp window: 60 s | `serve` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110): the endpoint is public, so a replay must fail | Log does not show it |
 | Linear 429: wait `Retry-After` or 60 s, then try again, with no limit | `gql` | [#107](https://github.com/aaalexliu/pstack-pi/pull/107) | 0 "rate limit hit" lines |
-| Low budget line under 20% left | `gql` | [#107](https://github.com/aaalexliu/pstack-pi/pull/107) | 0 |
 | A state or assignee change within 2 s after an integration's link is the integration's | `eventsOf` | [#107](https://github.com/aaalexliu/pstack-pi/pull/107): an opened PR looked like a person's move | Log does not show it |
 | A `screen.lock` with no owner file is stale after 60 s | `writeRunning` | [#108](https://github.com/aaalexliu/pstack-pi/pull/108) | Log does not show it |
 | Routine Linear call and token command: 30 s limit | `createDueRoutines` | [#70](https://github.com/aaalexliu/pstack-pi/pull/70) | 0 |

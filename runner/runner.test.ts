@@ -108,7 +108,6 @@ else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? J
   /** Linear operations that fail once, the next time they run. */
   const faults: string[] = [];
   /** Makes every reply say the request budget is under 20%. */
-  const lowBudget = { value: false };
   writeFileSync(file('token'), 'test-token\n');
   /** Linear lists comments and history newest first, 25 to a page. */
   const paged = (all: (FakeComment | FakeChange)[], after?: string) => {
@@ -132,9 +131,8 @@ else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? J
       faults.splice(faults.indexOf('RateLimit'), 1);
       return Response.json({ errors: [{ message: 'Rate limit exceeded', extensions: { code: 'RATELIMITED' } }] }, { status: 429, headers: { 'Retry-After': '0.01' } });
     }
-    const headers: Record<string, string> = lowBudget.value ? { 'X-RateLimit-Requests-Limit': '5000', 'X-RateLimit-Requests-Remaining': '900' } : {};
     const find = (id: string) => issues.find((i) => i.id === id)!;
-    const data = (value: unknown) => Response.json({ data: value }, { headers });
+    const data = (value: unknown) => Response.json({ data: value });
     if (op === 'Issues') {
       const open = issues.filter((i) => i.team === v.team && ['unstarted', 'started'].includes(TYPES[i.state]) && i.delegate === v.user);
       const from = Number(v.after ?? 0);
@@ -196,7 +194,7 @@ else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? J
   /** What the runner printed. A test that expects errors sets `expectErrors` and asserts on `errors`; otherwise any error fails the run. */
   const printed = { logs: [] as string[], errors: [] as string[], expectErrors: false };
   return {
-    config, ops, faults, lowBudget, root, repo, dirOf, gone, missingStates, printed,
+    config, ops, faults, root, repo, dirOf, gone, missingStates, printed,
     /** The first line of each distinct error, without its stack. */
     errorLines: () => [...new Set(printed.errors.map((e) => e.split('\n')[0]))],
     run: async (...argv: string[]) => {
@@ -398,15 +396,13 @@ test('a live lead costs one per-ticket read for the runner\'s own touch, then no
   } finally { await srv.close(); }
 });
 
-test('a 429 waits Retry-After and tries again; a low budget is logged once', async () => {
+test('a 429 waits Retry-After, logs it and tries again', async () => {
   const t = setup([issue(1)]);
   t.faults.push('RateLimit');
-  t.lowBudget.value = true;
   await t.run('--once');
   await t.run('--once');
   assert.equal(t.leads().length, 1);
   assert.equal(t.printed.logs.filter((l) => l === 'Linear rate limit hit; waiting 0.01 s').length, 1);
-  assert.equal(t.printed.logs.filter((l) => l.startsWith('Linear requests budget is low: 900 of 5000')).length, 2, 'once per runner start');
 });
 
 test('NoSpin across a crash: a Todo ticket whose move to In Progress fails is started once, not on every poll', async () => {
