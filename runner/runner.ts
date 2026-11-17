@@ -373,13 +373,13 @@ const sessionId = (w: Work) => readOr(rf(w, 'session-id'))?.trim() ?? '';
 /** What the runner keeps per ticket, written whole or not at all: `seen`, the time up to which the lead saw every event, and this lead run's `stall`. */
 type State = { seen: string; stall?: { nudgedAt: number; investigatedAt?: number } };
 const stateFile = (config: Config, key: string) => path.join(config.worktreeRoot, '.state', `${key}.json`);
-/** The state, or null if no lead ever started; a lead from before it has only `.runner/started`. Throws on a corrupt file, or none where a lead ran: `poll` then counts only events from now. */
+/** The state, or null if no lead ever started; a lead from before it has only `.runner/started`. `seen` must be an ISO UTC time, since events compare to it as strings. Throws on a corrupt file, or none where a lead ran: `poll` then counts only events from now. */
 export function readState(config: Config, w: Pick<Work, 'dir' | 'key'>): State | null {
   const file = stateFile(config, w.key), old = readOr(rf(w, 'started'))?.trim();
   if (!existsSync(file) && !old) { if (existsSync(rf(w, 'session-id'))) throw new Error(`${file} is missing`); return null; }
   let s: State | undefined;
   try { s = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : { seen: old }; } catch { /* corrupt */ }
-  if (!Number.isFinite(Date.parse(String(s?.seen))) || (s!.stall && typeof s!.stall.nudgedAt !== 'number')) throw new Error(`${file} is corrupt`);
+  if (!/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z$/.test(String(s?.seen)) || !Number.isFinite(Date.parse(s!.seen)) || (s!.stall && typeof s!.stall.nudgedAt !== 'number')) throw new Error(`${file} is corrupt`);
   return s!;
 }
 const writeState = (config: Config, key: string, state: State) => { mkdirSync(path.dirname(stateFile(config, key)), { recursive: true }); put(stateFile(config, key), JSON.stringify(state)); };
