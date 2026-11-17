@@ -13,7 +13,7 @@
 
 `scripts/run-tests.mjs` discovers test files. New files under `tests/pi/` default to the packed suite unless listed in `PI_UNIT_TESTS`. It also runs the interactive-subagents subtree's files listed in `SUBTREE_TESTS`. It drops `PI_SUBAGENT_*` and `PI_DENY_TOOLS` from the test environment, so tests run from inside a subagent still see a root Pi.
 
-`npm run check` runs `typecheck`, `sync:check`, `check:content`, and `npm test` in that order. CI runs the same command in the checkout and in a clean Git archive with no `.git` directory.
+`npm run check` runs `typecheck`, `sync:check`, `check:content`, and `npm test` in that order. CI runs the same command in the checkout and in a clean Git archive with no `.git` directory. A second CI job, `runner`, runs `node --test runner/*.test.ts` on Node 24; `npm run check` does not run those tests.
 
 ## Choose local checks by change
 

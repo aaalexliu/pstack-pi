@@ -22,6 +22,10 @@ test('the size budgets name exactly the sizes this test measures', () => {
   assert.deepEqual(Object.keys(budget).sort(), Object.keys(sizes).sort());
 });
 
+test('config.example.json shows every field of the Config type, so the field count is the real one', () => {
+  assert.deepEqual(Object.keys(JSON.parse(read('config.example.json'))), configFields());
+});
+
 for (const [key, { what, size }] of Object.entries(sizes)) {
   test(`${what} stay within the ${key} budget`, () => {
     assert.ok(size > 0, `Found no ${what}, so this test no longer measures anything. Fix the count in runner/budget.test.ts.`);
