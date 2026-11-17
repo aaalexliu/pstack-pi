@@ -72,6 +72,8 @@ type Ctx = {
   webhook: boolean; since: string; leads: Map<string, Work>; handled: Set<string>;
   /** Per issue id, when its last webhook arrived: an event on it no later than that was delivered, even if a live lead meant no pass acted on it. */
   delivered: Map<string, string>;
+  /** Per message typed into a live lead, when the runner last typed it, so it retypes at most once a minute. */
+  typed: Map<string, number>;
 };
 /** The runner's move for an idle ticket. It mirrors `model/Ticket.tla`: wait, start the lead, or file a Decision issue. */
 export type Move = { kind: 'wait'; on: Child } | { kind: 'start'; events: Event[] } | { kind: 'decide' };
@@ -377,25 +379,44 @@ function change(h: Change) {
 }
 
 /**
- * Types each event into the live lead's pane, as Alex would, when the runner started it there, and records the newest in `.runner/passed`, so it counts
- * as seen: it is typed once and does not start the lead again after it exits. No Escape: Pi queues a message typed
- * during a step and hands it over once the step's tools finish. Skipped while a person holds the session.
+ * Whether the lead's own session log holds `text` as a user message. Pi writes a typed message there only when it
+ * hands it to the model, so a message a dialog swallowed, or one still queued when the lead exits, is not there.
+ */
+function inLog(w: Work, text: string) {
+  const id = sessionId(w);
+  const needle = `"role":"user","content":[{"type":"text","text":${JSON.stringify(text)}}]`;
+  return [...new Set([w.dir, realpathSync(w.dir)])].map(sessionFolder).some((folder) =>
+    existsSync(folder) && readdirSync(folder).some((f) => f.endsWith(`_${id}.jsonl`) && readFileSync(path.join(folder, f), 'utf8').includes(needle)));
+}
+
+/**
+ * Types each event into the live lead's pane, as Alex would, when the runner started it there. No Escape: Pi queues
+ * a message typed during a step and hands it over once the step's tools finish. An event counts as seen only once
+ * its message is in the lead's log: then `.runner/passed` moves past it, so it is never typed again and does not
+ * start the lead after it exits. Until then the runner retypes it at most once a minute, and a lead that exits
+ * without it is started with it, as for any event. Skipped while a person holds the session.
  */
 async function pass(ctx: Ctx, w: Work, ticket: Ticket, events: Event[]) {
   if (!existsSync(rf(w, 'pane')) || existsSync(rf(w, 'held')) || existsSync(rf(w, 'takeover'))) return;
   const target = readOr(rf(w, 'pane'))!.trim();
+  let answered = true;
+  let typed = false;
   for (const e of events) {
     const child = ticket.children.find((c) => c.id === e.issue);
     const where = !child ? 'on the ticket' : isDecision(ctx.config, child) ? `on Decision ${child.identifier} "${child.title}"` : `on sub-issue ${child.identifier}`;
     let what = e.what.replace(/^\S+: /, '').replace(/\s+/g, ' ').trim();
     if (what.length > 1500) what = `${what.slice(0, 1500)}...`;
     const text = `Linear event on ${w.key} while you run, ${where}: ${what}${e.comment?.url ? ` (${e.comment.url})` : ''}. Read it and act on it; if it answers an open Decision, close that Decision.`;
+    if (inLog(w, text)) { if (answered) put(rf(w, 'passed'), e.at); continue; }
+    answered = false;
+    if (Date.now() - (ctx.typed.get(text) ?? 0) < 60_000) continue;
     await must(bin('tmux'), ['send-keys', '-t', target, '-l', text], w.dir);
     await must(bin('tmux'), ['send-keys', '-t', target, 'Enter'], w.dir);
-    put(rf(w, 'passed'), e.at);
+    ctx.typed.set(text, Date.now());
+    typed = true;
   }
   await react(ctx, events);
-  await status(ctx, w, `Lead running. Passed to the running lead: ${events.at(-1)!.what.split('\n')[0].slice(0, 120)}`);
+  if (typed) await status(ctx, w, `Lead running. Passed to the running lead: ${events.at(-1)!.what.split('\n')[0].slice(0, 120)}`);
 }
 
 /** The newest change or comment Linear shows on the ticket or a sub-issue. A sub-issue's change does not touch the ticket's `updatedAt`, nor does a comment. */
@@ -821,7 +842,7 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void, opts
 }
 
 const newCtx = (config: Config, fetchFn: typeof fetch, webhook: boolean): Ctx => ({
-  config, linear: linearClient(config, fetchFn), quiet: new Map(), reacted: new Set(), webhook, since: new Date().toISOString(), leads: new Map(), handled: new Set(), delivered: new Map(),
+  config, linear: linearClient(config, fetchFn), quiet: new Map(), reacted: new Set(), webhook, since: new Date().toISOString(), leads: new Map(), handled: new Set(), delivered: new Map(), typed: new Map(),
 });
 
 /** Whether a Linear webhook delivery carries a valid `Linear-Signature`, the hex HMAC-SHA256 of the raw body. */
