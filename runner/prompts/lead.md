@@ -25,7 +25,7 @@ The runner does nothing for you but start you. You own the PRs, the review, the 
 ## The screen
 
 - Other leads on this Mac may use the screen too; the start message and `<worktreeRoot>/running.json` (the folder above your worktree) list them.
-- Run each step that drives the screen, records it, or needs focus as one command: `<prompts>/../screen-lock run KEY -- <command>`. It waits its turn, wakes the display, keeps it awake, and frees the screen when the command ends or dies.
+- Run each step that drives the screen, records it, or needs focus as one command: `<prompts>/../screen-lock run KEY -- <command>`. It waits its turn, wakes the display, keeps it awake, and frees the screen when the command and anything it left running end.
 
 ## PRs
 
