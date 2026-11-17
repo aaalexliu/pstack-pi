@@ -1,5 +1,12 @@
 {
-  "runnerLines": 970,
-  "leadPromptLines": 60,
-  "configFields": 18
+  "counts": {
+    "writes": 24,
+    "facts": 26,
+    "timers": 15,
+    "configFields": 18
+  },
+  "ceilings": {
+    "runnerLines": 1100,
+    "leadPromptWords": 1700
+  }
 }
