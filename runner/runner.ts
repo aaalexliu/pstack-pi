@@ -613,8 +613,9 @@ async function launch(ctx: Ctx, w: Work, events: Event[], running: Work[]) {
  * heartbeat checks, the reaper may stop, and the runner types events into.
  */
 async function leadSessions() {
-  const { out } = await run(bin('tmux'), ['list-sessions', '-F', '#{session_name}\t#{@job-runner}\t#{session_path}'], process.cwd());
-  return out.split('\n').map((line) => line.split('\t')).filter(([name, tag]) => name && tag === name).map(([key, , dir]) => ({ key, dir }));
+  // Under launchd, with no UTF-8 locale, tmux prints a tab as `_`. So spaces split the fields, and the path, which may hold one, goes last.
+  const { out } = await run(bin('tmux'), ['list-sessions', '-F', '#{session_name} #{@job-runner} #{session_path}'], process.cwd());
+  return out.split('\n').map((line) => line.split(' ')).filter(([name, tag]) => name && tag === name).map(([key, , ...dir]) => ({ key, dir: dir.join(' ') }));
 }
 
 const live = async (w: Pick<Work, 'key'>) => (await run(bin('tmux'), ['has-session', '-t', session(w.key)], process.cwd())).code === 0;

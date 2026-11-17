@@ -76,7 +76,8 @@ fs.appendFileSync(${JSON.stringify(file('pi.log'))}, JSON.stringify({
 }) + '\\n');
 `, { mode: 0o755 });
   // Fake tmux: runs a new session to completion. live.json names a lead that is still running. paths.json keeps the
-  // folder each session started in; a session a test made live by hand is in its ticket's usual worktree.
+  // folder each session started in; a session a test made live by hand is in its ticket's usual worktree. Like tmux
+  // with no UTF-8 locale, as under launchd, list-sessions prints each control character as `_`.
   writeFileSync(file('tmux'), `#!/usr/bin/env node
 const fs = require('node:fs');
 const { execFileSync } = require('node:child_process');
@@ -92,7 +93,7 @@ if (args[0] === 'new-session') { fs.writeFileSync(pathsFile, JSON.stringify({ ..
 else if (args[0] === 'has-session') process.exit(live.includes(target) ? 0 : 1);
 else if (args[0] === 'kill-session') { if (!live.includes(target)) process.exit(1); fs.writeFileSync(liveFile, JSON.stringify(live.filter((k) => k !== target))); }
 else if (args[0] === 'set-option') { if (!/^=.+:$/.test(args[args.indexOf('-t') + 1] ?? '') || fs.existsSync(tagsFile + '.fail')) { console.error('no such session'); process.exit(1); } const tags = fs.existsSync(tagsFile) ? JSON.parse(fs.readFileSync(tagsFile, 'utf8')) : {}; fs.writeFileSync(tagsFile, JSON.stringify({ ...tags, [target]: args.at(-1) })); }
-else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? JSON.parse(fs.readFileSync(tagsFile, 'utf8')) : {}; console.log(live.map((k) => [k, tags[k] ?? '', paths[k] ?? ${JSON.stringify(file('worktrees'))} + '/job-' + k.toLowerCase() + '-job-number-' + k.slice(4)].join('\\t')).join('\\n')); }
+else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? JSON.parse(fs.readFileSync(tagsFile, 'utf8')) : {}; const fields = { session_name: (k) => k, '@job-runner': (k) => tags[k] ?? '', session_path: (k) => paths[k] ?? ${JSON.stringify(file('worktrees'))} + '/job-' + k.toLowerCase() + '-job-number-' + k.slice(4) }; console.log(live.map((k) => args[args.indexOf('-F') + 1].replace(/#\\{([^}]+)\\}/g, (_, name) => fields[name](k)).replace(/[\\x00-\\x1f]/g, '_')).join('\\n')); }
 `, { mode: 0o755 });
   writeFileSync(file('memory_pressure'), `#!/bin/sh\necho "System-wide memory free percentage: $(cat ${JSON.stringify(file('free'))} 2>/dev/null || echo 60)%"\n`, { mode: 0o755 });
   Object.assign(process.env, {
