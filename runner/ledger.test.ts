@@ -18,7 +18,7 @@ test('the ledger lists every state file the runner names', () => {
     ...all(/'\.runner', '([^']+)'/g, runner),
     ...all(/path\.join\(config\.worktreeRoot, '([^']+)'/g, runner),
   ];
-  assert.ok(names.includes('started') && names.includes('running.json') && names.includes('.attempts'), 'the state file names did not parse');
+  assert.ok(names.includes('session-id') && names.includes('running.json') && names.includes('.state'), 'the state file names did not parse');
   const listed = tables.facts.map((row) => row[0]).join('\n');
   for (const name of new Set(names)) assert.ok(listed.includes(name), `the ledger has no row for the state file "${name}"`);
 });

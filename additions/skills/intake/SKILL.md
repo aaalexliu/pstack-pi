@@ -29,7 +29,7 @@ A ticket that an agent builds starts while the person who asked is still here. A
 
    `Done when` is required when the result is judged by eye or changes what a user sees, and optional otherwise. Name the evidence itself, not a wish: "`npm test` prints `pass 12`", or "a screenshot of the settings page in the running app shows the new toggle", not "it works". If you cannot name the evidence, the work is not scoped yet: ask the user before you file.
 
-3. Add the label that names the repo, if the runner picks repos by label. If the runner config has no repo for that label, the runner drops the ticket, so map the label to its repo in the config yourself and restart the runner before you delegate. Do not stop to ask. Add `Needs: screen` on its own line when the work drives the Mac's screen, a browser, or a simulator.
+3. Add the label that names the repo, if the runner picks repos by label. If the runner config has no repo for that label, the lead stops and asks, so map the label to its repo in the config yourself and restart the runner before you delegate. Do not stop to ask. Add `Needs: screen` on its own line when the work drives the Mac's screen, a browser, or a simulator.
 4. Set the ticket's state to `Todo` and delegate it to the runner's app user in the same step. The runner picks up only `Todo` tickets delegated to it. Do not assign it to the person; an assignee means it is their move.
 5. Tell the user the ticket link and the goal line you wrote.
 

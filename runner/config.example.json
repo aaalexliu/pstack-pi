@@ -3,7 +3,7 @@
   "ghTokenCommand": "gh auth token -u your-github-user",
   "team": "ENG",
   "runnerUser": "job runner",
-  "decisionAssignee": "Your Name",
+  "askAssignee": "Your Name",
   "repos": {
     "web-app": { "path": "/Users/you/dev/web-app", "base": "main" },
     "dotfiles": { "path": "/Users/you/dev/dotfiles", "base": "main" }
