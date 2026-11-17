@@ -1052,7 +1052,7 @@ test('a ticket with no repo label starts a lead in a folder with no repo, keeps 
   assert.ok(!existsSync(path.join(neutral, '.git')), 'the folder is no worktree of any repo');
   assert.match(lead.input, /\nNo repo label yet, so you run in a folder with no repo\. Repo labels: pstack-pi\. Review model: review-model\./);
   assert.match(job.comments[0].body, /- Folder: `[^`]*job-ale-1`, with no repo until the lead adds a repo label\n/);
-  assert.match(job.comments[0].body, /Quiz a fork: `ssh -t test-host "mkdir -p [^`]*job-ale-1-quiz && cd /);
+  assert.match(job.comments[0].body, /Quiz a fork: `ssh -t test-host "mkdir -p [^`]*job-ale-1\.quiz && cd /);
 });
 
 test('once the no-repo lead adds the repo label and exits, the next poll starts a lead in that repo\'s worktree with no new delegation', async () => {
@@ -1060,6 +1060,13 @@ test('once the no-repo lead adds the repo label and exits, the next poll starts 
   const t = setup([job]);
   await t.run('--once');
   const neutral = path.join(t.config.worktreeRoot, 'job-ale-1');
+  // Alex quizzes the lead with the status comment's command, through stand-in ssh and tmux.
+  const fakes = path.join(t.root, 'bin');
+  mkdirSync(fakes);
+  writeFileSync(path.join(fakes, 'ssh'), '#!/bin/sh\nshift 2\nexec sh -c "$*"\n', { mode: 0o755 });
+  writeFileSync(path.join(fakes, 'tmux'), '#!/bin/sh\n', { mode: 0o755 });
+  const quiz = /Quiz a fork: `(.*)`/.exec(job.comments[0].body)![1];
+  execFileSync('sh', ['-c', quiz], { env: { ...process.env, PATH: `${fakes}:${process.env.PATH}` } });
   await assert.rejects(t.ticket(neutral, 'label', 'Firstmate'), /"Firstmate" names no repo in the runner config; the repo labels are pstack-pi/);
   assert.equal(await t.ticket(neutral, 'label', 'pstack-pi'), 'Labeled ALE-1 pstack-pi.');
   assert.deepEqual(job.labels, ['pstack-pi']);
@@ -1072,6 +1079,9 @@ test('once the no-repo lead adds the repo label and exits, the next poll starts 
   assert.notEqual(lead.session, t.leads()[0].session, 'a fresh session in the worktree');
   assert.equal(t.decisions().length, 0);
   assert.match(job.comments.find((c) => c.body.startsWith('**Runner:**'))!.body, /- Worktree: `[^`]*job-ale-1-job-number-1` on `job\/ale-1-job-number-1`/);
+  job.comments.push({ id: 'c1', body: 'One more thing.', createdAt: later(), user: { name: ALEX } });
+  await t.run('--once');
+  assert.equal(t.leads()[2]?.cwd, realpathSync(t.dirOf(1)), 'later starts stay in the repo worktree');
 });
 
 test('the heartbeat finds a no-repo lead in its folder', async () => {
@@ -1143,7 +1153,7 @@ for (const shell of ['sh', 'zsh']) {
     assert.deepEqual(tmuxArgs(), ['new', '-s', 'ALE-7-quiz', 'pi', '--fork', 'abc-123']);
     const neutral = path.join(root, 'Work Projects', "it's", 'job-ale-8');
     execFileSync('sh', ['-c', commands({ key: 'ALE-8', dir: neutral, branch: '' }, 'abc-456', 'mini').quiz], { env });
-    assert.ok(existsSync(`${neutral}-quiz`), 'a lead with no repo is quizzed from a plain folder beside it');
+    assert.ok(existsSync(`${neutral}.quiz`), 'a lead with no repo is quizzed from a plain folder beside it');
     assert.deepEqual(tmuxArgs(), ['new', '-s', 'ALE-8-quiz', 'pi', '--fork', 'abc-456']);
   });
 }

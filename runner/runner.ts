@@ -320,7 +320,8 @@ export function linearClient(config: Config, fetchFn: typeof fetch) {
 /** The commands Alex copies from the status comment. Each word is quoted for the local shell and again for the remote one. */
 export function commands(w: Pick<Work, 'key' | 'dir' | 'branch'>, sessionId: string, host: string) {
   const ssh = (...remote: string[]) => `ssh -t ${sh(host)} ${sh(remote.join(' '))}`;
-  const quiz = `${w.dir}-quiz`;
+  // A lead with no repo forks into `job-<key>.quiz`: a `job-<key>-quiz` folder would pass for the ticket's worktree once the label lands.
+  const quiz = `${w.dir}${w.branch ? '-' : '.'}quiz`;
   const fork = w.branch ? ['cd', sh(w.dir), '&& git worktree add -B', sh(`${w.branch}-quiz`), sh(quiz), 'HEAD'] : ['mkdir -p', sh(quiz)];
   return {
     watch: ssh('tmux attach -t', sh(session(w.key))),
