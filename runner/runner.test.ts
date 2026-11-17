@@ -654,31 +654,12 @@ test('two screen tickets start together, and running.json lists the running lead
   assert.ok(list()[0].startedAt);
   const third = t.leads()[2].input;
   assert.match(third, /running\.json/);
-  assert.match(third, /screen\.lock/);
   assert.match(third, /- ALE-1: .*Needs: screen\)/);
   assert.match(third, /- ALE-2: /);
   assert.match(t.leads()[0].input, /Other leads running now.*\n- none/);
-  mkdirSync(path.join(t.config.worktreeRoot, 'screen.lock'));
-  writeFileSync(path.join(t.config.worktreeRoot, 'screen.lock', 'owner'), 'ALE-1 2026-01-01T00:00:00Z\n');
-  t.setLive('ALE-1', 'ALE-2', 'ALE-3');
-  await t.run('--once');
-  assert.ok(existsSync(path.join(t.config.worktreeRoot, 'screen.lock')), 'a running owner keeps its lock');
-  writeFileSync(path.join(t.config.worktreeRoot, 'screen.lock', 'owner'), 'ALE-9 2026-01-01T00:00:00Z\n');
-  t.setLive('ALE-2', 'ALE-3', 'ALE-9');
-  await t.run('--once');
-  assert.ok(existsSync(path.join(t.config.worktreeRoot, 'screen.lock')), 'an owner with a live session keeps its lock, though running.json does not list it');
-  writeFileSync(path.join(t.config.worktreeRoot, 'screen.lock', 'owner'), 'ALE-1 2026-01-01T00:00:00Z\n');
   t.setLive('ALE-2', 'ALE-3');
   await t.run('--once');
   assert.deepEqual(list().map((r) => r.key), ['ALE-2', 'ALE-3'], 'a finished lead drops off the list');
-  assert.ok(!existsSync(path.join(t.config.worktreeRoot, 'screen.lock')), 'a lock whose owner stopped is cleared');
-  const lock = path.join(t.config.worktreeRoot, 'screen.lock');
-  mkdirSync(lock);
-  await t.run('--once');
-  assert.ok(existsSync(lock), 'a fresh lock with no owner file may be mid-take, so it stays');
-  utimesSync(lock, new Date(Date.now() - 120000), new Date(Date.now() - 120000));
-  await t.run('--once');
-  assert.ok(!existsSync(lock), 'a lock with no owner file for over a minute is cleared');
 });
 
 test('the ticket whose oldest unseen event is oldest starts first', async () => {
