@@ -58,8 +58,8 @@ each pass, per open ticket delegated to runnerUser (Todo, or a started state suc
   lead live in tmux            -> leave it; nudge it, then start an investigator, if it went quiet
   any event since its start    -> start the lead; its start message lists the events, and it judges what they mean
                                   if a limit blocks the start: reply "Seen. Waiting to start: <reason>" once
-  no event, assigned to Alex   -> wait
-  no event, not assigned       -> assign Alex, then comment: "the lead stopped with nothing handed in"
+  no event, open ask           -> wait (Alex assigned)
+  no event, no open ask        -> assign Alex, then comment: "the lead stopped with nothing handed in"
 order: the ticket whose oldest unseen event is oldest goes first
 ```
 
@@ -96,11 +96,11 @@ A ticket marked Done or Canceled, or with its delegate cleared, is no longer the
 
 ### Asks
 
-The ticket's assignee is who must act next, so "assigned to me" in Linear is the list of tickets waiting on you. An ask is a comment on the ticket that starts with `**Needs Alex:**`, posted after the ticket is assigned to `askAssignee`. The runner assigns first and then comments, so a failed assign posts nothing, and an assigned ticket waits instead of getting a second ask. The lead asks with `ticket.ts ask`, in the same order.
+The ticket's assignee is who must act next, so "assigned to me" in Linear is the list of tickets waiting on you. An ask is a comment by the runner's user that starts with `**Needs Alex:**`. It is open while no comment by `askAssignee` comes after it. The list query reads the newest of each, so each pass knows without reading history, which Linear writes late and merges.
 
-The runner unassigns you when it starts the lead, so a ticket you filed or delegated assigned to yourself does not park it. Linear's GitHub link assigns the PR author when a PR links to an unassigned ticket ("If the issue is unassigned when linking takes place, you will be added as the assignee", and its docs name no setting to turn that off). The runner spots that change as the link's (see Reading Linear) and unassigns you when it is the ticket's newest assignee change.
+Each pass sets the assignee from that: an open ask means you; no open ask with a live lead means nobody; no open ask, no lead and nothing new means the runner asks. So the runner undoes any other assign, such as Linear's GitHub link assigning the PR author when a PR links to an unassigned ticket (its docs name no setting to turn that off), and a ticket you filed assigned to yourself does not park it. The runner and `ticket.ts ask` assign first and then comment: a failed assign posts nothing, and an open ask waits instead of getting a second.
 
-Your comment wakes the lead in the same Pi session, as any event does. Only your comment answers an ask, and anything outside this Mac needs your explicit yes to the exact text. When the lead acts on your answer, it unassigns you. To stop the work instead, mark the ticket Done or Canceled, or clear its delegate.
+Your comment closes the ask and wakes the lead in the same Pi session, as any event does. Anything outside this Mac needs your explicit yes to the exact text. To stop the work instead, mark the ticket Done or Canceled, or clear its delegate.
 
 ### The lead
 
@@ -116,10 +116,9 @@ The lead reaches Linear only through [ticket.ts](ticket.ts), run in its worktree
 
 ```text
 ticket.ts show              the ticket, its assignee, its sub-issues, and its comments oldest first, in local time
-ticket.ts comment <file>    post a comment on the ticket
+ticket.ts comment <file> [ID]  post a comment on the ticket, or a reply in the thread of comment ID
 ticket.ts done [KEY]        move the ticket, or one of its sub-issues, to Done
 ticket.ts ask <file>        assign the ticket to askAssignee, then post the ask as a comment
-ticket.ts unassign          clear the ticket's assignee once the lead acts on the answer
 ```
 
 It finds its ticket in `.runner/work.json`, which the launch writes, in the folder it runs in or the nearest one above. A sub-lead's worktree is the lead's path plus `-<unit>`, so each folder also tries the folders its name extends. It reads the runner's config and calls Linear through the runner's own client, so it shares the token command, the 429 wait and `assign`. A `<file>` of `-` reads standard input. It checks its arguments and file before it calls Linear, and a usage error exits 64. The fake-Linear tests in `runner.test.ts` cover each command.
@@ -155,7 +154,7 @@ A routine can file this audit as a ticket on a schedule; see `routines` below.
 
 ## The model
 
-[model/Ticket.tla](model/Ticket.tla) is a TLC model of one ticket under the runner. `nextMove()` in `runner.ts` is its `StartsLead` and `AskStarts` guards: start on an event, else wait while the ticket is assigned to Alex, else ask him.
+[model/Ticket.tla](model/Ticket.tla) is a TLC model of one ticket under the runner. `nextMove()` in `runner.ts` is its `StartsLead` and `AskStarts` guards: start on an event, else wait on an open ask, else ask Alex.
 
 | Config | Result |
 | --- | --- |
@@ -176,7 +175,7 @@ The model leaves out:
 - PRs, review, CI and merge, which the runner no longer touches; the audit prompt covers them;
 - a ticket you close or take back while the lead runs;
 - the launch failing, which asks Alex like a stopped lead;
-- the GitHub link assigning Alex, which the runner undoes.
+- other assigns, such as the GitHub link's, which the next pass corrects.
 
 ## Shared resources
 
@@ -219,7 +218,7 @@ The runner does not log a Linear write, a webhook delivery or a pass, so those r
 
 | Mechanism | Where | Paid for by | Fired |
 | --- | --- | --- | --- |
-| Linear: assign you before an ask, unassign you at a start and after the GitHub link assigns you (`issueUpdate`) | `ask`, `assign`, `setState`, `poll` | [#71](https://github.com/aaalexliu/pstack-pi/pull/71) and [#109](https://github.com/aaalexliu/pstack-pi/pull/109) for the ask it replaced: one write, at most one open, after 62 asks on one ticket in 26 minutes. Now assign first, then comment | New, no history |
+| Linear: set the assignee from the open ask each pass, assign you before an ask, unassign you at a start (`issueUpdate`) | `ask`, `assign`, `setState`, `poll` | [#71](https://github.com/aaalexliu/pstack-pi/pull/71) and [#109](https://github.com/aaalexliu/pstack-pi/pull/109) for the ask it replaced: one write, at most one open, after 62 asks on one ticket in 26 minutes. Now assign first, then comment | New, no history |
 | Linear: move a Todo ticket to In Progress (`issueUpdate`) | `poll`, `setState` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61). None found | Log does not show it. At most once per ticket; 12 tickets started |
 | Linear: clear the delegate of a ticket with no repo label (`issueUpdate`) | `poll`, `clearDelegate` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61). None found | Log does not show it |
 | Linear: "No repo label" comment (`commentCreate`) | `poll` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61). None found | Log does not show it |
@@ -269,7 +268,7 @@ A file path with no folder is in `<worktree>/.runner/`.
 | Linear: the status comment, found by its `**Runner:**` start | `status`, `statusComment` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68) | Log does not show it |
 | Linear: a `Seen.` reply newer than the event means "acked" | `ack` | [#100](https://github.com/aaalexliu/pstack-pi/pull/100) | Log does not show it |
 | Linear: the runner's own 👀 means "reacted" | `react`, `eventsOf` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110) | Log does not show it |
-| Linear: the ticket assigned to `askAssignee` means waiting on you | `nextMove`, `ask` | [#109](https://github.com/aaalexliu/pstack-pi/pull/109): 62 asks in 26 minutes; the assignee is the circuit breaker | New, no history |
+| Linear: a `**Needs Alex:**` comment with no comment by `askAssignee` after it is an open ask | `nextMove`, `poll`, `ask` | [#109](https://github.com/aaalexliu/pstack-pi/pull/109): 62 asks in 26 minutes; the open ask is the circuit breaker | New, no history |
 | Linear: the `runner-routine <name> <time>` line marks a filed run | `createDueRoutines`, `newEvents` | [#70](https://github.com/aaalexliu/pstack-pi/pull/70) | 0 |
 | Memory: `quiet`, tickets read with no events, so they are not read again | `poll` | [#107](https://github.com/aaalexliu/pstack-pi/pull/107): the per-ticket read costs about 310 points of a shared budget | Log does not show it |
 | Memory: `reacted`, comments given a 👀 this run | `react` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110) | Log does not show it |
@@ -292,7 +291,7 @@ A file path with no folder is in `<worktree>/.runner/`.
 | `ghTokenCommand` | `envScript` | [#74](https://github.com/aaalexliu/pstack-pi/pull/74) | Set |
 | `team` | `linearClient`, `startMessage`, `createDueRoutines` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61) | Set |
 | `runnerUser` | `linearClient`, `createDueRoutines` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61) | Set |
-| `askAssignee` | `nextMove`, `assign`, `startMessage` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68) | Set |
+| `askAssignee` | `poll`, `assign`, `startMessage` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68) | Set |
 | `repos` | `workFor`, `launch`, `poll` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61) | 6 labels for 4 clones |
 | `models` | `workFor` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61) | Set |
 | `thinking` | `launch`, `investigate` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61) | `high`, the default |

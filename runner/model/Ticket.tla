@@ -11,7 +11,7 @@ CONSTANTS EVENT_CHECK,    \* fix: start the lead only on an event since its last
 
 VARIABLES lead,     \* "live" | "idle": the tmux session
           event,    \* someone other than the runner acted in Linear since the lead's last start
-          asked,    \* the ticket is assigned to Alex
+          asked,    \* an ask is open, so Alex is assigned
           noted,    \* the runner's ask comment for this wait is posted
           half,     \* the runner made the first of its ask's two writes and not the second
           dup,      \* history: a second runner ask comment for one wait

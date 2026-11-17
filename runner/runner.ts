@@ -44,7 +44,7 @@ type Change = {
 type Newest = { updatedAt: string; comments: { nodes: { createdAt: string }[] } };
 /** An open ticket from the list query, with its sub-issues and, for each, the last change and newest comment. */
 type Issue = Newest & {
-  assignee: { name: string } | null; id: string; identifier: string; title: string; description: string | null; url: string; createdAt: string; state: { type: string }; labels: { nodes: { name: string }[] };
+  assignee: { name: string } | null; asked: { nodes: { createdAt: string }[] }; answered: { nodes: { createdAt: string }[] }; id: string; identifier: string; title: string; description: string | null; url: string; createdAt: string; state: { type: string }; labels: { nodes: { name: string }[] };
   children: { nodes: (Child & Newest)[]; pageInfo: { hasNextPage: boolean } };
 };
 type Page<T> = { nodes: T[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } };
@@ -57,9 +57,9 @@ export type Child = { id: string; identifier: string; title: string; url: string
 export type Event = { at: string; what: string; issue?: string; comment?: { id: string; issueId: string; thread: string; reacted: boolean; url?: string } };
 /**
  * What Linear says about a ticket this poll. `state` is the state type: `unstarted` for Todo, `started` for In Progress or In Review.
- * `assignee` is who must act next. `events` and `mine`, the runner's comments, cover the ticket and its sub-issues back to the lead's last start.
+ * `asking` says an ask is open: the newest `**Needs Alex:**` comment has no comment by Alex after it. `events` and `mine`, the runner's comments, cover the ticket and its sub-issues back to the lead's last start.
  */
-export type Ticket = { state: string; assignee: string | null; description: string; createdAt: string; mine: Comment[]; children: Child[]; events: Event[] };
+export type Ticket = { state: string; assignee: string | null; asking: boolean; description: string; createdAt: string; mine: Comment[]; children: Child[]; events: Event[] };
 /** A ticket as the runner sees it this poll. */
 export type Work = { id: string; key: string; title: string; url: string; description: string; repo: string; branch: string; dir: string; models: { lead: string; review: string } };
 /**
@@ -84,7 +84,7 @@ const EYES = 'eyes';
 const PROMPTS = fileURLToPath(new URL('./prompts/', import.meta.url));
 const SUBAGENT_DONE = fileURLToPath(new URL('../extensions/interactive-subagents/pi-extension/subagents/subagent-done.ts', import.meta.url));
 const NEWEST = 'updatedAt comments(first: 1) { nodes { createdAt } }';
-const ISSUE_FIELDS = `assignee { name } id identifier title description url createdAt state { type } labels { nodes { name } } ${NEWEST} children(first: 100) { nodes { id identifier title url createdAt ${NEWEST} } pageInfo { hasNextPage } }`;
+const ISSUE_FIELDS = `assignee { name } asked: comments(first: 1, filter: { body: { startsWith: "**Needs Alex:**" }, user: { name: { eq: $user } } }) { nodes { createdAt } } answered: comments(first: 1, filter: { user: { name: { eq: $alex } } }) { nodes { createdAt } } id identifier title description url createdAt state { type } labels { nodes { name } } ${NEWEST} children(first: 100) { nodes { id identifier title url createdAt ${NEWEST} } pageInfo { hasNextPage } }`;
 /** Variables a lead keeps from the runner's environment. Every other `PI_*` and `PSTACK_*` belongs to another session. */
 const KEEP_ENV = ['PI_AUTH_PROFILE', 'PI_CODING_AGENT_DIR', 'JOB_RUNNER_CONFIG'];
 /** The runner's config file. The lead's `ticket` command reads it too. */
@@ -203,16 +203,13 @@ export function linearClient(config: Config, fetchFn: typeof fetch) {
     }
     return nodes;
   }
-  // Linear credits a change the GitHub link makes, such as In Review or assigning Alex when a PR links, to the PR author.
-  // Its only mark is the link's own entry a moment before: a state or assignee change within 2 s after it is the link's.
-  const integration = (history: Change[]) => {
-    const links = history.filter((h) => h.botActor && h.attachment).map((h) => Date.parse(h.createdAt));
-    return (h: Change) => !!h.botActor || (!!(h.toState || h.toAssignee)
-      && links.some((at) => Date.parse(h.createdAt) - at >= 0 && Date.parse(h.createdAt) - at < 2000));
-  };
   /** The events on one issue, by anyone but the runner and integrations. */
   const eventsOf = (key: string, id: string, comments: Comment[], history: Change[]): Event[] => {
-    const byIntegration = integration(history);
+    // Linear credits a change the GitHub link makes, such as In Review or assigning Alex when a PR links, to the PR author.
+    // Its only mark is the link's own entry a moment before: a state or assignee change within 2 s after it is the link's.
+    const links = history.filter((h) => h.botActor && h.attachment).map((h) => Date.parse(h.createdAt));
+    const byIntegration = (h: Change) => !!h.botActor || (!!(h.toState || h.toAssignee)
+      && links.some((at) => Date.parse(h.createdAt) - at >= 0 && Date.parse(h.createdAt) - at < 2000));
     return [
       ...comments.filter((c) => c.user && !c.botActor && c.user.name !== config.runnerUser)
         .map((c) => ({
@@ -233,8 +230,8 @@ export function linearClient(config: Config, fetchFn: typeof fetch) {
       const nodes: Issue[] = [];
       for (let after: string | null = null; ;) {
         const page: { issues: { nodes: Issue[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } } } = await gql(
-          `query Issues($team: String!, $user: String!, $after: String) { issues(first: 100, after: $after, filter: { team: { key: { eq: $team } }, state: { type: { in: ["unstarted", "started"] } }, delegate: { name: { eq: $user } } }) { nodes { ${ISSUE_FIELDS} } pageInfo { hasNextPage endCursor } } }`,
-          { team: config.team, user: config.runnerUser, after },
+          `query Issues($team: String!, $user: String!, $alex: String!, $after: String) { issues(first: 100, after: $after, filter: { team: { key: { eq: $team } }, state: { type: { in: ["unstarted", "started"] } }, delegate: { name: { eq: $user } } }) { nodes { ${ISSUE_FIELDS} } pageInfo { hasNextPage endCursor } } }`,
+          { team: config.team, user: config.runnerUser, alex: config.askAssignee, after },
         );
         const full = page.issues.nodes.find((i) => i.children.pageInfo.hasNextPage);
         if (full) throw new Error(`${full.identifier} has over 100 sub-issues; the runner reads at most 100`);
@@ -256,9 +253,8 @@ export function linearClient(config: Config, fetchFn: typeof fetch) {
     /**
      * The events and the runner's comments since `since` on the ticket and its sub-issues, or null when Linear finds
      * none of them. It reads only the issues the list query shows changed since then: complexity grows with each page asked for.
-     * `relinked` says the ticket's last assignee change was the GitHub link assigning Alex, which no ask did.
      */
-    async events(issue: Issue, since: string): Promise<Pick<Ticket, 'events' | 'mine'> & { relinked?: boolean } | null> {
+    async events(issue: Issue, since: string): Promise<Pick<Ticket, 'events' | 'mine'> | null> {
       const ids = [issue, ...issue.children.nodes].filter((i) => newest(i) > since).map((i) => i.id);
       type Wire = { id: string; identifier: string; comments: Page<Comment>; history: Page<Change> };
       const found = (await gql<{ issues: { nodes: Wire[] } }>(
@@ -268,16 +264,12 @@ export function linearClient(config: Config, fetchFn: typeof fetch) {
       if (!found.length) return null;
       const events: Event[] = [];
       const mine: Comment[] = [];
-      let relinked = false;
       for (const i of found) {
         const comments = await back(i.id, 'comments', COMMENT, i.comments, since);
-        const history = await back(i.id, 'history', CHANGE, i.history, since);
-        events.push(...eventsOf(i.identifier, i.id, comments, history));
+        events.push(...eventsOf(i.identifier, i.id, comments, await back(i.id, 'history', CHANGE, i.history, since)));
         mine.push(...comments.filter((c) => c.user?.name === config.runnerUser));
-        const last = history.find((h) => h.toAssignee || h.fromAssignee);
-        if (i.id === issue.id && last && last.createdAt > since) relinked = last.toAssignee?.name === config.askAssignee && integration(history)(last);
       }
-      return { events: events.filter((e) => e.at > since).sort((a, b) => a.at.localeCompare(b.at)), mine, relinked };
+      return { events: events.filter((e) => e.at > since).sort((a, b) => a.at.localeCompare(b.at)), mine };
     },
     /** The runner's status comment on a ticket, if it posted one. */
     async statusComment(id: string): Promise<Comment | undefined> {
@@ -464,10 +456,10 @@ export function newEvents(ticket: Ticket, attempted: string | null): Event[] {
  * The runner's move for a ticket whose lead is not running. Any event since the lead's last start starts it, even one
  * assigned to Alex: the lead judges whether it answers its ask. With none, one assigned to Alex waits; any other gets an ask.
  */
-export function nextMove(config: Config, ticket: Ticket, attempted: string | null): Move {
+export function nextMove(ticket: Ticket, attempted: string | null): Move {
   const events = newEvents(ticket, attempted);
   if (events.length) return { kind: 'start', events };
-  return ticket.assignee === config.askAssignee ? { kind: 'wait' } : { kind: 'ask' };
+  return ticket.asking ? { kind: 'wait' } : { kind: 'ask' };
 }
 
 /**
@@ -810,9 +802,11 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void, opts
     const fresh = at > since && ctx.quiet.get(w.key) !== `${since} ${at}`;
     const seen = fresh ? await linear.events(issue, since) : { events: [], mine: [] };
     if (fresh && seen && !seen.events.length) ctx.quiet.set(w.key, `${since} ${at}`);
-    // The GitHub link assigned Alex when a PR linked, not an ask, so the runner undoes it.
-    if (!dryRun && seen?.relinked && issue.assignee?.name === config.askAssignee) { await linear.assign(issue.id, false); issue.assignee = null; }
-    const ticket = seen && { state: issue.state.type, assignee: issue.assignee?.name ?? null, description: w.description, createdAt: issue.createdAt, children: issue.children.nodes, ...seen };
+    // Who must act is read from the comments each pass: an open ask means Alex, a live lead with none means not Alex.
+    // So any other assign, such as the GitHub link's when a PR links, is undone.
+    const asking = (issue.asked.nodes[0]?.createdAt ?? '') > (issue.answered.nodes[0]?.createdAt ?? '');
+    if (!dryRun && (asking || isLive) && asking !== (issue.assignee?.name === config.askAssignee)) { await linear.assign(issue.id, asking); issue.assignee = asking ? { name: config.askAssignee } : null; }
+    const ticket = seen && { state: issue.state.type, assignee: issue.assignee?.name ?? null, asking, description: w.description, createdAt: issue.createdAt, children: issue.children.nodes, ...seen };
     if (isLive) tickets.push({ w, live: true, ticket: ticket && ticket.events.length ? ticket : null });
     else if (ticket) tickets.push({ w, live: false, ticket });
   }
@@ -842,7 +836,7 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void, opts
       }
       if (!ticket) continue;
       if (!dryRun && existsSync(rf(w, 'pane'))) settle(w, ticket, newEvents(ticket, lastAttempt(config, w)));
-      const move = nextMove(config, ticket, lastAttempt(config, w));
+      const move = nextMove(ticket, lastAttempt(config, w));
       if (dryRun) { console.log(`${w.key}: ${move.kind}`); continue; }
       if (move.kind === 'wait') continue;
       if (move.kind === 'start') {
@@ -861,7 +855,7 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void, opts
       // The move is the runner's own, so it is not an event. A crash before the start is recorded starts the lead
       // once more on the same events; after it, nothing new means an ask (model/Ticket.tla, NoSpin).
       // The lead owns the ticket while it runs, so the runner unassigns Alex in the same write that starts it.
-      const unassign = ticket.assignee === config.askAssignee;
+      const unassign = ticket.assignee === config.askAssignee && !ticket.asking;
       if (ticket.state === 'unstarted') await linear.setState(w.id, 'In Progress', unassign);
       else if (unassign) await linear.assign(w.id, false);
       try {
@@ -972,7 +966,8 @@ export async function serve(config: Config, fetchFn: typeof fetch, secret: strin
     }),
     /** Resolves once every queued pass is done. */
     idle: () => queue,
-    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+    // A pass still queued at close would outlive the server, so close waits for it.
+    close: () => queue.then(() => new Promise<void>((resolve) => server.close(() => resolve()))),
   };
 }
 

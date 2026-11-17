@@ -117,11 +117,16 @@ else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? J
     const from = Number(after ?? 0);
     return { nodes: newest.slice(from, from + 25), pageInfo: { hasNextPage: from + 25 < newest.length, endCursor: String(from + 25) } };
   };
+  /** The newest comment matching `keep`, as the list query's filtered `comments(first: 1)` returns it. */
+  const newestBy = (x: FakeIssue, keep: (c: FakeComment) => boolean) =>
+    ({ nodes: x.comments.filter(keep).map((c) => ({ createdAt: c.createdAt })).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 1) });
   /** An issue as the list query returns it. Like Linear, a comment does not move `updatedAt`. */
   const listed = (x: FakeIssue) => ({
     ...x, assignee: x.assignee ? { name: x.assignee } : null,
     updatedAt: [x.createdAt, ...x.history.map((h) => h.createdAt)].sort().at(-1),
     comments: { nodes: x.comments.map((c) => ({ createdAt: c.createdAt })).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 1) },
+    asked: newestBy(x, (c) => c.user?.name === RUNNER && c.body.startsWith('**Needs Alex:**')),
+    answered: newestBy(x, (c) => c.user?.name === ALEX),
   });
   const fakeFetch = async (_url: string | URL | Request, init?: RequestInit) => {
     assert.equal(new Headers(init?.headers).get('Authorization'), 'Bearer test-token');
@@ -169,7 +174,7 @@ else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? J
       const newest = [...i.comments].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
       return data({ issue: {
         identifier: i.identifier, title: i.title, url: i.url, description: i.description, state: { name: i.state }, assignee: i.assignee ? { name: i.assignee } : null,
-        comments: { nodes: newest.slice(0, 50).map((c) => ({ createdAt: c.createdAt, body: c.body, user: c.user, botActor: c.botActor ?? null })), pageInfo: { hasNextPage: newest.length > 50 } },
+        comments: { nodes: newest.slice(0, 50).map((c) => ({ id: c.id, createdAt: c.createdAt, body: c.body, user: c.user, botActor: c.botActor ?? null })), pageInfo: { hasNextPage: newest.length > 50 } },
         children: { nodes: issues.filter((c) => c.parent === i.id).map((c) => ({ id: c.id, identifier: c.identifier, title: c.title, state: { name: c.state }, assignee: c.assignee ? { name: c.assignee } : null })) },
       } });
     }
@@ -308,7 +313,7 @@ test('a launch unassigns Alex in the same write that moves the ticket to In Prog
   assert.deepEqual(writes, [['In Progress', ALEX]], 'one write');
 });
 
-test('ticket ask assigns Alex, then comments; the runner waits and adds no ask; ticket unassign clears him and wakes no one', async () => {
+test('ticket ask assigns Alex, then comments; the runner waits and adds no ask; his reply in the ask\'s thread closes it', async () => {
   const job = issue(1);
   const t = setup([job]);
   await t.run('--once');
@@ -322,11 +327,14 @@ test('ticket ask assigns Alex, then comments; the runner waits and adds no ask; 
   await t.run('--once');
   await t.run('--once');
   assert.equal(t.leads().length, 1, 'the lead\'s own ask is no event');
-  assert.equal(t.asks().length, 1, 'the runner adds no ask of its own');
-  assert.equal(await t.ticket(t.dirOf(1), 'unassign'), 'Unassigned ALE-1.');
-  assert.equal(job.assignee, null);
-  await t.run('--dry-run');
-  assert.ok(t.printed.logs.includes('ALE-1: ask'), 'the lead\'s unassign is no event');
+  assert.deepEqual([t.asks().length, job.assignee], [1, ALEX], 'the runner adds no ask of its own');
+  job.comments.push({ id: 'h1', body: 'A.', createdAt: later(), user: { name: ALEX }, parentId: t.asks()[0].id });
+  t.setLive('ALE-1');
+  await t.run('--once');
+  assert.equal(job.assignee, null, 'his reply closes the ask, so a live lead holds the ticket');
+  assert.match(await t.ticket(t.dirOf(1), 'show'), /\(comment h1\):\nA\./);
+  assert.equal(await t.ticket(t.dirOf(1), 'comment', '-', 'h1'), 'Commented on ALE-1 in the thread of h1.');
+  assert.equal(job.comments.at(-1)!.parentId, 'h1');
 });
 
 test('ticket comment posts as the runner from the worktree or a folder in it, so it never wakes the lead', async () => {
@@ -372,7 +380,7 @@ test('ticket show prints the ticket, its sub-issues, and its comments oldest fir
   const out = await t.ticket(t.dirOf(1), 'show');
   assert.match(out, /^ALE-1: Job number 1 \(In Progress, assigned to Alex Example\)\nhttps:\/\/linear\.app\/x\/issue\/ALE-1\n\nMake it work\.\n\nSub-issues:\n- ALE-50 \(Todo, Alex Example\): Plan A or B\?\n\nComments, oldest first:\n/);
   const at = (iso: string) => new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
-  assert.ok(out.includes(`\nGitHub, ${at('2026-01-02T14:00:00Z')}:\nFirst.\n\n${ALEX}, ${at('2026-01-02T15:00:00Z')}:\nSecond.\n`), out);
+  assert.ok(out.includes(`\nGitHub, ${at('2026-01-02T14:00:00Z')} (comment c1):\nFirst.\n\n${ALEX}, ${at('2026-01-02T15:00:00Z')} (comment c2):\nSecond.\n`), out);
   assert.match(at('2026-01-02T15:00:00Z'), /^Jan 2, \d+:00 [AP]M \S+$/);
 });
 
@@ -382,7 +390,7 @@ test('ticket checks its arguments and its file before it calls Linear', async ()
   const empty = path.join(t.root, 'empty.md');
   writeFileSync(empty, '\n');
   const before = t.ops.length;
-  for (const argv of [[], ['comment'], ['done', 'ALE-50', 'x'], ['ask'], ['ask', 'a', 'b'], ['unassign', 'x'], ['close']]) {
+  for (const argv of [[], ['comment'], ['done', 'ALE-50', 'x'], ['ask'], ['ask', 'a', 'b'], ['comment', 'a', 'b', 'c'], ['close']]) {
     await assert.rejects(t.ticket(t.dirOf(1), ...argv), /^Error: usage: ticket show\n/, argv.join(' '));
   }
   await assert.rejects(t.ticket(t.dirOf(1), 'comment', empty), /empty\.md is empty/);
@@ -474,7 +482,7 @@ test('a label or title change by Alex starts the lead; the GitHub integration mo
   assert.match(t.leads().at(-1).input, /ALE-1: Alex Example retitled it "Better name"/);
 });
 
-test('the runner unassigns Alex when the GitHub link assigned him, but never undoes a later ask', async () => {
+test('the assignee follows the open ask, not history: a GitHub-link assign under a live lead is undone, and an ask keeps Alex however history reads', async () => {
   const job = issue(1);
   const t = setup([job]);
   await t.run('--once');
@@ -486,12 +494,25 @@ test('the runner unassigns Alex when the GitHub link assigned him, but never und
   );
   job.assignee = ALEX;
   await t.run('--once');
-  assert.equal(job.assignee, null, 'the link\'s assign is undone');
+  assert.equal(job.assignee, null, 'no open ask and a live lead: the link\'s assign is undone');
   assert.equal(t.leads().length, 1, 'and is no event');
-  job.history.push({ createdAt: new Date(link + 5000).toISOString(), actor: { name: RUNNER }, toAssignee: { name: ALEX } });
+  // Review repro 1: the lead asks, but Linear has written no history for its assign yet.
   job.assignee = ALEX;
+  job.comments.push({ id: 'r1', body: '**Needs Alex:** A or B?', createdAt: later(), user: { name: RUNNER } });
   await t.run('--once');
-  assert.equal(job.assignee, ALEX, 'the lead\'s ask stands');
+  assert.equal(job.assignee, ALEX, 'an open ask keeps Alex with history lagging');
+  // Review repro 2: the runner's own assign lands inside the 2 s after a link entry.
+  const now = Date.now();
+  job.history.push(
+    { createdAt: new Date(now).toISOString(), botActor: { name: 'Linear' }, attachment: { sourceType: 'github' } },
+    { createdAt: new Date(now + 100).toISOString(), actor: { name: RUNNER }, toAssignee: { name: ALEX } },
+  );
+  await t.run('--once');
+  assert.equal(job.assignee, ALEX, 'an assign in the link window keeps Alex while the ask is open');
+  job.assignee = null;
+  job.history.push({ createdAt: later(), actor: { name: ALEX }, fromAssignee: { name: ALEX } });
+  await t.run('--once');
+  assert.equal(job.assignee, ALEX, 'an open ask puts Alex back');
 });
 
 test('an Alex label edit 1 s after an integration entry still counts', async () => {
@@ -962,21 +983,20 @@ test('--dry-run prints each move and writes nothing', async () => {
   assert.ok(!existsSync(t.config.worktreeRoot));
 });
 
-const ticket = (fields: Partial<Ticket>): Ticket => ({ state: 'started', assignee: null, description: '', createdAt: '2026-01-01T00:00:00Z', mine: [], children: [], events: [], ...fields });
-const cfg = { askAssignee: ALEX, runnerUser: RUNNER } as Config;
+const ticket = (fields: Partial<Ticket>): Ticket => ({ state: 'started', assignee: null, asking: false, description: '', createdAt: '2026-01-01T00:00:00Z', mine: [], children: [], events: [], ...fields });
 
-test('nextMove follows the model: start on an event, else wait while assigned to Alex, else ask', () => {
+test('nextMove follows the model: start on an event, else wait on an open ask, else ask', () => {
   const started = '2026-01-02T00:00:00Z';
   const event = { at: '2026-01-03T00:00:00Z', what: 'ALE-1: Alex Example commented: go with A' };
-  assert.equal(nextMove(cfg, ticket({}), started).kind, 'ask');
-  assert.equal(nextMove(cfg, ticket({ events: [{ ...event, at: '2026-01-01T00:00:00Z' }] }), started).kind, 'ask', 'an event before the start is seen');
-  assert.deepEqual(nextMove(cfg, ticket({ assignee: ALEX, events: [event] }), started), { kind: 'start', events: [event] }, 'an event may answer the ask');
-  assert.equal(nextMove(cfg, ticket({ assignee: ALEX }), started).kind, 'wait');
-  assert.equal(nextMove(cfg, ticket({ assignee: 'Someone else' }), started).kind, 'ask', 'only Alex assigned means waiting on him');
-  assert.equal(nextMove(cfg, ticket({ assignee: ALEX, events: [event] }), '2026-01-04T00:00:00Z').kind, 'wait', 'a failed attempt after the event has seen it');
-  assert.deepEqual(nextMove(cfg, ticket({ description: 'Do it.\n\nrunner-routine audit 2026-01-01T09:00:00.000Z' }), null), { kind: 'start', events: [{ at: '2026-01-01T00:00:00Z', what: 'A routine filed this ticket.' }] }, 'a routine ticket starts on its creation');
-  assert.deepEqual(nextMove(cfg, ticket({}), null), { kind: 'start', events: [{ at: '2026-01-01T00:00:00Z', what: 'The ticket was filed.' }] }, 'a ticket never started starts on its creation');
-  assert.equal(nextMove(cfg, ticket({}), started).kind, 'ask', 'its creation counts once');
+  assert.equal(nextMove(ticket({}), started).kind, 'ask');
+  assert.equal(nextMove(ticket({ events: [{ ...event, at: '2026-01-01T00:00:00Z' }] }), started).kind, 'ask', 'an event before the start is seen');
+  assert.deepEqual(nextMove(ticket({ asking: true, events: [event] }), started), { kind: 'start', events: [event] }, 'an event may answer the ask');
+  assert.equal(nextMove(ticket({ asking: true }), started).kind, 'wait');
+  assert.equal(nextMove(ticket({ assignee: ALEX }), started).kind, 'ask', 'an assignee alone is no open ask');
+  assert.equal(nextMove(ticket({ asking: true, events: [event] }), '2026-01-04T00:00:00Z').kind, 'wait', 'a failed attempt after the event has seen it');
+  assert.deepEqual(nextMove(ticket({ description: 'Do it.\n\nrunner-routine audit 2026-01-01T09:00:00.000Z' }), null), { kind: 'start', events: [{ at: '2026-01-01T00:00:00Z', what: 'A routine filed this ticket.' }] }, 'a routine ticket starts on its creation');
+  assert.deepEqual(nextMove(ticket({}), null), { kind: 'start', events: [{ at: '2026-01-01T00:00:00Z', what: 'The ticket was filed.' }] }, 'a ticket never started starts on its creation');
+  assert.equal(nextMove(ticket({}), started).kind, 'ask', 'its creation counts once');
 });
 
 const shells = ['sh', 'zsh'].filter((shell) => { try { execFileSync(shell, ['-c', 'true']); return true; } catch { return false; } });
