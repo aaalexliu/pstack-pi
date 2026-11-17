@@ -178,6 +178,12 @@ else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? J
         children: { nodes: issues.filter((c) => c.parent === i.id).map((c) => ({ id: c.id, identifier: c.identifier, title: c.title, state: { name: c.state }, assignee: c.assignee ? { name: c.assignee } : null })) },
       } });
     }
+    if (op === 'Label') return data({ issueLabels: { nodes: ['pstack-pi', 'Firstmate', 'Papercut'].includes(v.name) ? [{ id: `label-${v.name}`, team: { key: 'ALE' } }, { id: 'other-team', team: { key: 'OTH' } }] : [] } });
+    if (op === 'AddLabel') {
+      find(v.id).labels.push(v.label.slice(6));
+      find(v.id).history.push({ createdAt: new Date().toISOString(), actor: { name: RUNNER }, addedLabelIds: [v.label] });
+      return data({ issueAddLabel: { success: true } });
+    }
     if (op === 'Update') {
       // Like Linear, a move to a completed or canceled state stamps its time.
       if (v.input.stateId) find(v.id).state = v.input.stateId.slice(6);
@@ -1027,12 +1033,39 @@ test('the runner never files a Decision while its own Decision on the ticket is 
   assert.equal(t.decisions().length, 1);
 });
 
-test('an issue with no repo label is skipped with a comment and handed back', async () => {
+test('a ticket with no repo label starts a lead in a folder with no repo, keeps its delegate, and gets only the status comment', async () => {
   const job = issue(1, { labels: ['Papercut'] });
   const t = setup([job]);
   await t.run('--once');
-  assert.equal(job.delegate, null);
-  assert.match(job.comments[0].body, /No repo label.*pstack-pi, or map its label to a repo .* and restart the runner/);
+  assert.equal(job.delegate, RUNNER, 'the runner keeps the ticket');
+  assert.deepEqual(job.comments.map((c) => c.body.split('\n')[0]), ['**Runner:** Lead running']);
+  assert.equal(job.state, 'In Progress');
+  const neutral = path.join(t.config.worktreeRoot, 'job-ale-1');
+  const [lead] = t.leads();
+  assert.equal(lead.cwd, realpathSync(neutral));
+  assert.ok(!existsSync(path.join(neutral, '.git')), 'the folder is no worktree of any repo');
+  assert.match(lead.input, /\nNo repo label yet, so you run in a folder with no repo\. Repo labels: pstack-pi\. Review model: review-model\./);
+  assert.match(job.comments[0].body, /- Folder: `[^`]*job-ale-1`, with no repo until the lead adds a repo label\n/);
+  assert.match(job.comments[0].body, /Quiz a fork: `ssh -t test-host "mkdir -p [^`]*job-ale-1-quiz && cd /);
+});
+
+test('once the no-repo lead adds the repo label and exits, the next poll starts a lead in that repo\'s worktree with no new delegation', async () => {
+  const job = issue(1, { labels: [] });
+  const t = setup([job]);
+  await t.run('--once');
+  const neutral = path.join(t.config.worktreeRoot, 'job-ale-1');
+  await assert.rejects(t.ticket(neutral, 'label', 'Firstmate'), /"Firstmate" names no repo in the runner config; the repo labels are pstack-pi/);
+  assert.equal(await t.ticket(neutral, 'label', 'pstack-pi'), 'Labeled ALE-1 pstack-pi.');
+  assert.deepEqual(job.labels, ['pstack-pi']);
+  await t.run('--once');
+  const [, lead] = t.leads();
+  assert.equal(lead?.cwd, realpathSync(t.dirOf(1)), 'the second lead runs in the repo worktree');
+  assert.equal(git(t.dirOf(1), 'rev-parse', '--abbrev-ref', 'HEAD'), 'job/ale-1-job-number-1');
+  assert.match(lead.input, /\nBranch: job\/ale-1-job-number-1\. Base: main\. Review model: review-model\./);
+  assert.match(lead.input, /Events since your last start:\n- 2026-01-01T00:00:00Z The ticket was filed\.\n- 2026-01-01T00:00:01Z ALE-1: Alex Example delegated it to runner test\n\n/);
+  assert.notEqual(lead.session, t.leads()[0].session, 'a fresh session in the worktree');
+  assert.equal(t.decisions().length, 0);
+  assert.match(job.comments.find((c) => c.body.startsWith('**Runner:**'))!.body, /- Worktree: `[^`]*job-ale-1-job-number-1` on `job\/ale-1-job-number-1`/);
 });
 
 test('--dry-run prints each move and writes nothing', async () => {
