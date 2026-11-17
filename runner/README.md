@@ -1,6 +1,6 @@
 # Job runner
 
-The job runner starts a Pi lead for each Linear issue delegated to its app user that is in `Todo` or a started state and carries a repo label from the config, and wakes it on any event that is not its own. The lead does the rest: it builds, opens small PRs, gets each one reviewed by a separate Pi session, merges after CI, asks you through Decision issues, and closes the ticket. The runner is one TypeScript file with no dependencies. It is not part of the Pi package, and `npm pack` leaves it out.
+The job runner starts a Pi lead for each Linear issue delegated to its app user that is in `Todo` or a started state and carries a repo label from the config, and wakes it on any event that is not its own. The lead does the rest: it builds, opens small PRs, gets each one reviewed by a separate Pi session, merges after CI, asks you through Decision issues, and closes the ticket. The runner is one TypeScript file with no dependencies, plus two commands for leads: `screen-lock` and `ticket.ts`. It is not part of the Pi package, and `npm pack` leaves it out.
 
 ## What the runner does
 
@@ -95,7 +95,7 @@ A ticket marked Done or Canceled, or with its delegate cleared, is no longer the
 
 ### Decision issues
 
-A Decision issue is a sub-issue of the ticket assigned to `decisionAssignee`. The runner files its own with `parentId` in the one `issueCreate` call, so no crash can leave it unfindable, and finds them as open children. The lead files them the same way. A sub-issue assigned to anyone else does not block the ticket.
+A Decision issue is a sub-issue of the ticket assigned to `decisionAssignee`. The runner files its own with `parentId` in the one `issueCreate` call, so no crash can leave it unfindable, and finds them as open children. The lead files them with `ticket.ts decision`, which calls the same `fileDecision`. A sub-issue assigned to anyone else does not block the ticket.
 
 Closing a Decision issue, Done or Canceled, wakes the lead in the same Pi session. So does any other event while a Decision is still open, such as a comment on the Decision or the ticket: the lead judges whether it answers the Decision and closes the Decision if so. To stop the work instead, mark the ticket Done or Canceled, or clear its delegate.
 
@@ -105,7 +105,20 @@ The runner starts `pi --session-id <uuid> @.runner/input.md` with [prompts/lead.
 
 The lead splits the work into units it can verify alone. It builds a unit itself or hands it to a sub-lead: it makes a worktree and branch, then calls `subagent` with the bundled [`sub-lead`](../additions/agents/sub-lead.md) agent, that path as `cwd`, and its own model. The sub-lead follows this prompt's Build, PRs and merge gate sections for its unit and opens its own PR. It exits when its turn ends, so it blocks on every wait, and the lead checks the unit's PR merged, resuming the sub-lead with `subagent_resume` if not. That is two levels at most, enforced by Pi, not only the prompt. A `sub-lead` child gets `PI_DENY_TOOLS` with every spawning tool; a `pi -p` it runs from bash inherits it. [tests/pi/depth.test.mjs](../tests/pi/depth.test.mjs) proves this in a real Pi. A child that clears those variables on purpose could still start a full Pi; only the prompt stops that. The lead stays in the ticket's repo, except that an agent-tooling ticket may touch pstack-pi, agent-memory, agent-orchestration and dotfiles.
 
-The launch script drops every `PI_*` and `PSTACK_*` variable the tmux server holds from another session, digits in names included, keeping only `PI_AUTH_PROFILE` and `PI_CODING_AGENT_DIR`. It runs `linearTokenCommand` itself and exports the token as `LINEAR_TOKEN`, so the token never lands on disk and the lead posts to Linear as the runner's app user. With `ghTokenCommand` set, it exports `GH_TOKEN` the same way; otherwise `gh` uses the host's login. It mirrors the unsets and exports into the tmux session with `tmux set-environment`, so windows the lead's subagents open get the same environment. The lead calls Linear's GraphQL API with `curl`, and GitHub with `gh`; the prompt forbids `gh auth switch`, `gh auth login` and `gh auth setup-git`.
+The launch script drops every `PI_*` and `PSTACK_*` variable the tmux server holds from another session, digits in names included, keeping only `PI_AUTH_PROFILE`, `PI_CODING_AGENT_DIR` and, when set, `JOB_RUNNER_CONFIG`. It runs `linearTokenCommand` itself and exports the token as `LINEAR_TOKEN`, so the token never lands on disk and the lead posts to Linear as the runner's app user. With `ghTokenCommand` set, it exports `GH_TOKEN` the same way; otherwise `gh` uses the host's login. It mirrors the unsets and exports into the tmux session with `tmux set-environment`, so windows the lead's subagents open get the same environment. The lead reaches Linear through `runner/ticket.ts`, and GitHub with `gh`; the prompt forbids `gh auth switch`, `gh auth login` and `gh auth setup-git`.
+
+### The ticket command
+
+The lead reaches Linear only through [ticket.ts](ticket.ts), run in its worktree:
+
+```text
+ticket.ts show                        the ticket, its sub-issues, and its comments oldest first, in local time
+ticket.ts comment <file>              post a comment on the ticket
+ticket.ts done [KEY]                  move the ticket, or one of its sub-issues, to Done
+ticket.ts decision "<title>" <file>   file a Decision issue: a sub-issue assigned to decisionAssignee
+```
+
+It finds its ticket in `.runner/work.json`, which the launch writes, in the folder it runs in or the nearest one above. It reads the runner's config and calls Linear through the runner's own client, so it shares the token command, the 429 wait and `fileDecision`. A `<file>` of `-` reads standard input. It checks its arguments and file before it calls Linear, and a usage error exits 64. The fake-Linear tests in `runner.test.ts` cover each command.
 
 ### The merge gate lives in the lead prompt
 
@@ -293,9 +306,9 @@ A file path with no folder is in `<worktree>/.runner/`.
 
 | Mechanism | Where | Paid for by | Fired |
 | --- | --- | --- | --- |
-| `JOB_RUNNER_CONFIG`: the config file | `loadConfig` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61) | Log does not show it |
+| `JOB_RUNNER_CONFIG`: the config file | `configFile`, `loadConfig`, `ticket` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61) | Log does not show it |
 | `JOB_RUNNER_PI`, `JOB_RUNNER_TMUX`, `JOB_RUNNER_MEMORY_PRESSURE`: stand-in binaries | `bin` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61): the tests | Tests only |
-| `PI_AUTH_PROFILE`, `PI_CODING_AGENT_DIR`: the two Pi variables a lead keeps | `KEEP_ENV`, `envScript`, `agentDir` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68) | Log does not show it |
+| `PI_AUTH_PROFILE`, `PI_CODING_AGENT_DIR`, `JOB_RUNNER_CONFIG`: the variables a lead keeps | `KEEP_ENV`, `envScript`, `agentDir` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68); `JOB_RUNNER_CONFIG` so `ticket.ts` reads the runner's config | Log does not show it |
 | `--dry-run` | `main`, `poll` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61) | Log does not show it |
 | `--once` | `main` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61) | Log does not show it |
 | Ticket line `Lead model:` or `Implement model:` | `workFor` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61), [#68](https://github.com/aaalexliu/pstack-pi/pull/68) | Log does not show it |
