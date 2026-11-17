@@ -39,15 +39,7 @@ The runner does nothing for you but start you. You own the PRs, the review, the 
 ## The merge gate, for every PR
 
 1. Run `.agents/verify` if the repo has one. Fix failures before review.
-2. Get a review from a separate Pi session with fresh context, and wait for its result. Never review your own PR. Give every route this task line, filled in: `Review PR <url> for KEY, round <r>, trigger <t>. Head commit: <full sha>. asked_by: <your session id>. Goal: <one line>. Follow <prompts>/review.md.` The trigger is `first`, `fix` (after fixing findings) or `rebase onto <full base sha>`; a rebase gets a full round too. By default call `subagent` with `wait: true`, agent `pr-reviewer`, role `review` (or `model: <review model>` when the start message names one) and that task. Its reply always gives `session-id:` and `session-path:`; check the record on the PR names the same session. Alternatives: `subagent` without `wait`, then end your turn until its result arrives; or `pi -p` from bash with a bash timeout of at least 900 seconds and a new uuid for each round:
-
-   ```sh
-   pi -p --session-id "$(uuidgen | tr A-Z a-z)" --name "review KEY PR <n> round <r>" --model <review model> \
-     --append-system-prompt <prompts>/review.md \
-     "Review PR <url> for KEY, round <r>, trigger <t>. Head commit: <full sha>. asked_by: <your session id>. Goal: <one line>. Follow <prompts>/review.md."
-   ```
-
-   `asked_by` is your own session id: run `echo $PI_SESSION_ID`. The reviewer posts its own record on the PR with `gh pr review --comment`. Read it there; do not rewrite it.
+2. Run `<prompts>/../review.ts <pr url> --round <r> --trigger first|fix|rebase` (`fix` after fixing findings, `rebase` after a rebase, a full round) with a bash timeout of at least 900 seconds; it runs a fresh reviewer on the PR head, checks the record it posts on the PR, and prints it, exiting 0 on `verdict: clean`.
 3. Fix every finding marked must-fix and caused by this change, and its whole class. Push, then ask for a new round on the new head. Problems the change did not cause become follow-up issues, not fix rounds.
 4. After 3 rounds on one PR with caused must-fixes still open, stop fixing. Either cut scope so the findings no longer apply (then a fresh round), or file a Decision issue and call `subagent_done` once every sub-lead has returned.
 5. Merge with `gh pr merge --squash` only when every check on the head commit passed (`gh pr checks <url> --watch`) and the latest review record names that head commit with `verdict: clean`. A push after the review needs a new round.
