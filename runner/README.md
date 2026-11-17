@@ -62,7 +62,7 @@ each pass, per open ticket delegated to runnerUser (Todo, or a started state suc
 order: the ticket whose oldest unseen event is oldest goes first
 ```
 
-The start rule reads one fact per ticket: when the runner last tried to start the lead. In all the runner keeps 27 facts: 13 files, 1 tmux option, 4 marks in Linear and 9 in memory; the [mechanism ledger](#mechanism-ledger) lists them. A start that works is kept in `<worktree>/.runner/started`, which the heartbeat also counts from. A start that fails is kept in `<worktreeRoot>/.attempts/KEY`, never inside a folder the runner may have refused. Events before the last attempt are seen, so only a new event retries a failed start. The runner never files a second Decision issue while its own (titled `Decision for KEY: ...`) is open. A ticket a routine filed counts its creation as an event, since the runner made it on your schedule.
+The start rule reads one fact per ticket: when the runner last tried to start the lead. In all the runner keeps 26 facts: 12 files, 1 tmux option, 4 marks in Linear and 9 in memory; the [mechanism ledger](#mechanism-ledger) lists them. A start that works is kept in `<worktree>/.runner/started`, which the heartbeat also counts from. A start that fails is kept in `<worktreeRoot>/.attempts/KEY`, never inside a folder the runner may have refused. Events before the last attempt are seen, so only a new event retries a failed start. The runner never files a second Decision issue while its own (titled `Decision for KEY: ...`) is open. A ticket a routine filed counts its creation as an event, since the runner made it on your schedule.
 
 The runner moves a `Todo` ticket to `In Progress` before it records the start. That move is the runner's own, so it is no event: a crash before the start is recorded starts the lead once more on the same events, never in a loop.
 
@@ -185,7 +185,7 @@ The first label that names a repo in the config picks the repo. With no such lab
 
 ## Mechanism ledger
 
-Every mechanism in `runner.ts` and `routines.ts`: 22 writes and processes, 27 facts, 18 config fields, 9 other inputs and 16 timers. [ledger.test.ts](ledger.test.ts) fails when the ledger misses a config field, a state file, a Linear mutation or a tmux command the code has, or names a config field or function the code no longer has. It cannot check the timers, the "Paid for by" column or the "Fired" column; a person fills those in.
+Every mechanism in `runner.ts` and `routines.ts`: 22 writes and processes, 26 facts, 18 config fields, 9 other inputs and 15 timers. [ledger.test.ts](ledger.test.ts) fails when the ledger misses a config field, a state file, a Linear mutation or a tmux command the code has, or names a config field or function the code no longer has. It cannot check the timers, the "Paid for by" column or the "Fired" column; a person fills those in.
 
 The last column counts fires on the one live host from 2026-11-14 to 2026-11-17 10:00 EST. It has three sources:
 
@@ -240,7 +240,6 @@ A file path with no folder is in `<worktree>/.runner/`.
 | `held`: `lead.sh` renames `takeover` to it while the second `pi` runs | `launch`, `checkStall`, `reapClosed` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68), [#78](https://github.com/aaalexliu/pstack-pi/pull/78). None found | In 0 worktrees. Log does not show past use |
 | `<worktreeRoot>/.attempts/KEY`: when a start last failed | `poll`, `attemptFile`, `lastAttempt` | [#109](https://github.com/aaalexliu/pstack-pi/pull/109): 62 Decisions in 26 minutes. [#107](https://github.com/aaalexliu/pstack-pi/pull/107) moved it out of the worktree | 0. The folder does not exist |
 | `<worktreeRoot>/running.json`: the live leads, for other leads | `writeRunning`, `runningEntry` | [#108](https://github.com/aaalexliu/pstack-pi/pull/108): two screen tickets could not run at once | Rewritten each pass and heartbeat. It lists 0 leads now |
-| `<worktreeRoot>/screen.lock`: leads make it; the runner only removes a stale one | `writeRunning`, `screenLock` | [#108](https://github.com/aaalexliu/pstack-pi/pull/108) | Log does not show it. Not there now |
 | tmux option `@job-runner`: marks a session the runner made | `launch`, `reapClosed`, `serve` | [#78](https://github.com/aaalexliu/pstack-pi/pull/78) | Each start since [#78](https://github.com/aaalexliu/pstack-pi/pull/78) |
 | Linear: the status comment, found by its `**Runner:**` start | `status`, `statusComment` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68) | Log does not show it |
 | Linear: the runner's own 👀 means "reacted" | `react`, `eventsOf` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110) | Log does not show it |
@@ -310,7 +309,6 @@ A file path with no folder is in `<worktree>/.runner/`.
 | Webhook timestamp window: 60 s | `serve` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110): the endpoint is public, so a replay must fail | Log does not show it |
 | Linear 429: wait `Retry-After` or 60 s, then try again, with no limit | `gql` | [#107](https://github.com/aaalexliu/pstack-pi/pull/107) | 0 "rate limit hit" lines |
 | A state or assignee change within 2 s after an integration's link is the integration's | `eventsOf` | [#107](https://github.com/aaalexliu/pstack-pi/pull/107): an opened PR looked like a person's move | Log does not show it |
-| A `screen.lock` with no owner file is stale after 60 s | `writeRunning` | [#108](https://github.com/aaalexliu/pstack-pi/pull/108) | Log does not show it |
 | Routine Linear call and token command: 30 s limit | `createDueRoutines` | [#70](https://github.com/aaalexliu/pstack-pi/pull/70) | 0 |
 | Routine schedule: `daily HH:MM`, `weekly Mon HH:MM` | `parseSchedule`, `lastDue` | [#70](https://github.com/aaalexliu/pstack-pi/pull/70) | 0 |
 | A failed pass waits for the next pass | `poll`, `main` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61) | 0 "failed" lines |
