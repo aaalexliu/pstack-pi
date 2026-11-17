@@ -5,7 +5,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createDueRoutines, lastDue, parseSchedule, ROUTINE_MARK, type Routine } from './routines.ts';
+import { createDueRoutines, parseSchedule, ROUTINE_MARK, type Routine } from './routines.ts';
 
 export type Repo = { path: string; base: string };
 export type Config = {
@@ -23,8 +23,6 @@ export type Config = {
   webhookSecretCommand?: string;
   /** The local port the webhook listens on, at `/linear`. Default 8787. */
   webhookPort: number;
-  /** With a webhook, the backup poll: `every 10m`, `every 1h`, `daily HH:MM` or `weekly Mon HH:MM`. Default `every 10m`. */
-  auditPoll: string;
   maxLeads: number;
   minFreeMemoryPercent: number;
   stallMinutes: number;
@@ -105,18 +103,7 @@ export function loadConfig(file: string): Config {
   }
   if (!raw.models.lead || !raw.models.review) throw new Error(`${file}: "models" needs "lead" and "review"`);
   for (const r of raw.routines ?? []) parseSchedule(r.schedule);
-  auditDelay(raw.auditPoll ?? 'every 10m', new Date());
-  return { thinking: 'high', pollSeconds: 30, webhookPort: 8787, auditPoll: 'every 10m', maxLeads: 2, minFreeMemoryPercent: 20, stallMinutes: 5, toolQuietMinutes: 60, host: os.hostname().replace(/\.local$/, ''), ...raw };
-}
-
-/** Milliseconds from `now` to the next backup poll: `every <n>m`, `every <n>h`, or a routine schedule such as `daily 06:00`. */
-export function auditDelay(schedule: string, now: Date): number {
-  const every = /^every ([1-9]\d*)(m|h)$/.exec(schedule);
-  if (every) return Number(every[1]) * (every[2] === 'm' ? 60_000 : 3_600_000);
-  if (!/^(daily|weekly) /.test(schedule)) throw new Error(`Bad auditPoll "${schedule}": use "every 10m", "every 1h", "daily HH:MM" or "weekly Mon HH:MM"`);
-  const next = lastDue(schedule, now);
-  next.setDate(next.getDate() + (schedule.startsWith('weekly') ? 7 : 1));
-  return next.getTime() - now.getTime();
+  return { thinking: 'high', pollSeconds: 30, webhookPort: 8787, maxLeads: 2, minFreeMemoryPercent: 20, stallMinutes: 5, toolQuietMinutes: 60, host: os.hostname().replace(/\.local$/, ''), ...raw };
 }
 
 function run(cmd: string, args: string[], cwd: string): Promise<{ code: number; out: string }> {
@@ -857,7 +844,7 @@ function issueOf(payload: { type?: string; data?: { id?: string; issueId?: strin
 
 /**
  * Runs the runner with a Linear webhook: a server on 127.0.0.1 at `/linear`, a 30 s heartbeat for live leads that
- * makes no Linear calls, and a backup poll on `auditPoll`. All Linear work runs one pass at a time.
+ * makes no Linear calls, and a backup poll every 10 minutes. All Linear work runs one pass at a time.
  * It answers a valid delivery with 200 before it acts, since Linear waits at most 5 s.
  */
 export async function serve(config: Config, fetchFn: typeof fetch, secret: string, port = config.webhookPort) {
@@ -935,13 +922,13 @@ export async function main(argv: string[], config: Config, fetchFn: typeof fetch
     const secret = await must('/bin/sh', ['-c', config.webhookSecretCommand], process.cwd());
     if (!secret) throw new Error('webhookSecretCommand printed nothing');
     const runner = await serve(config, fetchFn, secret);
-    console.log(`Listening for Linear webhooks on 127.0.0.1:${runner.port}/linear; backup poll ${config.auditPoll}`);
+    console.log(`Listening for Linear webhooks on 127.0.0.1:${runner.port}/linear; backup poll every 10m`);
     setInterval(() => void runner.heartbeat(), 30_000);
     // Routines keep their own timer: the ticket a routine files then starts through its webhook.
     void (async () => { for (;;) { await createDueRoutines(config, fetchFn); await sleep(config.pollSeconds * 1000); } })();
     for (;;) {
       await runner.audit();
-      await sleep(auditDelay(config.auditPoll, new Date()));
+      await sleep(600_000);
     }
   }
   let said = new Set<string>();

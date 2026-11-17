@@ -13,7 +13,6 @@
   "pollSeconds": 30,
   "webhookSecretCommand": "security find-generic-password -s linear-runner-webhook -w",
   "webhookPort": 8787,
-  "auditPoll": "every 10m",
   "maxLeads": 2,
   "minFreeMemoryPercent": 20,
   "stallMinutes": 5,

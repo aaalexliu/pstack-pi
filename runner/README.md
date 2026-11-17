@@ -25,12 +25,12 @@ Linear webhook (Issue, Comment) -> POST 127.0.0.1:8787/linear
     not a ticket delegated to runnerUser                  -> nothing
     else the per-ticket read and event rule below, for that ticket only
     lead running -> pass the event to it
-backup poll on auditPoll (default every 10m): the same rule for every ticket, plus
+backup poll every 10 minutes: the same rule for every ticket, plus
   "missed: KEY <time> <event>" for each event no webhook had delivered
 heartbeat every 30 s: the stall check on live leads, running.json and the stale screen lock; no Linear calls unless it nudges
 ```
 
-All passes run one at a time. Linear retries a failed delivery after 1 minute, 1 hour and 6 hours, and the runner skips a delivery id it already handled. Every pass is idempotent anyway: it starts a lead only on events since the last start. Linear sends a label added to or removed from an issue as an Issue update; its IssueLabel events are about the label itself and carry no issue, so the runner ignores them. If "missed:" lines stay rare, set `auditPoll` slower, such as `every 1h` or `daily 06:00`. An event from before the runner started is never called missed.
+All passes run one at a time. Linear retries a failed delivery after 1 minute, 1 hour and 6 hours, and the runner skips a delivery id it already handled. Every pass is idempotent anyway: it starts a lead only on events since the last start. Linear sends a label added to or removed from an issue as an Issue update; its IssueLabel events are about the label itself and carry no issue, so the runner ignores them. An event from before the runner started is never called missed.
 
 With no `webhookSecretCommand`, the runner runs no server and polls every `pollSeconds`, stall check included, as before.
 
@@ -185,7 +185,7 @@ The first label that names a repo in the config picks the repo. With no such lab
 
 ## Mechanism ledger
 
-Every mechanism in `runner.ts` and `routines.ts`: 22 writes and processes, 29 facts, 19 config fields, 9 other inputs and 17 timers. [ledger.test.ts](ledger.test.ts) fails when the ledger misses a config field, a state file, a Linear mutation or a tmux command the code has, or names a config field or function the code no longer has. It cannot check the timers, the "Paid for by" column or the "Fired" column; a person fills those in.
+Every mechanism in `runner.ts` and `routines.ts`: 22 writes and processes, 29 facts, 18 config fields, 9 other inputs and 17 timers. [ledger.test.ts](ledger.test.ts) fails when the ledger misses a config field, a state file, a Linear mutation or a tmux command the code has, or names a config field or function the code no longer has. It cannot check the timers, the "Paid for by" column or the "Fired" column; a person fills those in.
 
 The last column counts fires on the one live host from 2026-11-14 to 2026-11-17 10:00 EST. It has three sources:
 
@@ -275,7 +275,6 @@ A file path with no folder is in `<worktree>/.runner/`.
 | `pollSeconds` | `main` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61) | 30, the default |
 | `webhookSecretCommand` | `main` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110) | Set. Webhook mode since 2026-11-17 |
 | `webhookPort` | `serve` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110) | Not set; default 8787 |
-| `auditPoll` | `auditDelay`, `main` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110) | Not set; default `every 10m` |
 | `maxLeads` | `startBlock`, `poll` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68) | 20. It blocked 0 starts in the log |
 | `minFreeMemoryPercent` | `startBlock`, `poll` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68) | 20, the default. It blocked 0 starts in the log |
 | `stallMinutes` | `checkStall` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68). [#105](https://github.com/aaalexliu/pstack-pi/pull/105) cut the default to 5 | 5, the default. 1 nudge |
@@ -305,7 +304,7 @@ A file path with no folder is in `<worktree>/.runner/`.
 | Poll every `pollSeconds`, with no webhook | `main` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61) | Ran until 2026-11-17 09:56 EST. Passes: log does not show it |
 | Routine check every `pollSeconds` | `main`, `createDueRoutines` | [#70](https://github.com/aaalexliu/pstack-pi/pull/70) | Runs; 0 routines to file |
 | Heartbeat every 30 s, with a webhook | `main`, `serve` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110) | Since 2026-11-17 09:56 EST. Log does not show it |
-| Backup poll on `auditPoll`: `every <n>m`, `every <n>h`, `daily HH:MM`, `weekly Mon HH:MM` | `auditDelay`, `main` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110). None found | Every 10 minutes for 10 minutes; 0 "missed:" lines. `daily` and `weekly`: 0 |
+| Backup poll every 10 minutes, with a webhook | `main`, `serve` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110). None found | Every 10 minutes for 10 minutes; 0 "missed:" lines |
 | Quiet limit while idle: `stallMinutes` | `checkStall`, `heartbeat` | [#105](https://github.com/aaalexliu/pstack-pi/pull/105): a lead sat idle for 21 hours | 1 nudge |
 | Quiet limit while busy: `toolQuietMinutes` | `checkStall`, `heartbeat` | [#105](https://github.com/aaalexliu/pstack-pi/pull/105) | 0 |
 | 500 ms between Escape and the nudge | `checkStall` | [#105](https://github.com/aaalexliu/pstack-pi/pull/105) | 1 |
@@ -339,7 +338,6 @@ The runner reads `~/.config/job-runner/config.json`, or the file named by `JOB_R
 | `pollSeconds` | Seconds between polls with no webhook, and between routine checks. Default 30 |
 | `webhookSecretCommand` | Optional. A shell command that prints the Linear webhook signing secret, such as `security find-generic-password -s linear-runner-webhook -w`. Without it the runner polls every `pollSeconds` |
 | `webhookPort` | The port on 127.0.0.1 the webhook listens on, at `/linear`. Default 8787 |
-| `auditPoll` | With a webhook, when the backup poll runs: `every 10m`, `every 1h` (any `every <n>m` or `every <n>h`), `daily HH:MM` or `weekly Mon HH:MM`. Default `every 10m` |
 | `maxLeads` | Leads that run at once. Default 2 |
 | `minFreeMemoryPercent` | No lead starts while less memory than this is free. Default 20 |
 | `stallMinutes` | Minutes with no session log write, while the lead is idle, before the runner nudges it. Default 5 |

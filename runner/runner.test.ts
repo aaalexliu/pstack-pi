@@ -6,7 +6,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { format } from 'node:util';
 import { createHmac } from 'node:crypto';
-import { auditDelay, commands, main, nextMove, put, renderStatus, serve, signed, startBlock, type Child, type Config, type Ticket } from './runner.ts';
+import { commands, main, nextMove, put, renderStatus, serve, signed, startBlock, type Child, type Config, type Ticket } from './runner.ts';
 
 type FakeComment = { id: string; body: string; url?: string; createdAt: string; user: { name: string } | null; botActor?: { name: string } | null; parentId?: string; reactions?: { emoji: string; user: { name: string } }[] };
 /** A history entry: who changed what. Linear returns every field the query names, null when unset. */
@@ -95,7 +95,7 @@ else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? J
   const config: Config = {
     linearTokenCommand: `cat ${file('token')}`, team: 'ALE', runnerUser: RUNNER, decisionAssignee: ALEX,
     repos: { 'pstack-pi': { path: repo, base: 'main' } },
-    models: { lead: 'lead-model', review: 'review-model' }, thinking: 'high', pollSeconds: 0.01, webhookPort: 0, auditPoll: 'every 10m', maxLeads: options.maxLeads ?? 2,
+    models: { lead: 'lead-model', review: 'review-model' }, thinking: 'high', pollSeconds: 0.01, webhookPort: 0, maxLeads: options.maxLeads ?? 2,
     minFreeMemoryPercent: 20, stallMinutes: options.stallMinutes ?? 30, toolQuietMinutes: 60, host: 'test-host', worktreeRoot: file('worktrees'),
     ...(options.ghTokenCommand ? { ghTokenCommand: options.ghTokenCommand } : {}),
   };
@@ -966,15 +966,6 @@ test('with no webhook secret the runner polls as before and still puts one 👀 
   assert.equal(t.leads().length, 2);
   assert.equal(job.comments.find((c) => c.id === 'c1')!.reactions!.length, 1);
   assert.ok(!t.printed.logs.some((l) => l.startsWith('missed:')));
-});
-
-test('auditPoll takes every Nm, every Nh, daily and weekly', () => {
-  const now = new Date(2026, 0, 5, 5, 0);
-  assert.equal(auditDelay('every 10m', now), 600_000);
-  assert.equal(auditDelay('every 1h', now), 3_600_000);
-  assert.equal(auditDelay('daily 06:00', now), 3_600_000);
-  assert.equal(auditDelay('daily 04:00', now), 23 * 3_600_000);
-  assert.throws(() => auditDelay('hourly', now), /Bad auditPoll/);
 });
 
 test('a client that sends part of a body and drops the socket does not stop the webhook', async () => {
