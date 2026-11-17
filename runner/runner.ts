@@ -806,7 +806,7 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void, opts
     const w = workFor(config, issue);
     if (!w) {
       if (dryRun) { console.log(`${issue.identifier}: no repo label`); continue; }
-      await linear.comment(issue.id, `No repo label, so the runner skipped this. Add one of ${Object.keys(config.repos).join(', ')} and delegate it again.`);
+      await linear.comment(issue.id, `No repo label, so the runner skipped this. Add one of ${Object.keys(config.repos).join(', ')}, or map its label to a repo under "repos" in the runner config and restart the runner, then delegate it again.`);
       await linear.clearDelegate(issue.id);
       continue;
     }
