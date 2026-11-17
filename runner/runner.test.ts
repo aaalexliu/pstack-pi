@@ -75,7 +75,9 @@ fs.appendFileSync(${JSON.stringify(file('pi.log'))}, JSON.stringify({
   piVars: Object.keys(process.env).filter((k) => /^(PI|PSTACK|CMUX)_/.test(k)).sort(),
 }) + '\\n');
 `, { mode: 0o755 });
-  // Fake tmux: runs a new session to completion. live.json names a lead that is still running.
+  // Fake tmux: runs a new session to completion. live.json names a lead that is still running. paths.json keeps the
+  // folder each session started in; a session a test made live by hand is in its ticket's usual worktree. Like tmux
+  // with no UTF-8 locale, as under launchd, list-sessions prints each control character as `_`.
   writeFileSync(file('tmux'), `#!/usr/bin/env node
 const fs = require('node:fs');
 const { execFileSync } = require('node:child_process');
@@ -83,13 +85,15 @@ const args = process.argv.slice(2);
 fs.appendFileSync(${JSON.stringify(file('tmux.log'))}, JSON.stringify(args) + '\\n');
 const liveFile = ${JSON.stringify(file('live.json'))};
 const tagsFile = ${JSON.stringify(file('tags.json'))};
+const pathsFile = ${JSON.stringify(file('paths.json'))};
+const paths = fs.existsSync(pathsFile) ? JSON.parse(fs.readFileSync(pathsFile, 'utf8')) : {};
 const live = fs.existsSync(liveFile) ? JSON.parse(fs.readFileSync(liveFile, 'utf8')) : [];
 const target = args[args.indexOf('-t') + 1]?.replace(/^=|:$/g, '');
-if (args[0] === 'new-session') { if (fs.existsSync(liveFile.replace(/live\.json$/, 'live-on-start'))) fs.writeFileSync(liveFile, JSON.stringify([...live, args[args.indexOf('-s') + 1]])); try { execFileSync('sh', ['-c', args.at(-1)], { cwd: args[args.indexOf('-c') + 1], stdio: 'ignore' }); } catch {} }
+if (args[0] === 'new-session') { fs.writeFileSync(pathsFile, JSON.stringify({ ...paths, [args[args.indexOf('-s') + 1]]: args[args.indexOf('-c') + 1] })); if (fs.existsSync(liveFile.replace(/live\.json$/, 'live-on-start'))) fs.writeFileSync(liveFile, JSON.stringify([...live, args[args.indexOf('-s') + 1]])); try { execFileSync('sh', ['-c', args.at(-1)], { cwd: args[args.indexOf('-c') + 1], stdio: 'ignore' }); } catch {} }
 else if (args[0] === 'has-session') process.exit(live.includes(target) ? 0 : 1);
 else if (args[0] === 'kill-session') { if (!live.includes(target)) process.exit(1); fs.writeFileSync(liveFile, JSON.stringify(live.filter((k) => k !== target))); }
 else if (args[0] === 'set-option') { if (!/^=.+:$/.test(args[args.indexOf('-t') + 1] ?? '') || fs.existsSync(tagsFile + '.fail')) { console.error('no such session'); process.exit(1); } const tags = fs.existsSync(tagsFile) ? JSON.parse(fs.readFileSync(tagsFile, 'utf8')) : {}; fs.writeFileSync(tagsFile, JSON.stringify({ ...tags, [target]: args.at(-1) })); }
-else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? JSON.parse(fs.readFileSync(tagsFile, 'utf8')) : {}; console.log(live.map((k) => k + ' ' + (tags[k] ?? '')).join('\\n')); }
+else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? JSON.parse(fs.readFileSync(tagsFile, 'utf8')) : {}; const fields = { session_name: (k) => k, '@job-runner': (k) => tags[k] ?? '', session_path: (k) => paths[k] ?? ${JSON.stringify(file('worktrees'))} + '/job-' + k.toLowerCase() + '-job-number-' + k.slice(4) }; console.log(live.map((k) => args[args.indexOf('-F') + 1].replace(/#\\{([^}]+)\\}/g, (_, name) => fields[name](k)).replace(/[\\x00-\\x1f]/g, '_')).join('\\n')); }
 `, { mode: 0o755 });
   writeFileSync(file('memory_pressure'), `#!/bin/sh\necho "System-wide memory free percentage: $(cat ${JSON.stringify(file('free'))} 2>/dev/null || echo 60)%"\n`, { mode: 0o755 });
   Object.assign(process.env, {
@@ -174,6 +178,12 @@ else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? J
         comments: { nodes: newest.slice(0, 50).map((c) => ({ createdAt: c.createdAt, body: c.body, user: c.user, botActor: c.botActor ?? null })), pageInfo: { hasNextPage: newest.length > 50 } },
         children: { nodes: issues.filter((c) => c.parent === i.id).map((c) => ({ id: c.id, identifier: c.identifier, title: c.title, state: { name: c.state }, assignee: c.assignee ? { name: c.assignee } : null })) },
       } });
+    }
+    if (op === 'Label') return data({ issueLabels: { nodes: ['pstack-pi', 'Firstmate', 'Papercut'].includes(v.name) ? [{ id: `label-${v.name}`, team: { key: 'ALE' } }, { id: 'other-team', team: { key: 'OTH' } }] : [] } });
+    if (op === 'AddLabel') {
+      find(v.id).labels.push(v.label.slice(6));
+      find(v.id).history.push({ createdAt: new Date().toISOString(), actor: { name: RUNNER }, addedLabelIds: [v.label] });
+      return data({ issueAddLabel: { success: true } });
     }
     if (op === 'Update') {
       // Like Linear, a move to a completed or canceled state stamps its time.
@@ -958,6 +968,8 @@ test('readState reads the start an older runner kept, and rejects a state it can
   }
   put(path.join(root, '.state', 'ALE-1.json'), '{"seen":"2026-01-02T00:00:00Z","stall":{"nudgedAt":5}}');
   assert.deepEqual(readState(config, w), { seen: '2026-01-02T00:00:00Z', stall: { nudgedAt: 5 } });
+  put(path.join(root, '.state', 'ALE-1.json'), JSON.stringify({ seen: '2026-01-02T00:00:00Z', dir: path.join(root, 'job-ale-1') }));
+  assert.equal(readState(config, w), null, 'a lead that ran in another folder, such as one with no repo, is not this folder\'s lead');
 });
 
 test('a lead running under the old files keeps working: its old start counts, and its next start moves to the state file', async () => {
@@ -1021,12 +1033,54 @@ test('the runner never files a Decision while its own Decision on the ticket is 
   assert.equal(t.decisions().length, 1);
 });
 
-test('an issue with no repo label is skipped with a comment and handed back', async () => {
+test('a ticket with no repo label starts a lead in a folder with no repo, keeps its delegate, and gets only the status comment', async () => {
   const job = issue(1, { labels: ['Papercut'] });
   const t = setup([job]);
   await t.run('--once');
-  assert.equal(job.delegate, null);
-  assert.match(job.comments[0].body, /No repo label.*pstack-pi, or map its label to a repo .* and restart the runner/);
+  assert.equal(job.delegate, RUNNER, 'the runner keeps the ticket');
+  assert.deepEqual(job.comments.map((c) => c.body.split('\n')[0]), ['**Runner:** Lead running']);
+  assert.equal(job.state, 'In Progress');
+  const neutral = path.join(t.config.worktreeRoot, 'job-ale-1');
+  const [lead] = t.leads();
+  assert.equal(lead.cwd, realpathSync(neutral));
+  assert.ok(!existsSync(path.join(neutral, '.git')), 'the folder is no worktree of any repo');
+  assert.match(lead.input, /\nNo repo label yet, so you run in a folder with no repo\. Repo labels: pstack-pi\. Review model: review-model\./);
+  assert.match(job.comments[0].body, /- Folder: `[^`]*job-ale-1`, with no repo until the lead adds a repo label\n/);
+});
+
+test('once the no-repo lead adds the repo label and exits, the next poll starts a lead in that repo\'s worktree with no new delegation', async () => {
+  const job = issue(1, { labels: [] });
+  const t = setup([job]);
+  await t.run('--once');
+  const neutral = path.join(t.config.worktreeRoot, 'job-ale-1');
+  await assert.rejects(t.ticket(neutral, 'label', 'Firstmate'), /"Firstmate" names no repo in the runner config; the repo labels are pstack-pi/);
+  assert.equal(await t.ticket(neutral, 'label', 'pstack-pi'), 'Labeled ALE-1 pstack-pi.');
+  assert.deepEqual(job.labels, ['pstack-pi']);
+  await t.run('--once');
+  const [, lead] = t.leads();
+  assert.equal(lead?.cwd, realpathSync(t.dirOf(1)), 'the second lead runs in the repo worktree');
+  assert.equal(git(t.dirOf(1), 'rev-parse', '--abbrev-ref', 'HEAD'), 'job/ale-1-job-number-1');
+  assert.match(lead.input, /\nBranch: job\/ale-1-job-number-1\. Base: main\. Review model: review-model\./);
+  assert.match(lead.input, /Events since your last start:\n- 2026-01-01T00:00:00Z The ticket was filed\.\n- 2026-01-01T00:00:01Z ALE-1: Alex Example delegated it to runner test\n\n/);
+  assert.notEqual(lead.session, t.leads()[0].session, 'a fresh session in the worktree');
+  assert.equal(t.decisions().length, 0);
+  assert.match(job.comments.find((c) => c.body.startsWith('**Runner:**'))!.body, /- Worktree: `[^`]*job-ale-1-job-number-1` on `job\/ale-1-job-number-1`/);
+  job.comments.push({ id: 'c1', body: 'One more thing.', createdAt: later(), user: { name: ALEX } });
+  await t.run('--once');
+  assert.equal(t.leads()[2]?.cwd, realpathSync(t.dirOf(1)), 'later starts stay in the repo worktree');
+});
+
+test('the heartbeat finds a no-repo lead in its folder', async () => {
+  const t = setup([issue(1, { labels: [] })]);
+  await t.run('--once');
+  t.setLive('ALE-1');
+  t.tag('ALE-1');
+  const srv = await t.serve();
+  try {
+    await srv.heartbeat();
+    const [entry] = JSON.parse(readFileSync(path.join(t.config.worktreeRoot, 'running.json'), 'utf8'));
+    assert.equal(entry.worktree, path.join(t.config.worktreeRoot, 'job-ale-1'));
+  } finally { await srv.close(); }
 });
 
 test('--dry-run prints each move and writes nothing', async () => {

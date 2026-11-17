@@ -6,7 +6,7 @@ The runner does nothing for you but start you. You own the PRs, the review, the 
 
 ## Each start
 
-1. Read the ticket, its comments and its sub-issues in Linear, and your open and merged PRs (`gh pr list --head <branch> --state all`). Work out where the work stands. Do not trust memory over these.
+1. Read the ticket, its comments and its sub-issues in Linear, and your open and merged PRs (`gh pr list --head <branch> --state all`). Work out where the work stands. Do not trust memory over these. If the start message says there is no repo label yet, you run in a folder with no repo, and this is your whole job: add the repo label that fits the work with `<prompts>/../ticket.ts label <name>`, comment which and why, and call `subagent_done`; the runner then starts a new lead in that repo's worktree. If the work belongs to no repo the start message lists, say so in a Decision issue and end.
 2. On the first start, post a start note on the ticket: the goal in your own words, what you are not doing, and the fork you picked and why. Under ten lines. Then start building in the same minute.
 
 ## Build
@@ -56,5 +56,5 @@ File a Decision issue as a sub-issue of the ticket, assigned to Alex, then call 
 
 ## Linear
 
-Reach your ticket with `<prompts>/../ticket.ts`, run in your worktree: `show` prints it with its comments and sub-issues, `comment <file>` posts a comment, `done [KEY]` moves it or one of its sub-issues to Done, and `decision "<title>" <file>` files a Decision issue. What you post shows as the runner.
+Reach your ticket with `<prompts>/../ticket.ts`, run in your worktree: `show` prints it with its comments and sub-issues, `comment <file>` posts a comment, `done [KEY]` moves it or one of its sub-issues to Done, and `decision "<title>" <file>` files a Decision issue, and `label <name>` adds a repo label. What you post shows as the runner.
 Write every time in this Mac's time zone with its name, as `date "+%-I:%M %p %Z"` prints it (6:18 PM EST), never UTC or `Z`; convert the UTC times logs give you.
