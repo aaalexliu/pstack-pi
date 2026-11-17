@@ -25,13 +25,13 @@ Linear webhook (Issue, Comment) -> POST 127.0.0.1:8787/linear
     not a ticket delegated to runnerUser                  -> nothing
     else the per-ticket read and event rule below, for that ticket only
     lead running -> pass the event to it
-backup poll on auditPoll (default every 10m): the same rule for every ticket, plus
+backup poll every 10 minutes: the same rule for every ticket, plus
   "missed: KEY <time> <event>" for each event no webhook had delivered
 heartbeat every 30 s: the stall check on live leads and running.json; a lead gone from running.json gets the pass for its ticket,
   so a lead that stopped gets its ask within 30 s; no other Linear calls unless it nudges or investigates
 ```
 
-All passes run one at a time. Linear retries a failed delivery after 1 minute, 1 hour and 6 hours, and the runner skips a delivery id it already handled. Every pass is idempotent anyway: it starts a lead only on events since the last start. Linear sends a label added to or removed from an issue as an Issue update; its IssueLabel events are about the label itself and carry no issue, so the runner ignores them. If "missed:" lines stay rare, set `auditPoll` slower, such as `every 1h` or `daily 06:00`. An event from before the runner started is never called missed.
+All passes run one at a time. Linear retries a failed delivery after 1 minute, 1 hour and 6 hours. A retry runs the pass again and changes nothing, since every pass is idempotent: it starts a lead only on events since the last start. Linear sends a label added to or removed from an issue as an Issue update; its IssueLabel events are about the label itself and carry no issue, so the runner ignores them. An event from before the runner started is never called missed.
 
 With no `webhookSecretCommand`, the runner runs no server and polls every `pollSeconds`, stall check included, as before.
 
@@ -63,7 +63,7 @@ each pass, per open ticket delegated to runnerUser (Todo, or a started state suc
 order: the ticket whose oldest unseen event is oldest goes first
 ```
 
-The start rule reads one fact per ticket: `seen`, the time up to which the lead has seen every event. It lives in one state file per ticket, `<worktreeRoot>/.state/KEY.json`, never inside a folder the runner may have refused, and the runner writes it whole or not at all (temp file, flush, rename). A start sets `seen` to now and `dir` to the lead's folder, and the heartbeat counts from it. A state whose `dir` is another folder reads as no state, so a lead's first start in a new folder gets every event since the ticket was filed. A failed start and an event a live lead's log shows also move it, so only a new event retries a failed start. The stall check adds `stall` to the same file. In all the runner keeps 28 facts: 12 files, 1 tmux option, 5 marks in Linear and 10 in memory; the [mechanism ledger](#mechanism-ledger) lists them.
+The start rule reads one fact per ticket: `seen`, the time up to which the lead has seen every event. It lives in one state file per ticket, `<worktreeRoot>/.state/KEY.json`, never inside a folder the runner may have refused, and the runner writes it whole or not at all (temp file, flush, rename). A start sets `seen` to now and `dir` to the lead's folder, and the heartbeat counts from it. A state whose `dir` is another folder reads as no state, so a lead's first start in a new folder gets every event since the ticket was filed. A failed start and an event a live lead's log shows also move it, so only a new event retries a failed start. The stall check adds `stall` to the same file. In all the runner keeps 26 facts: 12 files, 1 tmux option, 5 marks in Linear and 8 in memory; the [mechanism ledger](#mechanism-ledger) lists them.
 
 A corrupt state file, or a missing one where a lead has run (the worktree has `.runner/session-id`), means the runner cannot tell which events the lead saw. It writes a fresh state whose `seen` is now, so it never starts a lead on its own. With nothing new, the next move asks you, "the runner lost its state (<file> is corrupt), so it counts only events from now", and your reply is a new event that starts the lead: the ticket is not stranded. A crash between the reset and the ask still ends in an ask, the usual "the lead stopped with nothing handed in". A live lead keeps running; if it exits with nothing new, that usual ask follows. A runner from before the state file kept the start in `<worktree>/.runner/started`; with no state file, the runner reads `seen` from it, and the next lead start deletes it along with the older `.runner/passed` and `.runner/stall.json`. It does not read `passed`, `stall.json` or `<worktreeRoot>/.attempts/KEY`: at the switch, an event an older runner passed to a live lead may start that lead once more after it exits, a quiet lead may get one more nudge, and a refused start is tried once more. On 2026-11-17 alex-m1 had no `passed` or `.attempts` file and one `stall.json`.
 
@@ -79,11 +79,11 @@ What Linear showed on 2026-11-16, and what the runner does with it:
 - History, comments and children all come newest first. The runner pages back through comments and history until it passes the lead's last start, so a busy ticket cannot hide an event past the first page of 25.
 - A comment does not move an issue's `updatedAt`, and a change on a sub-issue does not move its parent's. So the list query fetches, for the ticket and each sub-issue, `updatedAt` and the newest comment. When none of them is newer than the lead's last start, or than the last read that found no events, the runner skips the per-ticket read. A live lead costs no per-ticket read either.
 
-The runner and every lead share the app user's Linear budgets: 5,000 requests and 2,000,000 complexity points an hour. One poll is one list query of about 17 points, plus, for each ticket that changed, one read of about 310 points per changed issue in it. Complexity grows with each page size asked for, so the read asks only for the ticket and sub-issues that changed, 25 entries a page; asking for all 100 sub-issues at 50 a page cost 1,236 points. On a 429 the runner waits as long as `Retry-After` says, logs it, and tries again. It logs once when `X-RateLimit-Requests-Remaining` or `X-RateLimit-Complexity-Remaining` drops under 20% of its limit.
+The runner and every lead share the app user's Linear budgets: 5,000 requests and 2,000,000 complexity points an hour. One poll is one list query of about 17 points, plus, for each ticket that changed, one read of about 310 points per changed issue in it. Complexity grows with each page size asked for, so the read asks only for the ticket and sub-issues that changed, 25 entries a page; asking for all 100 sub-issues at 50 a page cost 1,236 points. On a 429 the runner waits as long as `Retry-After` says, logs it, and tries again.
 
 A live lead belongs to the lead: the runner never starts, restarts or kills it. Events reach it when you attach and type, or after it exits, since the next start lists them.
 
-The lead's heartbeat is the newest write to any Pi session log in the session folder of its worktree or of a sibling worktree named `<worktree>-<unit>` (any unit name but `quiz`, which the quiz fork uses) (`~/.pi/agent/sessions/<encoded path>/`). Pi files each session under its cwd, so the lead and its subagents log to the worktree's folder, and sub-leads, which the lead prompt puts in `<worktree>-<unit>`, log to theirs. The investigator's folder (`.runner`) and the quiz fork's (`<worktree>-quiz`) do not count. The runner reads the last message of that newest log: a tool call with no result yet, or a user message or tool result with no reply yet, is busy; anything else is idle. tmux redraws do not count; the subagent panel's "waiting" timer redraws forever.
+The lead's heartbeat is the newest write to any Pi session log in the session folder of its worktree or of a sibling worktree named `<worktree>-<unit>` (`~/.pi/agent/sessions/<encoded path>/`). Pi files each session under its cwd, so the lead and its subagents log to the worktree's folder, and sub-leads, which the lead prompt puts in `<worktree>-<unit>`, log to theirs. The investigator's folder (`.runner`) does not count. The runner reads the last message of that newest log: a tool call with no result yet, or a user message or tool result with no reply yet, is busy; anything else is idle. tmux redraws do not count; the subagent panel's "waiting" timer redraws forever.
 
 ```text
 lead start .. quiet stretch 1 .. (lead may write) .. quiet stretch 2 .. quiet stretch 3
@@ -195,7 +195,7 @@ Run one runner per Linear team.
 
 ## The status comment
 
-Each ticket gets one runner comment, edited in place: the state, the host, the tmux session, the Pi session id, the worktree or the folder with no repo, and commands to watch the lead (`tmux attach`), take it over (touch `.runner/takeover` first, so the runner does not nudge or investigate until you quit Pi; if the lead exits first, a second Pi starts under `.runner/held`), or quiz a fork of it in its own worktree.
+Each ticket gets one runner comment, edited in place: the state, the host, the tmux session, the Pi session id, the worktree or the folder with no repo, and commands to watch the lead (`tmux attach`) or take it over (touch `.runner/takeover` first, so the runner does not nudge or investigate until you quit Pi; if the lead exits first, a second Pi starts under `.runner/held`).
 
 ## Ticket lines
 
@@ -206,7 +206,7 @@ The first label that names a repo in the config picks the repo. With no such lab
 
 ## Mechanism ledger
 
-Every mechanism in `runner.ts` and `routines.ts`: 24 writes and processes, 28 facts, 19 config fields, 9 other inputs and 16 timers. [ledger.test.ts](ledger.test.ts) fails when the ledger misses a config field, a state file, a Linear mutation or a tmux command the code has, or names a config field or function the code no longer has. It cannot check the timers, the "Paid for by" column or the "Fired" column; a person fills those in.
+Every mechanism in `runner.ts` and `routines.ts`: 24 writes and processes, 26 facts, 18 config fields, 9 other inputs and 15 timers. [ledger.test.ts](ledger.test.ts) fails when the ledger misses a config field, a state file, a Linear mutation or a tmux command the code has, or names a config field or function the code no longer has. It cannot check the timers, the "Paid for by" column or the "Fired" column; a person fills those in.
 
 The last column counts fires on the one live host from 2026-11-14 to 2026-11-17 10:00 EST. It has three sources:
 
@@ -273,12 +273,10 @@ A file path with no folder is in `<worktree>/.runner/`.
 | Memory: `reacted`, comments given a 👀 this run | `react` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110) | Log does not show it |
 | Memory: `typed`, when each event was last typed into a live lead | `pass` | [#112](https://github.com/aaalexliu/pstack-pi/pull/112) | New, no history |
 | Memory: `handled`, `delivered` and `since`, behind the "missed:" lines | `poll`, `serve` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110) | 0 "missed:" lines |
-| Memory: `deliveries`, the last 1,000 webhook delivery ids | `serve` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110) | Log does not show it |
 | Memory: `queue`, one pass at a time | `serve` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110) | Log does not show it |
 | Memory: `said`, lines already logged | `main`, `serve` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68) | 57 lines got through |
 | Memory: `repoLocks`, one git setup per repo at a time | `worktree` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68): two starts fought over `.git/config.lock` | Log does not show it |
 | Memory: `askAssigneeId`, your Linear user id | `assign` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68) | Log does not show it |
-| Memory: `low`, budgets already logged as low | `gql` | [#107](https://github.com/aaalexliu/pstack-pi/pull/107) | 0 low-budget lines |
 
 ### Config fields
 
@@ -297,7 +295,6 @@ A file path with no folder is in `<worktree>/.runner/`.
 | `pollSeconds` | `main` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61) | 30, the default |
 | `webhookSecretCommand` | `main` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110) | Set. Webhook mode since 2026-11-17 |
 | `webhookPort` | `serve` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110) | Not set; default 8787 |
-| `auditPoll` | `auditDelay`, `main` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110) | Not set; default `every 10m` |
 | `maxLeads` | `startBlock`, `poll` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68) | 20. It blocked 0 starts in the log |
 | `minFreeMemoryPercent` | `startBlock`, `poll` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68) | 20, the default. It blocked 0 starts in the log |
 | `stallMinutes` | `checkStall` | [#68](https://github.com/aaalexliu/pstack-pi/pull/68). [#105](https://github.com/aaalexliu/pstack-pi/pull/105) cut the default to 5 | 5, the default. 1 nudge |
@@ -327,14 +324,13 @@ A file path with no folder is in `<worktree>/.runner/`.
 | Poll every `pollSeconds`, with no webhook | `main` | [#61](https://github.com/aaalexliu/pstack-pi/pull/61) | Ran until 2026-11-17 09:56 EST. Passes: log does not show it |
 | Routine check every `pollSeconds` | `main`, `createDueRoutines` | [#70](https://github.com/aaalexliu/pstack-pi/pull/70) | Runs; 0 routines to file |
 | Heartbeat every 30 s, with a webhook | `main`, `serve` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110) | Since 2026-11-17 09:56 EST. Log does not show it |
-| Backup poll on `auditPoll`: `every <n>m`, `every <n>h`, `daily HH:MM`, `weekly Mon HH:MM` | `auditDelay`, `main` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110). None found | Every 10 minutes for 10 minutes; 0 "missed:" lines. `daily` and `weekly`: 0 |
+| Backup poll every 10 minutes, with a webhook | `main`, `serve` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110). None found | Every 10 minutes for 10 minutes; 0 "missed:" lines |
 | Quiet limit while idle: `stallMinutes` | `checkStall`, `heartbeat` | [#105](https://github.com/aaalexliu/pstack-pi/pull/105): a lead sat idle for 21 hours | 1 nudge |
 | Quiet limit while busy: `toolQuietMinutes` | `checkStall`, `heartbeat` | [#105](https://github.com/aaalexliu/pstack-pi/pull/105) | 0 |
 | 500 ms between Escape and the nudge | `checkStall` | [#105](https://github.com/aaalexliu/pstack-pi/pull/105) | 1 |
 | An event the lead's log does not show is typed again at most once in 60 s | `pass` | [#112](https://github.com/aaalexliu/pstack-pi/pull/112): a dialog can swallow typed text | New, no history |
 | Webhook timestamp window: 60 s | `serve` | [#110](https://github.com/aaalexliu/pstack-pi/pull/110): the endpoint is public, so a replay must fail | Log does not show it |
 | Linear 429: wait `Retry-After` or 60 s, then try again, with no limit | `gql` | [#107](https://github.com/aaalexliu/pstack-pi/pull/107) | 0 "rate limit hit" lines |
-| Low budget line under 20% left | `gql` | [#107](https://github.com/aaalexliu/pstack-pi/pull/107) | 0 |
 | A state or assignee change within 2 s after an integration's link is the integration's | `eventsOf` | [#107](https://github.com/aaalexliu/pstack-pi/pull/107): an opened PR looked like a person's move | Log does not show it |
 | Routine Linear call and token command: 30 s limit | `createDueRoutines` | [#70](https://github.com/aaalexliu/pstack-pi/pull/70) | 0 |
 | Routine schedule: `daily HH:MM`, `weekly Mon HH:MM` | `parseSchedule`, `lastDue` | [#70](https://github.com/aaalexliu/pstack-pi/pull/70) | 0 |
@@ -360,7 +356,6 @@ The runner reads `~/.config/job-runner/config.json`, or the file named by `JOB_R
 | `pollSeconds` | Seconds between polls with no webhook, and between routine checks. Default 30 |
 | `webhookSecretCommand` | Optional. A shell command that prints the Linear webhook signing secret, such as `security find-generic-password -s linear-runner-webhook -w`. Without it the runner polls every `pollSeconds` |
 | `webhookPort` | The port on 127.0.0.1 the webhook listens on, at `/linear`. Default 8787 |
-| `auditPoll` | With a webhook, when the backup poll runs: `every 10m`, `every 1h` (any `every <n>m` or `every <n>h`), `daily HH:MM` or `weekly Mon HH:MM`. Default `every 10m` |
 | `maxLeads` | Leads that run at once. Default 2 |
 | `minFreeMemoryPercent` | No lead starts while less memory than this is free. Default 20 |
 | `stallMinutes` | Minutes with no session log write, while the lead is idle, before the runner nudges it, and again before it starts an investigator. Default 5 |

@@ -5,7 +5,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createDueRoutines, lastDue, parseSchedule, ROUTINE_MARK, type Routine } from './routines.ts';
+import { createDueRoutines, parseSchedule, ROUTINE_MARK, type Routine } from './routines.ts';
 
 export type Repo = { path: string; base: string };
 export type Config = {
@@ -24,8 +24,6 @@ export type Config = {
   webhookSecretCommand?: string;
   /** The local port the webhook listens on, at `/linear`. Default 8787. */
   webhookPort: number;
-  /** With a webhook, the backup poll: `every 10m`, `every 1h`, `daily HH:MM` or `weekly Mon HH:MM`. Default `every 10m`. */
-  auditPoll: string;
   maxLeads: number;
   minFreeMemoryPercent: number;
   stallMinutes: number;
@@ -108,18 +106,7 @@ export function loadConfig(file: string): Config {
   }
   if (!raw.models.lead || !raw.models.review) throw new Error(`${file}: "models" needs "lead" and "review"`);
   for (const r of raw.routines ?? []) parseSchedule(r.schedule);
-  auditDelay(raw.auditPoll ?? 'every 10m', new Date());
-  return { thinking: 'high', pollSeconds: 30, webhookPort: 8787, auditPoll: 'every 10m', maxLeads: 2, minFreeMemoryPercent: 20, stallMinutes: 5, toolQuietMinutes: 60, host: os.hostname().replace(/\.local$/, ''), ...raw };
-}
-
-/** Milliseconds from `now` to the next backup poll: `every <n>m`, `every <n>h`, or a routine schedule such as `daily 06:00`. */
-export function auditDelay(schedule: string, now: Date): number {
-  const every = /^every ([1-9]\d*)(m|h)$/.exec(schedule);
-  if (every) return Number(every[1]) * (every[2] === 'm' ? 60_000 : 3_600_000);
-  if (!/^(daily|weekly) /.test(schedule)) throw new Error(`Bad auditPoll "${schedule}": use "every 10m", "every 1h", "daily HH:MM" or "weekly Mon HH:MM"`);
-  const next = lastDue(schedule, now);
-  next.setDate(next.getDate() + (schedule.startsWith('weekly') ? 7 : 1));
-  return next.getTime() - now.getTime();
+  return { thinking: 'high', pollSeconds: 30, webhookPort: 8787, maxLeads: 2, minFreeMemoryPercent: 20, stallMinutes: 5, toolQuietMinutes: 60, host: os.hostname().replace(/\.local$/, ''), ...raw };
 }
 
 function run(cmd: string, args: string[], cwd: string): Promise<{ code: number; out: string }> {
@@ -153,8 +140,6 @@ const readOr = (file: string) => (existsSync(file) ? readFileSync(file, 'utf8') 
 /** The runner's Linear calls. The lead's `ticket` command makes its calls through this client too. */
 export function linearClient(config: Config, fetchFn: typeof fetch) {
   let askAssigneeId: string | undefined;
-  /** The budgets under 20%, so each low budget is logged once until it recovers. */
-  const low = new Set<string>();
   /**
    * One GraphQL call. The runner and every lead share the app's hourly budgets of requests and complexity. On a
    * 429 the call waits as long as Linear's `Retry-After` says and tries again.
@@ -167,13 +152,6 @@ export function linearClient(config: Config, fetchFn: typeof fetch) {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ query, variables }),
       });
-      for (const budget of ['Requests', 'Complexity']) {
-        const left = Number(res.headers.get(`X-RateLimit-${budget}-Remaining`));
-        const limit = Number(res.headers.get(`X-RateLimit-${budget}-Limit`));
-        if (!limit || left >= limit / 5) { low.delete(budget); continue; }
-        if (!low.has(budget)) console.log(`Linear ${budget.toLowerCase()} budget is low: ${left} of ${limit} left this hour`);
-        low.add(budget);
-      }
       const body = (await res.json()) as { data?: T; errors?: { extensions?: { code?: string } }[] };
       if (res.status === 429 || body.errors?.some((e) => e.extensions?.code === 'RATELIMITED')) {
         const wait = Number(res.headers.get('Retry-After')) || 60;
@@ -309,21 +287,17 @@ export function linearClient(config: Config, fetchFn: typeof fetch) {
 }
 
 /** The commands Alex copies from the status comment. Each word is quoted for the local shell and again for the remote one. */
-export function commands(w: Pick<Work, 'key' | 'dir' | 'branch'>, sessionId: string, host: string) {
+export function commands(w: Pick<Work, 'key' | 'dir'>, host: string) {
   const ssh = (...remote: string[]) => `ssh -t ${sh(host)} ${sh(remote.join(' '))}`;
-  // A lead with no repo forks into `job-<key>.quiz`: a `job-<key>-quiz` folder would pass for the ticket's worktree once the label lands.
-  const quiz = `${w.dir}${w.branch ? '-' : '.'}quiz`;
-  const fork = w.branch ? ['cd', sh(w.dir), '&& git worktree add -B', sh(`${w.branch}-quiz`), sh(quiz), 'HEAD'] : ['mkdir -p', sh(quiz)];
   return {
     watch: ssh('tmux attach -t', sh(session(w.key))),
     takeOver: ssh('touch', sh(path.join(w.dir, '.runner', 'takeover')), '&& tmux attach -t', sh(session(w.key))),
-    quiz: ssh(...fork, '&& cd', sh(quiz), '&& tmux new -s', sh(`${w.key}-quiz`), 'pi --fork', sh(sessionId)),
     stop: ssh('tmux kill-session -t', sh(session(w.key))),
   };
 }
 
 export function renderStatus(w: Pick<Work, 'key' | 'dir' | 'branch'>, sessionId: string, host: string, state: string) {
-  const c = commands(w, sessionId, host);
+  const c = commands(w, host);
   return [
     `**Runner:** ${state}`,
     '',
@@ -333,7 +307,6 @@ export function renderStatus(w: Pick<Work, 'key' | 'dir' | 'branch'>, sessionId:
     w.branch ? `- Worktree: \`${w.dir}\` on \`${w.branch}\`` : `- Folder: \`${w.dir}\`, with no repo until the lead adds a repo label`,
     `- Watch or steer: \`${c.watch}\``,
     `- Take over (no stall nudges until you quit Pi): \`${c.takeOver}\``,
-    `- Quiz a fork: \`${c.quiz}\``,
   ].join('\n');
 }
 
@@ -639,14 +612,14 @@ function lastMessage(file: string): { role?: string; stopReason?: string; text?:
 
 /**
  * The lead's heartbeat: the newest write to any Pi session log of the worktree or a sibling named `<worktree>-<unit>`,
- * where sub-leads work; each cwd has its own folder. The investigator's (`.runner`) and Alex's quiz fork (`<worktree>-quiz`) are left out. Also whether that log's last message is mid-step. A tool call with no result,
+ * where sub-leads work; each cwd has its own folder. The investigator's (`.runner`) is left out. Also whether that log's last message is mid-step. A tool call with no result,
  * or a user message or tool result with no reply, is busy; anything else is idle. `since`, the lead start or a later event it got, is the floor.
  */
 export function heartbeat(w: Pick<Work, 'dir'>, since: string) {
   let newest = { at: Date.parse(since), file: '' };
   const sessions = path.join(agentDir(), 'sessions');
   const dirs = [...new Set([w.dir, existsSync(w.dir) ? realpathSync(w.dir) : w.dir])];
-  const notLead = dirs.flatMap((dir) => [path.join(dir, '.runner'), `${dir}-quiz`]).map((dir) => path.basename(sessionFolder(dir)));
+  const notLead = dirs.map((dir) => path.basename(sessionFolder(path.join(dir, '.runner'))));
   const folders = existsSync(sessions) ? readdirSync(sessions).filter((f) => dirs.some((d) => f.startsWith(path.basename(sessionFolder(d)).slice(0, -1))) && !notLead.includes(f)) : [];
   for (const folder of folders.map((f) => path.join(sessions, f))) {
     for (const name of readdirSync(folder).filter((f) => f.endsWith('.jsonl'))) {
@@ -715,14 +688,14 @@ async function investigate(ctx: Ctx, w: Work, quiet: number) {
 async function ask(ctx: Ctx, w: Work, why: string) {
   await ctx.linear.assign(w.id, true);
   await ctx.linear.comment(w.id, [`**Needs Alex:** ${why}. The ticket is still open and delegated to the runner.`,
-    `Read the ticket and its PRs, or quiz the lead with \`${commands(w, sessionId(w), ctx.config.host).quiz}\`. Comment what it should do; your comment starts the lead again.`,
+    `Read the ticket and its PRs. Comment what it should do; your comment starts the lead again.`,
     `To stop the work instead, mark ${w.key} Done or Canceled, or clear its delegate.`,
   ].join('\n\n'));
   await status(ctx, w, 'Waiting on Alex. The lead holds no slot.');
 }
 
 /**
- * The ticket's worktree is the shortest folder named for its key, so a title change or a quiz worktree does not move it.
+ * The ticket's worktree is the shortest folder named for its key, so a title change or a sub-lead's worktree does not move it.
  * With no repo label, the lead runs in `job-<key>` with no repo, so the repo's worktree starts its own lead once the label lands.
  */
 export function workFor(config: Config, issue: Issue): Work {
@@ -895,7 +868,7 @@ function issueOf(payload: { type?: string; data?: { id?: string; issueId?: strin
 
 /**
  * Runs the runner with a Linear webhook: a server on 127.0.0.1 at `/linear`, a 30 s heartbeat for live leads that
- * makes no Linear calls, and a backup poll on `auditPoll`. All Linear work runs one pass at a time.
+ * makes no Linear calls, and a backup poll every 10 minutes. All Linear work runs one pass at a time.
  * It answers a valid delivery with 200 before it acts, since Linear waits at most 5 s.
  */
 export async function serve(config: Config, fetchFn: typeof fetch, secret: string, port = config.webhookPort) {
@@ -907,8 +880,6 @@ export async function serve(config: Config, fetchFn: typeof fetch, secret: strin
     queue = queue.then(work).catch((error) => console.error(`${what} failed`, error));
     return queue;
   };
-  /** Delivery ids already handled, so Linear's retry of one acts once. Passes are idempotent too; this skips the reads. */
-  const deliveries: string[] = [];
   // The endpoint is public through Funnel, so no request, however broken, may throw out of the handler.
   const server = createServer((req, res) => {
     res.on('error', () => {});
@@ -927,12 +898,6 @@ export async function serve(config: Config, fetchFn: typeof fetch, secret: strin
     // A replayed delivery carries an old timestamp; Linear's own retries are signed afresh.
     if (!(Math.abs(Date.now() - Number(payload.webhookTimestamp)) <= 60_000)) { res.writeHead(401).end(); return; }
     res.writeHead(200).end();
-    const delivery = req.headers['linear-delivery'] as string | undefined;
-    if (delivery) {
-      if (deliveries.includes(delivery)) return;
-      deliveries.push(delivery);
-      if (deliveries.length > 1000) deliveries.shift();
-    }
     const id = issueOf(payload);
     if (id) ctx.delivered.set(id, new Date().toISOString());
     if (id) enqueue(`webhook ${payload.type} ${id}`, () => poll(ctx, false, say, { only: [id] }));
@@ -972,13 +937,13 @@ export async function main(argv: string[], config: Config, fetchFn: typeof fetch
     const secret = await must('/bin/sh', ['-c', config.webhookSecretCommand], process.cwd());
     if (!secret) throw new Error('webhookSecretCommand printed nothing');
     const runner = await serve(config, fetchFn, secret);
-    console.log(`Listening for Linear webhooks on 127.0.0.1:${runner.port}/linear; backup poll ${config.auditPoll}`);
+    console.log(`Listening for Linear webhooks on 127.0.0.1:${runner.port}/linear; backup poll every 10m`);
     setInterval(() => void runner.heartbeat(), 30_000);
     // Routines keep their own timer: the ticket a routine files then starts through its webhook.
     void (async () => { for (;;) { await createDueRoutines(config, fetchFn); await sleep(config.pollSeconds * 1000); } })();
     for (;;) {
       await runner.audit();
-      await sleep(auditDelay(config.auditPoll, new Date()));
+      await sleep(600_000);
     }
   }
   let said = new Set<string>();

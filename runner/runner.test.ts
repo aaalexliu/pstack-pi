@@ -6,7 +6,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { format } from 'node:util';
 import { createHmac } from 'node:crypto';
-import { auditDelay, commands, main, nextMove, put, readState, renderStatus, serve, signed, startBlock, type Config, type Ticket } from './runner.ts';
+import { commands, main, nextMove, put, readState, renderStatus, serve, signed, startBlock, type Config, type Ticket } from './runner.ts';
 import { ticket as ticketCommand } from './ticket.ts';
 
 type FakeComment = { id: string; body: string; url?: string; createdAt: string; user: { name: string } | null; botActor?: { name: string } | null; parentId?: string; reactions?: { emoji: string; user: { name: string } }[] };
@@ -104,7 +104,7 @@ else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? J
   const config: Config = {
     linearTokenCommand: `cat ${file('token')}`, team: 'ALE', runnerUser: RUNNER, askAssignee: ALEX,
     repos: { 'pstack-pi': { path: repo, base: 'main' } },
-    models: { lead: 'lead-model', review: 'review-model' }, thinking: 'high', pollSeconds: 0.01, webhookPort: 0, auditPoll: 'every 10m', maxLeads: options.maxLeads ?? 2,
+    models: { lead: 'lead-model', review: 'review-model' }, thinking: 'high', pollSeconds: 0.01, webhookPort: 0, maxLeads: options.maxLeads ?? 2,
     minFreeMemoryPercent: 20, stallMinutes: options.stallMinutes ?? 30, toolQuietMinutes: 60, host: 'test-host', worktreeRoot: file('worktrees'),
     ...(options.ghTokenCommand ? { ghTokenCommand: options.ghTokenCommand } : {}),
   };
@@ -116,8 +116,6 @@ else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? J
   const ops: string[] = [];
   /** Linear operations that fail once, the next time they run. */
   const faults: string[] = [];
-  /** Makes every reply say the request budget is under 20%. */
-  const lowBudget = { value: false };
   writeFileSync(file('token'), 'test-token\n');
   /** Linear lists comments and history newest first, 25 to a page. */
   const paged = (all: (FakeComment | FakeChange)[], after?: string) => {
@@ -146,9 +144,8 @@ else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? J
       faults.splice(faults.indexOf('RateLimit'), 1);
       return Response.json({ errors: [{ message: 'Rate limit exceeded', extensions: { code: 'RATELIMITED' } }] }, { status: 429, headers: { 'Retry-After': '0.01' } });
     }
-    const headers: Record<string, string> = lowBudget.value ? { 'X-RateLimit-Requests-Limit': '5000', 'X-RateLimit-Requests-Remaining': '900' } : {};
     const find = (id: string) => issues.find((i) => i.id === id)!;
-    const data = (value: unknown) => Response.json({ data: value }, { headers });
+    const data = (value: unknown) => Response.json({ data: value });
     if (op === 'Issues') {
       const open = issues.filter((i) => i.team === v.team && ['unstarted', 'started'].includes(TYPES[i.state]) && i.delegate === v.user);
       const from = Number(v.after ?? 0);
@@ -220,7 +217,7 @@ else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? J
   /** What the runner printed. A test that expects errors sets `expectErrors` and asserts on `errors`; otherwise any error fails the run. */
   const printed = { logs: [] as string[], errors: [] as string[], expectErrors: false };
   return {
-    config, ops, faults, lowBudget, root, repo, dirOf, gone, missingStates, printed,
+    config, ops, faults, root, repo, dirOf, gone, missingStates, printed,
     /** The first line of each distinct error, without its stack. */
     errorLines: () => [...new Set(printed.errors.map((e) => e.split('\n')[0]))],
     run: async (...argv: string[]) => {
@@ -558,15 +555,13 @@ test('a live lead costs one per-ticket read for the runner\'s own touch, then no
   } finally { await srv.close(); }
 });
 
-test('a 429 waits Retry-After and tries again; a low budget is logged once', async () => {
+test('a 429 waits Retry-After, logs it and tries again', async () => {
   const t = setup([issue(1)]);
   t.faults.push('RateLimit');
-  t.lowBudget.value = true;
   await t.run('--once');
   await t.run('--once');
   assert.equal(t.leads().length, 1);
   assert.equal(t.printed.logs.filter((l) => l === 'Linear rate limit hit; waiting 0.01 s').length, 1);
-  assert.equal(t.printed.logs.filter((l) => l.startsWith('Linear requests budget is low: 900 of 5000')).length, 2, 'once per runner start');
 });
 
 test('NoSpin across a crash: a Todo ticket whose move to In Progress fails is started once, not on every poll', async () => {
@@ -659,7 +654,6 @@ test('a quiet live lead gets Escape and one nudge, then one investigator and no 
     await t.run('--once');
     assert.equal(nudges(), 0, 'a sub-lead writing now in a sibling worktree keeps the lead alive');
     sessionLog(agent, `${dir}-unit`, 'sublead', 6, IDLE);
-    sessionLog(agent, `${dir}-quiz`, 'quiz', 0, IDLE);
     sessionLog(agent, dir.replace('job-ale-1-', 'job-ale-10-'), 'other-ticket', 0, IDLE);
     sessionLog(agent, path.join(dir, '.runner'), 'investigator', 0, IDLE);
     put(path.join(runner, 'takeover'), '');
@@ -668,7 +662,7 @@ test('a quiet live lead gets Escape and one nudge, then one investigator and no 
     rmSync(path.join(runner, 'takeover'));
     await t.run('--once');
     await t.run('--once');
-    assert.deepEqual(keys(), ['Escape', 'nudge', 'Enter'], 'every log idle for 5 minutes: Escape closes any selector, then one nudge; neither the investigator log nor a quiz fork writing now counts');
+    assert.deepEqual(keys(), ['Escape', 'nudge', 'Enter'], 'every log idle for 5 minutes: Escape closes any selector, then one nudge; the investigator log writing now does not count');
     assert.match(t.tmux().find((a) => a.includes('-l'))!.at(-1)!, /No progress from you or your subagents for 6 minutes\. Check each subagent/);
     assert.match(job.comments.find((c) => c.body.startsWith('**Runner:**'))!.body, /nudged it/);
     assert.equal(investigators(), 0, 'the investigator waits another stallMinutes');
@@ -1098,7 +1092,6 @@ test('a ticket with no repo label starts a lead in a folder with no repo, keeps 
   assert.ok(!existsSync(path.join(neutral, '.git')), 'the folder is no worktree of any repo');
   assert.match(lead.input, /\nNo repo label yet, so you run in a folder with no repo\. Repo labels: pstack-pi\. Review model: review-model\./);
   assert.match(job.comments[0].body, /- Folder: `[^`]*job-ale-1`, with no repo until the lead adds a repo label\n/);
-  assert.match(job.comments[0].body, /Quiz a fork: `ssh -t test-host "mkdir -p [^`]*job-ale-1\.quiz && cd /);
 });
 
 test('once the no-repo lead adds the repo label and exits, the next poll starts a lead in that repo\'s worktree with no new delegation', async () => {
@@ -1106,13 +1099,6 @@ test('once the no-repo lead adds the repo label and exits, the next poll starts 
   const t = setup([job]);
   await t.run('--once');
   const neutral = path.join(t.config.worktreeRoot, 'job-ale-1');
-  // Alex quizzes the lead with the status comment's command, through stand-in ssh and tmux.
-  const fakes = path.join(t.root, 'bin');
-  mkdirSync(fakes);
-  writeFileSync(path.join(fakes, 'ssh'), '#!/bin/sh\nshift 2\nexec sh -c "$*"\n', { mode: 0o755 });
-  writeFileSync(path.join(fakes, 'tmux'), '#!/bin/sh\n', { mode: 0o755 });
-  const quiz = /Quiz a fork: `(.*)`/.exec(job.comments[0].body)![1];
-  execFileSync('sh', ['-c', quiz], { env: { ...process.env, PATH: `${fakes}:${process.env.PATH}` } });
   await assert.rejects(t.ticket(neutral, 'label', 'Firstmate'), /"Firstmate" names no repo in the runner config; the repo labels are pstack-pi/);
   assert.equal(await t.ticket(neutral, 'label', 'pstack-pi'), 'Labeled ALE-1 pstack-pi.');
   assert.deepEqual(job.labels, ['pstack-pi']);
@@ -1186,8 +1172,6 @@ for (const shell of ['sh', 'zsh']) {
     const root = mkdtempSync(path.join(os.tmpdir(), 'job-runner-quote-'));
     const dir = path.join(root, 'Work Projects', "it's", 'job-ale-7-x');
     mkdirSync(dir, { recursive: true });
-    git(dir, 'init', '-q', '-b', 'job/ale-7-x');
-    git(dir, '-c', 'user.name=t', '-c', 'user.email=t@e', 'commit', '-q', '--allow-empty', '-m', 'init');
     mkdirSync(path.join(dir, '.runner'));
     const fakes = path.join(root, 'bin');
     mkdirSync(fakes);
@@ -1195,20 +1179,13 @@ for (const shell of ['sh', 'zsh']) {
     writeFileSync(path.join(fakes, 'tmux'), `#!/bin/sh\nprintf '%s\\n' "$@" > ${JSON.stringify(path.join(root, 'tmux-args'))}\n`, { mode: 0o755 });
     const env = { ...process.env, PATH: `${fakes}:${process.env.PATH}` };
     const tmuxArgs = () => readFileSync(path.join(root, 'tmux-args'), 'utf8').trim().split('\n');
-    const c = commands({ key: 'ALE-7', dir, branch: 'job/ale-7-x' }, 'abc-123', 'mini');
+    const c = commands({ key: 'ALE-7', dir }, 'mini');
     execFileSync('sh', ['-c', c.watch], { env });
     assert.deepEqual(tmuxArgs(), ['attach', '-t', '=ALE-7']);
     execFileSync('sh', ['-c', c.stop], { env });
     assert.deepEqual(tmuxArgs(), ['kill-session', '-t', '=ALE-7']);
     execFileSync('sh', ['-c', c.takeOver], { env });
     assert.ok(existsSync(path.join(dir, '.runner', 'takeover')));
-    execFileSync('sh', ['-c', c.quiz], { env, stdio: 'ignore' });
-    assert.equal(git(`${dir}-quiz`, 'rev-parse', '--abbrev-ref', 'HEAD'), 'job/ale-7-x-quiz');
-    assert.deepEqual(tmuxArgs(), ['new', '-s', 'ALE-7-quiz', 'pi', '--fork', 'abc-123']);
-    const neutral = path.join(root, 'Work Projects', "it's", 'job-ale-8');
-    execFileSync('sh', ['-c', commands({ key: 'ALE-8', dir: neutral, branch: '' }, 'abc-456', 'mini').quiz], { env });
-    assert.ok(existsSync(`${neutral}.quiz`), 'a lead with no repo is quizzed from a plain folder beside it');
-    assert.deepEqual(tmuxArgs(), ['new', '-s', 'ALE-8-quiz', 'pi', '--fork', 'abc-456']);
   });
 }
 
@@ -1293,9 +1270,7 @@ test('a comment webhook on a sub-issue starts the parent lead with one 👀; a r
     assert.equal(t.leads().length, 2);
     assert.match(t.leads()[1].input, /ALE-50: Alex Example commented: Go with plan B\./);
     assert.deepEqual(sub.comments[0].reactions, [{ emoji: 'eyes', user: { name: RUNNER } }]);
-    const reads = t.ops.length;
-    assert.equal(await srv.post(delivery, { delivery: 'd1' }), 200);
-    assert.equal(t.ops.length, reads, 'a repeated delivery id makes no Linear call');
+    assert.equal(await srv.post(delivery, { delivery: 'd1' }), 200, 'Linear retries a delivery under the same id; the pass runs again and changes nothing');
     await srv.post(delivery, { delivery: 'd2' });
     await srv.audit();
     assert.equal(t.leads().length, 2);
@@ -1343,15 +1318,6 @@ test('with no webhook secret the runner polls as before and still puts one 👀 
   assert.equal(t.leads().length, 2);
   assert.equal(job.comments.find((c) => c.id === 'c1')!.reactions!.length, 1);
   assert.ok(!t.printed.logs.some((l) => l.startsWith('missed:')));
-});
-
-test('auditPoll takes every Nm, every Nh, daily and weekly', () => {
-  const now = new Date(2026, 0, 5, 5, 0);
-  assert.equal(auditDelay('every 10m', now), 600_000);
-  assert.equal(auditDelay('every 1h', now), 3_600_000);
-  assert.equal(auditDelay('daily 06:00', now), 3_600_000);
-  assert.equal(auditDelay('daily 04:00', now), 23 * 3_600_000);
-  assert.throws(() => auditDelay('hourly', now), /Bad auditPoll/);
 });
 
 test('a client that sends part of a body and drops the socket does not stop the webhook', async () => {

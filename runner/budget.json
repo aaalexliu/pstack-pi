@@ -1,9 +1,9 @@
 {
   "counts": {
     "writes": 24,
-    "facts": 28,
-    "timers": 16,
-    "configFields": 19
+    "facts": 26,
+    "timers": 15,
+    "configFields": 18
   },
   "ceilings": {
     "runnerLines": 1100,
