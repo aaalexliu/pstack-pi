@@ -11,8 +11,38 @@ The runner keeps process only where a stopped or absent model cannot act for its
 
 Linear is an event log. An event is anything in Linear on the ticket or its sub-issues: a comment, a state, delegate, assignee, label, title or description change, or a Decision issue closed. Only events by someone other than `runnerUser` count, and not those of integrations such as GitHub or Slack. Leads post with the runner's token, so the runner's own moves and its leads' never wake anyone.
 
+### Event flow
+
+Linear tells the runner about a change through a webhook, so the runner acts within seconds without polling. A backup poll catches anything the webhook missed.
+
 ```text
-each poll, per open ticket delegated to runnerUser (Todo, or a started state such as In Progress or In Review):
+Linear webhook (Issue, Comment) -> POST 127.0.0.1:8787/linear
+  bad Linear-Signature, or webhookTimestamp over 60 s off -> 401
+  else 200 at once, then the work:
+    the issue id (an Issue's own id, a Comment's issueId) -> the open ticket it is, or whose sub-issue it is
+    not a ticket delegated to runnerUser                  -> nothing
+    else the per-ticket read and event rule below, for that ticket only
+backup poll on auditPoll (default every 10m): the same rule for every ticket, plus
+  "missed: KEY <time> <event>" for each event no webhook had delivered
+heartbeat every 30 s: the stall check on live leads, running.json and the stale screen lock; no Linear calls unless it nudges or investigates
+```
+
+All passes run one at a time. Linear retries a failed delivery after 1 minute, 1 hour and 6 hours, and the runner skips a delivery id it already handled. Every pass is idempotent anyway: it starts a lead only on events since the last start. Linear sends a label added to or removed from an issue as an Issue update; its IssueLabel events are about the label itself and carry no issue, so the runner ignores them. If "missed:" lines stay rare, set `auditPoll` slower, such as `every 1h` or `daily 06:00`. An event from before the runner started is never called missed.
+
+With no `webhookSecretCommand`, the runner runs no server and polls every `pollSeconds`, stall check included, as before.
+
+### The ack
+
+When an event by a person lands, by webhook or poll, the runner acks it within seconds, once per event:
+
+- a comment gets a 👀 reaction (`reactionCreate`, emoji `eyes`). The runner skips a comment that already has its 👀, so webhook retries, the backup poll and restarts never add a second.
+- an event that is not a comment, such as a delegation or a closed Decision, gets the status comment update when the lead starts.
+- when a limit blocks the start, the runner also replies "Seen. Waiting to start: <reason>" once.
+
+Live leads do not get events yet; they see them at their next start.
+
+```text
+each pass, per open ticket delegated to runnerUser (Todo, or a started state such as In Progress or In Review):
   lead live in tmux            -> leave it; nudge it, then start an investigator, if it went quiet
   any event since its start    -> start the lead; its start message lists the events, and it judges what they mean
                                   if a limit blocks the start: reply "Seen. Waiting to start: <reason>" once
@@ -156,7 +186,10 @@ The runner reads `~/.config/job-runner/config.json`, or the file named by `JOB_R
 | `repos` | Linear label name to `{path, base}`. `path` is a local clone with an `origin` remote |
 | `models` | `lead` and `review`, each a `pi --model` value. The lead passes `review` to its reviewer |
 | `thinking` | The lead's `pi --thinking` level. Default `high` |
-| `pollSeconds` | Seconds between polls. Default 30 |
+| `pollSeconds` | Seconds between polls with no webhook, and between routine checks. Default 30 |
+| `webhookSecretCommand` | Optional. A shell command that prints the Linear webhook signing secret, such as `security find-generic-password -s linear-runner-webhook -w`. Without it the runner polls every `pollSeconds` |
+| `webhookPort` | The port on 127.0.0.1 the webhook listens on, at `/linear`. Default 8787 |
+| `auditPoll` | With a webhook, when the backup poll runs: `every 10m`, `every 1h` (any `every <n>m` or `every <n>h`), `daily HH:MM` or `weekly Mon HH:MM`. Default `every 10m` |
 | `maxLeads` | Leads that run at once. Default 2 |
 | `minFreeMemoryPercent` | No lead starts while less memory than this is free. Default 20 |
 | `stallMinutes` | Minutes with no session log write, while the lead is idle, before the runner nudges it, and again before it starts an investigator. Default 5 |
@@ -165,7 +198,7 @@ The runner reads `~/.config/job-runner/config.json`, or the file named by `JOB_R
 | `worktreeRoot` | The directory for ticket worktrees |
 | `routines` | Optional scheduled tickets: `{name, schedule, repo, title, prompt}`. See below |
 
-Each poll, [routines.ts](routines.ts) files the latest due run of each routine as a Todo issue delegated to the runner, labelled `repo`, titled `<title> (<date>)`, with `prompt` as its description. A `schedule` is `daily HH:MM` or `weekly Mon HH:MM`, in this Mac's local time; the runner refuses to start, `--dry-run` included, on any other. A routine that fails, or whose token command or Linear call passes 30 s, is logged and retried next poll, without holding up tickets. The description ends with the marker `runner-routine <name> <due time>`, and the runner skips a run whose marker already exists, so a restart never files twice. After downtime it files only the latest missed run. From then on it is an ordinary ticket.
+Every `pollSeconds`, [routines.ts](routines.ts) files the latest due run of each routine as a Todo issue delegated to the runner, labelled `repo`, titled `<title> (<date>)`, with `prompt` as its description. A `schedule` is `daily HH:MM` or `weekly Mon HH:MM`, in this Mac's local time; the runner refuses to start, `--dry-run` included, on any other. A routine that fails, or whose token command or Linear call passes 30 s, is logged and retried next poll, without holding up tickets. The description ends with the marker `runner-routine <name> <due time>`, and the runner skips a run whose marker already exists, so a restart never files twice. After downtime it files only the latest missed run. From then on it is an ordinary ticket.
 
 `JOB_RUNNER_PI`, `JOB_RUNNER_TMUX` and `JOB_RUNNER_MEMORY_PRESSURE` replace those binaries. The tests use them for stubs.
 
@@ -176,7 +209,14 @@ node runner/runner.ts --dry-run
 node runner/runner.ts --once
 ```
 
-`--dry-run` prints each ticket's next move and writes nothing. `--once` runs one poll and exits; leads keep running in tmux. For a daemon, copy [launchd.example.plist](launchd.example.plist) to `~/Library/LaunchAgents/local.job-runner.plist`, fill in the placeholders, and `launchctl bootstrap gui/$(id -u)` it. Its `PATH` must reach `node` 24 or later, `pi`, `gh`, `git`, `curl` and `tmux`, and `gh` must be logged in to the account that pushes. Run the runner from a pstack-pi checkout: it loads `subagent-done.ts` and the prompts from there.
+`--dry-run` prints each ticket's next move and writes nothing. `--once` runs one full poll, with no webhook server, and exits; leads keep running in tmux. For a daemon, copy [launchd.example.plist](launchd.example.plist) to `~/Library/LaunchAgents/local.job-runner.plist`, fill in the placeholders, and `launchctl bootstrap gui/$(id -u)` it. Its `PATH` must reach `node` 24 or later, `pi`, `gh`, `git`, `curl` and `tmux`, and `gh` must be logged in to the account that pushes. Run the runner from a pstack-pi checkout: it loads `subagent-done.ts` and the prompts from there.
+
+## Set up the webhook
+
+1. Make a signing secret and store it: `security add-generic-password -s linear-runner-webhook -a "$USER" -w "$(openssl rand -hex 32)"`. Set `webhookSecretCommand` to `security find-generic-password -s linear-runner-webhook -w`. Or copy the secret Linear shows in step 3 into the keychain instead.
+2. Expose the local port with Tailscale Funnel: `tailscale funnel --bg --https=10000 --set-path=/linear http://127.0.0.1:8787/linear`. `tailscale funnel status` prints the public URL.
+3. In Linear, Settings > API > Webhooks > New webhook: the Funnel URL ending in `/linear`, team ALE, and the data change events Issues, Comments and Issue labels. Paste the secret from step 1 as the signing secret, or put Linear's into the keychain.
+4. Restart the runner. It logs `Listening for Linear webhooks on 127.0.0.1:8787/linear`. Comment on a delegated ticket: the comment gets 👀 within seconds.
 
 ## Test it
 
