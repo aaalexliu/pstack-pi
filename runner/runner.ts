@@ -82,8 +82,10 @@ const PROMPTS = fileURLToPath(new URL('./prompts/', import.meta.url));
 const SUBAGENT_DONE = fileURLToPath(new URL('../extensions/interactive-subagents/pi-extension/subagents/subagent-done.ts', import.meta.url));
 const NEWEST = 'updatedAt comments(first: 1) { nodes { createdAt } }';
 const ISSUE_FIELDS = `id identifier title description url createdAt state { type } labels { nodes { name } } ${NEWEST} children(first: 100) { nodes { id identifier title url createdAt completedAt canceledAt assignee { name } ${NEWEST} } pageInfo { hasNextPage } }`;
-/** Pi variables a lead keeps from the runner's environment. Every other `PI_*` and `PSTACK_*` belongs to another session. */
-const KEEP_ENV = ['PI_AUTH_PROFILE', 'PI_CODING_AGENT_DIR'];
+/** Variables a lead keeps from the runner's environment. Every other `PI_*` and `PSTACK_*` belongs to another session. */
+const KEEP_ENV = ['PI_AUTH_PROFILE', 'PI_CODING_AGENT_DIR', 'JOB_RUNNER_CONFIG'];
+/** The runner's config file. The lead's `ticket` command reads it too. */
+export const configFile = () => process.env.JOB_RUNNER_CONFIG ?? path.join(os.homedir(), '.config', 'job-runner', 'config.json');
 const bin = (name: 'pi' | 'tmux' | 'memory_pressure') => process.env[`JOB_RUNNER_${name.toUpperCase()}`] ?? name;
 /**
  * Quotes one shell word. Plain words stay bare and simple ones get double quotes, so the status commands stay
@@ -134,7 +136,8 @@ export function put(file: string, content: string) {
 }
 const readOr = (file: string) => (existsSync(file) ? readFileSync(file, 'utf8') : null);
 
-function linearClient(config: Config, fetchFn: typeof fetch) {
+/** The runner's Linear calls. The lead's `ticket` command makes its calls through this client too. */
+export function linearClient(config: Config, fetchFn: typeof fetch) {
   let decisionIds: { team: string; assignee: string } | undefined;
   /**
    * One GraphQL call. The runner and every lead share the app's hourly budgets of requests and complexity. On a
@@ -196,6 +199,7 @@ function linearClient(config: Config, fetchFn: typeof fetch) {
     ];
   };
   return {
+    gql,
     /**
      * Open tickets delegated to the runner: Todo (unstarted) and any started state, such as In Progress or the
      * In Review that Linear's GitHub link sets when a PR opens. Todo ones come first, then the oldest.
@@ -273,7 +277,10 @@ function linearClient(config: Config, fetchFn: typeof fetch) {
     async editComment(id: string, body: string) {
       await gql('mutation EditComment($id: String!, $input: CommentUpdateInput!) { commentUpdate(id: $id, input: $input) { success } }', { id, input: { body } });
     },
-    /** Files a Decision issue as a sub-issue of the ticket, in one write, so no crash can leave it unfindable. */
+    /**
+     * Files a Decision issue as a sub-issue of the ticket, in one write, so no crash can leave it unfindable.
+     * The runner's `decide()` and the lead's `ticket decision` both file through here.
+     */
     async fileDecision(parentId: string, title: string, description: string): Promise<{ identifier: string; url: string }> {
       if (!decisionIds) {
         const team = await gql<{ teams: { nodes: { id: string }[] } }>('query Team($key: String!) { teams(filter: { key: { eq: $key } }) { nodes { id } } }', { key: config.team });
@@ -420,11 +427,14 @@ async function pass(ctx: Ctx, w: Work, ticket: Ticket, events: Event[]) {
 const newest = (i: Newest) => [i.updatedAt, ...i.comments.nodes.map((c) => c.createdAt)].sort().at(-1)!;
 const touched = (issue: Issue) => [issue, ...issue.children.nodes].map(newest).sort().at(-1)!;
 
-/** The events since the runner's last attempt to start the lead. A routine's ticket counts its creation, since the runner made it on Alex's schedule. */
+/**
+ * The events since the runner's last attempt to start the lead. A ticket the runner never tried to start counts its
+ * creation: Linear's history has no delegation entry for a ticket filed already delegated, and a routine files its own.
+ */
 export function newEvents(ticket: Ticket, attempted: string | null): Event[] {
   const since = attempted ?? '';
-  const routine = !since && ticket.description.includes(ROUTINE_MARK) ? [{ at: ticket.createdAt, what: 'A routine filed this ticket.' }] : [];
-  return [...routine, ...ticket.events.filter((e) => e.at > since)];
+  const filed = since ? [] : [{ at: ticket.createdAt, what: ticket.description.includes(ROUTINE_MARK) ? 'A routine filed this ticket.' : 'The ticket was filed.' }];
+  return [...filed, ...ticket.events.filter((e) => e.at > since)];
 }
 
 /**
@@ -920,5 +930,5 @@ export async function main(argv: string[], config: Config, fetchFn: typeof fetch
 }
 
 if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  await main(process.argv.slice(2), loadConfig(process.env.JOB_RUNNER_CONFIG ?? path.join(os.homedir(), '.config', 'job-runner', 'config.json')));
+  await main(process.argv.slice(2), loadConfig(configFile()));
 }
