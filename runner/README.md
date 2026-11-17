@@ -111,7 +111,7 @@ The launch script drops every `PI_*` and `PSTACK_*` variable the tmux server hol
 
 [prompts/lead.md](prompts/lead.md) tells the lead to open small PRs, its own one at a time, each naming the ticket (`Fixes KEY` on the last, `Part of KEY` on the others); run `.agents/verify`; get a review from a separate Pi session with fresh context (`subagent` with `wait: true`, agent `pr-reviewer`, and role `review` by default, or `subagent` without `wait`, or `pi -p`); fix caused must-fixes; after 3 rounds on one PR cut scope or file a Decision issue; and merge only after CI passes and the latest review names the head commit with `verdict: clean`. After its last PR merges, the lead moves the ticket to Done itself, so it does not depend on Linear's GitHub link.
 
-The reviewer follows [prompts/review.md](prompts/review.md) and posts its own record on the PR with `gh pr review --comment` (GitHub refuses an approval from the PR's author). Its first lines are `runner-review v1`, `verdict`, `caused_must_fix`, `head`, `round`, `trigger` (`first`, `fix` or `rebase onto <full base sha>`, for people reading the PR; a rebase still gets a full round), `agent`, `model`, `session_id`, `session_path`, `session_title` and `asked_by`, one per line; the findings follow as JSON.
+The reviewer follows [prompts/review.md](prompts/review.md). It reruns the proof in the PR body; no proof, a proof that does not rerun, an inconclusive or wrong-surface check, or a bug fix whose failing repro does not land in an earlier commit is a caused must-fix. It posts its own record on the PR with `gh pr review --comment` (GitHub refuses an approval from the PR's author). Its first lines are `runner-review v1`, `verdict`, `caused_must_fix`, `head`, `round`, `trigger` (`first`, `fix` or `rebase onto <full base sha>`, for people reading the PR; a rebase still gets a full round), `agent`, `model`, `session_id`, `session_path`, `session_title` and `asked_by`, one per line; the findings follow as JSON.
 
 The runner enforces none of this. The audit prompt checks it after the fact.
 
@@ -340,7 +340,7 @@ The runner reads `~/.config/job-runner/config.json`, or the file named by `JOB_R
 | `runnerUser` | The app user's name as Linear shows it on the delegate field |
 | `decisionAssignee` | The person Decision issues go to |
 | `repos` | Linear label name to `{path, base}`. `path` is a local clone with an `origin` remote |
-| `models` | `lead` and `review`, each a `pi --model` value. The lead passes `review` to its reviewer |
+| `models` | `lead` and `review`, each a `pi --model` value. The lead passes `review` to its reviewer. Pick `review` from a different model family than `lead`, such as OpenAI against Anthropic, so the reviewer does not share its author's blind spots |
 | `thinking` | The lead's `pi --thinking` level. Default `high` |
 | `pollSeconds` | Seconds between polls with no webhook, and between routine checks. Default 30 |
 | `webhookSecretCommand` | Optional. A shell command that prints the Linear webhook signing secret, such as `security find-generic-password -s linear-runner-webhook -w`. Without it the runner polls every `pollSeconds` |

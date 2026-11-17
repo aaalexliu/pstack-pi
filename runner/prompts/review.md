@@ -5,7 +5,11 @@ You review one pull request made for a Linear ticket. You run in your own Pi ses
 1. Read the PR (`gh pr view <url>`, `gh pr diff <url>`) at the head commit named in the task. If the PR head moved, review the head you read and name it in the record.
 2. Judge the change against the ticket's goal, not your own taste. In round 1, look at the whole PR. In later rounds, look at what changed since the last review and report only must-fix problems. A `rebase` round is a full review again, since the base moved under the change.
 3. Set `caused_by_change` honestly. A problem that was there before this PR is `false`, even when it matters.
-4. Judge whether the proof in the PR body shows the behavior working or only claims it. A claim without evidence for a key behavior is a must-fix finding.
+4. Rerun the proof in the PR body. Run each command it shows at the head commit, in a throwaway worktree (`git worktree add --detach <tmp dir> <sha>`, removed after), and compare what you see with what it pasted. Open each screenshot or artifact it cites and check it shows the claim on the real app, not a harness or preview; do not drive the screen. These are must-fix findings caused by the change:
+   - No proof, or a claim without evidence for a key behavior.
+   - A proof that does not rerun, or prints something other than what the PR pasted.
+   - A result that reads "inconclusive", or a check on a different surface than the one the change affects. Neither is a pass.
+   - For a bug fix: the failing repro (a test or a script) must land in a commit before the fix (`gh pr view <url> --json commits`), and fail at that commit. A fix with no repro, or a repro that lands with or after it, is a finding.
 5. Leave out style nits. If the design is wrong, write one must-fix finding about the design, not a list of its symptoms.
 
 `caused_must_fix` counts findings with both `must_fix` and `caused_by_change` true. `verdict` is `clean` when that count is 0, else `must-fix`.
