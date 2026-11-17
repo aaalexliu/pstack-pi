@@ -30,7 +30,7 @@ test('parseSchedule accepts real clock times and weekdays only', () => {
 
 test('loadConfig refuses a bad routine schedule, so the runner and --dry-run both stop at start', () => {
   const file = path.join(mkdtempSync(path.join(os.tmpdir(), 'routines-')), 'config.json');
-  const base = { linearTokenCommand: 'true', team: 'ALE', runnerUser: 'runner', decisionAssignee: 'Alex', repos: {}, models: { lead: 'a', review: 'b' }, worktreeRoot: '/tmp' };
+  const base = { linearTokenCommand: 'true', team: 'ALE', runnerUser: 'runner', askAssignee: 'Alex', repos: {}, models: { lead: 'a', review: 'b' }, worktreeRoot: '/tmp' };
   writeFileSync(file, JSON.stringify({ ...base, routines: [{ ...routine, schedule: 'daily 24:00' }] }));
   assert.throws(() => loadConfig(file), /Bad routine schedule/);
   writeFileSync(file, JSON.stringify({ ...base, routines: [routine] }));
