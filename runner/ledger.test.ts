@@ -1,38 +1,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { readFileSync } from 'node:fs';
+import { code, configFields, ledger, readme, runner, tables } from './ledger.ts';
 
-const read = (name: string) => readFileSync(new URL(name, import.meta.url), 'utf8');
-const runner = read('./runner.ts');
-const code = runner + read('./routines.ts');
-const readme = read('./README.md');
-const ledger = readme.slice(readme.indexOf('\n## Mechanism ledger\n'), readme.indexOf('\n## Config\n'));
-
-/** The rows of the ledger table under one `###` heading, each as its cells. */
-function rows(heading: string): string[][] {
-  const start = ledger.indexOf(`\n### ${heading}\n`);
-  assert.notEqual(start, -1, `the ledger has no "${heading}" table`);
-  const end = ledger.indexOf('\n### ', start + 1);
-  return ledger.slice(start, end === -1 ? undefined : end).split('\n')
-    .filter((line) => line.startsWith('| ') && !line.startsWith('| Mechanism') && !line.startsWith('| ---'))
-    .map((line) => line.slice(2, -2).split(' | '));
-}
 const ticks = (text: string) => [...text.matchAll(/`([^`]+)`/g)].map((m) => m[1]);
 const all = (pattern: RegExp, text: string) => [...new Set([...text.matchAll(pattern)].map((m) => m[1]))];
 const sorted = (names: string[]) => [...names].sort();
 
-const tables = {
-  writes: rows('Writes and processes'),
-  facts: rows('State and remembered facts'),
-  config: rows('Config fields'),
-  inputs: rows('Other inputs'),
-  timers: rows('Timers and schedules'),
-};
-
 test('the ledger lists every Config field, and no field that is gone', () => {
-  const type = /export type Config = \{\n([\s\S]*?)\n\};/.exec(runner)?.[1];
-  assert.ok(type, 'runner.ts has no Config type');
-  const fields = all(/^ {2}(\w+)\??:/gm, type);
+  const fields = configFields();
   assert.ok(fields.length > 10, 'the Config fields did not parse');
   assert.deepEqual(sorted(tables.config.map((row) => ticks(row[0])[0])), sorted(fields));
 });

@@ -394,6 +394,13 @@ node --test runner/*.test.ts
 
 The tests use a fake Linear behind an injected `fetch`, stub `pi`, `tmux` and `memory_pressure` scripts, and real git repos in a temp directory. They make no network calls.
 
-### Size budgets
+### Budgets
 
-The runner is meant to stay thin. [budget.test.ts](budget.test.ts) fails when `runner.ts`, `prompts/lead.md` or the number of top-level `Config` fields passes its budget in [budget.json](budget.json). CI runs the runner tests on every push and pull request. Lower a budget any time. To raise one, get Alex to record the new number in the decision log of `~/dev/agent-orchestration/README.md` first, then change `budget.json`.
+The runner is meant to stay thin. [budget.test.ts](budget.test.ts) holds it to [budget.json](budget.json) in two ways, and CI runs it on every push and pull request.
+
+- **Counts are strict: one in, one out.** The budgets cover four counts: writes and processes, remembered facts, timers and schedules, and config fields. The first three are the row counts of the [mechanism ledger](#mechanism-ledger); the fourth is the `Config` type. A PR that adds one must remove one of the same kind.
+- **Sizes are loose ceilings.** `runner.ts` fails above 1,100 lines and `prompts/lead.md` above 1,500 words. They are alarms, set well above today's sizes, so a bug fix never meets them.
+
+An ordinary PR does not touch `budget.json`. A PR that cuts mechanisms lowers the count budgets to match. To raise a budget or a ceiling, get Alex to record the new number in the decision log of `~/dev/agent-orchestration/README.md` first.
+
+What the count check cannot see: [ledger.test.ts](ledger.test.ts) checks the ledger against the code for config fields, state files, Linear mutations and tmux commands. It does not check timers or in-memory facts. Those two counts hold only while review keeps the ledger true.
