@@ -476,7 +476,7 @@ test('the runner never starts or kills a live lead, even after a comment or a cl
   assert.deepEqual(t.tmux().filter((a) => a[0] === 'new-session' || a[0] === 'kill-session').map((a) => a[0]), ['kill-session', 'new-session'], 'only the first start');
 });
 
-test('a quiet live lead gets Escape and one nudge, then one investigator and no Decision issue; takeover holds it off; the second quiet stretch in a run gets the investigator, a third nothing, and a new start resets', async () => {
+test('a quiet live lead gets Escape and one nudge; takeover holds it off; a second quiet stretch in the run gets nothing, and a new start resets', async () => {
   const job = issue(1, { state: 'In Progress' });
   const t = setup([job], { stallMinutes: 5 });
   const agent = path.join(t.root, 'agent');
@@ -488,7 +488,7 @@ test('a quiet live lead gets Escape and one nudge, then one investigator and no 
     const runner = path.join(dir, '.runner');
     const keys = () => t.tmux().filter((a) => a[0] === 'send-keys' && !a.at(-1)!.startsWith('Linear event')).map((a) => (a.includes('-l') ? 'nudge' : a.at(-1)));
     const nudges = () => keys().filter((k) => k === 'nudge').length;
-    const investigators = () => t.tmux().filter((a) => a[0] === 'new-session' && a.includes('ALE-1-stall')).length;
+    const sessions = () => t.tmux().filter((a) => a[0] === 'new-session').length;
     await t.run('--once');
     assert.equal(nudges(), 0, 'a lead that just started is left alone');
     put(path.join(runner, 'started'), new Date(Date.now() - 20 * 60000).toISOString());
@@ -503,41 +503,30 @@ test('a quiet live lead gets Escape and one nudge, then one investigator and no 
     sessionLog(agent, `${dir}-unit`, 'sublead', 6, IDLE);
     sessionLog(agent, `${dir}-quiz`, 'quiz', 0, IDLE);
     sessionLog(agent, dir.replace('job-ale-1-', 'job-ale-10-'), 'other-ticket', 0, IDLE);
-    sessionLog(agent, path.join(dir, '.runner'), 'investigator', 0, IDLE);
     put(path.join(runner, 'takeover'), '');
     await t.run('--once');
     assert.equal(nudges(), 0, 'a person took it over');
     rmSync(path.join(runner, 'takeover'));
     await t.run('--once');
     await t.run('--once');
-    assert.deepEqual(keys(), ['Escape', 'nudge', 'Enter'], 'every log idle for 5 minutes: Escape closes any selector, then one nudge; neither the investigator log nor a quiz fork writing now counts');
+    assert.deepEqual(keys(), ['Escape', 'nudge', 'Enter'], 'every log idle for 5 minutes: Escape closes any selector, then one nudge; a quiz fork writing now does not count');
     assert.match(t.tmux().find((a) => a.includes('-l'))!.at(-1)!, /No progress from you or your subagents for 6 minutes\. Check each subagent/);
     assert.match(job.comments.find((c) => c.body.startsWith('**Runner:**'))!.body, /nudged it/);
-    assert.equal(investigators(), 0, 'the investigator waits another stallMinutes');
-    const stall = path.join(runner, 'stall.json');
-    const nudgedAt = Date.now() - 12 * 60000;
-    put(stall, JSON.stringify({ nudgedAt }));
     sessionLog(agent, dir, 'lead', 3, IDLE);
     await t.run('--once');
-    assert.equal(investigators(), 0, 'the lead answered the nudge 3 minutes ago: not quiet yet');
-    sessionLog(agent, dir, 'lead', 6, IDLE);
-    await t.run('--once');
-    await t.run('--once');
-    assert.deepEqual([nudges(), investigators()], [1, 1], 'answered, then idle again: the second stretch starts one investigator, not a second nudge');
-    assert.equal(t.decisions().length, 0, 'the investigator, not the runner, decides whether Alex must act');
-    const script = readFileSync(path.join(runner, 'stall.sh'), 'utf8');
-    assert.match(script, /cd .*\.runner \|\| exit 1\n.*pi -p --model lead-model[\s\S]*prompts\/stall\.md/, 'the investigator runs from .runner, so its log lands outside the lead folder');
-    assert.ok(t.leads().some((l) => /quiet a second time since the runner nudged it/.test(l.input)), 'the investigator ran with its facts');
     sessionLog(agent, dir, 'lead', 30, IDLE);
     await t.run('--once');
-    assert.deepEqual([nudges(), investigators()], [1, 1], 'a third stretch in the same run does nothing');
+    await t.run('--once');
+    assert.deepEqual([nudges(), sessions()], [1, 1], 'answered, then idle again: the second stretch gets no second nudge and starts nothing');
+    assert.equal(t.decisions().length, 0, 'the runner files no Decision for a quiet live lead');
+    assert.match(job.comments.find((c) => c.body.startsWith('**Runner:**'))!.body, /nudged it/, 'the status comment still says the lead was nudged');
     t.setLive();
     job.comments.push({ id: 'c-2', body: 'Go on.', createdAt: later(), user: { name: ALEX } });
     await t.run('--once');
     t.setLive('ALE-1');
     put(path.join(runner, 'started'), new Date(Date.now() - 20 * 60000).toISOString());
     await t.run('--once');
-    assert.deepEqual([nudges(), investigators()], [2, 1], 'a new lead start resets the count: a fresh nudge');
+    assert.equal(nudges(), 2, 'a new lead start resets the count: a fresh nudge');
   } finally {
     delete process.env.PI_CODING_AGENT_DIR;
   }
