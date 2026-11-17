@@ -4,7 +4,7 @@
 \* ticket, all through GitHub and Linear itself. The runner knows nothing about
 \* PRs. It makes two writes: it starts the lead, and it files a Decision issue
 \* when the lead stopped and nothing is left to wait for.
-\* The runner remembers one fact: when it last started the lead.
+\* The runner remembers one fact per ticket: up to when the lead saw every event.
 CONSTANTS EVENT_CHECK,         \* fix: start the lead only on an event since its last start
           TWO_STEP_DECISION    \* bug: file the Decision issue, then link it, instead of one write with a parent
 
