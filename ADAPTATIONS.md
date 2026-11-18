@@ -22,11 +22,11 @@ The manifest contains the exact ordered `find`, `replace`, and `count` values fo
 
 | Upstream file | Edit scope |
 | --- | --- |
-| `agents/comment-sicko.md` | Explicit read tools; parent supplies Git/context and applies proposed deletions. |
+| `agents/comment-sicko.md` | Explicit read tools; the agent traces symbols itself and asks the parent to run `/skill:why`. The parent supplies Git/context and applies proposed deletions. |
 | `agents/poteto-agent.md` | Remove background/resume fields; add Pi tools and a bounded implementation role. The skill-read sentence names `{{PSTACK_ROOT}}/skills/poteto-mode/SKILL.md`, so the Cursor plugin-cache search is gone, and principle leaves live under `{{PSTACK_ROOT}}/skills/`. |
 | `skills/architect/SKILL.md` | Pi command, todo, and model-panel routing; parent orchestrates isolated leaf design tasks. |
 | `skills/architect/references/runner-prompt.md` | Remove the promise that every candidate uses a different model. |
-| `skills/arena/SKILL.md` | Pi command, todos, full configured panel, isolated writers, bounded batches of parallel calls, file receipts, and a read-only cross-judge from another model family, tried in configured order and then from `list-models`. Models or reviewers the user names replace the panel; if one cannot run, the parent says so and asks before substituting. |
+| `skills/arena/SKILL.md` | Pi command, todos, the full configured `arena-runner` panel with at least two runners, isolated writers, bounded batches of parallel calls, file receipts, and a read-only cross-judge from another vendor, tried in configured order and then from `list-models`. A vendor is the company behind the model line, not the selector's provider. Models or reviewers the user names replace the panel; if one cannot run, the parent says so and asks before substituting. |
 | `skills/automate-me/SKILL.md` | Pi skill/session paths, chat choices, bounded history readers, and native skill authoring. |
 | `skills/create-verification-skill/SKILL.md` | Pi output paths and command names; use a shell-callable control tool and a file-relative example link. The deliverable becomes an executable `.agents/verify` with `launch`, `doctor`, `drive <feature>`, and `cleanup`, whose no-argument run prints PASS, FAIL, or SKIP per step and the evidence directory. A person and an agent run it the same way, and the job runner already calls it before review. The generated skill points at the command and keeps the proof standards. The interview, feature map, and proof rules stay upstream. |
 | `skills/create-formal-verification-skill/SKILL.md` | Pi skill commands, including the three `/skill:statechart` references. The link to `../statechart/SKILL.md` and the rest of the statechart paragraph stay upstream. |
@@ -64,15 +64,15 @@ The manifest contains the exact ordered `find`, `replace`, and `count` values fo
 | `skills/reflect/references/tooling-reviewer.md` | Pi transcript/tool paths and invocation evidence; parent performs referenced external lookups. |
 | `skills/correct/SKILL.md` | Pi skill command only. |
 | `skills/principle-never-block-on-the-human/SKILL.md` | One line: every call that is costly to undo still needs the human, including a data model or public API, a migration, and money, not only irreversible actions. |
-| `skills/setup-pstack/SKILL.md` | Pi model discovery and version-1 role JSON instead of Cursor rules; keep the budget ask in chat, confirmation, validation, and the verification and formal verification skill offers. The budget becomes a `:<level>` thinking suffix on each real selector, which Pi reads from `--model`. |
-| `skills/show-me-your-work/SKILL.md` | Scoped Pi sessions, a manual TSV appender, append-only corrections, and explicit independent reviewer selection. |
+| `skills/setup-pstack/SKILL.md` | Pi model discovery and version-1 role JSON instead of Cursor rules; keep the budget ask in chat, confirmation, validation, and the verification and formal verification skill offers. Defaults stay `inherit-parent` because Pi cannot assume Cursor's model slugs. Each role's default effort is `high` for `arena-runner`, `arena-cross-judge`, `swarm-worker`, and `interrogate-reviewer` and `xhigh` otherwise; the three budgets move it on upstream's ladder and write it as a `:<level>` thinking suffix on each real selector, capped at `xhigh`, which Pi reads from `--model`. In place of the `# defaults: 3` migration, a re-run drops retired role keys from an existing `models.json` and turns a `:max` suffix into `:xhigh`. |
+| `skills/show-me-your-work/SKILL.md` | Scoped Pi sessions, a manual TSV appender, append-only corrections, and explicit selection of a reviewer from another vendor. |
 | `skills/statechart/SKILL.md` | Pi skill command in the invocation hint only. Pi renders `mermaid` code blocks in interactive transcripts, so the chart and Pele rules stay upstream. |
 | `skills/statechart/references/render.md` | Paint the chart background from `--pele-bg`. Pele draws no full background, so in dark mode a browser showed the light title and edge-label boxes on a white canvas. |
 | `skills/swarm/SKILL.md` | Local leaf workers and Pi model roles instead of cloud fields; retain logical coverage across bounded batches of parallel calls. |
 | `skills/teach/SKILL.md` | Parent-owned research and available visual tools; keep teaching and progressive-diagram rules. The person is not in this code: workflow and one example first, then file and function names. |
 | `skills/technical-writing/SKILL.md` | Change one skill command to Pi syntax; allow short pasted proof in PR bodies and link long output. |
 | `skills/typescript-best-practices/SKILL.md` | Remove unsupported paths frontmatter. |
-| `skills/unslop/SKILL.md` | Reject a coined local name for a step or phase. Say what happens, or use a name the code, the docs, or the user already use. |
+| `skills/unslop/SKILL.md` | Add rule 34 in upstream's one-line style: reject a coined local name for a step or phase. Say what happens, or use a name the code, the docs, or the user already use. |
 | `skills/why/SKILL.md` | Parent owns Git/MCP searches and citation checks; leaf readers use supplied evidence. Remove Cursor task fields and defaults. Present the answer as a workflow and one concrete example before the evidence sections. A why question is not a change plan. |
 | `skills/why/references/synthesizer-prompt.md` | Use an explicit URL placeholder and one file-relative reference path; external citation checks go back to the parent. |
 
