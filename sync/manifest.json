@@ -1371,222 +1371,12 @@
       "kind": "transform",
       "source": "skills/poteto-mode/playbooks/multi-phase-plan.md",
       "destination": "skills/poteto-mode/playbooks/multi-phase-plan.md",
-      "expectedBlob": "7101aa71dbc08f2b84baa227a7bd589f800f13e8",
-      "reason": "Preserve upstream workflow and output; change host-specific runtime boundaries and unavailable paths only.",
+      "expectedBlob": "8ddcfc7aec9ab5fc5962b1037d58880e09ca7307",
+      "reason": "Link the prototype playbook from its Pi-installed location; keep the shortened upstream plan and gates.",
       "transforms": [
         {
-          "find": "subagents with `subagent_type: \"poteto-agent\"` and an explicit model",
-          "replace": "bounded read-only `general-purpose` leaf tasks with configured role models",
-          "count": 1
-        },
-        {
-          "find": "Run `node pstack/skills/poteto-mode/scripts/check-plan.mjs <plan.md>` and fix every line it prints",
-          "replace": "The upstream check-plan script is not bundled. If the repository supplies a reviewed equivalent, record its real path, run it on the plan, and fix every finding. Otherwise manually check every heading, placeholder, dependency, evidence box, and gate listed in Pi plan constraints and report the missing automated check",
-          "count": 1
-        },
-        {
-          "find": "On the operator's go, arm the audit tick as `/loop 1h` with the tick prompt below. Never leave the cadence to memory.",
-          "replace": "On the operator's go, record an hourly audit checkpoint while the session is active. Check it between bounded requests. If no timer tool exists, state that no unattended wake is armed and leave a durable resume command when stopping.",
-          "count": 1
-        },
-        {
-          "find": "send every owner a zero-writes order at once.",
-          "replace": "stop new dispatch and parent writes at once. Send a zero-writes order only if live messaging exists; cancel only if the host supports it. A request is not proof of exit. Without those controls, let the bounded request return, report possible in-flight writes, and keep its scope reserved until confirmed exit. Inspect its final artifacts before any later reassignment.",
-          "count": 1
-        },
-        {
-          "find": "Spawn one owner per PR with the full lifecycle the execution playbook names.",
-          "replace": "Assign one parent-owned lifecycle per PR. Dispatch only bounded leaf tasks for its current stage; no child merges or nests.",
-          "count": 1
-        },
-        {
-          "find": "Rebase onto current trunk before the code-ready report and babysit. Keep that merge base in fix rounds. Rebase again only at merge prep, on a `git merge-tree` conflict with trunk, on a CI failure that comes from a change on trunk, or when a known concurrent change to the same files lands.",
-          "replace": "Outside Babysit, the parent prepares the authorized branch against its intended base before the code-ready report and babysit. Keep that merge base in fix rounds. Independent PRs use current trunk; stack children keep their parent base. Conflicts or stale bases found during Babysit stop for the parent, not topology changes inside triage. Rebase again only at merge prep, on a `git merge-tree` conflict with trunk, on a CI failure that comes from a change on trunk, or when a known concurrent change to the same files lands. Recheck verdict validity and current-head checks after any base or head change.",
-          "count": 1
-        },
-        {
-          "find": "lane runs on its own cloud VM at the PR head. Drive through `control-ui` or `control-cli` from `cursor-team-kit`.",
-          "replace": "scenario runs in an isolated local environment at the PR head. The parent drives available UI or CLI controls. Read-only children audit receipts; write-capable bounded workers may run scoped checks. Split the ten scenarios across batches of at most eight parallel calls without dropping coverage.",
-          "count": 1
-        },
-        {
-          "find": "Rebased onto current trunk after the verdict, patch-id unchanged.",
-          "replace": "For authorized independent landing or the current stack bottom only, fetch trunk and rebase if needed. Compare stable base-to-head patch-id with the recorded verdict base/head SHAs. Re-verify changed patches independently; unchanged patches still need current-head CI and mergeability. Stack descendants stay on their parent until they become bottom.",
-          "count": 1
-        },
-        {
-          "find": "lanes on `<swarm workers model>",
-          "replace": "logical lanes in batches of at most eight parallel calls using configured role `swarm-worker",
-          "count": 1
-        },
-        {
-          "find": "`control-ui` from `cursor-team-kit`.",
-          "replace": "available browser-driving tools.",
-          "count": 1
-        },
-        {
-          "find": "`control-cli` from `cursor-team-kit`.",
-          "replace": "available terminal-driving tools.",
-          "count": 1
-        },
-        {
-          "find": "the agent store's",
-          "replace": "a named durable local task directory's",
-          "count": 1
-        },
-        {
-          "find": "execution playbook from trunk",
-          "replace": "resolved local execution workflow",
-          "count": 1
-        },
-        {
-          "find": "Stand down a stuck lane and dispatch its replacement now.",
-          "replace": "Request live stop or cancellation only if exposed. Confirm exit before writable scope reuse; defer conflicting work until then.",
-          "count": 1
-        },
-        {
-          "find": "on a lane VM.",
-          "replace": "in a lane environment.",
-          "count": 1
-        },
-        {
-          "find": "the script's output,",
-          "replace": "actual checker output or labeled manual-check results and the automation gap,",
-          "count": 1
-        },
-        {
-          "find": "the check script's output.",
-          "replace": "actual checker output or labeled manual-check results and the automation gap.",
-          "count": 1
-        },
-        {
-          "find": "Run `/deslop`",
-          "replace": "Inspect the diff for slop",
-          "count": 1
-        },
-        {
-          "find": "owner squash-merges its own",
-          "replace": "authorized parent squash-merges the current eligible",
-          "count": 1
-        },
-        {
-          "find": "Read these from trunk at program start. Re-read them at every tick.",
-          "replace": "Resolve installed instructions at program start and each active-session tick. Record package version or repository SHA.",
-          "count": 1
-        },
-        {
-          "find": "`git show origin/main:pstack/skills/poteto-mode/playbooks/<execution playbook>.md`",
-          "replace": "<Resolve and read execution workflow and parent mode gates instructions; record missing access and a local fallback.>",
-          "count": 1
-        },
-        {
-          "find": "`git show origin/main:pstack/skills/swarm/SKILL.md`",
-          "replace": "<Resolve and read swarm instructions; record missing access and a local fallback.>",
-          "count": 1
-        },
-        {
-          "find": "`git show origin/main:<control skill path>`",
-          "replace": "<Resolve and read surface-control instructions; record missing access and a local fallback.>",
-          "count": 1
-        },
-        {
-          "find": "`git show origin/main:pstack/skills/poteto-mode/playbooks/opening-a-pr.md`",
-          "replace": "[Opening a PR](opening-a-pr.md)",
-          "count": 1
-        },
-        {
-          "find": "`git show origin/main:pstack/skills/<each other leaf skill the program uses>`",
-          "replace": "<Resolve and read other installed leaf skill instructions; record missing access and a local fallback.>",
-          "count": 1
-        },
-        {
-          "find": "Pick `playbooks/autopilot-full.md` when the run may merge. Pick `playbooks/autopilot-stack.md` when the operator lands the PRs.",
-          "replace": "Pick upstream Autopilot-full when the run may merge, or Autopilot-stack when the operator lands the PRs. Neither is bundled; write explicit local steps under the parent mode local Babysit and Shipping gates.",
-          "count": 1
-        },
-        {
-          "find": "runs `pstack/skills/poteto-mode/playbooks/<execution playbook>.md`.",
-          "replace": "follows <named workflow and explicit local fallback under the parent mode local Babysit and Shipping gates>.",
-          "count": 1
-        },
-        {
-          "find": "`playbooks/prototype.md`",
-          "replace": "[Prototype](prototype.md)",
-          "count": 1
-        },
-        {
-          "find": "`playbooks/orchestrate.md`.",
-          "replace": "[Orchestrate](orchestrate.md).",
-          "count": 1
-        },
-        {
-          "find": "`playbooks/shipping.md`.>",
-          "replace": "the parent mode local Shipping gates.>",
-          "count": 1
-        },
-        {
-          "find": "`../references/bugbot-triage.md`.",
-          "replace": "the skeptical fix / dismiss / ask rule against code and runtime evidence; the upstream rubric is not bundled, so dismiss with concrete disproof and escalate unresolved security, auth, billing, data, or migration risk.",
-          "count": 1
-        },
-        {
-          "find": "pstack/skills/swarm/SKILL.md",
-          "replace": "/skill:swarm",
-          "count": 1
-        },
-        {
-          "find": "pstack/skills/how/SKILL.md",
-          "replace": "/skill:how",
-          "count": 1
-        },
-        {
-          "find": "pstack/skills/interrogate/SKILL.md",
-          "replace": "/skill:interrogate",
-          "count": 1
-        },
-        {
-          "find": "pstack/skills/show-me-your-work/SKILL.md",
-          "replace": "/skill:show-me-your-work",
-          "count": 1
-        },
-        {
-          "find": "/technical-writing",
-          "replace": "/skill:technical-writing",
-          "count": 1
-        },
-        {
-          "find": "/no-comments",
-          "replace": "/skill:no-comments",
-          "count": 1
-        },
-        {
-          "find": "/unslop",
-          "replace": "/skill:unslop",
-          "count": 1
-        },
-        {
-          "find": "- [ ] <The authorized parent squash-merges the current eligible PR, or the root appends it to the base-branch stack and the operator lands it bottom-up.>",
-          "replace": "- [ ] <The authorized parent squash-merges the current eligible PR, or the root appends it to the base-branch stack and the operator lands it bottom-up.>\n- [ ] Apply the parent mode local Shipping gates. Only the current bottom may be retargeted, armed, or landed. Confirm actual merge and fetched trunk presence before advancing; readiness is not merge.",
-          "count": 1
-        },
-        {
-          "find": "on the `swarm workers` model (default `grok-4.7-xhigh-fast`)",
-          "replace": "with configured role `swarm-worker`",
-          "count": 1
-        },
-        {
-          "find": "Ten lanes at the PR head drive the real surface through its control skill, per the **swarm** skill, with configured role `swarm-worker`.",
-          "replace": "Ten logical lanes at the PR head drive the real surface through available controls, per the **swarm** skill, with configured role `swarm-worker`, in batches of at most eight parallel calls.",
-          "count": 1
-        },
-        {
-          "find": "the patch-id rule in `playbooks/shipping.md`",
-          "replace": "the patch-id rule in the parent mode local Shipping gates",
-          "count": 1
-        },
-        {
-          "find": "reasoning level and fast or standard speed",
-          "replace": "reasoning level",
+          "find": "per `playbooks/prototype.md`",
+          "replace": "per [Prototype](prototype.md)",
           "count": 1
         }
       ]
@@ -1595,62 +1385,27 @@
       "kind": "transform",
       "source": "skills/poteto-mode/playbooks/opening-a-pr.md",
       "destination": "skills/poteto-mode/playbooks/opening-a-pr.md",
-      "expectedBlob": "4a92c501f184ea24392d59a9889ce2f08e8e9201",
-      "reason": "Preserve upstream workflow and output; change host-specific runtime boundaries and unavailable paths only. Use the one PR title and body style: area-colon titles, impact-first Why, show-me What changed, short pasted proof, and only four sections.",
+      "expectedBlob": "e7367ed4cc37c48caafcc1b20d1a66146e22976c",
+      "reason": "Replace the Cursor diff skill and built-in PR tool, and keep the local title and four-section PR body style.",
       "transforms": [
         {
-          "find": "Multiple `Task` calls on the same branch each get their own worktree, or `git fetch && git reset --hard origin/<branch>` between them.",
-          "replace": "Multiple leaf tasks on the same branch each get their own worktree, or `git fetch && git reset --hard origin/<branch>` between them.",
-          "count": 1
-        },
-        {
-          "find": "Run `/deslop` from `cursor-team-kit` over the diff before commit and `/no-comments` before review.",
+          "find": "Run `/deslop` from `cursor-team-kit` over the diff before commit.",
           "replace": "Inspect the diff for slop before commit and run `/skill:no-comments` before review.",
           "count": 1
         },
         {
-          "find": "with `/technical-writing` (",
-          "replace": "with `/skill:technical-writing` (",
+          "find": "Title: `type(scope): subject`, naming a real symbol when one carries the change.",
+          "replace": "Title: `Area: subject`, with a plain sentence and no trailing period, naming a real symbol when one carries the change. Do not use Conventional Commits.",
           "count": 1
         },
         {
-          "find": "then apply `/unslop`.",
-          "replace": "then apply `/skill:unslop`.",
+          "find": "Body: a one-minute briefing under 40 lines with these `##` headings in order, dropping empty ones: `## Why`, `## What changed`, `## Scope`, `## Tradeoffs` (only rejected alternatives a reviewer would otherwise ask about), `## Blast Radius`, `## Verification`.",
+          "replace": "Body: a one-minute briefing under 40 lines with these `##` headings in order: `## Why`, `## What changed`, `## Scope`, `## Verification`. Start Why with who or what was hurt and how. Show What changed with a small diagram, call tree, pseudocode, or before/after diff and a concrete case and test for each new rule. Scope names what the change leaves out, the risk, and rejected alternatives when relevant. Paste short real proof in Verification (command and outcome, under about 10 lines); link longer output. Drop an empty section except Scope.",
           "count": 1
         },
         {
-          "find": "per `playbooks/shipping.md` step 4.",
-          "replace": "per step 4 of the local Shipping gates in `../SKILL.md`.",
-          "count": 1
-        },
-        {
-          "find": "A subagent that opens a PR runs `/deslop` and `/no-comments`, and posts the URL. It returns to the parent without babysitting, unless it is an Autopilot-full or Autopilot-stack owner. That owner's brief assigns the babysit loop and is the ask `playbooks/babysit.md` waits for. The owner starts the loop after its code-ready report, reports merge-ready, and is exempt from the rules here and in `playbooks/babysit.md` that hold babysitting until a whole stack is built.",
-          "replace": "A leaf task that opens a PR runs a diff inspection for slop and `/skill:no-comments`, and posts the URL. It returns to the parent without babysitting, unless it is an Autopilot-full or Autopilot-stack owner under a parent-owned local fallback. That owner's brief assigns the babysit loop and is the ask the local Babysit gates wait for. The owner starts the loop after its code-ready report, reports merge-ready, and is exempt from the rules here and in the local Babysit gates that hold babysitting until a whole stack is built.",
-          "count": 1
-        },
-        {
-          "find": "**Titles.** Conventional Commits `type(scope): subject`, no trailing period. Type such as `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, or `perf`. Scope is the area, such as `pstack` or `poteto-mode`. Subject is short, imperative, and names a real symbol when one carries the change, for example `fix(pstack): retarget opening-a-pr babysit trigger`.",
-          "replace": "**Titles.** Area, colon, then a plain sentence, no trailing period, for example `Lead prompt: ask before posting on a repo you do not own`. The area is the part of the repo the change lives in. Do not use Conventional Commits.",
-          "count": 1
-        },
-        {
-          "find": "- `## Why`: the problem and approach, 1–3 short sentences. No SHAs, rebase genealogy, or \"based on main\" preamble.",
-          "replace": "- `## Why`: impact first. Say who or what was hurt and how, then the cause, in 1–3 short sentences. The first sentence is the TL;DR. No SHAs, rebase genealogy, or \"based on main\" preamble.",
-          "count": 1
-        },
-        {
-          "find": "- `## What changed`: 1–3 short bullets. Name a real symbol or path only when it carries the change. Name both sides of a rename or retarget.",
-          "replace": "- `## What changed`: break the change down the way `/skill:show-me` would: a small diagram, call tree, pseudocode, or before/after diff, plus 1–3 short bullets. Explain each new rule, check, or term in plain words, named as the code names it, with a concrete case it guards against and the test that proves it. Name both sides of a rename or retarget.",
-          "count": 1
-        },
-        {
-          "find": "- `## Verification`: 1–3 bullets, each a real run path and its outcome. Perf: one primary number with its unit, `before → after`, and a link to the arena or swarm directory for the rest. No sample-size methodology, swarm recitals, or metric tables.",
-          "replace": "- `## Verification`: paste short real proof, under about 10 lines: the command and what it printed. Link anything longer. Perf: one primary number with its unit, `before → after`, and a link for the rest. No metric tables.",
-          "count": 1
-        },
-        {
-          "find": "- `## Scope`: always. 1–3 short items on what it covers and what it deliberately leaves out (a follow-up, a known gap). No symbols, paths, or file-by-file essay.\n- `## Tradeoffs`: only rejected alternatives a reviewer would otherwise ask about. Skip when there was no real choice.\n- `## Blast Radius`: 1–2 sentences on who or what it touches and why that is safe or risky. If main is red, state the cost of leaving it red.\n",
-          "replace": "- `## Scope`: 1–3 short items on what it covers and what it deliberately leaves out (a follow-up, a known gap). Add what it could break and why that is safe, and any rejected alternative a reviewer would ask about. If main is red, state the cost of leaving it red. No symbols, paths, or file-by-file essay.\n",
+          "find": "Open PRs ready, through the run's PR tool with `draft: false`. Without one, use `gh pr create` without `--draft`, or `origin pr create --status open` when Origin's CLI resolves the repository.",
+          "replace": "Open PRs ready with `gh pr create` without `--draft`, or `origin pr create --status open` when Origin's CLI resolves the repository.",
           "count": 1
         }
       ]
