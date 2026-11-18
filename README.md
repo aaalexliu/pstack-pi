@@ -173,11 +173,11 @@ A role maps to one choice or to a pool of choices. Pools rotate round-robin per 
 
 The role IDs are:
 
-- `feature`, `refactoring`, `bug-fix`, `perf-issue`, `hillclimb`, `judgment`, `prose`, `hardest`
-- `how-explorer`, `how-explainer`, `how-critics`, `why-investigator`, `why-synthesizer`
-- `reflect-tooling`, `reflect-judgment`, `reflect-divergent`, `reflect-synthesizer`
-- `arena-runner`, `arena-cross-judge`, `swarm-worker`, `architect-runner`, `interrogate-reviewer`
+- `feature`, `refactoring`, `bug-fix`, `perf-issue`, `hillclimb`, `judgment`, `prose`
+- `arena-runner`, `arena-cross-judge`, `swarm-worker`, `interrogate-reviewer`
 - `no-comments`, `review`, `test`, `verify`, `scout`
+
+Upstream retired `hardest`, `how-explorer`, `how-explainer`, `how-critics`, `why-investigator`, `why-synthesizer`, `reflect-tooling`, `reflect-judgment`, `reflect-divergent`, `reflect-synthesizer`, and `architect-runner`. A `models.json` that still names one loads, the extension ignores that key, and `/skill:setup-pstack` removes it on its next run.
 
 `scout` is for cheap read-only reconnaissance, such as the interactive `scout` agent. Like every role it has no built-in model: set it in `models.json`, or the child runs on the parent's model.
 

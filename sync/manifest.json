@@ -4382,7 +4382,7 @@
       "source": "skills/teach/SKILL.md",
       "reason": "Parent-owned research and available visual tools. The person is not in this code: workflow and one example first, then anchors, and no coined phase name.",
       "destination": "skills/teach/SKILL.md",
-      "expectedBlob": "25369f3f554ed6b5826340ae3eee688fac0bda80",
+      "expectedBlob": "6146b65c4543af52c2693e844fc0ac4e4c010fae",
       "transforms": [
         {
           "find": "Run them in parallel and combine the results",
@@ -4405,7 +4405,7 @@
       "kind": "transform",
       "source": "skills/technical-writing/SKILL.md",
       "destination": "skills/technical-writing/SKILL.md",
-      "expectedBlob": "3e6d26109376cd66439c87ed48b4033df8d78a3a",
+      "expectedBlob": "6f53776d935064370738bebe79f9fc8f39987ade",
       "transforms": [
         {
           "find": "/technical-writing",

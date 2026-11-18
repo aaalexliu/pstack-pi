@@ -9,12 +9,10 @@ const manifest = parseManifest(JSON.parse(await read('sync/manifest.json')));
 /** @type {Record<string, {upstream: Record<string, string>, pi: Record<string, string>}>} */
 const contracts = JSON.parse(await read('tests/content/workflow-contracts.json'));
 const earlierTransforms = [
-  'skills/architect/references/runner-prompt.md',
   'skills/create-verification-skill/references/feature-map-example/search.md',
   'skills/interrogate/SKILL.md',
   'skills/technical-writing/SKILL.md',
   'skills/typescript-best-practices/SKILL.md',
-  'skills/why/references/synthesizer-prompt.md',
 ];
 
 // These checks protect reviewed instructions, not model compliance.
@@ -100,9 +98,6 @@ test('interrogate changes only the panel and adversary agent in Fan out', async 
 
 test('small reference repairs leave every other upstream byte intact', async () => {
   for (const [destination, before, after] of [
-    ['skills/architect/references/runner-prompt.md',
-      'You are one of the parallel runners, each on a different model.',
-      'You are one of several independent runners. The parent selects configured models and reports any limits on model diversity.'],
     ['skills/create-verification-skill/references/feature-map-example/search.md',
       '- **Proof.** Capture the populated result state.',
       '- **Proof.** Restore the populated result state after the clear-query and CLI checks. Run `control-notes browser fill --role searchbox --name "Search notes" --value "quarterly"` and wait for the `Search results` list to contain `Quarterly plan`. Capture this state.'],
