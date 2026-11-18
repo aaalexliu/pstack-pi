@@ -24,16 +24,14 @@ The manifest contains the exact ordered `find`, `replace`, and `count` values fo
 | --- | --- |
 | `agents/comment-sicko.md` | Explicit read tools; parent supplies Git/context and applies proposed deletions. |
 | `agents/poteto-agent.md` | Remove background/resume fields; add Pi tools and a bounded implementation role. The skill-read sentence names `{{PSTACK_ROOT}}/skills/poteto-mode/SKILL.md`, so the Cursor plugin-cache search is gone, and principle leaves live under `{{PSTACK_ROOT}}/skills/`. |
-| `skills/architect/SKILL.md` | Pi command, todo, and model-panel routing; parent orchestrates isolated leaf design tasks. |
-| `skills/architect/references/runner-prompt.md` | Remove the promise that every candidate uses a different model. |
+| `skills/architect/SKILL.md` | Pi skill command in the invocation hint. |
 | `skills/arena/SKILL.md` | Pi command, todos, full configured panel, isolated writers, bounded batches of parallel calls, file receipts, and a read-only cross-judge from another model family, tried in configured order and then from `list-models`. Models or reviewers the user names replace the panel; if one cannot run, the parent says so and asks before substituting. |
 | `skills/automate-me/SKILL.md` | Pi skill/session paths, chat choices, bounded history readers, and native skill authoring. |
 | `skills/create-verification-skill/SKILL.md` | Pi output paths and command names; use a shell-callable control tool and a file-relative example link. The deliverable becomes an executable `.agents/verify` with `launch`, `doctor`, `drive <feature>`, and `cleanup`, whose no-argument run prints PASS, FAIL, or SKIP per step and the evidence directory. A person and an agent run it the same way, and the job runner already calls it before review. The generated skill points at the command and keeps the proof standards. The interview, feature map, and proof rules stay upstream. |
 | `skills/create-formal-verification-skill/SKILL.md` | Pi skill commands, including the three `/skill:statechart` references. The link to `../statechart/SKILL.md` and the rest of the statechart paragraph stay upstream. |
 | `skills/create-verification-skill/references/feature-map-example/search.md` | Restore the query and results before recording proof after the clear-query step. |
 | `skills/figure-it-out/SKILL.md` | Pi command and todos; bounded readers/writers, parent-owned services, and isolated scratch outputs. |
-| `skills/how/SKILL.md` | Replace Cursor task fields and models with Pi roles and bounded leaf readers. Keep the senior-engineer bar. Explanations still lead with the surrounding workflow, one concrete example, and no coined phase name. When the answer depends on an outside product, the parent reads the vendor's docs and keeps documented guarantees apart from assumptions. A simple question is answered in the session with no subagent, because spawning an explainer for a narrow question cost a minute and drew a user correction. |
-| `skills/how/references/explainer-prompt.md` | Pi read-tool names; distinguish direct exploration from supplied explorer findings. Keep the senior-engineer audience, including the depth bar. The reader is still not in this code: workflow and one example first, then file and function names. |
+| `skills/how/SKILL.md` | Replace Cursor's Task spawn with a bounded Pi leaf reader. Check outside-product documentation and separate guarantees from assumptions. |
 | `skills/in-your-own-words/SKILL.md` | Pi skill command only. |
 | `skills/interrogate/SKILL.md` | Replace only the panel line and the adversary agent. Adversaries run as writable `poteto-agent` children in their own worktrees because each finding needs a run. The brief, verification, and output stay verbatim. |
 | `skills/ketchup/SKILL.md` | Pi skill commands. A real Pi session showed a Markdown image in a reply as its alt text only, with the path dropped, so the reply shows each screenshot with the read tool and gives its absolute path. Pi plays no video, so the reply gives video paths. Pi has no `/visualize`, so charts become text bar charts in a code block. Mermaid stays because Pi draws supported Mermaid diagrams in the transcript. |
@@ -57,11 +55,7 @@ The manifest contains the exact ordered `find`, `replace`, and `count` values fo
 | `skills/poteto-mode/playbooks/runtime-forensics.md` | Use available surface-control tools instead of assuming a control skill; parse large artifacts in a bounded leaf task. |
 | `skills/poteto-mode/playbooks/trace-forensics.md` | Rewrite `subagent (` phrasing to a bounded leaf task so the content gate stays clean. |
 | `skills/poteto-mode/playbooks/visual-parity.md` | Use available surface-control tools and an explicit local loop instead of control-skill and `/loop`. |
-| `skills/reflect/SKILL.md` | Pi sessions, model roles, leaf readers, parent evidence follow-up, native authoring, and authorized tracker writes. A lesson about a pstack-pi skill goes to a manifest transform or an `additions/skills/` edit in a pstack-pi PR. Other skills get a copy in `.pi/skills/` or `~/.pi/agent/skills/`, never an edit to the installed package, and Pi must load the copy. |
-| `skills/reflect/references/divergent-reviewer.md` | Pi transcript/tool paths and invocation evidence; parent performs referenced external lookups. |
-| `skills/reflect/references/judgment-reviewer.md` | Pi transcript/tool paths and invocation evidence; parent performs referenced external lookups. |
-| `skills/reflect/references/synthesizer.md` | Parent external checks, Pi authoring routes, and supported trigger metadata; keep acceptance criteria and output tables. |
-| `skills/reflect/references/tooling-reviewer.md` | Pi transcript/tool paths and invocation evidence; parent performs referenced external lookups. |
+| `skills/reflect/SKILL.md` | Use the active Pi transcript, Pi skill paths, and source edits for bundled skills instead of Cursor paths and installed-package edits. |
 | `skills/correct/SKILL.md` | Pi skill command only. |
 | `skills/principle-never-block-on-the-human/SKILL.md` | One line: every call that is costly to undo still needs the human, including a data model or public API, a migration, and money, not only irreversible actions. |
 | `skills/setup-pstack/SKILL.md` | Pi model discovery and version-1 role JSON instead of Cursor rules; keep the budget ask in chat, confirmation, validation, and the verification and formal verification skill offers. The budget becomes a `:<level>` thinking suffix on each real selector, which Pi reads from `--model`. |
@@ -73,8 +67,6 @@ The manifest contains the exact ordered `find`, `replace`, and `count` values fo
 | `skills/technical-writing/SKILL.md` | Change one skill command to Pi syntax; allow short pasted proof in PR bodies and link long output. |
 | `skills/typescript-best-practices/SKILL.md` | Remove unsupported paths frontmatter. |
 | `skills/unslop/SKILL.md` | Reject a coined local name for a step or phase. Say what happens, or use a name the code, the docs, or the user already use. |
-| `skills/why/SKILL.md` | Parent owns Git/MCP searches and citation checks; leaf readers use supplied evidence. Remove Cursor task fields and defaults. Present the answer as a workflow and one concrete example before the evidence sections. A why question is not a change plan. |
-| `skills/why/references/synthesizer-prompt.md` | Use an explicit URL placeholder and one file-relative reference path; external citation checks go back to the parent. |
 
 ## Preserved behavior and host limits
 
