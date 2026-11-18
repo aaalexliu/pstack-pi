@@ -217,7 +217,10 @@
       "red first": "Stage the commits so the failing repro lands before the fix in git history.",
       "evidence output": "Paste failing-then-passing repro output verbatim."
     },
-    "pi": {}
+    "pi": {
+      "local hunt loop": "Drive a long or stubborn hunt with an explicit local hypothesis loop and durable checkpoints.",
+      "bug-fix role": "Delegate implementation to a subagent using `poteto-agent` and role `bug-fix`"
+    }
   },
   "skills/poteto-mode/playbooks/eval.md": {
     "upstream": {
@@ -227,7 +230,10 @@
       "blinded judge": "The judge can know it's judging but sees outputs by sanitized label only, never by model name.",
       "synthesize": "Disagreement means a model is biased or the rubric is ambiguous. Synthesize."
     },
-    "pi": {}
+    "pi": {
+      "poll and pack level": "A task that only polls or packs results keeps its role model and runs with `thinking: \"medium\"`.",
+      "project-scoped sessions": "Do not scan unrelated project sessions."
+    }
   },
   "skills/poteto-mode/playbooks/feature.md": {
     "upstream": {
@@ -237,9 +243,12 @@
       "all consumers": "Port shared-primitive improvements to all consumers and verify each.",
       "one owner": "Code-coupled work (one feature, one migration) goes to a single owner",
       "reply": "**Reply:** what you built, what you chose and why, the throughput checkpoint, open decisions. Tables for design alternatives.",
-      "architect required": "`architect` for parallel design exploration."
+      "architect required": "`architect` for the shape."
     },
-    "pi": {}
+    "pi": {
+      "feature role": "Delegate code-writing to a subagent using `poteto-agent` and role `feature`",
+      "parent fan-out": "The parent fans out bounded leaf tasks after the blocking phase, keeping the coupled artifact under one owner."
+    }
   },
   "skills/poteto-mode/playbooks/hillclimb.md": {
     "upstream": {
