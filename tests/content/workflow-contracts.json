@@ -180,24 +180,30 @@
   "skills/poteto-mode/SKILL.md": {
     "upstream": {
       "read leaves": "Cite only principles whose leaf SKILL.md you read this session.",
-      "data first": "Any code \u2192 name the data shape first",
-      "empirical fork": "Sketch it via the Prototype playbook",
-      "root todos": "the matched playbook's steps, copied in verbatim",
-      "visible skips": "A step you choose not to do stays in the list with a one-line `skip: <reason>`.",
-      "shipping chain": "Nothing gets armed before an independent per-PR verdict, and only the contiguous verified run from the root lands.",
-      "reply coverage": "**Terse is not an excuse to drop content.**",
-      "non-obvious comments": "Keep a comment only for a non-obvious *why* the code can't show.",
-      "restate the goal": "Your first message on a task \u2192 tell the user, in your own words, their goal, the problem they are solving",
-      "chat runs the playbook": "Never spawn a `poteto-agent` to run the playbook itself.",
-      "raise and lower": "Lower it one step for judgment and two or more steps for routine work."
+      "restate the goal": "First message \u2192 restate the user's goal and the smallest change that meets it, then proceed.",
+      "worker kickoff": "is `Read <path>/worker.md before anything else.`, with `<path>` the absolute path of this skill's folder.",
+      "empirical fork": "A fork you could settle by running something \u2192 prototype it per `playbooks/prototype.md` instead of asking.",
+      "data first": "Code \u2192 name the data shape first.",
+      "chat runs the playbook": "runs the playbook itself. Routed workflow skills (`interrogate`, `swarm`) set their own",
+      "fable exception": "Difficulty alone never qualifies.",
+      "raise and lower": "Raise any other role one step, up to xhigh, for the hardest or subtlest work, lower it one step for judgment, and two or more steps for routine work. No role runs above xhigh.",
+      "fresh subagents": "Give a fix round, a follow-up, a retry, or the next queue item to a fresh subagent with the original brief, every later directive, and the prior agent's report and branch.",
+      "reply evidence": "Give each claim its evidence or a label (measured, inferred, or guess).",
+      "playbook path": "Match the task to a playbook and open its steps at `playbooks/<title>.md`, with the title in kebab case.",
+      "figure-it-out fallback": "Large, cross-cutting, or unattended work, or a task no playbook fits, routes to the **figure-it-out** skill."
     },
     "pi": {
-      "cleanup ownership and cleanliness": "prove merged or abandoned state and cleanliness",
+      "worker kickoff in task": "Starting any agent with `subagent` \u2192 the first line of its kickoff, the `task` field, is",
       "principle sibling leaves": "Those leaves are sibling skills next to this directory, for example `../principle-prove-it-works/SKILL.md` or `/skill:principle-prove-it-works`. They are not under `principles/` here.",
-      "fresh subagent handoff": "**Fresh subagents by default.** Give new work to a fresh subagent with consolidated scope, meaning the original brief, every later directive, and the prior agent's report and branch. This holds for a fix round, a follow-up, a retry, and the next queue item. Pi cannot resume a child.",
+      "no model ids": "Pi ships no model ids.",
+      "reasoning level per spawn": "Pass it as the `subagent` `thinking` field (`off`, `minimal`, `low`, `medium`, `high`, or `xhigh`), which overrides the role's level.",
+      "no speed knob": "Pi has no fast mode, so there is no speed to pick.",
+      "resume by session": "Resume an existing subagent with `subagent_resume` and its `session-path` only when",
+      "shipping chain": "Only that contiguous verified run may land.",
       "reader not in the code": "**The reader is not in this code.**",
-      "reasoning level per spawn": "Pass it as the `subagent` `thinking` field (`off`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`), which overrides the role's level.",
-      "no speed knob": "Pi has no fast mode, so there is no speed to pick."
+      "root todos": "The parent copies its steps into `pstack_todo` first.",
+      "unbundled playbooks": "Pi does not bundle Babysit, Shipping, Autonomous run, Autopilot-full, Autopilot-stack, Session pickup, or Worktree cleanup.",
+      "cleanup ownership and cleanliness": "prove merged or abandoned state and cleanliness"
     }
   },
   "skills/poteto-mode/playbooks/authoring-a-skill.md": {
@@ -612,6 +618,18 @@
     },
     "pi": {
       "costly calls": "Calls that are costly to undo still need the human: force-push, deleting data, outside messages, a data model or public API, a migration, money."
+    }
+  },
+  "skills/poteto-mode/worker.md": {
+    "upstream": {
+      "kickoff chain": "If you start an agent, the first line of its kickoff is `Read <path>/worker.md before anything else.`",
+      "kickoff bar": "The bar in your kickoff is the whole bar.",
+      "no question tools": "Never call a tool that shows a person a question.",
+      "ready PRs": "Open every PR ready for review, never as a draft."
+    },
+    "pi": {
+      "area-colon title": "PR title: area, colon, then a plain sentence",
+      "four sections": "`Why`, `What changed`, `Scope`, `Verification`."
     }
   }
 }
