@@ -290,30 +290,6 @@
       ]
     },
     {
-      "kind": "copy",
-      "source": "skills/architect/references/design-red-flags.md",
-      "destination": "skills/architect/references/design-red-flags.md"
-    },
-    {
-      "kind": "copy",
-      "source": "skills/architect/references/rationale-template.md",
-      "destination": "skills/architect/references/rationale-template.md"
-    },
-    {
-      "kind": "transform",
-      "source": "skills/architect/references/runner-prompt.md",
-      "destination": "skills/architect/references/runner-prompt.md",
-      "expectedBlob": "b1ad21aef22e80d718c361787190b599eb359d6c",
-      "reason": "Do not promise different models when Pi role choices may repeat or inherit.",
-      "transforms": [
-        {
-          "find": "You are one of the parallel runners, each on a different model.",
-          "replace": "You are one of several independent runners. The parent selects configured models and reports any limits on model diversity.",
-          "count": 1
-        }
-      ]
-    },
-    {
       "kind": "transform",
       "source": "skills/arena/SKILL.md",
       "reason": "Adapt only host tools, models, paths, and ownership; preserve all other upstream text.",
@@ -769,45 +745,6 @@
           "count": 1
         }
       ]
-    },
-    {
-      "kind": "transform",
-      "source": "skills/how/references/explainer-prompt.md",
-      "destination": "skills/how/references/explainer-prompt.md",
-      "expectedBlob": "3a36fb6736c5b74ac2774350841e332a019dec94",
-      "reason": "Pi read-tool names. Keep the senior-engineer audience. The reader is still not in this code: workflow and one example first, then file and function names, and no coined phase name.",
-      "transforms": [
-        {
-          "find": "Read, Grep, and Glob",
-          "replace": "`read`, `grep`, `find`, and `ls`",
-          "count": 1
-        },
-        {
-          "find": "The explorers did the work, so you shouldn't need to re-explore from scratch.",
-          "replace": "When explorer findings are supplied, use them rather than re-exploring from scratch. On the direct path, explore the code yourself before explaining it.",
-          "count": 1
-        },
-        {
-          "find": "You are writing an architectural explanation for a senior engineer.",
-          "replace": "You are writing an architectural explanation for a senior engineer. They are not in the weeds of this codebase.",
-          "count": 1
-        },
-        {
-          "find": "Write an explanation a senior engineer unfamiliar with this area could read and walk away with a solid mental model, understanding the architecture well enough to start working in it confidently.",
-          "replace": "Write an explanation a senior engineer unfamiliar with this area could read and walk away with a solid mental model, understanding the architecture well enough to start working in it confidently. The reader is not in the weeds of this codebase. Lead with the surrounding workflow: who acts, in what order, and what someone watching would see. Then one concrete example. Use a failure example when the point is a bug, a race, or an edge. Keep file and function names as places to look. Those names are not the explanation. Do not invent a short name for a phase. Use a name only if the code, the docs, or the user already use it, and say what it is the first time.",
-          "count": 1
-        },
-        {
-          "find": "Use prose, not pseudocode. Reference specific files and functions so the reader knows where to look, but don't dump large code blocks unless a snippet is essential to a point.",
-          "replace": "Use prose, not pseudocode. Walk one concrete case before you name the call chain. Reference specific files and functions so the reader knows where to look, but don't dump large code blocks unless a snippet is essential to a point.",
-          "count": 1
-        }
-      ]
-    },
-    {
-      "kind": "copy",
-      "source": "skills/how/references/explorer-prompt.md",
-      "destination": "skills/how/references/explorer-prompt.md"
     },
     {
       "kind": "transform",
@@ -1719,50 +1656,6 @@
       ]
     },
     {
-      "kind": "transform",
-      "source": "skills/poteto-mode/playbooks/orchestrate.md",
-      "destination": "skills/poteto-mode/playbooks/orchestrate.md",
-      "expectedBlob": "b6e5f5661a1e6b4778845de53f331cee3486905b",
-      "reason": "Keep the agentic program contract; replace cloud workers, sub-coordinators, forks, and messages with local Pi leaf tasks the parent coordinates.",
-      "transforms": [
-        {
-          "find": "Spawn workers with `Task`. Keep the program's state in the Project tracker (`notes.md`) and the Project store.",
-          "replace": "Spawn workers with `subagent` and `wait: true`. Keep the program's state in `notes.md` and its sibling files under a named durable local task directory.",
-          "count": 1
-        },
-        {
-          "find": "Run workers on a new cloud VM (`environment: \"cloud\"`) unless the work needs this machine: a `control-ui` or `control-cli` runtime check (from `cursor-team-kit`), local transcripts, a simulator, or auth that exists only here.",
-          "replace": "Pi has no cloud workers, so run each worker on this machine in its own worktree or output path. Use write-capable `poteto-agent` for scoped implementation and read-only `general-purpose` for exploration or review. Read-only reviewers get runtime receipts that you run.",
-          "count": 1
-        },
-        {
-          "find": "- **A sub-coordinator only when one area has many parallel workers.** It owns that area's workers and kickoffs and sends you one rollup, never raw worker reports. Stop at three levels: you, sub-coordinators, and workers. Keep about ten workers in flight per coordinator, and start the next one as each finishes instead of waiting on a whole batch.",
-          "replace": "- **No sub-coordinators.** Pi children cannot delegate, so you coordinate every worker and the tree stops at two levels: you and workers. Group an area's workers into a track you own. Send at most eight parallel `subagent` calls with `wait: true` in one message; four run at once. Pi returns after every call in the message settles, so finish each batch before sending the next.",
-          "count": 1
-        },
-        {
-          "find": "- **Fork when new work needs a worker's built state,** such as its checkout, uncommitted changes, or a running process. Message a worker only for a follow-up on the same work. Never message one to check on it, because a message restarts an idle agent.",
-          "replace": "- **Hand a worker's built state to a fresh worker when new work needs it,** such as its checkout, uncommitted changes, or a running process. Pi cannot fork, message, or resume a child, so name that state in the fresh worker's kickoff.",
-          "count": 1
-        },
-        {
-          "find": "Read a sample of each sub-coordinator's kickoffs while its workers run, and fix its instructions when one fails.",
-          "replace": "Read a sample of each track's kickoffs while its workers run, and fix your instructions when one fails.",
-          "count": 1
-        },
-        {
-          "find": "- **Stop or replace a worker that stalls or loops.**",
-          "replace": "- **Stop or replace a worker that stalls or loops.** Give each `subagent` call `wait: true` and a finite `timeoutMs`.",
-          "count": 1
-        },
-        {
-          "find": "reasoning level and fast or standard speed",
-          "replace": "reasoning level",
-          "count": 1
-        }
-      ]
-    },
-    {
       "kind": "copy",
       "source": "skills/poteto-mode/playbooks/pause-safely.md",
       "destination": "skills/poteto-mode/playbooks/pause-safely.md"
@@ -1933,16 +1826,6 @@
     },
     {
       "kind": "omit",
-      "source": "skills/poteto-mode/scripts/check-plan.mjs",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
-    },
-    {
-      "kind": "omit",
-      "source": "skills/poteto-mode/scripts/check-plan.test.ts",
-      "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
-    },
-    {
-      "kind": "omit",
       "source": "skills/poteto-mode/scripts/package.json",
       "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
     },
@@ -2010,6 +1893,11 @@
       "kind": "omit",
       "source": "skills/poteto-mode/scripts/worktree-audit.sh",
       "reason": "Upstream scripts wait for reviewed Pi execution contracts and matching tests."
+    },
+    {
+      "kind": "omit",
+      "source": "skills/poteto-mode/worker.md",
+      "reason": "PLACEHOLDER: classify worker.md"
     },
     {
       "kind": "copy",
@@ -2225,147 +2113,6 @@
         {
           "find": "reasoning level and fast or standard speed",
           "replace": "reasoning level",
-          "count": 1
-        }
-      ]
-    },
-    {
-      "kind": "transform",
-      "source": "skills/reflect/references/divergent-reviewer.md",
-      "reason": "Keep the upstream divergent prompt, scope, evidence shape, and filters; change only Pi tool/path names and the read-only child boundary.",
-      "destination": "skills/reflect/references/divergent-reviewer.md",
-      "expectedBlob": "1e070a2a3754f4dc0ddbaec4450a56179b81c92f",
-      "transforms": [
-        {
-          "find": "Do not modify files, write code, edit skills, or commit. The parent agent applies edits based on your output. Read code, and use any MCP tool available in your environment (e.g. a ticket tracker, chat, docs, observability, error tracker, source control) to look up context the transcript references, such as tickets and traces.",
-          "replace": "Do not modify files, write code, edit skills, commit, run `bash`, access external tools, or delegate. The parent agent applies edits based on your output and owns external lookups. Use `read`, `grep`, `find`, and `ls` within the supplied local scope, and you may keep your own `pstack_todo`. For missing referenced context, return the exact ticket, chat, doc, or trace reference and a question for the parent to check.",
-          "count": 1
-        },
-        {
-          "find": "Confine MCP lookups to context the transcript references",
-          "replace": "Confine requests for parent lookups to context the transcript references",
-          "count": 1
-        },
-        {
-          "find": "A skill counts as used when the transcript shows a `Read` of its `SKILL.md` (under `.cursor/skills/`, `~/.cursor/skills/`, or `~/.cursor/plugins/`), a `Task` prompt naming its path, or a tool call (Shell, Grep, MCP, etc.) matching its documented commands.",
-          "replace": "A skill counts as used when the transcript shows a `read` of its `SKILL.md` (under trusted project `.pi/skills/` or `.agents/skills/`, user-level `~/.pi/agent/skills/` or `~/.agents/skills/`, or installed package paths), an expanded `/skill:<name>` message containing the loaded `<skill name=\"...\" location=\"...\">` body (manual Pi invocation does not require a separate file read), a `subagent` prompt naming its path, or a tool call (`bash`, `grep`, external tools, etc.) matching its documented commands.",
-          "count": 1
-        },
-        {
-          "find": "Read the active transcript at <ABSOLUTE_PATH> (or use the digest below if no path is given).",
-          "replace": "Read the active transcript at <ABSOLUTE_PATH> (or use the digest below if no path is given). Pi JSONL has typed entries and `id`/`parentId` ancestry. Distinguish message/tool entries and branches; summaries are not proof that an action occurred.",
-          "count": 1
-        },
-        {
-          "find": "Tune its description so future agents pick it up.",
-          "replace": "Tune its description so future agents pick it up. In Pi, `disable-model-invocation: true` hides a skill from automatic invocation; flag that policy limit rather than promising a wording-only fix.",
-          "count": 1
-        }
-      ]
-    },
-    {
-      "kind": "transform",
-      "source": "skills/reflect/references/judgment-reviewer.md",
-      "reason": "Keep the upstream judgment prompt, scope, evidence shape, and filters; change only Pi tool/path names and the read-only child boundary.",
-      "destination": "skills/reflect/references/judgment-reviewer.md",
-      "expectedBlob": "61d15d76fff852eb573b551bc1317d79ed5a2e5f",
-      "transforms": [
-        {
-          "find": "Do not modify files, write code, edit skills, or commit. The parent agent applies edits based on your output. Read code, and use any MCP tool available in your environment (e.g. a ticket tracker, chat, docs, observability, error tracker, source control) to look up context the transcript references, such as tickets and traces.",
-          "replace": "Do not modify files, write code, edit skills, commit, run `bash`, access external tools, or delegate. The parent agent applies edits based on your output and owns external lookups. Use `read`, `grep`, `find`, and `ls` within the supplied local scope, and you may keep your own `pstack_todo`. For missing referenced context, return the exact ticket, chat, doc, or trace reference and a question for the parent to check.",
-          "count": 1
-        },
-        {
-          "find": "Confine MCP lookups to context the transcript references",
-          "replace": "Confine requests for parent lookups to context the transcript references",
-          "count": 1
-        },
-        {
-          "find": "A skill counts as used when the transcript shows a `Read` of its `SKILL.md` (under `.cursor/skills/`, `~/.cursor/skills/`, or `~/.cursor/plugins/`), a `Task` prompt naming its path, or a tool call (Shell, Grep, MCP, etc.) matching its documented commands.",
-          "replace": "A skill counts as used when the transcript shows a `read` of its `SKILL.md` (under trusted project `.pi/skills/` or `.agents/skills/`, user-level `~/.pi/agent/skills/` or `~/.agents/skills/`, or installed package paths), an expanded `/skill:<name>` message containing the loaded `<skill name=\"...\" location=\"...\">` body (manual Pi invocation does not require a separate file read), a `subagent` prompt naming its path, or a tool call (`bash`, `grep`, external tools, etc.) matching its documented commands.",
-          "count": 1
-        },
-        {
-          "find": "Read the active transcript at <ABSOLUTE_PATH> (or use the digest below if no path is given).",
-          "replace": "Read the active transcript at <ABSOLUTE_PATH> (or use the digest below if no path is given). Pi JSONL has typed entries and `id`/`parentId` ancestry. Distinguish message/tool entries and branches; summaries are not proof that an action occurred.",
-          "count": 1
-        },
-        {
-          "find": "Tune its description so future agents pick it up.",
-          "replace": "Tune its description so future agents pick it up. In Pi, `disable-model-invocation: true` hides a skill from automatic invocation; flag that policy limit rather than promising a wording-only fix.",
-          "count": 1
-        }
-      ]
-    },
-    {
-      "kind": "transform",
-      "source": "skills/reflect/references/synthesizer.md",
-      "reason": "Preserve all acceptance criteria and Accepted/Rejected/Backlog templates; replace external lookup ownership and the unavailable create-skill authoring route.",
-      "destination": "skills/reflect/references/synthesizer.md",
-      "expectedBlob": "1a090d86134987719ddb418023020c2ef58a6dae",
-      "transforms": [
-        {
-          "find": "Use any MCP tool available in your environment to verify a finding (e.g. ticket, observability trace, chat thread).",
-          "replace": "Use `read`, `grep`, `find`, and `ls` on supplied local evidence and target skills. You may keep your own `pstack_todo`. Do not run `bash`, access external tools, edit, commit, or delegate. Return exact referenced tickets, traces, or threads and questions for the parent to verify. The parent owns external lookups and authorized tracker writes. Read <ABSOLUTE_PATH> or <DIGEST IF FILE PATH UNAVAILABLE>. Spot-verify citations against actual Pi message/tool entries, distinguishing `id`/`parentId` branches and summaries. Mark missing evidence as unverified.",
-          "count": 1
-        },
-        {
-          "find": "Confine MCP lookups to context the transcript references via the reviewers",
-          "replace": "Confine requests for parent lookups to context the transcript references via the reviewers",
-          "count": 1
-        },
-        {
-          "find": "new skill via create-skill:",
-          "replace": "new skill:",
-          "count": 2
-        },
-        {
-          "find": "<draft a new skill via create-skill>",
-          "replace": "<parent drafts and behavior-tests a new skill using Pi authoring docs>",
-          "count": 1
-        },
-        {
-          "find": "If neither, reject as `skill-not-used`.",
-          "replace": "If neither, reject as `skill-not-used`. In Pi, `disable-model-invocation: true` blocks automatic invocation; report that policy limit rather than claiming a description edit alone fixes it.",
-          "count": 1
-        },
-        {
-          "find": "\"path-shaped triggers belong in `paths:`, not description prose\"",
-          "replace": "\"Pi skill triggers belong in description prose; Pi does not support `paths:` frontmatter\"",
-          "count": 1
-        }
-      ]
-    },
-    {
-      "kind": "transform",
-      "source": "skills/reflect/references/tooling-reviewer.md",
-      "reason": "Keep the upstream tooling prompt, scope, evidence shape, and filters; change only Pi tool/path names and the read-only child boundary.",
-      "destination": "skills/reflect/references/tooling-reviewer.md",
-      "expectedBlob": "a839db4318798c51539c319cb90387ce02557225",
-      "transforms": [
-        {
-          "find": "Do not modify files, write code, edit skills, or commit. The parent agent applies edits based on your output. Read code, and use any MCP tool available in your environment (e.g. a ticket tracker, chat, docs, observability, error tracker, source control) to look up context the transcript references, such as tickets and traces.",
-          "replace": "Do not modify files, write code, edit skills, commit, run `bash`, access external tools, or delegate. The parent agent applies edits based on your output and owns external lookups. Use `read`, `grep`, `find`, and `ls` within the supplied local scope, and you may keep your own `pstack_todo`. For missing referenced context, return the exact ticket, chat, doc, or trace reference and a question for the parent to check.",
-          "count": 1
-        },
-        {
-          "find": "Confine MCP lookups to context the transcript references",
-          "replace": "Confine requests for parent lookups to context the transcript references",
-          "count": 1
-        },
-        {
-          "find": "A skill counts as used when the transcript shows a `Read` of its `SKILL.md` (under `.cursor/skills/`, `~/.cursor/skills/`, or `~/.cursor/plugins/`), a `Task` prompt naming its path, or a tool call (Shell, Grep, MCP, etc.) matching its documented commands.",
-          "replace": "A skill counts as used when the transcript shows a `read` of its `SKILL.md` (under trusted project `.pi/skills/` or `.agents/skills/`, user-level `~/.pi/agent/skills/` or `~/.agents/skills/`, or installed package paths), an expanded `/skill:<name>` message containing the loaded `<skill name=\"...\" location=\"...\">` body (manual Pi invocation does not require a separate file read), a `subagent` prompt naming its path, or a tool call (`bash`, `grep`, external tools, etc.) matching its documented commands.",
-          "count": 1
-        },
-        {
-          "find": "Read the active transcript at <ABSOLUTE_PATH> (or use the digest below if no path is given).",
-          "replace": "Read the active transcript at <ABSOLUTE_PATH> (or use the digest below if no path is given). Pi JSONL has typed entries and `id`/`parentId` ancestry. Distinguish message/tool entries and branches; summaries are not proof that an action occurred.",
-          "count": 1
-        },
-        {
-          "find": "Tune its description so future agents pick it up.",
-          "replace": "Tune its description so future agents pick it up. In Pi, `disable-model-invocation: true` hides a skill from automatic invocation; flag that policy limit rather than promising a wording-only fix.",
           "count": 1
         }
       ]
@@ -4508,6 +4255,11 @@
     },
     {
       "kind": "omit",
+      "source": "skills/statechart/scripts/test/drawn.ts",
+      "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
+    },
+    {
+      "kind": "omit",
       "source": "skills/statechart/scripts/test/grid/Grid.cfg",
       "reason": "Upstream statechart test suite, not the runtime. It needs fast-check, Pele, Java, and TLC, and the skill never reads it."
     },
@@ -4764,85 +4516,6 @@
           "count": 1
         }
       ]
-    },
-    {
-      "kind": "copy",
-      "source": "skills/why/references/epistemics.md",
-      "destination": "skills/why/references/epistemics.md"
-    },
-    {
-      "kind": "copy",
-      "source": "skills/why/references/investigator-prompt.md",
-      "destination": "skills/why/references/investigator-prompt.md"
-    },
-    {
-      "kind": "copy",
-      "source": "skills/why/references/source-playbook.md",
-      "destination": "skills/why/references/source-playbook.md"
-    },
-    {
-      "kind": "copy",
-      "source": "skills/why/references/sources/code-archaeology.md",
-      "destination": "skills/why/references/sources/code-archaeology.md"
-    },
-    {
-      "kind": "copy",
-      "source": "skills/why/references/sources/databricks.md",
-      "destination": "skills/why/references/sources/databricks.md"
-    },
-    {
-      "kind": "copy",
-      "source": "skills/why/references/sources/datadog.md",
-      "destination": "skills/why/references/sources/datadog.md"
-    },
-    {
-      "kind": "copy",
-      "source": "skills/why/references/sources/incident-postmortem.md",
-      "destination": "skills/why/references/sources/incident-postmortem.md"
-    },
-    {
-      "kind": "copy",
-      "source": "skills/why/references/sources/linear.md",
-      "destination": "skills/why/references/sources/linear.md"
-    },
-    {
-      "kind": "copy",
-      "source": "skills/why/references/sources/notion.md",
-      "destination": "skills/why/references/sources/notion.md"
-    },
-    {
-      "kind": "copy",
-      "source": "skills/why/references/sources/sentry.md",
-      "destination": "skills/why/references/sources/sentry.md"
-    },
-    {
-      "kind": "copy",
-      "source": "skills/why/references/sources/slack.md",
-      "destination": "skills/why/references/sources/slack.md"
-    },
-    {
-      "kind": "transform",
-      "source": "skills/why/references/synthesizer-prompt.md",
-      "destination": "skills/why/references/synthesizer-prompt.md",
-      "expectedBlob": "287a350c925c28b44f0e0dc687bb09a843e11100",
-      "transforms": [
-        {
-          "find": "[PR #123](url)",
-          "replace": "PR #123 at {URL}",
-          "count": 1
-        },
-        {
-          "find": "`references/epistemics.md`",
-          "replace": "`epistemics.md`",
-          "count": 1
-        },
-        {
-          "find": "check it by reading the codebase or calling MCP tools.",
-          "replace": "check it by reading the codebase, or return it to the parent to check with external tools.",
-          "count": 1
-        }
-      ],
-      "reason": "Replace a placeholder Markdown URL and fix a Cursor skill-root-relative reference for Pi file-relative resolution."
     }
   ]
 }
