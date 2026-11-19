@@ -15,11 +15,14 @@ const earlierTransforms = [
   'skills/typescript-best-practices/SKILL.md',
 ];
 
+/** @param {{find: string, replace: string}} step */
+const dropsInvocationFlag = (step) => step.find === 'disable-model-invocation: true\n' && step.replace === '';
+
 // These checks protect reviewed instructions, not model compliance.
 test('production uses no full-file replacements and covers every converted workflow', () => {
   assert.ok(manifest.files.every(({ kind }) => kind !== 'replace'), 'Do not replace upstream skills with rewritten copies');
   const converted = manifest.files.filter((file) =>
-    (file.kind === 'transform' && !earlierTransforms.includes(file.source)) ||
+    (file.kind === 'transform' && !earlierTransforms.includes(file.source) && !file.transforms.every(dropsInvocationFlag)) ||
     file.source === 'skills/poteto-mode/playbooks/investigation.md');
   assert.equal(converted.length, 42);
   assert.deepEqual(Object.keys(contracts).sort(), converted.map(({ source }) => source).sort());

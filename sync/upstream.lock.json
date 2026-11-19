@@ -897,10 +897,10 @@
       "source": "skills/principle-attack-the-premise/SKILL.md",
       "blob": "5ee25b02e701ca3e304122248a412d2372ab097c",
       "mode": "100644",
-      "adaptationSha256": null,
+      "adaptationSha256": "3feecba5b82e656b5747dde7fd562015f00d750317505cec47dd932e1a0098bc",
       "output": {
         "destination": "skills/principle-attack-the-premise/SKILL.md",
-        "sha256": "831e916c540f4b6b720b7472aeea6e6ef93996655e36cc2517221f6f2081b480",
+        "sha256": "761024a26ce97aa9d4c46647782c8fe852eadb7ef0c9a431d93ac74515340b62",
         "mode": "100644"
       }
     },
@@ -908,10 +908,10 @@
       "source": "skills/principle-boundary-discipline/SKILL.md",
       "blob": "95b2209ce7d15ddbca7c2bf6ef3626ffdc8d595e",
       "mode": "100644",
-      "adaptationSha256": null,
+      "adaptationSha256": "3feecba5b82e656b5747dde7fd562015f00d750317505cec47dd932e1a0098bc",
       "output": {
         "destination": "skills/principle-boundary-discipline/SKILL.md",
-        "sha256": "c02c26cca3906bfd57829535f8fa7ee9e00df037b4dbb24e5f85ec9e12710b48",
+        "sha256": "24084192288cad748db09422cc14e6e0f1fb8ae10980762e7bc5ab8e60e35425",
         "mode": "100644"
       }
     },
@@ -919,10 +919,10 @@
       "source": "skills/principle-build-the-lever/SKILL.md",
       "blob": "8f9b5a931b10839ad5ef71ce43d5411c2c7a1f6b",
       "mode": "100644",
-      "adaptationSha256": null,
+      "adaptationSha256": "3feecba5b82e656b5747dde7fd562015f00d750317505cec47dd932e1a0098bc",
       "output": {
         "destination": "skills/principle-build-the-lever/SKILL.md",
-        "sha256": "753d81cf9ca2a4e9d1f057429f0c63c9c622e6022dd877ec97ec15f442076aac",
+        "sha256": "0c37e71945f0dfcd0c4517f262102402a1be84b27d2c32e29713ecbeb37a3b8c",
         "mode": "100644"
       }
     },
@@ -930,10 +930,10 @@
       "source": "skills/principle-encode-lessons-in-structure/SKILL.md",
       "blob": "4a96f77fe70e36cb030f9c5efa142f66877bf58a",
       "mode": "100644",
-      "adaptationSha256": null,
+      "adaptationSha256": "3feecba5b82e656b5747dde7fd562015f00d750317505cec47dd932e1a0098bc",
       "output": {
         "destination": "skills/principle-encode-lessons-in-structure/SKILL.md",
-        "sha256": "228963799189f481827d6f28065f278bc2008ffa37030b1234cbd5814d36b9e9",
+        "sha256": "d10983ec0f3637b6e114ed25dc0f6720a40f302e2165223a17ee2372b46afc68",
         "mode": "100644"
       }
     },
@@ -941,10 +941,10 @@
       "source": "skills/principle-exhaust-the-design-space/SKILL.md",
       "blob": "395a0839126bb231430a9c9da02ebab5422557d5",
       "mode": "100644",
-      "adaptationSha256": null,
+      "adaptationSha256": "3feecba5b82e656b5747dde7fd562015f00d750317505cec47dd932e1a0098bc",
       "output": {
         "destination": "skills/principle-exhaust-the-design-space/SKILL.md",
-        "sha256": "2de83d99f93f60ec6313455b0bc9aa9f0bfb93dd59f414f403691322db00d4db",
+        "sha256": "d39814747a6770075e9e950094c1704104aa61b0c26fc2075feb2c8bade700e9",
         "mode": "100644"
       }
     },
@@ -952,10 +952,10 @@
       "source": "skills/principle-experience-first/SKILL.md",
       "blob": "5ea51741302cf3af4cc0b90ec70815bd3208dbf2",
       "mode": "100644",
-      "adaptationSha256": null,
+      "adaptationSha256": "3feecba5b82e656b5747dde7fd562015f00d750317505cec47dd932e1a0098bc",
       "output": {
         "destination": "skills/principle-experience-first/SKILL.md",
-        "sha256": "58903529d733b1c1a7c9ccf127d45ef3c7d0d9f0b81164a4dc6b80efe6f2912b",
+        "sha256": "3013367ce42fabb55799ffbcc51ad20b2ae7ec1b898bad4ac4ceaa2f093edbe1",
         "mode": "100644"
       }
     },
@@ -963,10 +963,10 @@
       "source": "skills/principle-explain-the-number/SKILL.md",
       "blob": "7ff00fcf8805872cfb500308ed2bdf5fdd5d6b8b",
       "mode": "100644",
-      "adaptationSha256": null,
+      "adaptationSha256": "3feecba5b82e656b5747dde7fd562015f00d750317505cec47dd932e1a0098bc",
       "output": {
         "destination": "skills/principle-explain-the-number/SKILL.md",
-        "sha256": "e6a3f00991f4949cf18a0b5c77dd3126ca4402b8553f88c9c7905e577512676e",
+        "sha256": "d1c818924bb9de68e0e7e342349bb0b0de0273576341a64c7c88a2a5c9225f65",
         "mode": "100644"
       }
     },
@@ -974,10 +974,10 @@
       "source": "skills/principle-fix-root-causes/SKILL.md",
       "blob": "b5e41168eb5944f583cf1d225e39552a48473dfe",
       "mode": "100644",
-      "adaptationSha256": null,
+      "adaptationSha256": "3feecba5b82e656b5747dde7fd562015f00d750317505cec47dd932e1a0098bc",
       "output": {
         "destination": "skills/principle-fix-root-causes/SKILL.md",
-        "sha256": "79afd7e67d8951203231f6f1ccfc7b4a1f30d8d6cdb68e92755c80012414dbeb",
+        "sha256": "2bb6dd9bd6afccd92637cb75a741d9947b74256cf45ec2cbb85d2deb316d0fa0",
         "mode": "100644"
       }
     },
@@ -985,10 +985,10 @@
       "source": "skills/principle-foundational-thinking/SKILL.md",
       "blob": "4571b23e34a5037d44c152d966e37650450c9724",
       "mode": "100644",
-      "adaptationSha256": null,
+      "adaptationSha256": "3feecba5b82e656b5747dde7fd562015f00d750317505cec47dd932e1a0098bc",
       "output": {
         "destination": "skills/principle-foundational-thinking/SKILL.md",
-        "sha256": "5c63eecf4b83ea5a99eda7a95a96cac0929d2dce7393d7089c83917bc12cf820",
+        "sha256": "188e69ee3296cffd11727859dd97b3a8eb44b94758d338c9cf67ee3562a9a5ab",
         "mode": "100644"
       }
     },
@@ -996,10 +996,10 @@
       "source": "skills/principle-guard-the-context-window/SKILL.md",
       "blob": "0a1d3cfcf4539fe048887174000fecbf2fa40e81",
       "mode": "100644",
-      "adaptationSha256": null,
+      "adaptationSha256": "3feecba5b82e656b5747dde7fd562015f00d750317505cec47dd932e1a0098bc",
       "output": {
         "destination": "skills/principle-guard-the-context-window/SKILL.md",
-        "sha256": "af0b9dd70b43628ce4a59a4d332e9d9ad055084e460f430e7a757495c627e81a",
+        "sha256": "478752e80498d65c173f52c95db65322bbc98fb31139e406e160e54a5a11aa2b",
         "mode": "100644"
       }
     },
@@ -1007,10 +1007,10 @@
       "source": "skills/principle-laziness-protocol/SKILL.md",
       "blob": "016c3c7c8dfffd995c1a02135a62248e6625879b",
       "mode": "100644",
-      "adaptationSha256": null,
+      "adaptationSha256": "3feecba5b82e656b5747dde7fd562015f00d750317505cec47dd932e1a0098bc",
       "output": {
         "destination": "skills/principle-laziness-protocol/SKILL.md",
-        "sha256": "1be6e7a435f26a75a76eb848b9c3d611b9977d0f5822361753244da25ca3ca45",
+        "sha256": "44ec0cc302105cff3da36e1d192aba697a5dffd6c42ec3bf37df447b8a960960",
         "mode": "100644"
       }
     },
@@ -1018,10 +1018,10 @@
       "source": "skills/principle-make-operations-idempotent/SKILL.md",
       "blob": "7c61fe4b203bfae1de7db570af4c57fd0ba0a3d3",
       "mode": "100644",
-      "adaptationSha256": null,
+      "adaptationSha256": "3feecba5b82e656b5747dde7fd562015f00d750317505cec47dd932e1a0098bc",
       "output": {
         "destination": "skills/principle-make-operations-idempotent/SKILL.md",
-        "sha256": "76ad0a99b6ff2a05a159accfeee48412d62f62774eb8d05bbff26a1f3aa3eab5",
+        "sha256": "34b1bda3af25110e605180b33969d7b3325c5d4b058f8c46e71c335091c9a657",
         "mode": "100644"
       }
     },
@@ -1029,10 +1029,10 @@
       "source": "skills/principle-migrate-callers-then-delete-legacy-apis/SKILL.md",
       "blob": "57ddd7b27d06ba4ee9e2d3811880476a18b88df6",
       "mode": "100644",
-      "adaptationSha256": null,
+      "adaptationSha256": "3feecba5b82e656b5747dde7fd562015f00d750317505cec47dd932e1a0098bc",
       "output": {
         "destination": "skills/principle-migrate-callers-then-delete-legacy-apis/SKILL.md",
-        "sha256": "580ad9bb1a0994ecb924321ba49efc38a2f85c64e22c76fb133f57a78272a2e6",
+        "sha256": "25c0840e4f9fef35fd1ede4292b95a4b79c61bbaab31131e1de2afa1a7319bfa",
         "mode": "100644"
       }
     },
@@ -1040,10 +1040,10 @@
       "source": "skills/principle-minimize-reader-load/SKILL.md",
       "blob": "19dd4876d6e92c04caa2729d37ac87ac126d20ed",
       "mode": "100644",
-      "adaptationSha256": null,
+      "adaptationSha256": "3feecba5b82e656b5747dde7fd562015f00d750317505cec47dd932e1a0098bc",
       "output": {
         "destination": "skills/principle-minimize-reader-load/SKILL.md",
-        "sha256": "22d27deffb0a3726858d0d4b02d71acd4a3eb4d44e218bc89b66e49dc9823937",
+        "sha256": "9377c44dc5de552a0ac97f5d103f8a15c5eec3b3e25b901bf774febe3ce7ee43",
         "mode": "100644"
       }
     },
@@ -1051,10 +1051,10 @@
       "source": "skills/principle-model-the-domain/SKILL.md",
       "blob": "88ba012f47bd51b2db0758c657610d56f871e1ba",
       "mode": "100644",
-      "adaptationSha256": null,
+      "adaptationSha256": "3feecba5b82e656b5747dde7fd562015f00d750317505cec47dd932e1a0098bc",
       "output": {
         "destination": "skills/principle-model-the-domain/SKILL.md",
-        "sha256": "97c6214dc6a18b93177dda6429185a8640878b36ddee6ec9400c23a0eb9be2d8",
+        "sha256": "99eb491337572d91ebff90b8ae1fff44a7252eaaeb2601810cbe4c3208f8bcea",
         "mode": "100644"
       }
     },
@@ -1062,10 +1062,10 @@
       "source": "skills/principle-never-block-on-the-human/SKILL.md",
       "blob": "4f59bdc69f79d536b30b0014a563ed3be05b8b62",
       "mode": "100644",
-      "adaptationSha256": "621917f5817fcf6e4235f933ca0d4c2fd317a48cd629e8e2e8a57f7d1c4341e1",
+      "adaptationSha256": "bd56ac3909325239bc8fc5335b61a0f69994572113cb81772044d19a4d2d1d61",
       "output": {
         "destination": "skills/principle-never-block-on-the-human/SKILL.md",
-        "sha256": "1e41c95a1202aa4f42ede302689728272c3cd5f63c10770167402cc47cc84e77",
+        "sha256": "1ed962a0e85ab2c73da205b01eaf835e902231c726c52689efaa17adab53998e",
         "mode": "100644"
       }
     },
@@ -1073,10 +1073,10 @@
       "source": "skills/principle-outcome-oriented-execution/SKILL.md",
       "blob": "c49be0bc74783f0dee013101365ae09b2abb48a2",
       "mode": "100644",
-      "adaptationSha256": null,
+      "adaptationSha256": "3feecba5b82e656b5747dde7fd562015f00d750317505cec47dd932e1a0098bc",
       "output": {
         "destination": "skills/principle-outcome-oriented-execution/SKILL.md",
-        "sha256": "10eb91633aa570355ba4bb37088fcade2b22e498df7a58edc749e65bc5a78e2d",
+        "sha256": "922ade1be5f671575b3c93367c3d08c9dbb2f7444a42bacbfb834656724d61ac",
         "mode": "100644"
       }
     },
@@ -1084,10 +1084,10 @@
       "source": "skills/principle-prove-it-works/SKILL.md",
       "blob": "1c293b3c3ad0f7cb021858b17e7588d30a0a1acb",
       "mode": "100644",
-      "adaptationSha256": null,
+      "adaptationSha256": "3feecba5b82e656b5747dde7fd562015f00d750317505cec47dd932e1a0098bc",
       "output": {
         "destination": "skills/principle-prove-it-works/SKILL.md",
-        "sha256": "3d6c482e341974cfcb8d19ebf66fb1d4274d8673af35e36d3c231a6aa9e03f25",
+        "sha256": "9e98946591ea63763d4fca5b095654bb067f37d8b5691835d1d031f8ff3c0f60",
         "mode": "100644"
       }
     },
@@ -1095,10 +1095,10 @@
       "source": "skills/principle-redesign-from-first-principles/SKILL.md",
       "blob": "5ca5246cbb0fa08884ce17b0d22c117ae1ad67b8",
       "mode": "100644",
-      "adaptationSha256": null,
+      "adaptationSha256": "3feecba5b82e656b5747dde7fd562015f00d750317505cec47dd932e1a0098bc",
       "output": {
         "destination": "skills/principle-redesign-from-first-principles/SKILL.md",
-        "sha256": "170e0a658783e43fee8ec5a8c2422a4abb8f69cef621dd1819a95910b8207034",
+        "sha256": "527e7bb93c596a629be7fef6edfb26ff8828c514a9ad8d729b09ae2f0024a420",
         "mode": "100644"
       }
     },
@@ -1106,10 +1106,10 @@
       "source": "skills/principle-separate-before-serializing-shared-state/SKILL.md",
       "blob": "6a4c3b876b694097a12003996588f557d2b55d0e",
       "mode": "100644",
-      "adaptationSha256": null,
+      "adaptationSha256": "3feecba5b82e656b5747dde7fd562015f00d750317505cec47dd932e1a0098bc",
       "output": {
         "destination": "skills/principle-separate-before-serializing-shared-state/SKILL.md",
-        "sha256": "2e5625d686b657e0b607c329fd8043bf50261b808239308fe4c6776e2817e95a",
+        "sha256": "62222707f2a8bef68ddb9fa540cab4fb6c562087999797cc299e44c2f1a3c4f2",
         "mode": "100644"
       }
     },
@@ -1117,10 +1117,10 @@
       "source": "skills/principle-sequence-verifiable-units/SKILL.md",
       "blob": "3998185a29f287f6f30f0909c98ac4e2af5ddb97",
       "mode": "100644",
-      "adaptationSha256": null,
+      "adaptationSha256": "3feecba5b82e656b5747dde7fd562015f00d750317505cec47dd932e1a0098bc",
       "output": {
         "destination": "skills/principle-sequence-verifiable-units/SKILL.md",
-        "sha256": "ab0cc331cf317c07bb0ed6dd13ee9f618338b36e4e851521977bc5c4a8d429e1",
+        "sha256": "953ee6e690792930a03c1148a752729e232ddd88320536a6af2ef9fee0dab642",
         "mode": "100644"
       }
     },
@@ -1128,10 +1128,10 @@
       "source": "skills/principle-subtract-before-you-add/SKILL.md",
       "blob": "b8740ba6f06922d8e7ef3b23f9fb16e0fc4a876f",
       "mode": "100644",
-      "adaptationSha256": null,
+      "adaptationSha256": "3feecba5b82e656b5747dde7fd562015f00d750317505cec47dd932e1a0098bc",
       "output": {
         "destination": "skills/principle-subtract-before-you-add/SKILL.md",
-        "sha256": "8c93bb9d1a7f38e2ef37655d93f0e790fa59903105af3d500cc8a663ebe45f3f",
+        "sha256": "a273e3955fc39223088149d7a1a955b5d44e143fd1d9d4c8e4945353b8b81344",
         "mode": "100644"
       }
     },
@@ -1139,10 +1139,10 @@
       "source": "skills/principle-test-behavior-not-implementation/SKILL.md",
       "blob": "094b9427aa64294afd64d83e9495a5ee303631e0",
       "mode": "100644",
-      "adaptationSha256": null,
+      "adaptationSha256": "3feecba5b82e656b5747dde7fd562015f00d750317505cec47dd932e1a0098bc",
       "output": {
         "destination": "skills/principle-test-behavior-not-implementation/SKILL.md",
-        "sha256": "42afc1a2c7176363b6410cfde06a9fd3e96f5022ba86bdb8de4838ad65c2442d",
+        "sha256": "1a21cc45de1abb1d16e7b8c2d1e4775afa41d4d0d370ad05fc3424f5a0597bcd",
         "mode": "100644"
       }
     },
@@ -1150,10 +1150,10 @@
       "source": "skills/principle-type-system-discipline/SKILL.md",
       "blob": "852aab0340246c0d0dfd59ea6be962ce40a31272",
       "mode": "100644",
-      "adaptationSha256": null,
+      "adaptationSha256": "3feecba5b82e656b5747dde7fd562015f00d750317505cec47dd932e1a0098bc",
       "output": {
         "destination": "skills/principle-type-system-discipline/SKILL.md",
-        "sha256": "9cd1ce345bc9d666c73c64c89c89164217b659aa4c4dde5600cbbe6f6e775461",
+        "sha256": "36d08db9e66e1a59db47f1d4a2c3b97981302a65a9107d6a69b22d9ef31530a9",
         "mode": "100644"
       }
     },

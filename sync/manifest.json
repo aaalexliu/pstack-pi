@@ -1514,133 +1514,345 @@
       ]
     },
     {
-      "kind": "copy",
+      "kind": "transform",
       "source": "skills/principle-attack-the-premise/SKILL.md",
-      "destination": "skills/principle-attack-the-premise/SKILL.md"
+      "destination": "skills/principle-attack-the-premise/SKILL.md",
+      "expectedBlob": "5ee25b02e701ca3e304122248a412d2372ab097c",
+      "reason": "Let the model load this principle by itself: drop `disable-model-invocation: true`.",
+      "transforms": [
+        {
+          "find": "disable-model-invocation: true\n",
+          "replace": "",
+          "count": 1
+        }
+      ]
     },
     {
-      "kind": "copy",
+      "kind": "transform",
       "source": "skills/principle-boundary-discipline/SKILL.md",
-      "destination": "skills/principle-boundary-discipline/SKILL.md"
+      "destination": "skills/principle-boundary-discipline/SKILL.md",
+      "expectedBlob": "95b2209ce7d15ddbca7c2bf6ef3626ffdc8d595e",
+      "reason": "Let the model load this principle by itself: drop `disable-model-invocation: true`.",
+      "transforms": [
+        {
+          "find": "disable-model-invocation: true\n",
+          "replace": "",
+          "count": 1
+        }
+      ]
     },
     {
-      "kind": "copy",
+      "kind": "transform",
       "source": "skills/principle-build-the-lever/SKILL.md",
-      "destination": "skills/principle-build-the-lever/SKILL.md"
+      "destination": "skills/principle-build-the-lever/SKILL.md",
+      "expectedBlob": "8f9b5a931b10839ad5ef71ce43d5411c2c7a1f6b",
+      "reason": "Let the model load this principle by itself: drop `disable-model-invocation: true`.",
+      "transforms": [
+        {
+          "find": "disable-model-invocation: true\n",
+          "replace": "",
+          "count": 1
+        }
+      ]
     },
     {
-      "kind": "copy",
+      "kind": "transform",
       "source": "skills/principle-encode-lessons-in-structure/SKILL.md",
-      "destination": "skills/principle-encode-lessons-in-structure/SKILL.md"
+      "destination": "skills/principle-encode-lessons-in-structure/SKILL.md",
+      "expectedBlob": "4a96f77fe70e36cb030f9c5efa142f66877bf58a",
+      "reason": "Let the model load this principle by itself: drop `disable-model-invocation: true`.",
+      "transforms": [
+        {
+          "find": "disable-model-invocation: true\n",
+          "replace": "",
+          "count": 1
+        }
+      ]
     },
     {
-      "kind": "copy",
+      "kind": "transform",
       "source": "skills/principle-exhaust-the-design-space/SKILL.md",
-      "destination": "skills/principle-exhaust-the-design-space/SKILL.md"
+      "destination": "skills/principle-exhaust-the-design-space/SKILL.md",
+      "expectedBlob": "395a0839126bb231430a9c9da02ebab5422557d5",
+      "reason": "Let the model load this principle by itself: drop `disable-model-invocation: true`.",
+      "transforms": [
+        {
+          "find": "disable-model-invocation: true\n",
+          "replace": "",
+          "count": 1
+        }
+      ]
     },
     {
-      "kind": "copy",
+      "kind": "transform",
       "source": "skills/principle-experience-first/SKILL.md",
-      "destination": "skills/principle-experience-first/SKILL.md"
+      "destination": "skills/principle-experience-first/SKILL.md",
+      "expectedBlob": "5ea51741302cf3af4cc0b90ec70815bd3208dbf2",
+      "reason": "Let the model load this principle by itself: drop `disable-model-invocation: true`.",
+      "transforms": [
+        {
+          "find": "disable-model-invocation: true\n",
+          "replace": "",
+          "count": 1
+        }
+      ]
     },
     {
-      "kind": "copy",
+      "kind": "transform",
       "source": "skills/principle-explain-the-number/SKILL.md",
-      "destination": "skills/principle-explain-the-number/SKILL.md"
+      "destination": "skills/principle-explain-the-number/SKILL.md",
+      "expectedBlob": "7ff00fcf8805872cfb500308ed2bdf5fdd5d6b8b",
+      "reason": "Let the model load this principle by itself: drop `disable-model-invocation: true`.",
+      "transforms": [
+        {
+          "find": "disable-model-invocation: true\n",
+          "replace": "",
+          "count": 1
+        }
+      ]
     },
     {
-      "kind": "copy",
+      "kind": "transform",
       "source": "skills/principle-fix-root-causes/SKILL.md",
-      "destination": "skills/principle-fix-root-causes/SKILL.md"
+      "destination": "skills/principle-fix-root-causes/SKILL.md",
+      "expectedBlob": "b5e41168eb5944f583cf1d225e39552a48473dfe",
+      "reason": "Let the model load this principle by itself: drop `disable-model-invocation: true`.",
+      "transforms": [
+        {
+          "find": "disable-model-invocation: true\n",
+          "replace": "",
+          "count": 1
+        }
+      ]
     },
     {
-      "kind": "copy",
+      "kind": "transform",
       "source": "skills/principle-foundational-thinking/SKILL.md",
-      "destination": "skills/principle-foundational-thinking/SKILL.md"
+      "destination": "skills/principle-foundational-thinking/SKILL.md",
+      "expectedBlob": "4571b23e34a5037d44c152d966e37650450c9724",
+      "reason": "Let the model load this principle by itself: drop `disable-model-invocation: true`.",
+      "transforms": [
+        {
+          "find": "disable-model-invocation: true\n",
+          "replace": "",
+          "count": 1
+        }
+      ]
     },
     {
-      "kind": "copy",
+      "kind": "transform",
       "source": "skills/principle-guard-the-context-window/SKILL.md",
-      "destination": "skills/principle-guard-the-context-window/SKILL.md"
+      "destination": "skills/principle-guard-the-context-window/SKILL.md",
+      "expectedBlob": "0a1d3cfcf4539fe048887174000fecbf2fa40e81",
+      "reason": "Let the model load this principle by itself: drop `disable-model-invocation: true`.",
+      "transforms": [
+        {
+          "find": "disable-model-invocation: true\n",
+          "replace": "",
+          "count": 1
+        }
+      ]
     },
     {
-      "kind": "copy",
+      "kind": "transform",
       "source": "skills/principle-laziness-protocol/SKILL.md",
-      "destination": "skills/principle-laziness-protocol/SKILL.md"
+      "destination": "skills/principle-laziness-protocol/SKILL.md",
+      "expectedBlob": "016c3c7c8dfffd995c1a02135a62248e6625879b",
+      "reason": "Let the model load this principle by itself: drop `disable-model-invocation: true`.",
+      "transforms": [
+        {
+          "find": "disable-model-invocation: true\n",
+          "replace": "",
+          "count": 1
+        }
+      ]
     },
     {
-      "kind": "copy",
+      "kind": "transform",
       "source": "skills/principle-make-operations-idempotent/SKILL.md",
-      "destination": "skills/principle-make-operations-idempotent/SKILL.md"
+      "destination": "skills/principle-make-operations-idempotent/SKILL.md",
+      "expectedBlob": "7c61fe4b203bfae1de7db570af4c57fd0ba0a3d3",
+      "reason": "Let the model load this principle by itself: drop `disable-model-invocation: true`.",
+      "transforms": [
+        {
+          "find": "disable-model-invocation: true\n",
+          "replace": "",
+          "count": 1
+        }
+      ]
     },
     {
-      "kind": "copy",
+      "kind": "transform",
       "source": "skills/principle-migrate-callers-then-delete-legacy-apis/SKILL.md",
-      "destination": "skills/principle-migrate-callers-then-delete-legacy-apis/SKILL.md"
+      "destination": "skills/principle-migrate-callers-then-delete-legacy-apis/SKILL.md",
+      "expectedBlob": "57ddd7b27d06ba4ee9e2d3811880476a18b88df6",
+      "reason": "Let the model load this principle by itself: drop `disable-model-invocation: true`.",
+      "transforms": [
+        {
+          "find": "disable-model-invocation: true\n",
+          "replace": "",
+          "count": 1
+        }
+      ]
     },
     {
-      "kind": "copy",
+      "kind": "transform",
       "source": "skills/principle-minimize-reader-load/SKILL.md",
-      "destination": "skills/principle-minimize-reader-load/SKILL.md"
+      "destination": "skills/principle-minimize-reader-load/SKILL.md",
+      "expectedBlob": "19dd4876d6e92c04caa2729d37ac87ac126d20ed",
+      "reason": "Let the model load this principle by itself: drop `disable-model-invocation: true`.",
+      "transforms": [
+        {
+          "find": "disable-model-invocation: true\n",
+          "replace": "",
+          "count": 1
+        }
+      ]
     },
     {
-      "kind": "copy",
+      "kind": "transform",
       "source": "skills/principle-model-the-domain/SKILL.md",
-      "destination": "skills/principle-model-the-domain/SKILL.md"
+      "destination": "skills/principle-model-the-domain/SKILL.md",
+      "expectedBlob": "88ba012f47bd51b2db0758c657610d56f871e1ba",
+      "reason": "Let the model load this principle by itself: drop `disable-model-invocation: true`.",
+      "transforms": [
+        {
+          "find": "disable-model-invocation: true\n",
+          "replace": "",
+          "count": 1
+        }
+      ]
     },
     {
       "kind": "transform",
       "source": "skills/principle-never-block-on-the-human/SKILL.md",
       "destination": "skills/principle-never-block-on-the-human/SKILL.md",
       "expectedBlob": "4f59bdc69f79d536b30b0014a563ed3be05b8b62",
-      "reason": "Name every call that is costly to undo, not only irreversible actions, as one that still needs the human.",
+      "reason": "Name every call that is costly to undo, not only irreversible actions, as one that still needs the human. Let the model load this principle by itself: drop `disable-model-invocation: true`.",
       "transforms": [
         {
           "find": "- Irreversible actions (force-push, delete production data, send external messages) still require confirmation.",
           "replace": "- Calls that are costly to undo still need the human: force-push, deleting data, outside messages, a data model or public API, a migration, money.",
           "count": 1
+        },
+        {
+          "find": "disable-model-invocation: true\n",
+          "replace": "",
+          "count": 1
         }
       ]
     },
     {
-      "kind": "copy",
+      "kind": "transform",
       "source": "skills/principle-outcome-oriented-execution/SKILL.md",
-      "destination": "skills/principle-outcome-oriented-execution/SKILL.md"
+      "destination": "skills/principle-outcome-oriented-execution/SKILL.md",
+      "expectedBlob": "c49be0bc74783f0dee013101365ae09b2abb48a2",
+      "reason": "Let the model load this principle by itself: drop `disable-model-invocation: true`.",
+      "transforms": [
+        {
+          "find": "disable-model-invocation: true\n",
+          "replace": "",
+          "count": 1
+        }
+      ]
     },
     {
-      "kind": "copy",
+      "kind": "transform",
       "source": "skills/principle-prove-it-works/SKILL.md",
-      "destination": "skills/principle-prove-it-works/SKILL.md"
+      "destination": "skills/principle-prove-it-works/SKILL.md",
+      "expectedBlob": "1c293b3c3ad0f7cb021858b17e7588d30a0a1acb",
+      "reason": "Let the model load this principle by itself: drop `disable-model-invocation: true`.",
+      "transforms": [
+        {
+          "find": "disable-model-invocation: true\n",
+          "replace": "",
+          "count": 1
+        }
+      ]
     },
     {
-      "kind": "copy",
+      "kind": "transform",
       "source": "skills/principle-redesign-from-first-principles/SKILL.md",
-      "destination": "skills/principle-redesign-from-first-principles/SKILL.md"
+      "destination": "skills/principle-redesign-from-first-principles/SKILL.md",
+      "expectedBlob": "5ca5246cbb0fa08884ce17b0d22c117ae1ad67b8",
+      "reason": "Let the model load this principle by itself: drop `disable-model-invocation: true`.",
+      "transforms": [
+        {
+          "find": "disable-model-invocation: true\n",
+          "replace": "",
+          "count": 1
+        }
+      ]
     },
     {
-      "kind": "copy",
+      "kind": "transform",
       "source": "skills/principle-separate-before-serializing-shared-state/SKILL.md",
-      "destination": "skills/principle-separate-before-serializing-shared-state/SKILL.md"
+      "destination": "skills/principle-separate-before-serializing-shared-state/SKILL.md",
+      "expectedBlob": "6a4c3b876b694097a12003996588f557d2b55d0e",
+      "reason": "Let the model load this principle by itself: drop `disable-model-invocation: true`.",
+      "transforms": [
+        {
+          "find": "disable-model-invocation: true\n",
+          "replace": "",
+          "count": 1
+        }
+      ]
     },
     {
-      "kind": "copy",
+      "kind": "transform",
       "source": "skills/principle-sequence-verifiable-units/SKILL.md",
-      "destination": "skills/principle-sequence-verifiable-units/SKILL.md"
+      "destination": "skills/principle-sequence-verifiable-units/SKILL.md",
+      "expectedBlob": "3998185a29f287f6f30f0909c98ac4e2af5ddb97",
+      "reason": "Let the model load this principle by itself: drop `disable-model-invocation: true`.",
+      "transforms": [
+        {
+          "find": "disable-model-invocation: true\n",
+          "replace": "",
+          "count": 1
+        }
+      ]
     },
     {
-      "kind": "copy",
+      "kind": "transform",
       "source": "skills/principle-subtract-before-you-add/SKILL.md",
-      "destination": "skills/principle-subtract-before-you-add/SKILL.md"
+      "destination": "skills/principle-subtract-before-you-add/SKILL.md",
+      "expectedBlob": "b8740ba6f06922d8e7ef3b23f9fb16e0fc4a876f",
+      "reason": "Let the model load this principle by itself: drop `disable-model-invocation: true`.",
+      "transforms": [
+        {
+          "find": "disable-model-invocation: true\n",
+          "replace": "",
+          "count": 1
+        }
+      ]
     },
     {
-      "kind": "copy",
+      "kind": "transform",
       "source": "skills/principle-test-behavior-not-implementation/SKILL.md",
-      "destination": "skills/principle-test-behavior-not-implementation/SKILL.md"
+      "destination": "skills/principle-test-behavior-not-implementation/SKILL.md",
+      "expectedBlob": "094b9427aa64294afd64d83e9495a5ee303631e0",
+      "reason": "Let the model load this principle by itself: drop `disable-model-invocation: true`.",
+      "transforms": [
+        {
+          "find": "disable-model-invocation: true\n",
+          "replace": "",
+          "count": 1
+        }
+      ]
     },
     {
-      "kind": "copy",
+      "kind": "transform",
       "source": "skills/principle-type-system-discipline/SKILL.md",
-      "destination": "skills/principle-type-system-discipline/SKILL.md"
+      "destination": "skills/principle-type-system-discipline/SKILL.md",
+      "expectedBlob": "852aab0340246c0d0dfd59ea6be962ce40a31272",
+      "reason": "Let the model load this principle by itself: drop `disable-model-invocation: true`.",
+      "transforms": [
+        {
+          "find": "disable-model-invocation: true\n",
+          "replace": "",
+          "count": 1
+        }
+      ]
     },
     {
       "kind": "omit",
