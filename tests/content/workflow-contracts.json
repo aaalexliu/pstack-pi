@@ -271,30 +271,35 @@
   "skills/poteto-mode/playbooks/multi-phase-plan.md": {
     "upstream": {
       "plan only": "The plan is the deliverable. Do not implement.",
-      "explicit go": "Execution starts on the operator's explicit go",
-      "verification": "A PR is verified only when its unit, live, and perf boxes are all checked.",
-      "regression": "Regression lane against trunk.",
-      "dual perf": "Trunk and head must both produce the named metric.",
-      "ratios": "Do not claim a ratio between unlike scenarios.",
-      "operator review": "Stop at merge-ready. Wait for the operator's click.",
-      "close": "Every box above is checked with its evidence."
+      "explicit go": "Execution starts on the operator's explicit go.",
+      "dependency graph": "which PRs are independent and branch from trunk, which wait for which, and the files each may touch.",
+      "per-PR evidence": "Each section has checkboxes for what it depends on, the files it edits, the one change it builds, the result you see, and its verification.",
+      "unit live perf": "A PR is verified only when its unit, live, and perf boxes are all checked.",
+      "real surface": "Each live box drives the real surface with a concrete scenario and a pass predicate.",
+      "baseline": "the trunk baseline measured first, and the number that fails.",
+      "review gate": "A PR that changes an interaction waits for the operator's review before merge."
     },
-    "pi": {}
+    "pi": {
+      "prototype path": "per [Prototype](prototype.md)"
+    }
   },
   "skills/poteto-mode/playbooks/opening-a-pr.md": {
     "upstream": {
-      "ready never draft": "Open every PR ready, never as a draft.",
-      "babysit separate": "Opening a PR does not start a babysit.",
-      "briefing body": "The PR body is a one-minute briefing, not a lab notebook, for a reviewer who has the diff."
+      "worktree": "Work from a git worktree off trunk, and keep unrelated work out of it.",
+      "short commits": "Rebase into small, landable commits.",
+      "briefing": "a one-minute briefing under 40 lines",
+      "stack base": "Stack follow-ups by base branch.",
+      "babysit separate": "Opening a PR does not start a babysit."
     },
     "pi": {
-      "area titles": "**Titles.** Area, colon, then a plain sentence, no trailing period",
-      "impact why": "- `## Why`: impact first. Say who or what was hurt and how, then the cause",
-      "show-me what changed": "break the change down the way `/skill:show-me` would",
-      "short pasted proof": "- `## Verification`: paste short real proof, under about 10 lines",
-      "tldr first sentence": "The first sentence is the TL;DR.",
-      "case and test": "with a concrete case it guards against and the test that proves it",
-      "risk in scope": "Add what it could break and why that is safe"
+      "slop check": "Inspect the diff for slop before commit and run `/skill:no-comments` before review.",
+      "area titles": "Title: `Area: subject`, with a plain sentence and no trailing period",
+      "four sections": "`## Why`, `## What changed`, `## Scope`, `## Verification`",
+      "impact why": "Start Why with who or what was hurt and how.",
+      "visual change": "Show What changed with a small diagram, call tree, pseudocode, or before/after diff and a concrete case and test for each new rule.",
+      "risk in scope": "Scope names what the change leaves out, the risk, and rejected alternatives when relevant.",
+      "pasted proof": "Paste short real proof in Verification (command and outcome, under about 10 lines); link longer output.",
+      "forge CLI": "Open PRs ready with `gh pr create` without `--draft`"
     }
   },
   "skills/poteto-mode/playbooks/orchestrate.md": {
