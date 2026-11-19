@@ -53,5 +53,6 @@ The check never holds a ticket back. If the person is not there to answer, file 
 
 - Ask the user only for what you cannot fill yourself. If they gave no reference, ask once; if they have none, write "None".
 - Keep each heading short. A long ticket hides the goal.
+- Put file and app names that contain a dot, such as `Bao.app` or `notes.md`, in backticks. Linear turns a bare name that looks like a domain into a link to that domain, and editing the ticket afterwards did not remove it.
 - Do not leave calls that are costly to undo for the agent, such as a data model, a public API, a migration, money, or anything outside the Mac. Ask the person now, while they are here, and write the answer under Goal. If they cannot answer yet, do not file the ticket.
 - Do not build the work yourself in the session that files it.
