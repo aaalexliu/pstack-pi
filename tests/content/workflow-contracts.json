@@ -28,7 +28,9 @@
       "read all": "Read every candidate end to end before picking.",
       "scoring": "Score each against the rubric criterion by criterion, not on holistic feel",
       "graft record": "each graft with its source candidate, what was rejected and why",
-      "reframe": "Reframe and re-run rather than averaging the divergence."
+      "reframe": "Reframe and re-run rather than averaging the divergence.",
+      "cross-judge vendor": "The judge is never from the parent's vendor, and Fable counts as Claude for that check, so use the first entry from another vendor.",
+      "unknown parent": "If you do not know the parent's model, use the first real slug and say that the vendor check did not run."
     },
     "pi": {}
   },
@@ -397,11 +399,17 @@
       "confirm step and repeat": "Re-running this skill updates it.",
       "optional verification need and offer": "Check whether the project has a way to drive the real app for proof (a `verify-*` skill, or an existing harness). If not, offer once: \"want a project-local verification skill, so agents can drive the app the way a user does and prove changes work? I can generate one with ",
       "optional verification consent": "On no, move on without pushing.",
-      "no-rule budget hint": "say that `large` matches the skill defaults."
+      "no-rule budget hint": "say that `large` matches the skill defaults.",
+      "budget ladder": "`large` keeps it, `medium` lowers it one step, and `small` lowers it two steps, on the ladder `xhigh` > `high` > `medium` > `low`. No role runs above `xhigh`, and a target at the bottom of the ladder stays there.",
+      "user choices stay": "Every other value is the user's choice and stays,",
+      "cross-judge vendor order": "It tries only values from a vendor other than the parent's, in list order, so order it by preference. Fable and the other Claude models are one vendor."
     },
     "pi": {
       "budget as level suffix": "Write the level as a `:<level>` suffix, such as `anthropic/claude-opus-5-5:xhigh`, replacing any suffix already there.",
-      "suffix validation": "A suffix must be `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`."
+      "xhigh cap in validation": "A suffix must be `off`, `minimal`, `low`, `medium`, `high`, or `xhigh`, so no role runs above `xhigh`.",
+      "retired roles dropped": "A key whose role is not in step 5 is from a retired role. Drop it; step 5 writes the map without it.",
+      "old max suffix lowered": "change each `:max` suffix to `:xhigh`, because no role runs above `xhigh`.",
+      "retired roles leave the file": "using only the role keys shown below, so a retired role from an older map is gone after this run."
     }
   },
   "skills/show-me-your-work/SKILL.md": {
@@ -467,10 +475,10 @@
   },
   "skills/unslop/SKILL.md": {
     "upstream": {
-      "concrete word": "Pick the concrete word."
+      "concrete word": "Use the concrete word."
     },
     "pi": {
-      "coined local names": "Do not invent a short name for a step, phase, or path and then use it as if the reader knew it."
+      "coined local names": "34. Don't coin a name for a step, phase, or path."
     }
   },
   "skills/correct/SKILL.md": {

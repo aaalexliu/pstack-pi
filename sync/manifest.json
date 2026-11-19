@@ -32,7 +32,7 @@
       "source": "agents/comment-sicko.md",
       "reason": "Keep the complete upstream review policy; restrict execution to read-only proposals and parent-owned research and deletions.",
       "destination": "agents/comment-sicko.md",
-      "expectedBlob": "209e3704dfa75022060c936bd3f3362fa3bbe254",
+      "expectedBlob": "14c2402f3d8c81b39d75747d6eb892f343e6a903",
       "transforms": [
         {
           "find": "description: A deranged comment-hater that savors deletion and condemns workaround code.",
@@ -45,8 +45,8 @@
           "count": 1
         },
         {
-          "find": "I run `/how`, `/why`, or both from the **how** and **why** skills on the named symbol or call.",
-          "replace": "I ask the parent to run `/skill:how`, `/skill:why`, or both from the **how** and **why** skills on the named symbol or call and return the evidence. The parent owns external lookups and runtime probes; I do not delegate or access external services.",
+          "find": "I trace the named symbol or call, run `/why` from the **why** skill on it, or both.",
+          "replace": "I trace the named symbol or call with my read tools, ask the parent to run `/skill:why` from the **why** skill on it and return the evidence, or both. The parent owns external lookups and runtime probes; I do not delegate or access external services.",
           "count": 1
         },
         {
@@ -284,7 +284,7 @@
       "source": "skills/arena/SKILL.md",
       "reason": "Adapt only host tools, models, paths, and ownership; preserve all other upstream text.",
       "destination": "skills/arena/SKILL.md",
-      "expectedBlob": "7580c3c9a7770d81b9dd7a537d9caa7362c04279",
+      "expectedBlob": "fafaf37544107ff75d914b03096500afb6a23292",
       "transforms": [
         {
           "find": "Use for /arena,",
@@ -297,8 +297,8 @@
           "count": 1
         },
         {
-          "find": "Use the `arena runners` line in `~/.cursor/rules/pstack-models.mdc`. If the rule or that line is missing, default to one each on `claude-opus-5-5-xhigh` and `grok-4.7-xhigh-fast`. An `auto` or `inherit-parent` entry in this line means the parent model, so omit `model` for it. If the Task tool rejects a configured entry, run that seat on its family's default and say so. Families go by prefix: `claude-*`, and `grok-*` with `cursor-grok-*` and `composer-*`. A refused `composer-*` entry runs on `grok-4.7-xhigh-fast`. If the family has no default, or the Task tool rejects that default, use the closest valid slug of the same family from its error message, or drop the seat and say so when there is none. If dropped seats leave fewer than two runners, add runners until there are two, or one when the line has one entry. Run each added runner on a remaining runner's model, or omit `model` so it runs on the parent model when none remain, and say so.",
-          "replace": "Read `pstack_config` with action `get`. Use the full configured `arena-runner` panel, or `architect-runner` panel for Architect, one candidate per entry unless the user sets another count. Pass each exact entry as `model`, including duplicates and `inherit-parent`, rather than relying on role rotation. With one choice or no panel, run at least two attempts on that choice or `inherit-parent` and disclose the lack of model diversity. Never invent model identities or label repeated samples as different models. If a configured entry is unavailable, use `pstack_config` `list-models`, report the failed seat, and ask before changing the panel. When the user names models or reviewers, use those in place of the panel. If one cannot run, say which did not run and ask before substituting. Never present a substitute's output as the named reviewer's.",
+          "find": "from the `arena runners` line in `~/.cursor/rules/pstack-models.mdc`, by default `claude-fable-5-2-high`, `claude-opus-5-5-high-fast`, and `gemini-4-carbon-high`. An `auto` or `inherit-parent` entry is the parent model, so omit `model` and spawn `generalPurpose`. If the Task tool rejects a slug, use the nearest valid slug of the same family or drop the seat, keep at least two runners, and say so. Families go by prefix, and the longest match wins: `claude-fable-*`, `claude-*`, and `gemini-*`, after dropping a leading `cursor-`. Any other slug's family is its text before the first hyphen.",
+          "replace": "from the configured `arena-runner` panel. Read `pstack_config` with action `get`. Use the full panel, one candidate per entry unless the user sets another count. Pass each exact entry as `model`, including duplicates and `inherit-parent`, rather than relying on role rotation. With one choice or no panel, run at least two attempts on that choice or `inherit-parent` and disclose the lack of model diversity. Never invent model identities or label repeated samples as different models. If a configured entry is unavailable, use `pstack_config` `list-models`, report the failed seat, and ask before changing the panel; keep at least two runners. When the user names models or reviewers, use those in place of the panel. If one cannot run, say which did not run and ask before substituting. Never present a substitute's output as the named reviewer's.",
           "count": 1
         },
         {
@@ -312,18 +312,18 @@
           "count": 1
         },
         {
-          "find": "choose one model from the `arena cross-judge pool` line in `~/.cursor/rules/pstack-models.mdc`. If the rule or that line is missing, choose from `claude-opus-5-5-xhigh` and `grok-4.7-xhigh-fast`. Spawn one readonly judge subagent. The judge is never from the parent's family, as Phase A step 3 defines families. Try only the entries from another family, in pool order. An `auto` or `inherit-parent` entry is the parent model, so it never judges. With the default pool, a Claude parent gets `grok-4.7-xhigh-fast`. A parent from any other family gets `claude-opus-5-5-xhigh` first. If the Task tool rejects an entry, use a valid slug of the same model at the closest level or speed from the error message, or move to the next entry when there is none. If no entry from another family runs, try the default pool's entries from another family the same way.",
-          "replace": "read the configured `arena-cross-judge` choices with `pstack_config`. Spawn one read-only `general-purpose` judge through `subagent` with `wait: true` with role `arena-cross-judge` and an explicit `model`. The judge is never from the parent's family; a model's family is its provider's model line, such as Claude, GPT, or Grok. Try only the entries from another family, in configured order. An `inherit-parent` entry is the parent model, so it never judges. If a configured entry is unavailable, move to the next one. If no configured entry from another family runs, try another-family models from `pstack_config` `list-models` the same way.",
+          "find": "spawn one readonly judge from the `arena cross-judge pool` line in `~/.cursor/rules/pstack-models.mdc`, by default `claude-opus-5-5-high-fast`, `gemini-4-carbon-high`.",
+          "replace": "spawn one read-only `general-purpose` judge through `subagent` with `wait: true`, role `arena-cross-judge`, and an explicit `model` from the configured `arena-cross-judge` choices, read with `pstack_config`.",
           "count": 1
         },
         {
-          "find": "try the pool's real slugs in pool order",
-          "replace": "try the configured entries in configured order",
+          "find": "so use the first entry from another vendor. An `auto` or `inherit-parent` entry is the parent model.",
+          "replace": "so use the first entry from another vendor. A model's vendor is the company behind its model line, such as Claude, GPT, Gemini, or Grok, not the selector's provider. An `inherit-parent` entry is the parent model.",
           "count": 1
         },
         {
-          "find": "reasoning level and fast or standard speed",
-          "replace": "reasoning level",
+          "find": "If the Task tool rejects a slug, use the nearest valid slug of the same family, then the next such entry, or skip the judge, and say so.",
+          "replace": "If a configured entry is unavailable, use the next such entry. If no configured entry from another vendor runs, try another-vendor models from `pstack_config` `list-models` the same way. If none runs, skip the judge and say so.",
           "count": 1
         }
       ]
@@ -333,7 +333,7 @@
       "source": "skills/automate-me/SKILL.md",
       "reason": "Retain the mining, interview, drafting, feedback, landing, and guardrail flow; adapt skill discovery, scoped history, authoring, and question tools to Pi.",
       "destination": "skills/automate-me/SKILL.md",
-      "expectedBlob": "50971b894688b1e1923458996b89f2a9961feeb3",
+      "expectedBlob": "d22dd320f0638ea7adc90cee58a3a0fa6e07201f",
       "transforms": [
         {
           "find": "via create-skill + unslop",
@@ -438,11 +438,6 @@
         {
           "find": "- User wants to capture one narrow workflow (e.g. \"how I write commit messages\"). That's a regular skill, not a mode skill.\n\n",
           "replace": "- User wants to capture one narrow workflow (e.g. \"how I write commit messages\"). That's a regular skill, not a mode skill.\n",
-          "count": 1
-        },
-        {
-          "find": "reasoning level and fast or standard speed",
-          "replace": "reasoning level",
           "count": 1
         }
       ]
@@ -653,7 +648,7 @@
       "source": "skills/figure-it-out/SKILL.md",
       "reason": "Preserve upstream workflow and output; change host-specific runtime boundaries and unavailable paths only.",
       "destination": "skills/figure-it-out/SKILL.md",
-      "expectedBlob": "0d04c2e69b75b22ff1a9a1d8ab339580a5fbbfed",
+      "expectedBlob": "625a53c4d8be54dcca071952859aeaa1e0ccff9c",
       "transforms": [
         {
           "find": "Open a todolist",
@@ -678,11 +673,6 @@
         {
           "find": "Use for /figure-it-out or",
           "replace": "Use for /skill:figure-it-out or",
-          "count": 1
-        },
-        {
-          "find": "reasoning level and fast or standard speed",
-          "replace": "reasoning level",
           "count": 1
         }
       ]
@@ -955,7 +945,7 @@
       "source": "skills/no-comments/SKILL.md",
       "reason": "Keep all review, retry, fix, scope, approval, and reporting gates; replace Task launch with a bounded read-only reviewer whose proposals the parent applies.",
       "destination": "skills/no-comments/SKILL.md",
-      "expectedBlob": "a07ce9dfc657bdf1b2bdf3f7619225e7faac091b",
+      "expectedBlob": "1789564454c627cb8d4ee8580822d7e368cef122",
       "transforms": [
         {
           "find": "Spawn Comment Sicko. Act on accepted findings.",
@@ -978,11 +968,6 @@
           "count": 1
         },
         {
-          "find": "/how",
-          "replace": "/skill:how",
-          "count": 1
-        },
-        {
           "find": "/why",
           "replace": "/skill:why",
           "count": 1
@@ -995,11 +980,6 @@
         {
           "find": "/architect",
           "replace": "/skill:architect",
-          "count": 1
-        },
-        {
-          "find": "reasoning level and fast or standard speed",
-          "replace": "reasoning level",
           "count": 1
         }
       ]
@@ -1686,7 +1666,7 @@
       "source": "skills/setup-pstack/SKILL.md",
       "reason": "Use the native strict version-1 Pi role map instead of Cursor always-applied rules and model defaults; preserve the detect/load/confirm/validate/write/readback/offer sequence.",
       "destination": "skills/setup-pstack/SKILL.md",
-      "expectedBlob": "91f1127f8b14415fef9698b02a64d3d0bdef4f54",
+      "expectedBlob": "e9d16b1cd3cc5fd4d8ae5c2b80f0f242e3924026",
       "transforms": [
         {
           "find": "writes an always-applied rule that overrides the skill defaults.",
@@ -1719,13 +1699,73 @@
           "count": 1
         },
         {
-          "find": "The default role-to-model mapping is the rule shape shown in step 5 below. If `~/.cursor/rules/pstack-models.mdc` already exists, read it and treat its `# budget` line and its role values as the current choices. Otherwise start from those defaults. A line whose role is not in step 5, such as `how critics`, is from a retired role. Drop it.",
-          "replace": "The default role-to-model mapping is the JSON shape shown in step 5 below. Call `pstack_config` with `action: \"get\"`; if a role map already exists, read it and treat its values as the current choices. Otherwise start from those defaults. A malformed file is an error to explain and repair with approval, not a reason to erase choices. Unknown roles from an older map, if any, are errors to explain rather than silent drops.",
+          "find": "The default role-to-model mapping is the rule shape shown in step 5 below. If `~/.cursor/rules/pstack-models.mdc` already exists, read it and treat its `# budget` line and its role values as the current choices. Otherwise start from those defaults. A line whose role is not in step 5, such as `hardest tasks`, `architect runners`, `reflect tooling`, or `why investigators`, is from a retired role. Drop it.",
+          "replace": "The default role-to-model mapping is the JSON shape shown in step 5 below. Call `pstack_config` with `action: \"get\"`; if a role map already exists, read it and treat its values as the current choices. Otherwise start from those defaults. If `get` rejects an existing file, read it directly and name the error. A key whose role is not in step 5 is from a retired role. Drop it; step 5 writes the map without it. Any other malformed content is an error to explain and repair with approval, not a reason to erase choices.",
           "count": 1
         },
         {
-          "find": "### 3. Budget, map, and confirm\n\n**(a) Ask for a budget.** Prefer AskQuestion over free text. Offer these four options with these exact labels, and name the current budget when the rule records one. With no rule, say that `large` matches the skill defaults.\n\n- `unlimited — max reasoning`\n- `large — xhigh reasoning`\n- `medium — high reasoning`\n- `small — medium reasoning`\n\n**(b) Apply it.** Build the working table from the skill defaults, and on a re-run keep any role you changed by family, list, or alias (`inherit-parent`, `auto`). `unlimited`, `large`, `medium`, and `small` set the effort token of every real slug, panel entries included, to `max`, `xhigh`, `high`, or `medium`. The effort token is the last token, or the one before a trailing `fast`, on the ladder `max` > `xhigh` > `high` > `medium` > `low`. If the result is not a detected slug, use the same family's detected slug with the highest effort at or below the target, else mark the role as needing a choice. `inherit-parent` and `auto` do not change. So `unlimited` turns `claude-opus-5-5-xhigh` into `claude-opus-5-5-max`. Grok slugs top out at `xhigh`, so under `unlimited` the fallback puts Grok at `xhigh` and keeps `grok-4.7-xhigh-fast` as it is. `large` keeps both defaults. `small` turns them into `claude-opus-5-5-medium` and `grok-4.7-medium-fast`.\n\n**(c) Show the roles and confirm.** Show every role with its model, marking any real slug not in the detected set as needing a choice. Also list each line step 2 dropped. Ask whether to accept as-is or change specific roles, offering the detected models plus `inherit-parent` and `auto` (both mean: this role runs on the parent chat model, which is how Auto users stay on Auto) as the options. Prefer AskQuestion over free text. For panel roles (arena runners, architect runners, interrogate reviewers) the value is a list, and one subagent runs per entry, alias entries included, so the list length sets the count. `arena cross-judge pool` is also a list, but Arena runs one judge. It tries only values from a family other than the parent's, in list order, so order it by preference. An `inherit-parent` or `auto` value never judges. `swarm workers` is the default model for every worker unless a race or comparison assigns another model per arm.\n",
-          "replace": "### 3. Budget, map, and confirm\n\n**(a) Ask for a budget.** Prefer an available structured choice tool or numbered chat choices over free text. Offer these four options with these exact labels, and name the current budget when every real selector in the role map carries the same `:<level>` suffix. With no role map, say that `large` matches the skill defaults.\n\n- `unlimited - max reasoning`\n- `large - xhigh reasoning`\n- `medium - high reasoning`\n- `small - medium reasoning`\n\n**(b) Apply it.** Build the working table from the skill defaults (all roles `inherit-parent` until the user picks concrete selectors), and on a re-run keep any role the user already set to a real slug or `inherit-parent`. `unlimited`, `large`, `medium`, and `small` set the thinking level of every real selector, panel entries included, to `max`, `xhigh`, `high`, or `medium`. Write the level as a `:<level>` suffix, such as `anthropic/claude-opus-5-5:xhigh`, replacing any suffix already there. The `subagent` tool passes the selector to the child's `--model`, and Pi clamps a level the model does not support. `inherit-parent` does not change; that role runs at the parent's level. The suffixes record the budget; `models.json` has no separate budget field.\n\n**(c) Show the roles and confirm.** Show every role from the current `subagent` schema with its model, marking any real slug not in the detected set as needing a choice. Ask whether to accept as-is or change specific roles, offering the detected models plus `inherit-parent` (this role runs on the parent chat model) as the options. Prefer an available structured choice tool or numbered chat choices over free text. Wait for explicit confirmation before writing, including on repeat runs. Role values may be a selector or a nonempty list. Lists rotate deterministically across requests to the role; preserve duplicate entries because they weight that rotation. A list does not itself spawn a panel. Panel workflows (arena runners, architect runners, interrogate reviewers) must select each configured entry explicitly, alias entries included, within bounded requests. For `arena-cross-judge`, Arena runs one judge. It tries only values from a family other than the parent's, in list order, so order it by preference. An `inherit-parent` value never judges. `swarm-worker` is the default model for every worker unless a race or comparison assigns another model per arm. Explicit task model selection takes precedence over the role map.\n",
+          "find": "A rule without the `# defaults: 3` line comes from an older setup. That setup wrote a line for every role, so some of its values are old defaults, not choices. Before step 3, replace these values:\n\n- An `arena cross-judge pool` list of exactly one `claude-fable-*` entry, one `claude-opus-*` entry, and one `gemini-*` entry, in any order, takes the role's step 5 list. Fable and Opus are one vendor, so the Fable entry could judge only where the Opus entry also could.\n- A `# budget: unlimited` line becomes `large`, because no role runs above `xhigh`.\n- If the rule has no `# defaults: 2` line either, an old slug is one that matches `grok-*`. An old slug in `feature, refactoring`, `bug-fix`, `perf-issue`, `hillclimb`, or `swarm workers` takes the role's step 5 default. In a panel role (`arena runners`, `arena cross-judge pool`, `interrogate reviewers`), a list of exactly one `claude-opus-*` entry and one old slug, in either order, takes the role's step 5 list. In any other list, each old slug becomes `claude-opus-5-5-high-fast`.",
+          "replace": "A role map from an older setup may carry a `:max` suffix from the retired `unlimited` budget. Before step 3, change each `:max` suffix to `:xhigh`, because no role runs above `xhigh`. Earlier Pi defaults were all `inherit-parent`, so the map holds no old default slugs to replace.",
+          "count": 1
+        },
+        {
+          "find": "including an old slug in any other role and every `inherit-parent` or `auto` value.",
+          "replace": "including every `inherit-parent` value.",
+          "count": 1
+        },
+        {
+          "find": "Prefer AskQuestion over free text.",
+          "replace": "Prefer an available structured choice tool or numbered chat choices over free text.",
+          "count": 2
+        },
+        {
+          "find": "name the current budget when the rule records one. With no rule,",
+          "replace": "name the current budget when every real selector's `:<level>` suffix matches its role's target under one budget in (b). With no role map,",
+          "count": 1
+        },
+        {
+          "find": "- `large — xhigh reasoning`\n- `medium — high reasoning`\n- `small — medium reasoning`",
+          "replace": "- `large - xhigh reasoning`\n- `medium - high reasoning`\n- `small - medium reasoning`",
+          "count": 1
+        },
+        {
+          "find": "Build the working table from the skill defaults, and on a re-run keep any role you changed by family, list, or alias (`inherit-parent`, `auto`). Families are the ones Phase A of the **arena** skill defines, so Fable is its own family.",
+          "replace": "Build the working table from the skill defaults (all roles `inherit-parent` until the user picks concrete selectors), and on a re-run keep any role the user already set to a real selector, a list, or `inherit-parent`. A role's default effort is `high` for `arena-runner`, `arena-cross-judge`, `swarm-worker`, and `interrogate-reviewer`, and `xhigh` for every other role.",
+          "count": 1
+        },
+        {
+          "find": "Set the effort token of every real slug in the role, panel entries included, to the role's target. The effort token is the last token, or the one before a trailing `fast`. If the result is not a detected slug, use the same family's detected slug with the highest effort at or below the target, else mark the role as needing a choice. `inherit-parent` and `auto` do not change. So `medium` turns `claude-opus-5-5-xhigh-fast` into `claude-opus-5-5-high-fast` and `claude-opus-5-5-high-fast` into `claude-opus-5-5-medium-fast`, and `small` turns them into `claude-opus-5-5-medium-fast` and `claude-opus-5-5-low-fast`. Opus 5.5 always runs its `-fast` slug, so every Opus 5.5 value ends in `-fast`. Fable 5.2 and Gemini have no fast slug, so never write one. Gemini tops out at `high`, so a Gemini entry runs at `high` when its role's target is `xhigh`.",
+          "replace": "Set the thinking level of every real selector in the role, panel entries included, to the role's target. Write the level as a `:<level>` suffix, such as `anthropic/claude-opus-5-5:xhigh`, replacing any suffix already there. `inherit-parent` does not change; that role runs at the parent's level. So `medium` writes `:high` on `feature` and `:medium` on `arena-runner`, and `small` writes `:medium` and `:low`. The `subagent` tool passes the selector to the child's `--model`, and Pi clamps a level the model does not support. The suffixes record the budget; `models.json` has no separate budget field.",
+          "count": 1
+        },
+        {
+          "find": "Show every role with its model,",
+          "replace": "Show every role from the current `subagent` schema with its model,",
+          "count": 1
+        },
+        {
+          "find": "Also list each line step 2 dropped.",
+          "replace": "Also list each role step 2 dropped.",
+          "count": 1
+        },
+        {
+          "find": "offering the detected models at `xhigh` or below plus `inherit-parent` and `auto` (both mean: this role runs on the parent chat model, which is how Auto users stay on Auto) as the options.",
+          "replace": "offering the detected models at `xhigh` or below plus `inherit-parent` (this role runs on the parent chat model) as the options.",
+          "count": 1
+        },
+        {
+          "find": "For panel roles (arena runners, interrogate reviewers) the value is a list, and one subagent runs per entry, alias entries included, so the list length sets the count. `arena cross-judge pool` is also a list, but Arena runs one judge.",
+          "replace": "Wait for explicit confirmation before writing, including on repeat runs. Role values may be a selector or a nonempty list. Lists rotate deterministically across ordinary requests to the role; preserve duplicate entries because they weight that rotation. For panel roles (`arena-runner`, `interrogate-reviewer`) the value is a list, and the panel workflow selects each entry explicitly, one subagent per entry, alias entries included, so the list length sets the count. `arena-cross-judge` is also a list, but Arena runs one judge.",
+          "count": 1
+        },
+        {
+          "find": "Fable and the other Claude models are one vendor. An `inherit-parent` or `auto` value never judges. `swarm workers` is the default model for every worker unless a race or comparison assigns another model per arm.",
+          "replace": "Fable and the other Claude models are one vendor. A model's vendor is the company behind its model line, such as Claude, GPT, Gemini, or Grok, not the selector's provider. An `inherit-parent` value never judges. `swarm-worker` is the default model for every worker unless a race or comparison assigns another model per arm. Explicit task model selection takes precedence over the role map.",
+          "count": 1
+        },
+        {
+          "find": "Every real slug written must be in the detected set and at `xhigh` or below.",
+          "replace": "Every real slug written must be in the detected set once its `:<level>` suffix is removed. A suffix must be `off`, `minimal`, `low`, `medium`, `high`, or `xhigh`, so no role runs above `xhigh`.",
           "count": 1
         },
         {
@@ -1739,13 +1779,13 @@
           "count": 1
         },
         {
-          "find": "Write `~/.cursor/rules/pstack-models.mdc` with `alwaysApply: true`, a `# budget` line with the chosen label and its target effort, and one line per role, using the same labels poteto-mode uses.",
-          "replace": "Write `<Pi agent dir>/pstack-pi/models.json` with exactly `version` and `roles`, using the current role keys. Before writing, require owner-controlled paths. Existing directories must be directories and the config must be a regular file, neither symlinked nor group/world writable; stop on unsafe paths. Create the `pstack-pi` directory and config if absent. Write only the approved choices.",
+          "find": "Write `~/.cursor/rules/pstack-models.mdc` with `alwaysApply: true`, the `# defaults: 3` line, a `# budget` line with the chosen label and the effort that label names, and one line per role, using the same labels poteto-mode uses.",
+          "replace": "Write `<Pi agent dir>/pstack-pi/models.json` with exactly `version` and `roles`, using only the role keys shown below, so a retired role from an older map is gone after this run. Before writing, require owner-controlled paths. Existing directories must be directories and the config must be a regular file, neither symlinked nor group/world writable; stop on unsafe paths. Create the `pstack-pi` directory and config if absent. Write only the approved choices.",
           "count": 1
         },
         {
-          "find": "```\n---\ndescription: pstack per-role model choices (overrides skill defaults)\nalwaysApply: true\n---\n# pstack model configuration. One line per role. Delete a line to fall back to the skill default.\n# `inherit-parent` or `auto` as a value: the role runs on the parent chat model (omit Task `model`). Alias entries in a panel list still count toward its fan-out.\n# budget: large (xhigh)\nfeature, refactoring: grok-4.7-xhigh-fast\nbug-fix: grok-4.7-xhigh-fast\nperf-issue: grok-4.7-xhigh-fast\nhillclimb: grok-4.7-xhigh-fast\njudgment and prose: claude-opus-5-5-xhigh\nhardest tasks: claude-opus-5-5-xhigh\nhow explorer: grok-4.7-xhigh-fast\nhow explainer: claude-opus-5-5-xhigh\nwhy investigators: grok-4.7-xhigh-fast\nwhy synthesizer: claude-opus-5-5-xhigh\nreflect tooling: grok-4.7-xhigh-fast\nreflect judgment, divergent, synthesizer: claude-opus-5-5-xhigh\narena runners: claude-opus-5-5-xhigh, grok-4.7-xhigh-fast\narena cross-judge pool: claude-opus-5-5-xhigh, grok-4.7-xhigh-fast\nswarm workers: grok-4.7-xhigh-fast\narchitect runners: claude-opus-5-5-xhigh, grok-4.7-xhigh-fast\ninterrogate reviewers: claude-opus-5-5-xhigh, grok-4.7-xhigh-fast\n```",
-          "replace": "```json\n{\n  \"version\": 1,\n  \"roles\": {\n    \"feature\": \"inherit-parent\",\n    \"refactoring\": \"inherit-parent\",\n    \"bug-fix\": \"inherit-parent\",\n    \"perf-issue\": \"inherit-parent\",\n    \"hillclimb\": \"inherit-parent\",\n    \"judgment\": \"inherit-parent\",\n    \"prose\": \"inherit-parent\",\n    \"hardest\": \"inherit-parent\",\n    \"how-explorer\": \"inherit-parent\",\n    \"how-explainer\": \"inherit-parent\",\n    \"how-critics\": \"inherit-parent\",\n    \"why-investigator\": \"inherit-parent\",\n    \"why-synthesizer\": \"inherit-parent\",\n    \"reflect-tooling\": \"inherit-parent\",\n    \"reflect-judgment\": \"inherit-parent\",\n    \"reflect-divergent\": \"inherit-parent\",\n    \"reflect-synthesizer\": \"inherit-parent\",\n    \"arena-runner\": \"inherit-parent\",\n    \"arena-cross-judge\": \"inherit-parent\",\n    \"swarm-worker\": \"inherit-parent\",\n    \"architect-runner\": \"inherit-parent\",\n    \"interrogate-reviewer\": \"inherit-parent\",\n    \"no-comments\": \"inherit-parent\",\n    \"review\": \"inherit-parent\",\n    \"test\": \"inherit-parent\",\n    \"verify\": \"inherit-parent\"\n  }\n}\n```",
+          "find": "```\n---\ndescription: pstack per-role model choices (overrides skill defaults)\nalwaysApply: true\n---\n# pstack model configuration. One line per role. Delete a line to fall back to the skill default.\n# `inherit-parent` or `auto` as a value: the role runs on the parent chat model (omit Task `model` and spawn `generalPurpose`). Alias entries in a panel list still count toward its fan-out.\n# defaults: 3\n# budget: large (xhigh)\nfeature, refactoring: claude-opus-5-5-xhigh-fast\nbug-fix: claude-opus-5-5-xhigh-fast\nperf-issue: claude-opus-5-5-xhigh-fast\nhillclimb: claude-opus-5-5-xhigh-fast\njudgment and prose: claude-opus-5-5-xhigh-fast\narena runners: claude-fable-5-2-high, claude-opus-5-5-high-fast, gemini-4-carbon-high\narena cross-judge pool: claude-opus-5-5-high-fast, gemini-4-carbon-high\nswarm workers: claude-opus-5-5-high-fast\ninterrogate reviewers: claude-fable-5-2-high, claude-opus-5-5-high-fast, gemini-4-carbon-high\n```",
+          "replace": "```json\n{\n  \"version\": 1,\n  \"roles\": {\n    \"feature\": \"inherit-parent\",\n    \"refactoring\": \"inherit-parent\",\n    \"bug-fix\": \"inherit-parent\",\n    \"perf-issue\": \"inherit-parent\",\n    \"hillclimb\": \"inherit-parent\",\n    \"judgment\": \"inherit-parent\",\n    \"prose\": \"inherit-parent\",\n    \"arena-runner\": \"inherit-parent\",\n    \"arena-cross-judge\": \"inherit-parent\",\n    \"swarm-worker\": \"inherit-parent\",\n    \"interrogate-reviewer\": \"inherit-parent\",\n    \"no-comments\": \"inherit-parent\",\n    \"review\": \"inherit-parent\",\n    \"test\": \"inherit-parent\",\n    \"verify\": \"inherit-parent\",\n    \"scout\": \"inherit-parent\"\n  }\n}\n```",
           "count": 1
         },
         {
@@ -1767,11 +1807,6 @@
           "find": "/create-formal-verification-skill",
           "replace": "/skill:create-formal-verification-skill",
           "count": 2
-        },
-        {
-          "find": "Every real slug written must be in the detected set.",
-          "replace": "Every real slug written must be in the detected set once its `:<level>` suffix is removed. A suffix must be `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`.",
-          "count": 1
         }
       ]
     },
@@ -1783,9 +1818,9 @@
     {
       "kind": "transform",
       "source": "skills/show-me-your-work/SKILL.md",
-      "reason": "Replace the omitted helper with its inline TSV appender, Pi transcript identity, and bounded different-family review; resolve audit deletion instructions as append-only corrections.",
+      "reason": "Replace the omitted helper with its inline TSV appender, Pi transcript identity, and bounded review on another vendor's model; resolve audit deletion instructions as append-only corrections.",
       "destination": "skills/show-me-your-work/SKILL.md",
-      "expectedBlob": "ada1bba1e51356de0e0d4da1d13ba5a56ba9c7cb",
+      "expectedBlob": "bf64d5de06efce56152c4a6030a084213c69b228",
       "transforms": [
         {
           "find": "/show-me-your-work",
@@ -1803,18 +1838,13 @@
           "count": 1
         },
         {
-          "find": "Before handing back, spawn a subagent on a different model family from the one that did the work.",
-          "replace": "Before handing back, use `pstack_config` to discover available models and select an exact `provider/model-id` from a different model family than the one that did the work. Use one read-only `general-purpose` task through `subagent` with `wait: true`, role `review`, explicit `model`, finite `timeoutMs`, and exact log/transcript paths. Check the resolved reviewer identity, not just the requested selector. The tool result includes `resolved-model: <provider/model-id>` from the child response, or `resolved-model: unknown`, the first line of each call's reply. Use that line. Do not ask the child to name its model, and do not treat the requested selector, `details.results[].model`, or the child's own wording as the resolved id. Children use `read`, `grep`, `find`, and `ls`, may keep their own `pstack_todo`, and cannot run `bash`, access external tools, edit, or delegate. The parent supplies approved external evidence locally. If delegation or a different-family model is unavailable, mark independent review incomplete; local or same-family review cannot pass this gate.",
+          "find": "Before handing back, spawn a subagent on another vendor's model than the one that did the work.",
+          "replace": "Before handing back, use `pstack_config` to discover available models and select an exact `provider/model-id` from another vendor than the one that did the work. A model's vendor is the company behind its model line, such as Claude, GPT, Gemini, or Grok, not the selector's provider. Use one read-only `general-purpose` task through `subagent` with `wait: true`, role `review`, explicit `model`, finite `timeoutMs`, and exact log/transcript paths. Check the resolved reviewer identity, not just the requested selector. The tool result includes `resolved-model: <provider/model-id>` from the child response, or `resolved-model: unknown`, the first line of each call's reply. Use that line. Do not ask the child to name its model, and do not treat the requested selector, `details.results[].model`, or the child's own wording as the resolved id. Children use `read`, `grep`, `find`, and `ls`, may keep their own `pstack_todo`, and cannot run `bash`, access external tools, edit, or delegate. The parent supplies approved external evidence locally. If delegation or another vendor's model is unavailable, mark independent review incomplete; local or same-vendor review cannot pass this gate.",
           "count": 1
         },
         {
           "find": "The model name is not.",
           "replace": "The model name is not. Use the tool result's `resolved-model:` line. If that line is missing or `unknown`, or independent review did not run, use `independent review unavailable: <reason>` instead of inventing an identity and label any local findings.",
-          "count": 1
-        },
-        {
-          "find": "reasoning level and fast or standard speed",
-          "replace": "reasoning level",
           "count": 1
         }
       ]
@@ -3892,10 +3922,10 @@
       "source": "skills/swarm/SKILL.md",
       "reason": "Preserve upstream workflow and output; change host-specific runtime boundaries and unavailable paths only.",
       "destination": "skills/swarm/SKILL.md",
-      "expectedBlob": "9cd32247b4f381bb020cbbf0fc546ba71407d558",
+      "expectedBlob": "cf1deb77e2c7b83f9bda0551430ea166bf062977",
       "transforms": [
         {
-          "find": "Pick the worker model from the `swarm workers` line in `~/.cursor/rules/pstack-models.mdc`. If the rule or that line is missing, use `grok-4.7-xhigh-fast`. For `auto` or `inherit-parent`, omit `model` so the workers run on the parent model. If the Task tool rejects a slug, use the default and say so. If it rejects the default, use the closest valid slug of the same family from its error message. For a model race, name each arm's model up front.",
+          "find": "Pick the worker model from the `swarm workers` line in `~/.cursor/rules/pstack-models.mdc`. If the rule or that line is missing, use `claude-opus-5-5-high-fast`. For `auto` or `inherit-parent`, omit `model` so the workers run on the parent model. If the Task tool rejects a slug, use the default and say so. If it rejects the default, use the closest valid slug of the same family from its error message. For a model race, name each arm's model up front.",
           "replace": "Use configured role `swarm-worker`. For a model race, name each arm's available model up front. Do not invent model identifiers.",
           "count": 1
         },
@@ -3927,11 +3957,6 @@
         {
           "find": "If a worker drops out, proceed with N-1 and note it.",
           "replace": "If a worker drops out, proceed with N-1 and note it. Required coverage still needs a result; retry, absorb it locally, or mark the report incomplete.",
-          "count": 1
-        },
-        {
-          "find": "reasoning level and fast or standard speed",
-          "replace": "reasoning level",
           "count": 1
         }
       ]
@@ -4007,12 +4032,12 @@
       "kind": "transform",
       "source": "skills/unslop/SKILL.md",
       "destination": "skills/unslop/SKILL.md",
-      "expectedBlob": "97f5b6412148fa5b2a2fe478836fe8923ffa5cbb",
+      "expectedBlob": "583fe48499c8f8f71bd2deef4228d1f0129c03c7",
       "reason": "Reject a coined local name for a step or phase. Say what happens, or use a name the code, the docs, or the user already use.",
       "transforms": [
         {
-          "find": "Pick the concrete word.\n\n### Plain speech",
-          "replace": "Pick the concrete word.\n\n34. **Coined local names.** Do not invent a short name for a step, phase, or path and then use it as if the reader knew it. \"The intermediate wave\" for a mid-suite cleanup is a made-up label. Say what happens. Use a name only if the code, the docs, or the user already use it. The first time you use a real name the reader may not know, say what it is in the same sentence.\n\n### Plain speech",
+          "find": "33. Write whole sentences with their articles and verbs. Spell out arrows and abbreviations.\n",
+          "replace": "33. Write whole sentences with their articles and verbs. Spell out arrows and abbreviations.\n34. Don't coin a name for a step, phase, or path. Say what happens, or use a name the code, the docs, or the user already use. Define a real name the reader may not know where it first appears.\n",
           "count": 1
         }
       ]
