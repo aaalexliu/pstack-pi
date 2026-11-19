@@ -21,7 +21,7 @@ test('production uses no full-file replacements and covers every converted workf
   const converted = manifest.files.filter((file) =>
     (file.kind === 'transform' && !earlierTransforms.includes(file.source)) ||
     file.source === 'skills/poteto-mode/playbooks/investigation.md');
-  assert.equal(converted.length, 47);
+  assert.equal(converted.length, 42);
   assert.deepEqual(Object.keys(contracts).sort(), converted.map(({ source }) => source).sort());
 });
 
@@ -51,7 +51,7 @@ test('command edits do not rewrite scratch paths or principle names', async () =
   assert.ok(arena.includes('Use for /skill:arena,'));
   assert.ok(arena.includes('/tmp/arena-<slug>/candidate-<n>/'));
   assert.ok(!arena.includes('/tmp/skill:'));
-  for (const name of ['architect', 'arena']) {
+  for (const name of ['arena']) {
     const source = await read(`vendor/cursor-pstack/skills/${name}/SKILL.md`);
     const output = await read(`skills/${name}/SKILL.md`);
     const principles = [...source.matchAll(/\*\*([a-z-]+)\*\*(?=[^.\n]*principle skill)/gu)];
@@ -113,7 +113,8 @@ test('small reference repairs leave every other upstream byte intact', async () 
 
 test('the PR playbook keeps only the four agreed body sections, in order', async () => {
   const playbook = await read('skills/poteto-mode/playbooks/opening-a-pr.md');
-  const headings = [...playbook.matchAll(/^- `## ([^`]+)`/gmu)].map(([, name]) => name);
+  const body = playbook.slice(playbook.indexOf('Body:'));
+  const headings = [...body.slice(0, body.indexOf('.')).matchAll(/`## ([^`]+)`/gu)].map(([, name]) => name);
   assert.deepEqual(headings, ['Why', 'What changed', 'Scope', 'Verification']);
   for (const removed of ['## Tradeoffs', '## Blast Radius', 'Conventional Commits `type(scope)', '`## Scope`: always']) {
     assert.ok(!playbook.includes(removed), removed);

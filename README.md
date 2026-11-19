@@ -79,11 +79,11 @@ Its validation applies only to `subagent` requests.
 
 ## Core workflows
 
-Run `/skill:poteto-mode <task>` to load the mode and keep its short operating reminder active on the current session branch. The reminder is a `pstack_poteto_mode` system prompt section. Pi records sections in the session, so a request rebuilt from the session, as `pi-cached-compaction` does, matches the one Pi sent. The mode selects one of six bundled playbooks: feature, bug fix, investigation, prototype, multi-phase plan, or orchestration. Branching before the command restores the mode state from that earlier point.
+Run `/skill:poteto-mode <task>` to load the mode and keep its short operating reminder active on the current session branch. The reminder is a `pstack_poteto_mode` system prompt section. Pi records sections in the session, so a request rebuilt from the session, as `pi-cached-compaction` does, matches the one Pi sent. The mode selects one of its bundled playbooks, such as feature, bug fix, investigation, prototype, or multi-phase plan. Branching before the command restores the mode state from that earlier point.
 
 Poteto Mode uses `poteto-agent` for bounded implementation work and `general-purpose` for read-only exploration. `poteto-agent` has `read`, `grep`, `find`, `ls`, `bash`, `edit`, and `write`; it is a leaf process with no `subagent` tool. The parent still owns the design, diff review, and final checks.
 
-Run `/skill:how <question>` for an architecture walkthrough. Narrow questions use one read-only explainer. Broad questions can use two to four read-only explorers followed by one explainer. The configured `how-explorer` and `how-explainer` roles select their models, with parent-model inheritance as the default.
+Run `/skill:how <question>` for an architecture walkthrough. A narrow question is answered in the session. A broader one goes to one read-only `general-purpose` explainer that explores and explains in one pass.
 
 ## Todos
 
@@ -248,11 +248,11 @@ The package starts at version `0.1.0` and follows independent SemVer, not Cursor
 
 ## Upstream provenance
 
-The sole source for shared content is [Lauren Tan's pstack in cursor/plugins](https://github.com/cursor/plugins/tree/c742dd61706fbacc1b95f1a20b7b988cf096ce6c/pstack).
+The sole source for shared content is [Lauren Tan's pstack in cursor/plugins](https://github.com/cursor/plugins/tree/2f87c854fe3e2fcda44ca86b46ede35aad3c46b7/pstack).
 The [MIT license](LICENSE) preserves Lauren Tan's notice unchanged.
 
-The pinned source commit is `c742dd61706fbacc1b95f1a20b7b988cf096ce6c`.
-Its `pstack` tree is `4719e1c4b4c43bac85d4206a8b41dd2899769c1c`.
+The pinned source commit is `2f87c854fe3e2fcda44ca86b46ede35aad3c46b7`.
+Its `pstack` tree is `71d8e1d1d718e2149dc43b2535618064f29cba6b`.
 `vendor/cursor-pstack/` contains that immutable snapshot.
 `sync/upstream.lock.json` records source blobs, modes, and generated hashes.
 

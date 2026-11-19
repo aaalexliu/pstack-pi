@@ -16,6 +16,8 @@ The package also omits `recall`. It reads only local sessions on one machine, an
 
 `statechart` ships its 27 runtime scripts as byte-for-byte copies. The `scripts/statechart` wrapper keeps its executable mode and runs `statechart.ts` with Node 22.18 to 22.x, Node 23.6 or later, Bun 1.1.5 or later, or Deno 2.0 or later. Its first run installs TLC and Java with mise and needs the network. The upstream suite under `scripts/test/` and the `scripts/package.json` and `scripts/tsconfig.json` that serve it stay omitted. The runtime never reads them, and the suite needs fast-check, Pele, Java, and TLC. Node refuses to strip types under `node_modules`, so the skill runs from a Git or local-path install, not an npm install. The content checker treats `skills/<name>/scripts/` as code: it checks bytes and mode, not instruction prose.
 
+The `2f87c85` pin cut most skills to shorter texts. `how`, `why`, `reflect`, and `architect` became single files with no reference folders, and `how` and `reflect` lost their subagent panels. Upstream deleted the Orchestrate playbook and `check-plan.mjs`, and added `skills/poteto-mode/worker.md`, which ships because every poteto-mode kickoff points the child at it. Upstream also retired 11 model roles. Pi retires the same roles: an older `models.json` that names one still loads, and the extension ignores that key. Transforms whose upstream text was gone were dropped, not carried forward.
+
 ## Transformed files
 
 The manifest contains the exact ordered `find`, `replace`, and `count` values for each file below. The table records why the edits exist, including small correctness fixes kept from the fidelity audit. It does not list copies or omissions; use `sync/manifest.json` for the complete inventory.
@@ -31,7 +33,7 @@ The manifest contains the exact ordered `find`, `replace`, and `count` values fo
 | `skills/create-formal-verification-skill/SKILL.md` | Pi skill commands, including the three `/skill:statechart` references. The link to `../statechart/SKILL.md` and the rest of the statechart paragraph stay upstream. |
 | `skills/create-verification-skill/references/feature-map-example/search.md` | Restore the query and results before recording proof after the clear-query step. |
 | `skills/figure-it-out/SKILL.md` | Pi command and todos; bounded readers/writers, parent-owned services, and isolated scratch outputs. |
-| `skills/how/SKILL.md` | Replace Cursor's Task spawn with a bounded Pi leaf reader. Check outside-product documentation and separate guarantees from assumptions. |
+| `skills/how/SKILL.md` | Replace Cursor's Task spawn with a bounded Pi leaf reader, and answer narrow questions in the session. Check outside-product documentation and separate guarantees from assumptions. Explanations lead with the surrounding workflow, one concrete example, and no coined phase name. |
 | `skills/in-your-own-words/SKILL.md` | Pi skill command only. |
 | `skills/interrogate/SKILL.md` | Replace only the panel line and the adversary agent. Adversaries run as writable `poteto-agent` children in their own worktrees because each finding needs a run. The brief, verification, and output stay verbatim. |
 | `skills/ketchup/SKILL.md` | Pi skill commands. A real Pi session showed a Markdown image in a reply as its alt text only, with the path dropped, so the reply shows each screenshot with the read tool and gives its absolute path. Pi plays no video, so the reply gives video paths. Pi has no `/visualize`, so charts become text bar charts in a code block. Mermaid stays because Pi draws supported Mermaid diagrams in the transcript. |
@@ -49,7 +51,6 @@ The manifest contains the exact ordered `find`, `replace`, and `count` values fo
 | `skills/poteto-mode/playbooks/hillclimb.md` | Replace the default hillclimb model with configured judgment roles; state the Autonomous Run wake gap instead of promising an absent playbook. |
 | `skills/poteto-mode/playbooks/multi-phase-plan.md` | Link Prototype at its Pi-installed path; keep upstream's shorter plan and its unit, live, perf, and review gates. |
 | `skills/poteto-mode/playbooks/opening-a-pr.md` | Replace Cursor's `/deslop` and built-in PR tool with local diff review, `/skill:no-comments`, and forge CLI. Keep area-colon titles and the four-section PR body: impact-first Why, visual What changed, risk and tradeoffs in Scope, and short pasted proof in Verification. |
-| `skills/poteto-mode/playbooks/orchestrate.md` | Replace cloud workers, sub-coordinators, forks, and messages with local leaf tasks the parent coordinates, in bounded batches of parallel `subagent` calls with `wait: true` with a finite `timeoutMs`. Keep the owner, kickoff, verifier, supervision, and reply contracts. |
 | `skills/poteto-mode/playbooks/perf-issue.md` | Use available surface-control tools and configured judgment roles instead of control-skill and default model ids. Retarget the Hillclimb cross-link to a same-directory path. |
 | `skills/poteto-mode/playbooks/prototype.md` | Use available surface-control tools instead of assuming a control skill. An observation proves only the contract it ran; rerun it after the contract changes. |
 | `skills/poteto-mode/playbooks/refactoring.md` | Replace the default refactoring model and control skill with configured mechanical-edit roles and available surface-control tools. |
@@ -68,11 +69,9 @@ The manifest contains the exact ordered `find`, `replace`, and `count` values fo
 | `skills/technical-writing/SKILL.md` | Change one skill command to Pi syntax; allow short pasted proof in PR bodies and link long output. |
 | `skills/typescript-best-practices/SKILL.md` | Remove unsupported paths frontmatter. |
 <<<<<<< HEAD
-| `skills/unslop/SKILL.md` | Reject a coined local name for a step or phase. Say what happens, or use a name the code, the docs, or the user already use. |
 =======
 | `skills/unslop/SKILL.md` | Add rule 34 in upstream's one-line style: reject a coined local name for a step or phase. Say what happens, or use a name the code, the docs, or the user already use. |
-| `skills/why/SKILL.md` | Parent owns Git/MCP searches and citation checks; leaf readers use supplied evidence. Remove Cursor task fields and defaults. Present the answer as a workflow and one concrete example before the evidence sections. A why question is not a change plan. |
-| `skills/why/references/synthesizer-prompt.md` | Use an explicit URL placeholder and one file-relative reference path; external citation checks go back to the parent. |
+| `skills/why/SKILL.md` | Present the answer as a workflow and one concrete example before the evidence, with no coined phase name. |
 >>>>>>> sync-2f87c85/skills-misc
 
 ## Preserved behavior and host limits
@@ -120,4 +119,4 @@ Commit `0a6f170` activated Interrogate as an 18-line replacement of the 111-line
 
 Commit `033024e` restored the missing contracts and converted Interrogate to two exact transforms. This pass removes the remaining full replacements. Future edits should change the narrow host-specific region, not summarize the skill. Do not use a giant transform to disguise a full rewrite.
 
-The upstream pin is `c742dd61706fbacc1b95f1a20b7b988cf096ce6c` (tree `4719e1c4b4c43bac85d4206a8b41dd2899769c1c`).
+The upstream pin is `2f87c854fe3e2fcda44ca86b46ede35aad3c46b7` (tree `71d8e1d1d718e2149dc43b2535618064f29cba6b`).

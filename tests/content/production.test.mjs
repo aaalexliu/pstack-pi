@@ -13,9 +13,9 @@ test('production contains exactly the reviewed copied and adapted workflow set',
   const manifest = parseManifest(JSON.parse(await readFile(path.join(root, 'sync/manifest.json'), 'utf8')));
   const lock = parseLock(JSON.parse(await readFile(path.join(root, 'sync/upstream.lock.json'), 'utf8')));
   const inventory = await checkContent({ root, manifest, lock });
-  assert.equal(lock.commit, 'c742dd61706fbacc1b95f1a20b7b988cf096ce6c');
-  assert.equal(inventory.bySource.size, 573);
-  assert.equal(inventory.byDestination.size, 135);
+  assert.equal(lock.commit, '2f87c854fe3e2fcda44ca86b46ede35aad3c46b7');
+  assert.equal(inventory.bySource.size, 551);
+  assert.equal(inventory.byDestination.size, 114);
   assert.equal(inventory.byAgentName.size, 5);
   assert.deepEqual(inventory.byAgentName.get('comment-sicko')?.tools, ['read', 'grep', 'find', 'ls']);
   assert.deepEqual(inventory.byAgentName.get('general-purpose')?.tools, ['read', 'grep', 'find', 'ls']);
@@ -40,10 +40,10 @@ test('production contains exactly the reviewed copied and adapted workflow set',
   const omittedSkills = ['skills/ketchup-video/SKILL.md', 'skills/poteto-help/SKILL.md', 'skills/recall/SKILL.md', 'skills/sharpen/SKILL.md'];
   assert.deepEqual(upstreamEntrypoints.filter((file) => file.kind === 'omit').map((file) => file.source), omittedSkills);
   assert.ok(upstreamEntrypoints.every((file) => file.kind === 'omit' || file.destination === file.source));
-  assert.equal(manifest.files.filter((file) => file.kind === 'copy').length, 73);
-  assert.equal(manifest.files.filter((file) => file.kind === 'transform').length, 53);
+  assert.equal(manifest.files.filter((file) => file.kind === 'copy').length, 59);
+  assert.equal(manifest.files.filter((file) => file.kind === 'transform').length, 46);
   assert.equal(manifest.files.filter((file) => file.kind === 'replace').length, 0);
-  assert.equal(manifest.files.filter((file) => file.kind === 'omit').length, 447);
+  assert.equal(manifest.files.filter((file) => file.kind === 'omit').length, 446);
   assert.ok(manifest.files.every((file) => file.kind !== 'omit' || !file.reason.includes('reviewed Pi adaptation phase')));
   const adaptationText = await readFile(path.join(root, 'ADAPTATIONS.md'), 'utf8');
   const documentedTransforms = [...adaptationText.matchAll(/^\| `([^`]+)` \|/gmu)].map((match) => match[1]).sort();

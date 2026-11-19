@@ -100,8 +100,10 @@
       "present": "Do not substantially rewrite it."
     },
     "pi": {
-      "bounded Pi reader": "Spawn one `general-purpose` `subagent` with `wait: true` and a finite `timeoutMs`",
-      "outside product": "the parent reads its documentation alongside the code, gives the reader bounded extracts, and separates documented guarantees from assumptions."
+      "bounded Pi reader": "spawn one `general-purpose` `subagent` with `wait: true` and a finite `timeoutMs`",
+      "narrow in session": "For a narrow question, such as how one function or small utility works, skip the subagent: answer in this session",
+      "outside product": "the parent reads its documentation alongside the code, gives the reader bounded extracts, and separates documented guarantees from assumptions.",
+      "workflow first": "Lead with the surrounding workflow: who acts, in what order, and what someone watching would see. Then one concrete example."
     }
   },
   "skills/maintain-verification-skill/SKILL.md": {
@@ -291,24 +293,6 @@
       "risk in scope": "Scope names what the change leaves out, the risk, and rejected alternatives when relevant.",
       "pasted proof": "Paste short real proof in Verification (command and outcome, under about 10 lines); link longer output.",
       "forge CLI": "Open PRs ready with `gh pr create` without `--draft`"
-    }
-  },
-  "skills/poteto-mode/playbooks/orchestrate.md": {
-    "upstream": {
-      "one owner": "The owner is the only writer of its branch and carries the PR from build to merge.",
-      "kickoff evidence": "If you can't name the evidence, the unit isn't scoped yet.",
-      "pilot": "Take it through kickoff, owner, verifier, and merge before you fan out, so a flaw in the kickoff costs one agent instead of fifty.",
-      "independent verifier": "Each PR gets a verifier that isn't its author,",
-      "versioned verdict": "A verdict covers one head SHA, so a new push needs a new verdict.",
-      "behavioral bar": "Behavioral work needs more than a type check.",
-      "no scope leak": "Keep only the fixes that block the program, and park the rest as follow-ups.",
-      "live state": "Check a PR's live state before you report on it,",
-      "bounded retries": "After two retries, drop the unit and replan around it."
-    },
-    "pi": {
-      "no cloud workers": "Pi has no cloud workers, so run each worker on this machine in its own worktree or output path.",
-      "no sub-coordinators": "Pi children cannot delegate, so you coordinate every worker",
-      "handoff not fork": "Pi cannot fork, message, or resume a child, so name that state in the fresh worker's kickoff."
     }
   },
   "skills/poteto-mode/playbooks/perf-issue.md": {
@@ -555,6 +539,26 @@
     "pi": {
       "area-colon title": "PR title: area, colon, then a plain sentence",
       "four sections": "`Why`, `What changed`, `Scope`, `Verification`."
+    }
+  },
+  "skills/why/SKILL.md": {
+    "upstream": {
+      "record not code": "Answer from the record, not the code",
+      "inferences": "mark your own inferences as inferences, and say what the record does not answer."
+    },
+    "pi": {
+      "workflow first": "Lead with the surrounding workflow: who acts, in what order, and what someone watching would see. Then one concrete example.",
+      "no coined names": "Do not invent a short name for a phase.",
+      "evidence after": "Then the evidence. Keep its confidence wording."
+    }
+  },
+  "skills/architect/SKILL.md": {
+    "upstream": {
+      "two shapes": "sketch two different shapes for it (types, signatures, module boundaries)",
+      "arena route": "For a large or contested design, run the **arena** skill instead of sketching alone."
+    },
+    "pi": {
+      "skill command": "Use for /skill:architect,"
     }
   }
 }

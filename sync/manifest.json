@@ -682,16 +682,21 @@
       "source": "skills/how/SKILL.md",
       "destination": "skills/how/SKILL.md",
       "expectedBlob": "dbddbecf2a911a5216c3a611f20bf95db809a938",
-      "reason": "Replace the Cursor Task spawn with one bounded Pi leaf reader; keep the outside-product documentation check.",
+      "reason": "Replace the Cursor Task spawn with one bounded Pi leaf reader, and answer narrow questions in the session. Keep the outside-product documentation check. Explanations lead with the surrounding workflow, one concrete example, and no coined phase name.",
       "transforms": [
         {
           "find": "Spawn one Task subagent with `subagent_type: generalPurpose` and `readonly: true` that explores and explains in one pass.",
-          "replace": "Spawn one `general-purpose` `subagent` with `wait: true` and a finite `timeoutMs` that explores and explains in one pass. Limit its tools to `read`, `grep`, `find`, `ls`, and child-local `pstack_todo`; it must not write or delegate. If delegation is unavailable, explore and explain in this session.",
+          "replace": "For a narrow question, such as how one function or small utility works, skip the subagent: answer in this session, starting from what the session already knows, then read only the files still needed. Otherwise, spawn one `general-purpose` `subagent` with `wait: true` and a finite `timeoutMs` that explores and explains in one pass. Limit its tools to `read`, `grep`, `find`, `ls`, and child-local `pstack_todo`; it must not write or delegate. If delegation is unavailable, explore and explain in this session.",
           "count": 1
         },
         {
           "find": "If the scope is ambiguous, state your interpretation and explore. The user can redirect.",
           "replace": "If the scope is ambiguous, state your interpretation and explore. The user can redirect. When the answer depends on an outside product, the parent reads its documentation alongside the code, gives the reader bounded extracts, and separates documented guarantees from assumptions.",
+          "count": 1
+        },
+        {
+          "find": "Explore the codebase to answer \"how does X work?\" questions.\n",
+          "replace": "Explore the codebase to answer \"how does X work?\" questions. The reader is not in the weeds of this codebase. Lead with the surrounding workflow: who acts, in what order, and what someone watching would see. Then one concrete example. Use a failure example when the point is a bug, a race, or an edge. Keep file and function names as places to look. Those names are not the explanation. Do not invent a short name for a phase. Use a name only if the code, the docs, or the user already use it, and say what it is the first time.\n",
           "count": 1
         }
       ]
@@ -1502,8 +1507,8 @@
           "count": 1
         },
         {
-          "find": "`Why`, `What changed`, `Scope`, `Tradeoffs`, `Blast Radius`, `Verification`.",
-          "replace": "`Why`, `What changed`, `Scope`, `Verification`. `Scope` also says what the change could break and why that is safe, and names any rejected alternative a reviewer would ask about.",
+          "find": "with these `##` headings in this order, empty ones dropped: `Why`, `What changed`, `Scope`, `Tradeoffs`, `Blast Radius`, `Verification`.",
+          "replace": "with these `##` headings in this order, empty ones dropped except `Scope`: `Why`, `What changed`, `Scope`, `Verification`. `Scope` also says what the change could break and why that is safe, and names any rejected alternative a reviewer would ask about.",
           "count": 1
         }
       ]
@@ -4043,9 +4048,18 @@
       ]
     },
     {
-      "kind": "copy",
+      "kind": "transform",
       "source": "skills/why/SKILL.md",
-      "destination": "skills/why/SKILL.md"
+      "destination": "skills/why/SKILL.md",
+      "expectedBlob": "99397830ddc11c8d7118272a4a3b2e59c8803891",
+      "reason": "Present the answer as a workflow and one concrete example before the evidence. Do not coin a phase name.",
+      "transforms": [
+        {
+          "find": "and say what the record does not answer.\n",
+          "replace": "and say what the record does not answer.\n\nThe reader is not in the weeds of this codebase. Lead with the surrounding workflow: who acts, in what order, and what someone watching would see. Then one concrete example. Use a failure example when the point is a bug, a race, or an edge. Keep file and function names as places to look. Those names are not the explanation. Do not invent a short name for a phase. Use a name only if the code, the docs, or the user already use it, and say what it is the first time. Then the evidence. Keep its confidence wording.\n",
+          "count": 1
+        }
+      ]
     }
   ]
 }
