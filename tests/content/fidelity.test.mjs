@@ -9,12 +9,10 @@ const manifest = parseManifest(JSON.parse(await read('sync/manifest.json')));
 /** @type {Record<string, {upstream: Record<string, string>, pi: Record<string, string>}>} */
 const contracts = JSON.parse(await read('tests/content/workflow-contracts.json'));
 const earlierTransforms = [
-  'skills/architect/references/runner-prompt.md',
   'skills/create-verification-skill/references/feature-map-example/search.md',
   'skills/interrogate/SKILL.md',
   'skills/technical-writing/SKILL.md',
   'skills/typescript-best-practices/SKILL.md',
-  'skills/why/references/synthesizer-prompt.md',
 ];
 
 // These checks protect reviewed instructions, not model compliance.
@@ -23,7 +21,7 @@ test('production uses no full-file replacements and covers every converted workf
   const converted = manifest.files.filter((file) =>
     (file.kind === 'transform' && !earlierTransforms.includes(file.source)) ||
     file.source === 'skills/poteto-mode/playbooks/investigation.md');
-  assert.equal(converted.length, 47);
+  assert.equal(converted.length, 42);
   assert.deepEqual(Object.keys(contracts).sort(), converted.map(({ source }) => source).sort());
 });
 
@@ -53,7 +51,7 @@ test('command edits do not rewrite scratch paths or principle names', async () =
   assert.ok(arena.includes('Use for /skill:arena,'));
   assert.ok(arena.includes('/tmp/arena-<slug>/candidate-<n>/'));
   assert.ok(!arena.includes('/tmp/skill:'));
-  for (const name of ['architect', 'arena']) {
+  for (const name of ['arena']) {
     const source = await read(`vendor/cursor-pstack/skills/${name}/SKILL.md`);
     const output = await read(`skills/${name}/SKILL.md`);
     const principles = [...source.matchAll(/\*\*([a-z-]+)\*\*(?=[^.\n]*principle skill)/gu)];
@@ -100,9 +98,6 @@ test('interrogate changes only the panel and adversary agent in Fan out', async 
 
 test('small reference repairs leave every other upstream byte intact', async () => {
   for (const [destination, before, after] of [
-    ['skills/architect/references/runner-prompt.md',
-      'You are one of the parallel runners, each on a different model.',
-      'You are one of several independent runners. The parent selects configured models and reports any limits on model diversity.'],
     ['skills/create-verification-skill/references/feature-map-example/search.md',
       '- **Proof.** Capture the populated result state.',
       '- **Proof.** Restore the populated result state after the clear-query and CLI checks. Run `control-notes browser fill --role searchbox --name "Search notes" --value "quarterly"` and wait for the `Search results` list to contain `Quarterly plan`. Capture this state.'],
@@ -118,7 +113,8 @@ test('small reference repairs leave every other upstream byte intact', async () 
 
 test('the PR playbook keeps only the four agreed body sections, in order', async () => {
   const playbook = await read('skills/poteto-mode/playbooks/opening-a-pr.md');
-  const headings = [...playbook.matchAll(/^- `## ([^`]+)`/gmu)].map(([, name]) => name);
+  const body = playbook.slice(playbook.indexOf('Body:'));
+  const headings = [...body.slice(0, body.indexOf('.')).matchAll(/`## ([^`]+)`/gu)].map(([, name]) => name);
   assert.deepEqual(headings, ['Why', 'What changed', 'Scope', 'Verification']);
   for (const removed of ['## Tradeoffs', '## Blast Radius', 'Conventional Commits `type(scope)', '`## Scope`: always']) {
     assert.ok(!playbook.includes(removed), removed);

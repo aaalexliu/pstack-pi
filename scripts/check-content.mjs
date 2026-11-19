@@ -71,7 +71,7 @@ export function contentInventory(rawManifest, rawLock) {
       continue;
     }
     assert.ok(disposition.kind === 'copy' || disposition.kind === 'transform' || disposition.kind === 'replace', 'Content supports only copy, transform, replace, and omit');
-    assert.ok(/^skills\/[^/]+\/(?:SKILL\.md|(?:references|playbooks|scripts)\/.+)$/u.test(disposition.destination) || /^agents\/(?:comment-sicko|poteto-agent)\.md$/u.test(disposition.destination), `Unsupported content destination: ${disposition.destination}`);
+    assert.ok(/^skills\/[^/]+\/(?:SKILL\.md|(?:references|playbooks|scripts)\/.+)$/u.test(disposition.destination) || disposition.destination === 'skills/poteto-mode/worker.md' || /^agents\/(?:comment-sicko|poteto-agent)\.md$/u.test(disposition.destination), `Unsupported content destination: ${disposition.destination}`);
     assert.ok(entry.output, `Missing locked output: ${disposition.source}`);
     assert.equal(entry.output.destination, disposition.destination, 'Locked destination differs');
     assert.ok(entry.output.mode === '100644' || isScript(disposition.destination), 'Content must not be executable');

@@ -29,6 +29,14 @@ test('role config parses singles and pools and rejects unknown roles or shapes',
   assert.ok(roles.includes('feature') && roles.includes('swarm-worker'));
 });
 
+test('a config written before upstream retired a role still loads and drops that role', () => {
+  const config = parseModelConfig(JSON.stringify({ version: 1, roles: { feature: 'a/one', 'how-explorer': 'b/two', 'architect-runner': ['c/three'] } }));
+  assert.deepEqual([...config.keys()], ['feature']);
+  assert.ok(!roles.includes(/** @type {any} */ ('how-explorer')));
+  assert.throws(() => parseRole('hardest'), /Unknown role: hardest/);
+  assert.throws(() => parseModelConfig('{"version":1,"roles":{"how-explorer":"not-a-model"}}'), /Invalid pstack-pi\/models.json|Invalid model choice/);
+});
+
 test('loadModelConfig treats a missing file as no roles and surfaces malformed files', async (t) => {
   const agentDir = await mkdtemp(path.join(tmpdir(), 'model-config-'));
   assert.equal((await loadModelConfig(agentDir)).size, 0);

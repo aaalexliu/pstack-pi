@@ -4,14 +4,20 @@ import { Type, type Static } from 'typebox';
 import { Check } from 'typebox/value';
 
 export const roles = [
-  'feature', 'refactoring', 'bug-fix', 'perf-issue', 'hillclimb', 'judgment', 'prose', 'hardest',
-  'how-explorer', 'how-explainer', 'how-critics', 'why-investigator', 'why-synthesizer',
-  'reflect-tooling', 'reflect-judgment', 'reflect-divergent', 'reflect-synthesizer',
-  'arena-runner', 'arena-cross-judge', 'swarm-worker', 'architect-runner', 'interrogate-reviewer',
+  'feature', 'refactoring', 'bug-fix', 'perf-issue', 'hillclimb', 'judgment', 'prose',
+  'arena-runner', 'arena-cross-judge', 'swarm-worker', 'interrogate-reviewer',
   'no-comments', 'review', 'test', 'verify', 'scout',
 ] as const;
 export const roleSchema = Type.Enum(roles);
 export type Role = Static<typeof roleSchema>;
+
+// Upstream dropped these roles. A models.json written before then still loads; the keys are ignored
+// and setup-pstack removes them on its next run.
+export const retiredRoles = [
+  'hardest', 'how-explorer', 'how-explainer', 'how-critics', 'why-investigator', 'why-synthesizer',
+  'reflect-tooling', 'reflect-judgment', 'reflect-divergent', 'reflect-synthesizer', 'architect-runner',
+] as const;
+const configKeySchema = Type.Enum([...roles, ...retiredRoles]);
 
 export const modelChoiceSchema = Type.String({
   description: 'inherit-parent or an exact provider/model-id',
@@ -34,7 +40,7 @@ export function formatModelChoice(choice: ModelChoice): string {
 
 const configSchema = Type.Object({
   version: Type.Literal(1),
-  roles: Type.Partial(Type.Record(roleSchema, Type.Union([modelChoiceSchema, Type.Array(modelChoiceSchema, { minItems: 1 })])), { additionalProperties: false }),
+  roles: Type.Partial(Type.Record(configKeySchema, Type.Union([modelChoiceSchema, Type.Array(modelChoiceSchema, { minItems: 1 })])), { additionalProperties: false }),
 }, { additionalProperties: false });
 
 export function parseModelConfig(text: string): RoleConfig {
@@ -42,6 +48,7 @@ export function parseModelConfig(text: string): RoleConfig {
   if (!Check(configSchema, value)) throw new Error('Invalid pstack-pi/models.json: expected {"version":1,"roles":{...}} with known role names');
   const result = new Map<Role, RoleAssignment>();
   for (const [key, raw] of Object.entries(value.roles)) {
+    if ((retiredRoles as readonly string[]).includes(key)) continue;
     const role = key as Role;
     if (typeof raw === 'string') result.set(role, { kind: 'single', choice: parseModelChoice(raw) });
     else {

@@ -1,6 +1,6 @@
 # Syncing Cursor pstack
 
-The generated skills and agents come from the pinned Cursor source recorded in `sync/upstream.lock.json`. The current pin is commit `c742dd61706fbacc1b95f1a20b7b988cf096ce6c`, tree `4719e1c4b4c43bac85d4206a8b41dd2899769c1c` under `pstack/`.
+The generated skills and agents come from the pinned Cursor source recorded in `sync/upstream.lock.json`. The current pin is commit `2f87c854fe3e2fcda44ca86b46ede35aad3c46b7`, tree `71d8e1d1d718e2149dc43b2535618064f29cba6b` under `pstack/`.
 
 Sync works on three layers:
 
@@ -77,7 +77,7 @@ node --test tests/content/fidelity.test.mjs
 
    ```sh
    git -C ../pstack-cursor-source diff --name-status \
-     c742dd61706fbacc1b95f1a20b7b988cf096ce6c..<candidate-commit> -- pstack
+     2f87c854fe3e2fcda44ca86b46ede35aad3c46b7..<candidate-commit> -- pstack
    ```
 
 3. Review every changed source file against its manifest disposition:
