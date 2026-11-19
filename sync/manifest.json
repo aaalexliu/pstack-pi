@@ -1196,7 +1196,7 @@
       "kind": "transform",
       "source": "skills/poteto-mode/playbooks/bug-fix.md",
       "destination": "skills/poteto-mode/playbooks/bug-fix.md",
-      "expectedBlob": "b5de0bfa63add6ed38a38a8bd668cf36ac009c61",
+      "expectedBlob": "0e9e734ed6e940a7ac512befb73f03bb7e6a150c",
       "reason": "Preserve upstream workflow and output; change host-specific runtime boundaries and unavailable paths only.",
       "transforms": [
         {
@@ -1205,13 +1205,8 @@
           "count": 1
         },
         {
-          "find": "your configured bug-fix model (default `grok-4.7-xhigh-fast`)",
+          "find": "your configured bug-fix model (default `claude-opus-5-5-xhigh-fast`)",
           "replace": "`poteto-agent` and role `bug-fix`",
-          "count": 1
-        },
-        {
-          "find": "reasoning level and fast or standard speed",
-          "replace": "reasoning level",
           "count": 1
         }
       ]
@@ -1220,7 +1215,7 @@
       "kind": "transform",
       "source": "skills/poteto-mode/playbooks/eval.md",
       "destination": "skills/poteto-mode/playbooks/eval.md",
-      "expectedBlob": "768a894e275b1e9b198e83ceb6b46964e3f9d6db",
+      "expectedBlob": "5e5762500dec34b63219c9002161215fb45ec438",
       "reason": "Preserve upstream workflow and output; change host-specific runtime boundaries and unavailable paths only.",
       "transforms": [
         {
@@ -1229,8 +1224,8 @@
           "count": 1
         },
         {
-          "find": "reasoning level and fast or standard speed",
-          "replace": "reasoning level",
+          "find": "An agent that only dispatches, polls, or packs results runs on `claude-opus-5-5-medium-fast`.",
+          "replace": "A task that only polls or packs results keeps its role model and runs with `thinking: \"medium\"`.",
           "count": 1
         }
       ]
@@ -1239,22 +1234,17 @@
       "kind": "transform",
       "source": "skills/poteto-mode/playbooks/feature.md",
       "destination": "skills/poteto-mode/playbooks/feature.md",
-      "expectedBlob": "eb1040cb2631f3eeacd8f9f6469d7e97277f24ef",
+      "expectedBlob": "27d76a56eb074ed1d8910b289b318d1aa0b80c0a",
       "reason": "Preserve upstream workflow and output; change host-specific runtime boundaries and unavailable paths only.",
       "transforms": [
         {
-          "find": "your configured feature model (default `grok-4.7-xhigh-fast`)",
+          "find": "your configured feature model (default `claude-opus-5-5-xhigh-fast`)",
           "replace": "`poteto-agent` and role `feature`",
           "count": 1
         },
         {
           "find": "That owner fans out internally after the blocking phase.",
           "replace": "The parent fans out bounded leaf tasks after the blocking phase, keeping the coupled artifact under one owner.",
-          "count": 1
-        },
-        {
-          "find": "reasoning level and fast or standard speed",
-          "replace": "reasoning level",
           "count": 1
         }
       ]
@@ -1263,11 +1253,11 @@
       "kind": "transform",
       "source": "skills/poteto-mode/playbooks/hillclimb.md",
       "destination": "skills/poteto-mode/playbooks/hillclimb.md",
-      "expectedBlob": "e9cf267908a9737236b3a8a8a5a99fe9066f7554",
+      "expectedBlob": "dbcff8f923eab39976bb2e34b89b328d4385e825",
       "reason": "Preserve upstream workflow and output; change host-specific runtime boundaries and unavailable paths only.",
       "transforms": [
         {
-          "find": "your configured hillclimb model (default `grok-4.7-xhigh-fast`)",
+          "find": "your configured hillclimb model (default `claude-opus-5-5-xhigh-fast`)",
           "replace": "`poteto-agent` and the configured role model for judgment",
           "count": 1
         },
@@ -1280,11 +1270,6 @@
           "find": "the Perf issue playbook (`playbooks/perf-issue.md`)",
           "replace": "the Perf issue playbook ([Perf issue](perf-issue.md))",
           "count": 1
-        },
-        {
-          "find": "reasoning level and fast or standard speed",
-          "replace": "reasoning level",
-          "count": 1
         }
       ]
     },
@@ -1292,12 +1277,12 @@
       "kind": "transform",
       "source": "skills/poteto-mode/playbooks/investigation.md",
       "destination": "skills/poteto-mode/playbooks/investigation.md",
-      "expectedBlob": "cd119f04f23e0b7acb3f8cc5ba13ce4ab7aa6c7d",
+      "expectedBlob": "854d56f69388e24d0d9262cb6b545e1484873ca1",
       "reason": "Explanations lead with the surrounding workflow, a concrete failure example, and no coined phase name.",
       "transforms": [
         {
-          "find": "3. Produce the `how`-shaped output (Overview / Key Concepts / How It Works / Where Things Live / Gotchas), or a recommendation with a tradeoffs table if the request is a decision between alternatives.\n4. Apply the **unslop** skill to the reply.",
-          "replace": "3. Produce the `how`-shaped output (Overview / Key Concepts / How It Works / Where Things Live / Gotchas), or a recommendation with a tradeoffs table if the request is a decision between alternatives. The reader is not in the weeds of this codebase. Lead with the surrounding workflow: who acts, in what order, and what someone watching would see. Then one concrete example. Use a failure example when the point is a bug, a race, or an edge. Keep file and function names as places to look. Those names are not the explanation. Do not invent a short name for a phase. Use a name only if the code, the docs, or the user already use it, and say what it is the first time.\n4. Apply the **unslop** skill to the reply.",
+          "find": "3. Produce the output (Overview / Key Concepts / How It Works / Where Things Live / Gotchas), or a recommendation with a tradeoffs table if the request is a decision between alternatives.\n4. Apply the **unslop** skill to the reply.",
+          "replace": "3. Produce the output (Overview / Key Concepts / How It Works / Where Things Live / Gotchas), or a recommendation with a tradeoffs table if the request is a decision between alternatives. The reader is not in the weeds of this codebase. Lead with the surrounding workflow: who acts, in what order, and what someone watching would see. Then one concrete example. Use a failure example when the point is a bug, a race, or an edge. Keep file and function names as places to look. Those names are not the explanation. Do not invent a short name for a phase. Use a name only if the code, the docs, or the user already use it, and say what it is the first time.\n4. Apply the **unslop** skill to the reply.",
           "count": 1
         }
       ]
@@ -1354,7 +1339,7 @@
       "kind": "transform",
       "source": "skills/poteto-mode/playbooks/perf-issue.md",
       "destination": "skills/poteto-mode/playbooks/perf-issue.md",
-      "expectedBlob": "46dcc9963366992016dfb1d59ccaae977930f982",
+      "expectedBlob": "f5264c29516b7c6b63369369f58e07c8db5c0773",
       "reason": "Preserve upstream workflow and output; change host-specific runtime boundaries and unavailable paths only.",
       "transforms": [
         {
@@ -1363,18 +1348,13 @@
           "count": 1
         },
         {
-          "find": "your configured perf-issue model (default `grok-4.7-xhigh-fast`)",
+          "find": "your configured perf-issue model (default `claude-opus-5-5-xhigh-fast`)",
           "replace": "`poteto-agent` and the configured role model for judgment",
           "count": 1
         },
         {
           "find": "For sustained improvement against a metric rather than a one-off fix, use the Hillclimb playbook (`playbooks/hillclimb.md`).",
           "replace": "For sustained improvement against a metric rather than a one-off fix, use the Hillclimb playbook ([Hillclimb](hillclimb.md)).",
-          "count": 1
-        },
-        {
-          "find": "reasoning level and fast or standard speed",
-          "replace": "reasoning level",
           "count": 1
         }
       ]
@@ -1402,22 +1382,17 @@
       "kind": "transform",
       "source": "skills/poteto-mode/playbooks/refactoring.md",
       "destination": "skills/poteto-mode/playbooks/refactoring.md",
-      "expectedBlob": "c04b07eeb8b8fa651d080729363466ab73d2fe40",
+      "expectedBlob": "d4db06bb057f7b8a7df68d90896d9078a0656938",
       "reason": "Preserve upstream workflow and output; change host-specific runtime boundaries and unavailable paths only.",
       "transforms": [
         {
-          "find": "your configured refactoring model (default `grok-4.7-xhigh-fast`)",
+          "find": "your configured refactoring model (default `claude-opus-5-5-xhigh-fast`)",
           "replace": "`poteto-agent` and the configured role model for mechanical edits",
           "count": 1
         },
         {
           "find": "via the relevant control skill",
           "replace": "via available surface-control tools",
-          "count": 1
-        },
-        {
-          "find": "reasoning level and fast or standard speed",
-          "replace": "reasoning level",
           "count": 1
         }
       ]
@@ -1426,7 +1401,7 @@
       "kind": "transform",
       "source": "skills/poteto-mode/playbooks/runtime-forensics.md",
       "destination": "skills/poteto-mode/playbooks/runtime-forensics.md",
-      "expectedBlob": "6bf64240d1a890df290b98c632ad374d20ca9fd4",
+      "expectedBlob": "8364ce4f1e7b0fd006f06c4bd0f70f68a902cdaf",
       "reason": "Preserve upstream workflow and output; change host-specific runtime boundaries and unavailable paths only.",
       "transforms": [
         {
@@ -1437,11 +1412,6 @@
         {
           "find": "Parse large artifacts in a subagent (the **guard-the-context-window** principle skill), keep the reduced finding in the main thread.",
           "replace": "Parse large artifacts in a bounded leaf task using the **guard-the-context-window** principle skill; keep the reduced finding in the main thread.",
-          "count": 1
-        },
-        {
-          "find": "reasoning level and fast or standard speed",
-          "replace": "reasoning level",
           "count": 1
         }
       ]
@@ -1460,17 +1430,12 @@
       "kind": "transform",
       "source": "skills/poteto-mode/playbooks/trace-forensics.md",
       "destination": "skills/poteto-mode/playbooks/trace-forensics.md",
-      "expectedBlob": "bf1b003786503623d91ca173fc97a6e54eee3acf",
+      "expectedBlob": "2aec6f16451cc939348ac65fb90aaa77d431cefa",
       "reason": "Preserve upstream workflow and output; change host-specific runtime boundaries and unavailable paths only.",
       "transforms": [
         {
           "find": "Parse large artifacts in a subagent (the **principle-guard-the-context-window** skill) and keep the reduced finding in the main thread.",
           "replace": "Parse large artifacts in a bounded leaf task using the **principle-guard-the-context-window** skill and keep the reduced finding in the main thread.",
-          "count": 1
-        },
-        {
-          "find": "reasoning level and fast or standard speed",
-          "replace": "reasoning level",
           "count": 1
         }
       ]

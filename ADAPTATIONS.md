@@ -46,7 +46,7 @@ The manifest contains the exact ordered `find`, `replace`, and `count` values fo
 | `skills/poteto-mode/playbooks/investigation.md` | Explanations lead with the surrounding workflow, a concrete example, and no coined phase name. |
 | `skills/poteto-mode/playbooks/authoring-a-skill.md` | Replace Cursor built-in create-skill with Pi skill-authoring docs or an installed create-skill / figure-it-out path. |
 | `skills/poteto-mode/playbooks/bug-fix.md` | Replace the Cursor loop command and default model with local checkpoints and the bug-fix role. |
-| `skills/poteto-mode/playbooks/eval.md` | Replace Cursor agent-transcripts paths with project-scoped Pi session paths. |
+| `skills/poteto-mode/playbooks/eval.md` | Replace Cursor agent-transcripts paths with project-scoped Pi session paths. Run poll-and-pack tasks on their role model at `thinking: "medium"` instead of a Cursor model slug. |
 | `skills/poteto-mode/playbooks/feature.md` | Replace default models and nested delegation with parent-dispatched leaf implementation. |
 | `skills/poteto-mode/playbooks/hillclimb.md` | Replace the default hillclimb model with configured judgment roles; state the Autonomous Run wake gap instead of promising an absent playbook. |
 | `skills/poteto-mode/playbooks/multi-phase-plan.md` | Link Prototype at its Pi-installed path; keep upstream's shorter plan and its unit, live, perf, and review gates. |
