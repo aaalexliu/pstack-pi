@@ -1,10 +1,10 @@
 # Reviewed Pi adaptations
 
-**No full-file replacements remain.** The production manifest classifies 573 upstream files as 73 copies, 53 exact transforms, and 447 omissions. The statechart test suite and its two dev configs account for 378 of the omissions. Pi-owned content ships from `additions/`, outside the generated folders: the `general-purpose` agent and the `deeper`, `intake`, `list-writing`, `principles`, and `show-me` skills. None is an upstream replacement.
+**No full-file replacements remain.** The production manifest classifies 551 upstream files as 36 copies, 69 exact transforms, and 446 omissions. The statechart test suite and its two dev configs account for 378 of the omissions. Pi-owned content ships from `additions/`, outside the generated folders: the `general-purpose` agent and the `deeper`, `intake`, `list-writing`, and `show-me` skills. None is an upstream replacement.
 
 Every transform starts from the pinned upstream file. It changes exact literal regions with checked occurrence counts; everything else stays verbatim. The importer requires the expected Git blob and locks the transform digest and output hash. Routine sync runs no LLM and performs no fuzzy matching.
 
-The 31 former replacements were rebuilt from upstream, not encoded as whole-file patches of the rewrites. Thirty became targeted transforms. `skills/poteto-mode/playbooks/investigation.md` is a narrow reader-explanation transform, not a copy. Principle skills remain byte-for-byte copies, including the new `principle-explain-the-number` leaf, except one line in `principle-never-block-on-the-human`. `benchmark-checklist` is a copy. `correct` only rewrites the Pi skill command. `deeper` lives in `additions/` and has no upstream file. `show-me` lives there too. It adapts HumanLayer's MIT `show-me` skill, not a pstack file, and ships that license notice under `references/`. So does `list-writing`. It, `intake`, `principles`, and `show-me` are the only skills without `disable-model-invocation: true`, so the model can load them for any list or breakdown, for any ticket it files for an agent, to find the principle a task needs, and to explain a topic or bug visually. `principles` is an index, so the 24 principle skills stay disabled copies.
+The 31 former replacements were rebuilt from upstream, not encoded as whole-file patches of the rewrites. Thirty became targeted transforms. `skills/poteto-mode/playbooks/investigation.md` is a narrow reader-explanation transform, not a copy. Each principle skill, including the new `principle-explain-the-number` leaf, drops only its `disable-model-invocation: true` line, and `principle-never-block-on-the-human` also changes one line. `benchmark-checklist` is a copy. `correct` only rewrites the Pi skill command. `deeper` lives in `additions/` and has no upstream file. `show-me` lives there too. It adapts HumanLayer's MIT `show-me` skill, not a pstack file, and ships that license notice under `references/`. So does `list-writing`. It, `intake`, `show-me`, and the 24 principle skills are the only skills without `disable-model-invocation: true`, so the model can load them for any list or breakdown, for any ticket it files for an agent, to explain a topic or bug visually, and for the moment each principle names.
 
 The `c742dd6` pin added eight upstream skills. Five ship as narrow transforms: `in-your-own-words`, `create-formal-verification-skill`, `maintain-formal-verification-skill`, `statechart`, and `ketchup`. Three upstream skills are omitted:
 
@@ -59,7 +59,30 @@ The manifest contains the exact ordered `find`, `replace`, and `count` values fo
 | `skills/poteto-mode/playbooks/visual-parity.md` | Use available surface-control tools and an explicit local loop instead of control-skill and `/loop`. |
 | `skills/reflect/SKILL.md` | Use the active Pi transcript, Pi skill paths, and source edits for bundled skills instead of Cursor paths and installed-package edits. |
 | `skills/correct/SKILL.md` | Pi skill command only. |
-| `skills/principle-never-block-on-the-human/SKILL.md` | One line: every call that is costly to undo still needs the human, including a data model or public API, a migration, and money, not only irreversible actions. |
+| `skills/principle-attack-the-premise/SKILL.md` | Drop `disable-model-invocation: true` so the model can load it by itself. |
+| `skills/principle-boundary-discipline/SKILL.md` | Drop `disable-model-invocation: true` so the model can load it by itself. |
+| `skills/principle-build-the-lever/SKILL.md` | Drop `disable-model-invocation: true` so the model can load it by itself. |
+| `skills/principle-encode-lessons-in-structure/SKILL.md` | Drop `disable-model-invocation: true` so the model can load it by itself. |
+| `skills/principle-exhaust-the-design-space/SKILL.md` | Drop `disable-model-invocation: true` so the model can load it by itself. |
+| `skills/principle-experience-first/SKILL.md` | Drop `disable-model-invocation: true` so the model can load it by itself. |
+| `skills/principle-explain-the-number/SKILL.md` | Drop `disable-model-invocation: true` so the model can load it by itself. |
+| `skills/principle-fix-root-causes/SKILL.md` | Drop `disable-model-invocation: true` so the model can load it by itself. |
+| `skills/principle-foundational-thinking/SKILL.md` | Drop `disable-model-invocation: true` so the model can load it by itself. |
+| `skills/principle-guard-the-context-window/SKILL.md` | Drop `disable-model-invocation: true` so the model can load it by itself. |
+| `skills/principle-laziness-protocol/SKILL.md` | Drop `disable-model-invocation: true` so the model can load it by itself. |
+| `skills/principle-make-operations-idempotent/SKILL.md` | Drop `disable-model-invocation: true` so the model can load it by itself. |
+| `skills/principle-migrate-callers-then-delete-legacy-apis/SKILL.md` | Drop `disable-model-invocation: true` so the model can load it by itself. |
+| `skills/principle-minimize-reader-load/SKILL.md` | Drop `disable-model-invocation: true` so the model can load it by itself. |
+| `skills/principle-model-the-domain/SKILL.md` | Drop `disable-model-invocation: true` so the model can load it by itself. |
+| `skills/principle-never-block-on-the-human/SKILL.md` | One line: every call that is costly to undo still needs the human, including a data model or public API, a migration, and money, not only irreversible actions. Drop `disable-model-invocation: true` so the model can load it by itself. |
+| `skills/principle-outcome-oriented-execution/SKILL.md` | Drop `disable-model-invocation: true` so the model can load it by itself. |
+| `skills/principle-prove-it-works/SKILL.md` | Drop `disable-model-invocation: true` so the model can load it by itself. |
+| `skills/principle-redesign-from-first-principles/SKILL.md` | Drop `disable-model-invocation: true` so the model can load it by itself. |
+| `skills/principle-separate-before-serializing-shared-state/SKILL.md` | Drop `disable-model-invocation: true` so the model can load it by itself. |
+| `skills/principle-sequence-verifiable-units/SKILL.md` | Drop `disable-model-invocation: true` so the model can load it by itself. |
+| `skills/principle-subtract-before-you-add/SKILL.md` | Drop `disable-model-invocation: true` so the model can load it by itself. |
+| `skills/principle-test-behavior-not-implementation/SKILL.md` | Drop `disable-model-invocation: true` so the model can load it by itself. |
+| `skills/principle-type-system-discipline/SKILL.md` | Drop `disable-model-invocation: true` so the model can load it by itself. |
 | `skills/setup-pstack/SKILL.md` | Pi model discovery and version-1 role JSON instead of Cursor rules; keep the budget ask in chat, confirmation, validation, and the verification and formal verification skill offers. Defaults stay `inherit-parent` because Pi cannot assume Cursor's model slugs. Each role's default effort is `high` for `arena-runner`, `arena-cross-judge`, `swarm-worker`, and `interrogate-reviewer` and `xhigh` otherwise; the three budgets move it on upstream's ladder and write it as a `:<level>` thinking suffix on each real selector, capped at `xhigh`, which Pi reads from `--model`. In place of the `# defaults: 3` migration, a re-run drops retired role keys from an existing `models.json` and turns a `:max` suffix into `:xhigh`. |
 | `skills/show-me-your-work/SKILL.md` | Scoped Pi sessions, a manual TSV appender, append-only corrections, and explicit selection of a reviewer from another vendor. |
 | `skills/statechart/SKILL.md` | Pi skill command in the invocation hint only. Pi renders `mermaid` code blocks in interactive transcripts, so the chart and Pele rules stay upstream. |

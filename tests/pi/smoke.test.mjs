@@ -18,13 +18,16 @@ const productionSkills = [
   'principle-foundational-thinking', 'principle-guard-the-context-window', 'principle-laziness-protocol', 'principle-make-operations-idempotent',
   'principle-migrate-callers-then-delete-legacy-apis', 'principle-minimize-reader-load', 'principle-model-the-domain', 'principle-never-block-on-the-human',
   'principle-outcome-oriented-execution', 'principle-prove-it-works', 'principle-redesign-from-first-principles', 'principle-separate-before-serializing-shared-state',
-  'principle-sequence-verifiable-units', 'principle-subtract-before-you-add', 'principle-test-behavior-not-implementation', 'principle-type-system-discipline', 'principles',
+  'principle-sequence-verifiable-units', 'principle-subtract-before-you-add', 'principle-test-behavior-not-implementation', 'principle-type-system-discipline',
   'reflect', 'setup-pstack', 'show-me', 'show-me-your-work', 'statechart',
   'swarm', 'tdd', 'teach', 'technical-writing',
   'typescript-best-practices', 'unslop', 'why',
 ];
 const exactExpansionSkills = ['bro', 'poteto-mode', 'principle-model-the-domain'];
-const modelInvocableSkills = ['intake', 'list-writing', 'principles', 'show-me'];
+const modelInvocableSkills = ['intake', 'list-writing', 'show-me', ...productionSkills.filter((name) => name.startsWith('principle-'))];
+
+/** Pi escapes each skill description this way in the system prompt. @param {string} text */
+const escapeXml = (text) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
 
 async function productionInventory() {
   return checkContent({ root: repository,
@@ -65,7 +68,7 @@ test("real Pi loads the packed package and settles with fixture text and usage",
   assertClean(run);
   assert.deepEqual(run.cleanup.signals, []);
   assert.deepEqual(run.pack.files, expectedPackFiles(await productionInventory()));
-  assert.equal(run.pack.files.length, 169);
+  assert.equal(run.pack.files.length, 168);
   assertOnlyDeclaredTools(run);
   context.diagnostic(JSON.stringify({
     pi: run.process.version, revision: run.process.revision, pid: run.process.pid,
@@ -144,9 +147,11 @@ for (const name of exactExpansionSkills) {
     assert.ok(Array.isArray(messages));
     const system = JSON.stringify(messages.filter((message) => message.role === 'system'));
     for (const selected of inventory.bySkillName.values()) {
-      if (modelInvocableSkills.includes(selected.name)) assert.ok(system.includes(selected.description), 'Model-invocable skill missing from model discovery');
-      else assert.ok(!system.includes(selected.description), 'Manual skill leaked into model discovery');
+      const listed = system.includes(`<description>${escapeXml(selected.description)}</description>`);
+      if (modelInvocableSkills.includes(selected.name)) assert.ok(listed, `Model-invocable skill missing from model discovery: ${selected.name}`);
+      else assert.ok(!listed, `Manual skill leaked into model discovery: ${selected.name}`);
     }
+    assert.ok(!system.includes('<name>principles</name>'), 'The removed principles index reached model discovery');
     if (name === 'poteto-mode') {
       assert.ok(system.includes('Pstack Poteto Mode is active'));
       assert.ok(system.includes(join(run.paths.package, 'skills/poteto-mode/SKILL.md')));
