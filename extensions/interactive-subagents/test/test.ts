@@ -1126,13 +1126,13 @@ describe("subagent discovery", () => {
       testApi.resolveEffectiveInteractive({ name: "A", task: "T" }, { autoExit: false }),
       true,
     );
-    assert.equal(
-      testApi.resolveEffectiveInteractive({ name: "A", task: "T" }, {}),
-      true,
-    );
-    // Bare spawn with no agent defs (e.g. /iterate fork) is interactive by default.
+    // A bare spawn with no agent defs auto-exits, so it is not interactive; a fork such as /iterate is.
     assert.equal(
       testApi.resolveEffectiveInteractive({ name: "A", task: "T" }, null),
+      false,
+    );
+    assert.equal(
+      testApi.resolveEffectiveInteractive({ name: "A", task: "T", fork: true }, null),
       true,
     );
   });
@@ -2278,6 +2278,43 @@ describe("concurrency cap", () => {
         const byHand = await testApi.launchSubagent({ name: "Rev", task: "Wait for instructions.", agent: "pr-reviewer", interactive: true }, ctx, { thinking: undefined });
         const handChild = JSON.parse((await testApi.watchSubagent(byHand, new AbortController().signal)).summary.slice("done ".length));
         assert.equal(handChild.autoExit, undefined, "a child a person starts never auto-exits");
+      } finally {
+        process.argv[1] = savedScript;
+        testApi.spawnSlots.clear();
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+  });
+
+  it("auto-exits a background child with no agent file unless it forks or asks to be interactive", async () => {
+    await withFakeCmux(async (cmux) => {
+      cmux.update((state) => { state.fail = { send: "send failed" }; });
+      const dir = createTestDir();
+      const savedScript = process.argv[1];
+      process.argv[1] = fileURLToPath(new URL("./fake-pi.mjs", import.meta.url));
+      const sessionFile = join(dir, "parent.jsonl");
+      writeFileSync(sessionFile, JSON.stringify({ type: "session", version: 3, id: "parent", cwd: dir }) + "\n");
+      const ctx = {
+        cwd: dir,
+        model: { provider: "parent", id: "model" },
+        sessionManager: { getSessionFile: () => sessionFile, getSessionId: () => "parent", getSessionDir: () => dir, getSessionName: () => undefined },
+      };
+      const cases = [
+        { params: { name: "Worker", task: "hello", role: "feature" as const }, autoExit: "1", interactive: false },
+        { params: { name: "Worker", task: "hello" }, autoExit: "1", interactive: false },
+        { params: { name: "Worker", task: "hello", role: "feature" as const, interactive: true }, autoExit: undefined, interactive: true },
+        { params: { name: "Iterate", task: "hello", fork: true }, autoExit: undefined, interactive: true },
+        { params: { name: "Plan", task: "hello", agent: "planner" }, autoExit: undefined, interactive: true },
+      ];
+      try {
+        for (const { params, autoExit, interactive } of cases) {
+          // The options a background `subagent` call passes inside a multiplexer.
+          const running = await testApi.launchSubagent(params, ctx, { thinking: undefined });
+          const result = await testApi.watchSubagent(running, new AbortController().signal);
+          const child = JSON.parse(result.summary.slice("done ".length));
+          assert.equal(child.autoExit, autoExit, `auto-exit for ${JSON.stringify(params)}`);
+          assert.equal(running.interactive, interactive, `interactive for ${JSON.stringify(params)}`);
+        }
       } finally {
         process.argv[1] = savedScript;
         testApi.spawnSlots.clear();

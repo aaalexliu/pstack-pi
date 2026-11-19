@@ -132,7 +132,7 @@ const SubagentParams = Type.Object({
   interactive: Type.Optional(
     Type.Boolean({
       description:
-        "Mark the subagent as interactive (long-running, user drives the conversation in its own pane). When true, the child also never auto-exits, and the main session is not woken by status transitions (stalled/recovered) for this subagent. If omitted, falls back to the agent's `interactive` frontmatter, otherwise the inverse of `auto-exit` (agents that auto-exit are autonomous and get stall pings; agents that don't are interactive and stay quiet).",
+        "Mark the subagent as interactive (long-running, user drives the conversation in its own pane). When true, the child also never auto-exits, and the main session is not woken by status transitions (stalled/recovered) for this subagent. If omitted, falls back to the agent's `interactive` frontmatter, otherwise the inverse of `auto-exit` (agents that auto-exit are autonomous and get stall pings; agents that don't are interactive and stay quiet). A spawn with no agent auto-exits and reports back unless it sets `fork: true`.",
     }),
   ),
   wait: Type.Optional(
@@ -403,20 +403,30 @@ function resolveLaunchBehavior(
 }
 
 /**
+ * pstack-pi: decide whether a spawn shuts down when its turn ends and reports back.
+ *
+ *   1. `interactive: true` on the call stays open, as a person's `/subagent` does.
+ *   2. An agent file follows its `auto-exit`, which defaults to true.
+ *   3. A spawn with no agent file auto-exits unless it forks the conversation, as
+ *      `/iterate` does with `fork: true`. `interactive: false` makes a fork auto-exit too.
+ */
+function resolveAutoExit(params: Static<typeof SubagentParams>, agentDefs: AgentDefaults | null): boolean {
+  if (params.interactive === true) return false;
+  if (agentDefs) return agentDefs.autoExit !== false;
+  return params.interactive === false || params.fork !== true;
+}
+
+/**
  * Decide whether a subagent is interactive (user-driven, long-running).
  *
  * Resolution order:
  *   1. Explicit `interactive` tool parameter wins.
  *   2. Explicit `interactive` frontmatter field on the agent.
- *   3. Default: the inverse of `auto-exit`. Agents that auto-exit are
- *      autonomous (scout, worker, reviewer) and the parent session should be
- *      woken on stall/recovery transitions. Agents that don't auto-exit are
- *      driven by the user in their own pane (planner, iterate/fork) and
- *      stall pings are noise.
- *
- * When no agent defs exist at all (bare `subagent({ name, task })` call,
- * typical for `/iterate` with `fork: true`), `autoExit` is undefined and the
- * subagent is treated as interactive — matching the intent of iterate.
+ *   3. Default: the inverse of `resolveAutoExit`. Spawns that auto-exit are
+ *      autonomous (scout, worker, a role-only call) and the parent session
+ *      should be woken on stall/recovery transitions. Spawns that don't
+ *      auto-exit are driven by the user in their own pane (planner,
+ *      `/iterate` fork) and stall pings are noise.
  */
 function resolveEffectiveInteractive(
   params: Static<typeof SubagentParams>,
@@ -424,7 +434,7 @@ function resolveEffectiveInteractive(
 ): boolean {
   if (params.interactive != null) return params.interactive;
   if (agentDefs?.interactive != null) return agentDefs.interactive;
-  return !(agentDefs?.autoExit ?? false);
+  return !resolveAutoExit(params, agentDefs);
 }
 
 function loadAgentDefaults(agentName: string): AgentDefaults | null {
@@ -1285,9 +1295,7 @@ async function launchSubagent(
   const effectiveTools = params.tools ?? agentDefs?.tools;
   const effectiveSkills = params.skills ?? agentDefs?.skills;
   const effectiveInteractive = resolveEffectiveInteractive(params, agentDefs);
-  // pstack-pi: an interactive spawn, such as a person's `/subagent`, stays open
-  // whatever its agent file says.
-  const autoExit = options?.autoExit ?? (params.interactive === true ? false : agentDefs?.autoExit);
+  const autoExit = options?.autoExit ?? resolveAutoExit(params, agentDefs);
 
   const sessionFile = ctx.sessionManager.getSessionFile();
   if (!sessionFile) throw new Error("No session file");
