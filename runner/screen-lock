@@ -5,6 +5,8 @@
 # The lock is a kernel file lock (lockf) on an open file that the command and its children inherit, so the
 # screen stays held while any of them runs, and frees itself when the last one ends, however it ends:
 # no lock goes stale. The lock file names its last holder. SCREEN_LOCK overrides its path, for tests.
+# Once it holds the screen, it refuses to run the command while the Mac sits at the password prompt, where GUI tools fail.
+# IOConsoleLocked stays No at that prompt on macOS 27, so it reads CGSSessionScreenIsLocked from the console session.
 if [ $# -lt 4 ] || [ "$1" != run ] || [ "$3" != -- ]; then
   echo 'usage: screen-lock run KEY -- <command> [args...]' >&2
   exit 64
@@ -17,6 +19,10 @@ if ! lockf -s -t 0 9; then
   echo "screen-lock: $key waits for the screen, held by $(cat "$lock"); lsof $lock lists what has it open" >&2
   # macOS lockf busy-loops on flock when it waits on an fd, burning a core, so poll once a second instead.
   until lockf -s -t 0 9; do sleep 1; done
+fi
+if ioreg -n Root -d1 | grep -q '"CGSSessionScreenIsLocked"=Yes'; then
+  echo "screen-lock: $key can't use the screen: this Mac is locked at the password prompt. Ask Alex to unlock it." >&2
+  exit 75
 fi
 echo "$key since $(date "+%-I:%M %p %Z")" >"$lock"
 exec caffeinate -du -- "$@"
