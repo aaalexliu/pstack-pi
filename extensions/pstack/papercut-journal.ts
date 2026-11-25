@@ -1,4 +1,4 @@
-import { appendFile, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { decodePapercutRecord, papercutKey, type CurrentPapercutRecord, type PapercutRecord } from './papercut-model.ts';
 
@@ -12,19 +12,17 @@ function isMissingDirectory(error: unknown): boolean {
 }
 
 /**
- * Append-only JSONL journal of papercut records plus immutable aggregation snapshots.
+ * Append-only JSONL journal of papercut records.
  * Each session and process appends to its own file, so concurrent Pi processes never interleave lines.
  * Reads keep only the earliest record per papercut key, so bursts in older journals count once.
  */
 export class PapercutJournal {
   private readonly journalDirectory: string;
-  private readonly aggregationDirectory: string;
   private readonly processId: number;
   private pendingWrite: Promise<void> = Promise.resolve();
 
   constructor(rootDirectory: string, processId = process.pid) {
     this.journalDirectory = join(rootDirectory, 'papercuts');
-    this.aggregationDirectory = join(rootDirectory, 'papercut-aggregations');
     this.processId = processId;
   }
 
@@ -57,13 +55,6 @@ export class PapercutJournal {
       seen.add(key);
       return true;
     });
-  }
-
-  async writeAggregation(input: { filename: string; content: string }): Promise<string> {
-    await mkdir(this.aggregationDirectory, { recursive: true, mode: 0o700 });
-    const file = join(this.aggregationDirectory, safeFilenamePart(input.filename));
-    await writeFile(file, input.content, { encoding: 'utf8', flag: 'wx', mode: 0o600 });
-    return file;
   }
 
   private async readJournalFile(file: string): Promise<PapercutRecord[]> {

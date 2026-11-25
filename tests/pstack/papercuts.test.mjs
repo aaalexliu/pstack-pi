@@ -59,7 +59,7 @@ test('appends a copyable trailer to every other tool result, keyed by call id', 
   assert.equal(result({ toolCallId: 'unknown', toolName: 'read', content: [], isError: false }), undefined);
 });
 
-test('records agent-supplied evidence verbatim and lists or aggregates the journal', async () => {
+test('records agent-supplied evidence verbatim and lists the journal', async () => {
   const root = await mkdtemp(join(tmpdir(), 'pstack-papercuts-'));
   const f = fakeExtension();
   registerPapercuts(/** @type {any} */ (f.pi), root);
@@ -84,12 +84,9 @@ test('records agent-supplied evidence verbatim and lists or aggregates the journ
   assert.match(f.notifications[0].message, /^.+ \| other \| no kind given\n.+ \| tool\.output-noisy \| cat dumped a lockfile \| bash, 24ms, 50\.1 KiB$/u);
   assert.match(f.notifications[1].message, /\| \/work\/alpha \| other \|/u);
   assert.deepEqual(f.notifications[2], { message: 'No papercuts for this project', level: 'info' });
-  assert.deepEqual(f.notifications[3], { message: 'Usage: /papercuts [all | aggregate]', level: 'error' });
-  assert.match(f.notifications[4].message, /^Wrote 2 papercuts to .+\/papercut-aggregations\/.+\.md$/u);
-  const [snapshot] = await readdir(join(root, 'papercut-aggregations'));
-  const markdown = await readFile(join(root, 'papercut-aggregations', snapshot), 'utf8');
-  assert.match(markdown, /Records: 2\nProjects: 1/u);
-  assert.match(markdown, /\| \/work\/alpha \| tool\.output-noisy \| cat dumped a lockfile \| 1 \| bash \| 24ms \| 50\.1 KiB \|/u);
+  assert.deepEqual(f.notifications[3], { message: 'Usage: /papercuts [all]', level: 'error' });
+  assert.deepEqual(f.notifications[4], { message: 'Usage: /papercuts [all]', level: 'error' });
+  assert.deepEqual(await readdir(root), ['papercuts']);
 });
 
 test('new records name the host and the session model', async () => {

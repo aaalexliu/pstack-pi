@@ -62,13 +62,3 @@ test('reads a burst of repeated lines back as one record per session, kind, and 
   assert.equal(records.length, 5);
   assert.deepEqual(records.filter((entry) => entry.note === 'Same note' && entry.sessionId === 'session-1' && entry.kind === 'other'), [{ ...burst, at: '2026-11-10T12:00:00.001Z' }]);
 });
-
-test('writes immutable timestamped aggregation snapshots', async () => {
-  const root = await mkdtemp(join(tmpdir(), 'pstack-papercuts-'));
-  const journal = new PapercutJournal(root, 4321);
-  const file = await journal.writeAggregation({ filename: '2026-09-14T20-30-00Z.md', content: '# Papercut aggregation\n' });
-  assert.match(file, /papercut-aggregations\/2026-09-14T20-30-00Z\.md$/u);
-  assert.equal((await stat(file)).mode & 0o777, 0o600);
-  assert.equal(await readFile(file, 'utf8'), '# Papercut aggregation\n');
-  await assert.rejects(journal.writeAggregation({ filename: '2026-09-14T20-30-00Z.md', content: 'replacement' }), /already exists/u);
-});

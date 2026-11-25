@@ -2,7 +2,7 @@ import { hostname } from 'node:os';
 import { join } from 'node:path';
 import { getAgentDir, type AgentToolResult, type ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import { Text } from '@earendil-works/pi-tui';
-import { createAggregationFilename, formatRecentPapercuts, parsePapercutsCommand, renderPapercutAggregation } from './papercut-aggregation.ts';
+import { formatRecentPapercuts, parsePapercutsCommand } from './papercut-list.ts';
 import { PapercutJournal } from './papercut-journal.ts';
 import { normalizePapercutNote, papercutKey, papercutParameters, papercutRecordVersion, type CurrentPapercutRecord, type ToolEvidence } from './papercut-model.ts';
 import { PapercutObserver } from './papercut-observer.ts';
@@ -120,7 +120,7 @@ export function registerPapercuts(pi: ExtensionAPI, rootDirectory = join(getAgen
   });
 
   pi.registerCommand('papercuts', {
-    description: 'Show local pstack-pi papercuts, or aggregate them across all projects',
+    description: 'Show recent pstack-pi papercuts for this project, or across all projects',
     handler: async (args, ctx) => {
       const command = parsePapercutsCommand(args, ctx.cwd);
       if (command.kind === 'invalid') {
@@ -128,17 +128,7 @@ export function registerPapercuts(pi: ExtensionAPI, rootDirectory = join(getAgen
         return;
       }
       try {
-        const records = await journal.readAll();
-        if (command.kind === 'list') {
-          ctx.ui.notify(formatRecentPapercuts(records, command.scope), 'info');
-          return;
-        }
-        const generatedAt = new Date();
-        const file = await journal.writeAggregation({
-          filename: createAggregationFilename(generatedAt),
-          content: renderPapercutAggregation(records, generatedAt),
-        });
-        ctx.ui.notify(`Wrote ${records.length} papercut${records.length === 1 ? '' : 's'} to ${file}`, 'info');
+        ctx.ui.notify(formatRecentPapercuts(await journal.readAll(), command.scope), 'info');
       } catch (error) {
         ctx.ui.notify(`Papercuts failed: ${errorMessage(error)}`, 'error');
       }
