@@ -7,15 +7,19 @@ import { PapercutJournal } from '../../extensions/pstack/papercut-journal.ts';
 
 /** @type {import('../../extensions/pstack/papercut-model.ts').CurrentPapercutRecord} */
 const record = {
-  version: 2,
+  version: 3,
   source: 'agent',
   at: '2026-09-14T20:00:00.000Z',
-  cwd: '/work/project',
   sessionId: 'session-1',
-  kind: 'other',
-  note: 'A small but persistent annoyance.',
+  callId: 'call-1',
+  cwd: '/work/project',
+  repo: { root: '/work/project', head: 'abc1234' },
   host: 'test-mac',
   model: 'test-provider/test-model',
+  build: 'pstack-pi@def5678',
+  note: 'A small but persistent annoyance.',
+  culprit: { type: 'pi-tool', name: 'read' },
+  impact: 'extra-steps',
 };
 
 test('stores private per-process journals and reads valid records', async () => {
@@ -60,5 +64,16 @@ test('reads a burst of repeated lines back as one record per session, kind, and 
   await writeFile(join(root, 'papercuts', 'session-1.99.jsonl'), [...lines, ...distinct].map((line) => `${JSON.stringify(line)}\n`).join(''), { mode: 0o600 });
   const records = await journal.readAll();
   assert.equal(records.length, 5);
-  assert.deepEqual(records.filter((entry) => entry.note === 'Same note' && entry.sessionId === 'session-1' && entry.kind === 'other'), [{ ...burst, at: '2026-11-10T12:00:00.001Z' }]);
+  assert.deepEqual(records.filter((entry) => entry.note === 'Same note' && entry.sessionId === 'session-1' && 'kind' in entry && entry.kind === 'other'), [{ ...burst, at: '2026-11-10T12:00:00.001Z' }]);
+});
+
+test('reads repeated version 3 lines as one record per session, culprit, and note', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'pstack-papercuts-'));
+  const journal = new PapercutJournal(root, 4321);
+  /** @type {typeof record} */
+  const later = { ...record, at: '2026-09-14T21:00:00.000Z', callId: 'call-2', impact: 'blocked' };
+  /** @type {typeof record} */
+  const otherCulprit = { ...record, at: '2026-09-14T21:00:00.000Z', culprit: { type: 'pi-tool', name: 'bash' } };
+  await Promise.all([journal.append(later), journal.append(record), journal.append(otherCulprit)]);
+  assert.deepEqual(await journal.readAll(), [record, otherCulprit]);
 });

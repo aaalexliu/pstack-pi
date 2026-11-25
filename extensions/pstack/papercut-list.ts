@@ -1,4 +1,4 @@
-import { formatBytes, formatDuration, type PapercutRecord } from './papercut-model.ts';
+import { formatBytes, formatDuration, papercutLabel, papercutRecordVersion, type PapercutRecord } from './papercut-model.ts';
 
 export type PapercutScope = Readonly<{ kind: 'project'; cwd: string } | { kind: 'all' }>;
 
@@ -24,7 +24,9 @@ function formatTimestamp(timestamp: string): string {
   return timestamp.replace('T', ' ').replace(/\.\d{3}Z$/u, 'Z');
 }
 
-function formatEvidence(record: PapercutRecord): string {
+/** The impact of a version 3 record, or the evidence an older record carried. */
+function formatOutcome(record: PapercutRecord): string {
+  if (record.version === papercutRecordVersion) return record.impact;
   if (!record.evidence) return '';
   const failed = record.evidence.isError ? ', failed' : '';
   return `${record.evidence.tool}, ${formatDuration(record.evidence.durationMs)}, ${formatBytes(record.evidence.outputBytes)}${failed}`;
@@ -35,7 +37,7 @@ export function formatRecentPapercuts(records: readonly PapercutRecord[], scope:
   if (selected.length === 0) return scope.kind === 'all' ? 'No papercuts' : 'No papercuts for this project';
   return selected.map((record) => {
     const project = scope.kind === 'all' ? ` | ${record.cwd}` : '';
-    const evidence = formatEvidence(record);
-    return `${formatTimestamp(record.at)}${project} | ${record.kind} | ${record.note}${evidence ? ` | ${evidence}` : ''}`;
+    const outcome = formatOutcome(record);
+    return `${formatTimestamp(record.at)}${project} | ${papercutLabel(record)} | ${record.note}${outcome ? ` | ${outcome}` : ''}`;
   }).join('\n');
 }

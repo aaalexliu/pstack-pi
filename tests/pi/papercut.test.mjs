@@ -14,12 +14,12 @@ function toolResult(request, id) {
   return typeof result.content === 'string' ? result.content : JSON.stringify(result.content);
 }
 
-test('packed real Pi trails every tool result, journals papercut evidence, drops duplicates, and resets the cap each turn', async () => {
+test('packed real Pi leaves fast results bare, journals version 3 papercuts, drops duplicates, and resets the cap each turn', async () => {
   const expected = 'Papercut workflow finished.';
-  const evidence = { tool: 'bash', durationMs: 7, outputBytes: 5, isError: true };
+  const culprit = { type: 'pi-tool', name: 'bash' };
   const note = 'The shell error had no structured exit status.';
   /** @param {string} id */
-  const distinct = (id) => ({ id, name: 'pstack_papercut', arguments: { note: `Distinct problem ${id}.` } });
+  const distinct = (id) => ({ id, name: 'pstack_papercut', arguments: { note: `Distinct problem ${id}.`, culprit: { type: 'self' }, impact: 'extra-steps' } });
   await runPiSmoke({
     expectedText: expected,
     expectedRequests: 4,
@@ -32,34 +32,33 @@ test('packed real Pi trails every tool result, journals papercut evidence, drops
         assert.ok(Array.isArray(request.tools));
         const tool = request.tools.find((/** @type {any} */ tool) => tool.function.name === 'pstack_papercut');
         assert.ok(tool);
-        assert.match(tool.function.description, /retries, workarounds/u);
-        assert.match(tool.function.parameters.properties.note.description, /extra work/u);
+        assert.match(tool.function.description, /extra steps, blocked you, or gave a wrong result/u);
+        assert.deepEqual(tool.function.parameters.required.sort(), ['culprit', 'impact', 'note']);
         assert.ok(Array.isArray(request.messages));
         const system = JSON.stringify(request.messages.filter((/** @type {any} */ message) => message.role === 'system'));
-        for (const hint of ['even if you recover or the command succeeds', 'missing dependencies', 'truncated output', 'Before your final response', 'one note per distinct problem', 'Never include secrets or raw tool output']) {
+        for (const hint of ['even if you recover', 'Set culprit to the one thing', 'Before your final response', 'one note per distinct problem', 'Never include secrets or raw tool output']) {
           assert.ok(system.includes(hint), `Missing papercut hint: ${hint}`);
         }
         assert.ok(!system.includes('errors caused by the current task'));
       } },
       { reply: { kind: 'tools', calls: [
-        { id: 'papercut', name: 'pstack_papercut', arguments: { kind: 'tool.confusing-error', note, evidence } },
-        { id: 'repeat', name: 'pstack_papercut', arguments: { kind: 'tool.confusing-error', note: ` ${note}  ` } },
+        { id: 'papercut', name: 'pstack_papercut', arguments: { note, culprit, impact: 'extra-steps' } },
+        { id: 'repeat', name: 'pstack_papercut', arguments: { note: ` ${note}  `, culprit, impact: 'blocked' } },
         distinct('a'),
         distinct('b'),
       ] }, check: (request) => {
-        assert.match(toolResult(request, 'echo'), /^done\n\n\[pstack: bash \d+ms 5B\]$/u);
-        assert.match(toolResult(request, 'fail'), /\[pstack: bash \d+ms \d+B failed\]/u);
-        assert.doesNotMatch(toolResult(request, 'fail'), /failed\].*\[pstack/u);
+        assert.equal(toolResult(request, 'echo'), 'done\n', 'a fast call gets no trailer');
+        assert.doesNotMatch(toolResult(request, 'fail'), /\[pstack/u);
       } },
       { reply: { kind: 'tools', calls: ['c', 'd', 'e', 'f'].map(distinct) }, check: (request) => {
         const result = toolResult(request, 'papercut');
-        assert.match(result, /Recorded papercut \[tool\.confusing-error\]/u);
+        assert.match(result, /Recorded papercut \[pi-tool:bash\]/u);
         assert.doesNotMatch(result, /\[pstack:/u, 'The papercut tool does not trail its own result');
         assert.match(toolResult(request, 'repeat'), /Not recorded: this session already recorded the same papercut/u);
-        for (const id of ['a', 'b']) assert.match(toolResult(request, id), /Recorded papercut \[other\]/u);
+        for (const id of ['a', 'b']) assert.match(toolResult(request, id), /Recorded papercut \[self\]/u);
       } },
       { reply: { kind: 'text', text: expected }, check: (request) => {
-        for (const id of ['c', 'd', 'e', 'f']) assert.match(toolResult(request, id), /Recorded papercut \[other\]/u, `turn_start resets the per-turn cap before ${id}`);
+        for (const id of ['c', 'd', 'e', 'f']) assert.match(toolResult(request, id), /Recorded papercut \[self\]/u, `turn_start resets the per-turn cap before ${id}`);
       } },
     ] },
     verify: async (run) => {
@@ -72,14 +71,14 @@ test('packed real Pi trails every tool result, journals papercut evidence, drops
       const records = (await readFile(path.join(directory, file), 'utf8')).trim().split('\n').map((line) => JSON.parse(line));
       assert.deepEqual(records.map((record) => record.note).sort(), [note, ...['a', 'b', 'c', 'd', 'e', 'f'].map((id) => `Distinct problem ${id}.`)].sort());
       for (const record of records) {
-        assert.equal(record.version, 2);
+        assert.equal(record.version, 3);
+        assert.match(record.build, /^pstack-pi@/u);
         assert.equal(record.cwd, run.paths.cwd);
         assert.equal(record.host, hostname().replace(/\.local$/u, ''));
         assert.equal(record.model, `pi-fixture/${FIXTURE_MODEL}`);
       }
       const [record] = records.filter((entry) => entry.note === note);
-      assert.equal(record.kind, 'tool.confusing-error');
-      assert.deepEqual(record.evidence, evidence);
+      assert.deepEqual([record.callId, record.culprit, record.impact], ['papercut', culprit, 'extra-steps']);
     },
   });
 });
