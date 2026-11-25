@@ -130,9 +130,6 @@ Records stay local in private per-session, per-process JSONL files under `<Pi ag
 | --- | --- |
 | `/papercuts` | Show the 20 most recent papercuts for the current project |
 | `/papercuts all` | Show the 20 most recent papercuts across all projects |
-| `/papercuts aggregate` | Write a timestamped Markdown aggregation across all projects |
-
-Aggregations always span every project because papercuts describe the tooling, not one repository. Each note row still carries its project. Aggregations are immutable snapshots under `<Pi agent dir>/pstack-pi/papercut-aggregations/`.
 
 ## Delegation
 
