@@ -95,14 +95,15 @@ export async function ticket(argv: string[], o: { cwd: string; config?: Config; 
   }
   if (command === 'done') {
     const key = args[0] ?? work.key;
-    await linear.setState(key === work.key ? work.id : await child(key), 'Done');
+    // Linear's GitHub link assigns the PR author, Alex, when a PR names an issue; a closed issue is nobody's move.
+    await linear.setState(key === work.key ? work.id : await child(key), 'Done', true);
     return `Moved ${key} to Done.`;
   }
   if (command === 'cancel') {
     const reason = body(args[1]);
     const id = await child(args[0]);
     await linear.comment(id, reason);
-    await linear.setState(id, 'Canceled');
+    await linear.setState(id, 'Canceled', true);
     return `Commented on ${args[0]} and moved it to Canceled.`;
   }
   if (command === 'label') {

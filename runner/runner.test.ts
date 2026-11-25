@@ -417,7 +417,7 @@ test('ticket comment posts as the runner from the worktree or a folder in it, so
   assert.equal(t.leads().length, 1, 'a lead\'s own comment is no event');
 });
 
-test('ticket done moves the ticket to Done, or closes one of its sub-issues, and the runner then leaves it alone', async () => {
+test('ticket done moves the ticket to Done, or closes one of its sub-issues, unassigning the one Linear\'s GitHub link assigned, and the runner then leaves it alone', async () => {
   const job = issue(1);
   const other = issue(2, { delegate: null });
   const t = setup([job, other]);
@@ -425,11 +425,12 @@ test('ticket done moves the ticket to Done, or closes one of its sub-issues, and
   const asked = issue(50, { parent: 'id-1', assignee: ALEX, delegate: null, labels: [], createdAt: later(), history: [] });
   t.addIssue(asked);
   assert.equal(await t.ticket(t.dirOf(1), 'done', 'ALE-50'), 'Moved ALE-50 to Done.');
-  assert.equal(asked.state, 'Done');
+  assert.deepEqual([asked.state, asked.assignee], ['Done', null], 'a Done sub-issue is nobody\'s move');
   await assert.rejects(t.ticket(t.dirOf(1), 'done', 'ALE-2'), /ALE-2 is not ALE-1 or one of its sub-issues/);
   assert.equal(other.state, 'Todo', 'never another ticket');
+  job.assignee = ALEX;
   assert.equal(await t.ticket(t.dirOf(1), 'done'), 'Moved ALE-1 to Done.');
-  assert.equal(job.state, 'Done');
+  assert.deepEqual([job.state, job.assignee], ['Done', null]);
   await t.run('--once');
   assert.equal(t.leads().length, 1);
   assert.equal(t.asks().length, 0, 'no ask for a Done ticket');
@@ -458,16 +459,16 @@ test('ticket sub-issue files one sub-issue in the ticket\'s team and project, ne
   assert.equal(t.leads().length, 1, 'filing is no event, and a sub-issue gets no lead of its own');
 });
 
-test('ticket cancel comments the reason on one of the ticket\'s sub-issues, then cancels it', async () => {
+test('ticket cancel comments the reason on one of the ticket\'s sub-issues, then cancels and unassigns it', async () => {
   const job = issue(1);
   const t = setup([job, issue(2, { delegate: null })]);
   await t.run('--once');
-  const dropped = issue(50, { parent: 'id-1', delegate: null, labels: [], createdAt: later(), history: [] });
+  const dropped = issue(50, { parent: 'id-1', assignee: ALEX, delegate: null, labels: [], createdAt: later(), history: [] });
   t.addIssue(dropped);
   const reason = path.join(t.root, 'reason.md');
   writeFileSync(reason, 'Dropped: ALE-51 covers it.\n');
   assert.equal(await t.ticket(t.dirOf(1), 'cancel', 'ALE-50', reason), 'Commented on ALE-50 and moved it to Canceled.');
-  assert.deepEqual([dropped.state, dropped.comments.map((c) => [c.body, c.user?.name])], ['Canceled', [['Dropped: ALE-51 covers it.\n', RUNNER]]]);
+  assert.deepEqual([dropped.state, dropped.assignee, dropped.comments.map((c) => [c.body, c.user?.name])], ['Canceled', null, [['Dropped: ALE-51 covers it.\n', RUNNER]]]);
   for (const key of ['ALE-1', 'ALE-2']) await assert.rejects(t.ticket(t.dirOf(1), 'cancel', key, reason), new RegExp(`${key} is not one of ALE-1's sub-issues`));
   assert.deepEqual([job.state, t.issue('ALE-2')!.state], ['In Progress', 'Todo'], 'never the ticket or another one');
   await t.run('--once');
