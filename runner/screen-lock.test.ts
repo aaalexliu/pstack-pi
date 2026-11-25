@@ -16,13 +16,27 @@ const skip = !existsSync('/usr/bin/lockf') && 'screen-lock needs the macOS lockf
 /**
  * A lock file, a log, and a fake caffeinate that logs its flags, so tests never wake the display. It runs the command as its
  * child, so killing screen-lock can leave the command running. The real one keeps the command at screen-lock's pid.
+ * A fake ioreg prints the console session the way macOS does: locked while the file `locked` (the password prompt) or
+ * `shield` exists in the test folder. `shield` is the lock screen that display sleep raises with screenLock off: the fake
+ * caffeinate drops it when called as `caffeinate -u -t N`, as user activity drops the real one without a password.
  */
 function setup() {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'screen-lock-'));
   mkdirSync(path.join(dir, 'bin'));
   const log = path.join(dir, 'log');
-  writeFileSync(path.join(dir, 'bin', 'caffeinate'), `#!/bin/sh\nflags=$1\nshift 2\necho "caffeinate $flags" >> '${log}'\n"$@"\n`);
-  chmodSync(path.join(dir, 'bin', 'caffeinate'), 0o755);
+  writeFileSync(
+    path.join(dir, 'bin', 'caffeinate'),
+    `#!/bin/sh\nif [ "$1 $2" = '-u -t' ]; then rm -f '${dir}/shield'; exit; fi\nflags=$1\nshift 2\necho "caffeinate $flags" >> '${log}'\n"$@"\n`,
+  );
+  writeFileSync(
+    path.join(dir, 'bin', 'ioreg'),
+    `#!/bin/sh\n[ -e '${dir}/locked' ] || [ -e '${dir}/shield' ] && state=Yes || state=No\n` +
+      `echo '  | "IOConsoleLocked" = No'\n` +
+      `echo '  | "IOConsoleUsers" = ({"kCGSSessionOnConsoleKey"=Yes,"CGSSessionScreenIsLocked"='$state',"kCGSSessionUserNameKey"="alexliu"})'\n`,
+  );
+  for (const tool of ['caffeinate', 'ioreg']) chmodSync(path.join(dir, 'bin', tool), 0o755);
+  const lockConsole = () => writeFileSync(path.join(dir, 'locked'), '');
+  const sleepDisplay = () => writeFileSync(path.join(dir, 'shield'), '');
   const env = { ...process.env, SCREEN_LOCK: path.join(dir, 'screen.lock'), PATH: `${path.join(dir, 'bin')}:${process.env.PATH}` };
   const lines = () => (existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n') : []);
   /** Starts `screen-lock` in its own process group; `done` resolves with its exit code and stderr, or kills the group and rejects after 15 s. */
@@ -38,10 +52,10 @@ function setup() {
       }, 15_000);
       child.on('close', (code) => { clearTimeout(timer); resolve({ code, stderr }); });
     });
-    return { child, done };
+    return { child, done, stderr: () => stderr };
   };
   const step = (key: string, body: string) => run('run', key, '--', 'sh', '-c', `echo "${key} start" >> "$0"; ${body}; echo "${key} end" >> "$0"`, log);
-  return { lines, run, step, lock: env.SCREEN_LOCK };
+  return { lines, run, step, lockConsole, sleepDisplay, lock: env.SCREEN_LOCK };
 }
 
 async function until(check: () => boolean, ms = 5000) {
@@ -91,6 +105,42 @@ for (const signal of ['SIGKILL', 'SIGTERM'] as const) {
     assert.equal(log.filter((line) => line === 'ALE-1 tick').length, 10);
   });
 }
+
+test('a locked console refuses the run at once with one line, and an unlocked one runs the command', { skip }, async () => {
+  const t = setup();
+  t.lockConsole();
+  const started = Date.now();
+  const locked = await t.step('ALE-1', 'true').done;
+  assert.ok(Date.now() - started < 1000, 'the locked run took a second or more');
+  assert.notEqual(locked.code, 0);
+  assert.match(locked.stderr, /^screen-lock: ALE-1 can't use the screen: this Mac is locked at the password prompt\. Ask Alex to unlock it\.\n$/);
+  assert.deepEqual(t.lines(), [], 'the command and caffeinate never ran');
+  const unlocked = setup();
+  assert.equal((await unlocked.step('ALE-2', 'true').done).code, 0);
+  assert.deepEqual(unlocked.lines(), ['caffeinate -du', 'ALE-2 start', 'ALE-2 end']);
+});
+
+test('a lock screen that waking the display drops, as display sleep raises with screenLock off, does not refuse the run', { skip }, async () => {
+  const t = setup();
+  t.sleepDisplay();
+  const run = await t.step('ALE-1', 'true').done;
+  assert.equal(run.code, 0, run.stderr);
+  assert.deepEqual(t.lines(), ['caffeinate -du', 'ALE-1 start', 'ALE-1 end']);
+});
+
+test('a run that waits checks the console when it gets the screen', { skip }, async () => {
+  const t = setup();
+  const first = t.step('ALE-1', 'sleep 1');
+  await until(() => t.lines().includes('ALE-1 start'));
+  const second = t.step('ALE-2', 'true');
+  await until(() => second.stderr().includes('waits for the screen'));
+  t.lockConsole();
+  const [a, b] = await Promise.all([first.done, second.done]);
+  assert.equal(a.code, 0);
+  assert.notEqual(b.code, 0);
+  assert.match(b.stderr, /ALE-2 can't use the screen: this Mac is locked/);
+  assert.ok(!t.lines().includes('ALE-2 start'));
+});
 
 test('the command exit code comes back, and a malformed call prints usage', { skip }, async () => {
   const t = setup();
