@@ -620,7 +620,7 @@ function lastMessage(file: string): { role?: string; stopReason?: string; text?:
 }
 
 /**
- * The lead's heartbeat: the newest write to any Pi session log of the worktree or a sibling named `<worktree>-<unit>`,
+ * The lead's heartbeat: the newest write to any Pi session log of the worktree or a sibling named `<worktree>-<sub-issue key>`,
  * where sub-leads work; each cwd has its own folder. The investigator's (`.runner`) is left out. Also whether that log's last message is mid-step. A tool call with no result,
  * or a user message or tool result with no reply, is busy; anything else is idle. `since`, the lead start or a later event it got, is the floor.
  */

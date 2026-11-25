@@ -20,7 +20,7 @@ const PR = { url: 'https://github.com/owner/repo/pull/7', number: 7, headRefOid:
 function setup(stub = 'clean') {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'review-'));
   const file = (name: string) => path.join(dir, name);
-  for (const folder of ['bin', 'job-ale-9-thing/.runner', 'job-ale-9-thing-unit/src']) mkdirSync(file(folder), { recursive: true });
+  for (const folder of ['bin', 'job-ale-9-thing/.runner', 'job-ale-9-thing-ALE-10/src']) mkdirSync(file(folder), { recursive: true });
   writeFileSync(file('pr.json'), JSON.stringify(PR));
   writeFileSync(file('reviews.json'), '[]');
   writeFileSync(file('job-ale-9-thing/.runner/work.json'), JSON.stringify({ key: 'ALE-9', title: 'Make the thing', url: 'https://linear.app/x/issue/ALE-9', description: 'The ticket body.', models: { lead: 'lead/model', review: 'review/model' } }));
@@ -81,9 +81,9 @@ test('the record names the PR head the command read, the new session and the ask
   assert.equal(r.out.trim(), record);
 });
 
-test("a sub-lead's worktree, the lead's path plus -<unit>, finds the lead's ticket; an unrelated folder does not", () => {
+test("a sub-lead's worktree, the lead's path plus -<sub-issue key>, finds the lead's ticket; an unrelated folder does not", () => {
   const t = setup();
-  const r = t.review(['7', '--round', '1', '--trigger', 'first'], {}, 'job-ale-9-thing-unit/src');
+  const r = t.review(['7', '--round', '1', '--trigger', 'first'], {}, 'job-ale-9-thing-ALE-10/src');
   assert.equal(r.code, 0, r.err);
   assert.equal(t.pi()[t.pi().indexOf('--name') + 1], 'review ALE-9 PR 7 round 1');
   const lost = t.review(['7', '--round', '1', '--trigger', 'first'], {}, 'bin');

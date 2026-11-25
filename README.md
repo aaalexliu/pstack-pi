@@ -267,7 +267,7 @@ Pi-owned files live in `additions/`, apart from the 551 upstream paths, and ship
 | --- | --- |
 | `additions/agents/general-purpose.md` | Gives `subagent` one read-only delegate without turning on deferred upstream agents. |
 | `additions/agents/pr-reviewer.md` | Gives `subagent` a reviewer that can read a PR and post its record with `gh`, for [job runner](runner/README.md) leads. |
-| `additions/agents/sub-lead.md` | Builds one unit of a [job runner](runner/README.md) ticket through the lead's merge gate, with auto-exit on and no spawning tools. |
+| `additions/agents/sub-lead.md` | Drives one sub-issue of a [job runner](runner/README.md) ticket through the lead's merge gate, with auto-exit on and no spawning tools. |
 | `additions/skills/deeper/SKILL.md` | Turns a task into a deeper prompt. It predates upstream `sharpen`, which the manifest omits in its favor. |
 | `additions/skills/show-me/` | Adapts the MIT-licensed `show-me` skill from [humanlayer/skills](https://github.com/humanlayer/skills) with bug views and set nodes. Ships the license notice in `references/humanlayer-license.md`. |
 | `additions/skills/intake/SKILL.md` | Tells any session that files a ticket for an agent to check the ask against the project's decisions in a fresh session, write Goal, Reference and Not doing, then delegate it. The [job runner](runner/README.md) leads read those headings. |
