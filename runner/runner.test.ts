@@ -321,7 +321,14 @@ test('a token command that fails before Pi starts gets an ask naming the step an
   // The helper also echoes two secrets to stderr, from the environment so the command text holds neither, and ends in `;` and a comment.
   process.env.FAKE_GH_SECRET = `ghp_${'a1'.repeat(18)}`;
   process.env.FAKE_CLIENT_SECRET = '0123456789abcdef'.repeat(2);
-  t.config.ghTokenCommand = `printf 'gh-%s' secret; test -f ${ok} || { echo 'no oauth token found for github.com account aaalexliu' >&2; echo "debug: $FAKE_GH_SECRET $FAKE_CLIENT_SECRET in session 4d13c704-8618-4c91-9987-b20e28fdcf6c" >&2; exit 4; }; # the token helper`;
+  // A heredoc with a lone `)` once ended the script's `$(...)` early, before the stderr was blanked.
+  t.config.ghTokenCommand = `printf 'gh-%s' secret
+test -f ${ok} && exit 0
+cat <<EOF >&2
+no oauth token found for github.com account aaalexliu
+debug: $FAKE_GH_SECRET $FAKE_CLIENT_SECRET in session 4d13c704-8618-4c91-9987-b20e28fdcf6c )
+EOF
+exit 4; # the token helper`;
   t.printed.expectErrors = true;
   await t.run('--once');
   await t.run('--once');
@@ -330,8 +337,8 @@ test('a token command that fails before Pi starts gets an ask naming the step an
   const failed = path.join(t.dirOf(1), '.runner', 'start-failed');
   const [ask] = t.asks();
   assert.equal(t.asks().length, 1);
-  assert.equal(ask.body.split('\n\n')[0], `**Needs Alex:** lead.sh stopped before Pi started: the GH_TOKEN command \`${t.config.ghTokenCommand}\` exited 4. Its stderr is in ${failed}. The ticket is still open and delegated to the runner.`);
-  assert.equal(ask.body.split('\n\n')[1], '```text\nno oauth token found for github.com account aaalexliu\ndebug: ghp_[redacted] [redacted] in session 4d13c704-8618-4c91-9987-b20e28fdcf6c\n```');
+  assert.equal(ask.body.split('\n\n')[0], `**Needs Alex:** lead.sh stopped before Pi started: the GH_TOKEN command \`${t.config.ghTokenCommand.replace(/\s*\n\s*/g, ' ')}\` exited 4. Its stderr is in ${failed}. The ticket is still open and delegated to the runner.`);
+  assert.equal(ask.body.split('\n\n')[1], '```text\nno oauth token found for github.com account aaalexliu\ndebug: ghp_[redacted] [redacted] in session 4d13c704-8618-4c91-9987-b20e28fdcf6c )\n```');
   assert.ok(readFileSync(failed, 'utf8').includes('no oauth token found'), 'the stderr stays readable after the pane is gone');
   assert.ok(t.printed.errors.some((e) => e.startsWith('ALE-1: lead.sh stopped before Pi started') && e.includes('no oauth token found')), 'the runner log has it too');
   for (const text of [ask.body, ...t.printed.errors, readFileSync(failed, 'utf8')]) {

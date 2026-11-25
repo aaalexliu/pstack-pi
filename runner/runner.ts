@@ -521,7 +521,7 @@ function startMessage(ctx: Ctx, w: Work, events: Event[], running: Work[]) {
   ].join('\n');
 }
 
-/** GitHub and Linear token prefixes, then any run of 32 or more token characters: a UUID or a path has `-`, `/` or `.` in it. */
+/** GitHub and Linear token prefixes, then any run of 32 or more token characters. A UUID survives; a long path component may not. */
 const REDACT = 's/(gh[pousr]_|github_pat_|lin_[a-z]+_)[A-Za-z0-9_]+/\\1[redacted]/g; s/[A-Za-z0-9_+=]{32,}/[redacted]/g';
 
 /**
@@ -545,8 +545,8 @@ function envScript(ctx: Ctx, w: Work, name: string, failed: string) {
     ...keep.map((env) => `export ${env}=${sh(process.env[env]!)}`),
     // Command output never reaches the file. Stderr does, with token-shaped strings blanked, since a helper may echo one.
     `failed() { s=$?; { printf '%s exited %s\\n' "$1" "$s"; sed -E ${sh(REDACT)} ${sh(stderr)} | tail -c 4000; } > ${sh(failed)}; rm -f ${sh(stderr)}; exit 1; }`,
-    // The command gets lines of its own, so a trailing `;` or comment in it cannot swallow what follows.
-    ...tokens.flatMap(([env, command]) => [`${env}=$(exec 2>${sh(stderr)}\n${command}\n) || failed ${sh(`the ${env} command \`${command.replace(/\s*\n\s*/g, ' ')}\``)}`, `export ${env}`]),
+    // Its own `sh -c` parses the command, so nothing in it, such as a trailing comment or a heredoc with `)`, can break this script.
+    ...tokens.flatMap(([env, command]) => [`${env}=$(sh -c ${sh(command)} 2>${sh(stderr)}) || failed ${sh(`the ${env} command \`${command.replace(/\s*\n\s*/g, ' ')}\``)}`, `export ${env}`]),
     `rm -f ${sh(stderr)}`,
     ...[...keep, ...tokens.map(([env]) => env)].map((env) => `${tmuxEnv} ${env} "$${env}"`),
   ];
