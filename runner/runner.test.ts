@@ -314,6 +314,47 @@ test('NoSpin: a lead that exits with nothing new is not started again; the runne
   assert.match(t.asks()[0].body, /^\*\*Needs Alex:\*\* the lead stopped with nothing handed in\. /);
 });
 
+test('a token command that fails before Pi starts gets an ask naming the step and quoting its stderr, never its output; the next start clears it', async () => {
+  const job = issue(1);
+  const t = setup([job]);
+  const ok = path.join(t.root, 'gh-ok');
+  // The helper also echoes two secrets to stderr, from the environment so the command text holds neither, and ends in `;` and a comment.
+  process.env.FAKE_GH_SECRET = `ghp_${'a1'.repeat(18)}`;
+  process.env.FAKE_CLIENT_SECRET = '0123456789abcdef'.repeat(2);
+  // A heredoc with a lone `)` once ended the script's `$(...)` early, before the stderr was blanked.
+  t.config.ghTokenCommand = `printf 'gh-%s' secret
+test -f ${ok} && exit 0
+cat <<EOF >&2
+no oauth token found for github.com account aaalexliu
+debug: $FAKE_GH_SECRET $FAKE_CLIENT_SECRET in session 4d13c704-8618-4c91-9987-b20e28fdcf6c )
+EOF
+exit 4; # the token helper`;
+  t.printed.expectErrors = true;
+  await t.run('--once');
+  await t.run('--once');
+  await t.run('--once');
+  assert.equal(t.leads().length, 0, 'Pi never started');
+  const failed = path.join(t.dirOf(1), '.runner', 'start-failed');
+  const [ask] = t.asks();
+  assert.equal(t.asks().length, 1);
+  assert.equal(ask.body.split('\n\n')[0], `**Needs Alex:** lead.sh stopped before Pi started: the GH_TOKEN command \`${t.config.ghTokenCommand.replace(/\s*\n\s*/g, ' ')}\` exited 4. Its stderr is in ${failed}. The ticket is still open and delegated to the runner.`);
+  assert.equal(ask.body.split('\n\n')[1], '```text\nno oauth token found for github.com account aaalexliu\ndebug: ghp_[redacted] [redacted] in session 4d13c704-8618-4c91-9987-b20e28fdcf6c )\n```');
+  assert.ok(readFileSync(failed, 'utf8').includes('no oauth token found'), 'the stderr stays readable after the pane is gone');
+  assert.ok(t.printed.errors.some((e) => e.startsWith('ALE-1: lead.sh stopped before Pi started') && e.includes('no oauth token found')), 'the runner log has it too');
+  for (const text of [ask.body, ...t.printed.errors, readFileSync(failed, 'utf8')]) {
+    for (const secret of ['gh-secret', process.env.FAKE_GH_SECRET!.slice(4), process.env.FAKE_CLIENT_SECRET!]) assert.ok(!text.includes(secret), 'no token shows');
+  }
+  assert.deepEqual(readdirSync(path.dirname(failed)).filter((f) => f.includes('stderr')), [], 'the raw stderr is gone');
+  writeFileSync(ok, '');
+  job.comments.push({ id: 'h1', body: 'Fixed gh, try again.', createdAt: later(), user: { name: ALEX } });
+  await t.run('--once');
+  assert.equal(t.leads().length, 1);
+  assert.equal(t.leads()[0].ghToken, 'gh-secret');
+  assert.ok(!existsSync(failed), 'a start clears the old failure');
+  await t.run('--once');
+  assert.match(t.asks().at(-1)!.body, /^\*\*Needs Alex:\*\* the lead stopped with nothing handed in\. /, 'a lead that ran gets the usual ask');
+});
+
 test('a launch unassigns Alex in the same write that moves the ticket to In Progress; a started ticket is only unassigned', async () => {
   const todo = issue(1, { assignee: ALEX });
   const started = issue(2, { assignee: ALEX, state: 'In Review' });
