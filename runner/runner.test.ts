@@ -181,7 +181,7 @@ else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? J
         identifier: i.identifier, title: i.title, url: i.url, description: i.description, state: { name: i.state }, assignee: i.assignee ? { name: i.assignee } : null,
         team: { id: `team-${i.team}` }, project: i.project ? { id: i.project } : null,
         comments: { nodes: newest.slice(0, 50).map((c) => ({ id: c.id, createdAt: c.createdAt, body: c.body, user: c.user, botActor: c.botActor ?? null })), pageInfo: { hasNextPage: newest.length > 50 } },
-        children: { nodes: issues.filter((c) => c.parent === i.id).map((c) => ({ id: c.id, identifier: c.identifier, title: c.title, state: { name: c.state }, assignee: c.assignee ? { name: c.assignee } : null })) },
+        children: { nodes: issues.filter((c) => c.parent === i.id).slice(0, 100).map((c) => ({ id: c.id, identifier: c.identifier, title: c.title, state: { name: c.state }, assignee: c.assignee ? { name: c.assignee } : null })) },
       } });
     }
     if (op === 'Label') return data({ issueLabels: { nodes: ['pstack-pi', 'Firstmate', 'Papercut'].includes(v.name) ? [{ id: `label-${v.name}`, team: { key: 'ALE' } }, { id: 'other-team', team: { key: 'OTH' } }] : [] } });
@@ -446,6 +446,10 @@ test('ticket sub-issue files one sub-issue in the ticket\'s team and project, ne
   assert.match(await t.ticket(t.dirOf(1), 'show'), new RegExp(`\nSub-issues:\n- ${key} \\(Backlog\\): Add the sub-issue command\n\n`), 'one sub-issue');
   const other = await t.ticket(t.dirOf(1), 'sub-issue', 'Rename unit', plan);
   assert.notEqual(other, key);
+  for (let n = 0; n < 100; n++) t.addIssue(issue(300 + n, { parent: 'id-1', delegate: null, labels: [], title: `Piece ${n}` }));
+  const before = t.ops.length;
+  assert.equal(await t.ticket(t.dirOf(1), 'sub-issue', 'Piece 99', plan), 'ALE-399', 'past the first 100 sub-issues too');
+  assert.ok(!t.ops.slice(before).includes('SubIssue'), 'files none');
   await t.run('--once');
   assert.equal(t.leads().length, 1, 'filing is no event, and a sub-issue gets no lead of its own');
 });
