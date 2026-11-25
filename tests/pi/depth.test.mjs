@@ -32,7 +32,7 @@ test('a sub-lead and a pi -p it starts have no delegation tools', async () => {
   await runPiSmoke({
     launchEnvironment: {
       PI_DENY_TOOLS: 'subagent,subagent_interrupt,subagents_list,subagent_resume',
-      PI_SUBAGENT_NAME: 'unit-b', PI_SUBAGENT_AGENT: 'sub-lead', PI_SUBAGENT_AUTO_EXIT: '1',
+      PI_SUBAGENT_NAME: 'ALE-50', PI_SUBAGENT_AGENT: 'sub-lead', PI_SUBAGENT_AUTO_EXIT: '1',
     },
     expectedRequests: 3, expectedText: final,
     fixture: { script: [

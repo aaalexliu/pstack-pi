@@ -448,7 +448,7 @@ test('ticket sub-issue files one sub-issue in the ticket\'s team and project, ne
     ['id-1', 'ALE', 'project-runner', 'Add the sub-issue command', 'Goal: add the command.\n\nDone when: its test passes.\n', null, null]);
   assert.equal(await t.ticket(t.dirOf(1), 'sub-issue', 'Add the sub-issue command', '-'), key, 'a rerun prints the same key');
   assert.match(await t.ticket(t.dirOf(1), 'show'), new RegExp(`\nSub-issues:\n- ${key} \\(Backlog\\): Add the sub-issue command\n\n`), 'one sub-issue');
-  const other = await t.ticket(t.dirOf(1), 'sub-issue', 'Rename unit', plan);
+  const other = await t.ticket(t.dirOf(1), 'sub-issue', 'Say sub-issue in the docs', plan);
   assert.notEqual(other, key);
   for (let n = 0; n < 100; n++) t.addIssue(issue(300 + n, { parent: 'id-1', delegate: null, labels: [], title: `Piece ${n}` }));
   const before = t.ops.length;
@@ -746,10 +746,10 @@ test('a quiet live lead gets Escape and one nudge, then one investigator and no 
     await t.run('--once');
     assert.equal(nudges(), 0, 'a subagent that wrote 2 minutes ago keeps the lead alive');
     sessionLog(agent, dir, 'reviewer', 6, IDLE);
-    sessionLog(agent, `${dir}-unit`, 'sublead', 0, IDLE);
+    sessionLog(agent, `${dir}-ALE-50`, 'sublead', 0, IDLE);
     await t.run('--once');
     assert.equal(nudges(), 0, 'a sub-lead writing now in a sibling worktree keeps the lead alive');
-    sessionLog(agent, `${dir}-unit`, 'sublead', 6, IDLE);
+    sessionLog(agent, `${dir}-ALE-50`, 'sublead', 6, IDLE);
     sessionLog(agent, dir.replace('job-ale-1-', 'job-ale-10-'), 'other-ticket', 0, IDLE);
     sessionLog(agent, path.join(dir, '.runner'), 'investigator', 0, IDLE);
     put(path.join(runner, 'takeover'), '');
