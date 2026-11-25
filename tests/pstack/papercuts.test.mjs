@@ -148,3 +148,14 @@ test('caps distinct papercuts per turn and resets the cap on the next turn', asy
   const lines = (await readFile(second[0].details.file, 'utf8')).trim().split('\n');
   assert.deepEqual(lines.map((line) => JSON.parse(line).note).sort(), ['distinct 0', 'distinct 1', 'distinct 2', 'distinct 3', 'distinct 4', 'distinct 5', 'distinct 6']);
 });
+
+test('a result nested in another tool, such as an MCP result in a codemode script, stays parseable JSON', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'pstack-papercuts-'));
+  const f = fakeExtension();
+  registerPapercuts(/** @type {any} */ (f.pi), root);
+  const content = [{ type: 'text', text: '{"ok":true}' }];
+  f.handlers.get('tool_execution_start')({ toolCallId: 'script/1', toolName: 'mcp', parentToolCallId: 'script' });
+  const replaced = f.handlers.get('tool_result')({ toolCallId: 'script/1', toolName: 'mcp', parentToolCallId: 'script', content, isError: false });
+  const seen = (replaced?.content ?? content).map((/** @type {{ text: string }} */ part) => part.text).join('');
+  assert.deepEqual(JSON.parse(seen), { ok: true });
+});
