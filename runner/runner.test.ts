@@ -490,13 +490,25 @@ test('ticket show prints the ticket, its sub-issues, and its comments oldest fir
   assert.match(at('2026-01-02T15:00:00Z'), /^Jan 2, \d+:00 [AP]M \S+$/);
 });
 
+test('ticket show KEY prints one of the ticket\'s sub-issues, from a sub-lead\'s worktree too, and refuses any other key', async () => {
+  const t = setup([issue(1), issue(2, { delegate: null })]);
+  await t.run('--once');
+  t.addIssue(issue(50, { parent: 'id-1', state: 'In Progress', delegate: null, labels: [], title: 'Show one sub-issue', description: 'Goal: print it.\n\nDone when: a sub-lead reads it.',
+    comments: [{ id: 'c50', body: 'Started.', createdAt: '2026-01-03T14:00:00Z', user: { name: ALEX } }] }));
+  const subLead = `${t.dirOf(1)}-ALE-50`;
+  mkdirSync(subLead);
+  const out = await t.ticket(subLead, 'show', 'ALE-50');
+  assert.match(out, /^ALE-50: Show one sub-issue \(In Progress, unassigned\)\nhttps:\/\/linear\.app\/x\/issue\/ALE-50\n\nGoal: print it\.\n\nDone when: a sub-lead reads it\.\n\nSub-issues:\n- none\n\nComments, oldest first:\n\nAlex Example, .* \(comment c50\):\nStarted\.$/);
+  for (const key of ['ALE-1', 'ALE-2', 'ALE-404']) await assert.rejects(t.ticket(subLead, 'show', key), new RegExp(`${key} is not one of ALE-1's sub-issues`));
+});
+
 test('ticket checks its arguments and its file before it calls Linear', async () => {
   const t = setup([issue(1)]);
   await t.run('--once');
   const empty = path.join(t.root, 'empty.md');
   writeFileSync(empty, '\n');
   const before = t.ops.length;
-  for (const argv of [[], ['comment'], ['done', 'ALE-50', 'x'], ['ask'], ['ask', 'a', 'b'], ['comment', 'a', 'b', 'c'], ['close'], ['sub-issue', 'Title'], ['sub-issue', ' ', '-'], ['cancel', 'ALE-50']]) {
+  for (const argv of [[], ['show', 'ALE-50', 'x'], ['comment'], ['done', 'ALE-50', 'x'], ['ask'], ['ask', 'a', 'b'], ['comment', 'a', 'b', 'c'], ['close'], ['sub-issue', 'Title'], ['sub-issue', ' ', '-'], ['cancel', 'ALE-50']]) {
     await assert.rejects(t.ticket(t.dirOf(1), ...argv), /^Error: usage: ticket show\n/, argv.join(' '));
   }
   await assert.rejects(t.ticket(t.dirOf(1), 'comment', empty), /empty\.md is empty/);
