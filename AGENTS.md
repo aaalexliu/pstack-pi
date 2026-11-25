@@ -22,7 +22,7 @@ This repository packages Lauren Tan's Cursor pstack for Pi. Read this file befor
 2. To add or change a Pi-owned skill or agent, edit it under `additions/` and list each file in `package.json`. It needs no manifest entry, lock hash, or sync run.
 3. Keep transforms narrow. Change the host-specific clause, not the file. A full rewrite disguised as one large transform fails review. `ADAPTATIONS.md` explains why.
 4. When you add or remove a shipped file, update `files` in `package.json`, `expectedPackFiles` in `scripts/check-content.mjs`, and the pack count in `tests/pi/smoke.test.mjs`. `npm run check:content` and `npm run test:pi` fail if they disagree.
-5. Match local checks to the change using `TESTING.md`. Docs-only prose needs `sync:check`, `check:content`, and `git diff --check`, not `npm test`. Run `test:fast` for skill text, sync, and other non-runtime changes. Runtime, packaging, and test-runner changes need `npm run check`. Mixed changes use the strongest gate. CI still runs the full suite.
+5. Match local checks to the change using `TESTING.md`. Docs-only prose needs `sync:check`, `check:content`, and `git diff --check`, not `npm test`. Run `test:fast` for skill text, sync, and other non-runtime changes. Runtime, packaging, and test-runner changes need `npm run check`. Mixed changes use the strongest gate. A change under `runner/` also needs `node --test runner/*.test.ts`, which `npm run check` does not run. CI still runs the full suite.
 6. The release is a pushed commit on `main`. No npm publish, no tags, no GitHub releases without an explicit request. `RELEASING.md` has the gate.
 7. Docs use plain dashes, straight quotes, and sentence-case headings. No em dashes.
 

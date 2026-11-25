@@ -24,8 +24,9 @@ Use this table before committing or pushing. A docs-only push does not require `
 | Docs-only prose in guides, `AGENTS.md`, or test documentation | `npm run sync:check`, `npm run check:content`, and `git diff --check` |
 | Skill or agent prompt text, sync transforms, sync/content scripts, or non-packed tests | `npm run typecheck`, `npm run sync:check`, `npm run check:content`, `npm run test:fast`, and `git diff --check` |
 | Runtime, packaging, packed-Pi tests, or test-runner changes | `npm run check` and `git diff --check` |
+| Anything under `runner/`: code, tests, prompts, or docs | `node --test runner/*.test.ts` and `git diff --check`, plus the checks of any other row the change matches |
 
-Use the strongest gate for mixed changes. Markdown is not automatically docs-only: skill and agent prompts are product inputs. Changes to frontmatter that affect discovery, tools, or model selection belong in the full-check row.
+Use the strongest gate for mixed changes. `npm run check` does not run the runner suite, so a `runner/` change needs it on top of any other gate; the runner tests read `runner/README.md`, so prose there counts too. Markdown is not automatically docs-only: skill and agent prompts are product inputs. Changes to frontmatter that affect discovery, tools, or model selection belong in the full-check row.
 
 Run the full check when a change affects any of:
 
