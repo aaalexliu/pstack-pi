@@ -17,7 +17,6 @@ class Usage extends Error {}
 
 type Shown = {
   identifier: string; title: string; url: string; description: string | null; state: { name: string }; assignee: { name: string } | null;
-  team: { id: string }; project: { id: string } | null;
   comments: { nodes: { id: string; createdAt: string; body: string; user: { name: string } | null; botActor: { name: string } | null }[]; pageInfo: { hasNextPage: boolean } };
   children: { nodes: { id: string; identifier: string; title: string; state: { name: string }; assignee: { name: string } | null }[] };
 };
@@ -56,7 +55,7 @@ export async function ticket(argv: string[], o: { cwd: string; config?: Config; 
   const config = o.config ?? loadConfig(configFile());
   const linear = linearClient(config, o.fetchFn ?? fetch);
   const read = async () => (await linear.gql<{ issue: Shown }>(
-    'query Ticket($id: String!) { issue(id: $id) { identifier title url description state { name } assignee { name } team { id } project { id } comments(first: 50, orderBy: createdAt) { nodes { id createdAt body user { name } botActor { name } } pageInfo { hasNextPage } } children(first: 100) { nodes { id identifier title state { name } assignee { name } } } } }',
+    'query Ticket($id: String!) { issue(id: $id) { identifier title url description state { name } assignee { name } comments(first: 50, orderBy: createdAt) { nodes { id createdAt body user { name } botActor { name } } pageInfo { hasNextPage } } children(first: 100) { nodes { id identifier title state { name } assignee { name } } } } }',
     { id: work.id },
   )).issue;
   if (command === 'show') {
@@ -77,9 +76,11 @@ export async function ticket(argv: string[], o: { cwd: string; config?: Config; 
     // Idempotent on title: a rerun after a crash prints the sub-issue the first run filed.
     const [title, description] = [args[0].trim(), body(args[1])];
     if (!title) throw new Usage(USAGE);
-    const i = await read();
-    const filed = i.children.nodes.find((c) => c.title === title);
-    if (filed) return filed.identifier;
+    const { issue: i } = await linear.gql<{ issue: { team: { id: string }; project: { id: string } | null; children: { nodes: { identifier: string }[] } } }>(
+      'query Parent($id: String!, $title: String!) { issue(id: $id) { team { id } project { id } children(first: 1, filter: { title: { eq: $title } }) { nodes { identifier } } } }',
+      { id: work.id, title },
+    );
+    if (i.children.nodes[0]) return i.children.nodes[0].identifier;
     const { issueCreate } = await linear.gql<{ issueCreate: { success: boolean; issue: { identifier: string } | null } }>(
       'mutation SubIssue($input: IssueCreateInput!) { issueCreate(input: $input) { success issue { identifier } } }',
       { input: { teamId: i.team.id, ...(i.project ? { projectId: i.project.id } : {}), parentId: work.id, title, description } },

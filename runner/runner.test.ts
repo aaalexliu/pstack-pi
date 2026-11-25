@@ -179,7 +179,6 @@ else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? J
       const newest = [...i.comments].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
       return data({ issue: {
         identifier: i.identifier, title: i.title, url: i.url, description: i.description, state: { name: i.state }, assignee: i.assignee ? { name: i.assignee } : null,
-        team: { id: `team-${i.team}` }, project: i.project ? { id: i.project } : null,
         comments: { nodes: newest.slice(0, 50).map((c) => ({ id: c.id, createdAt: c.createdAt, body: c.body, user: c.user, botActor: c.botActor ?? null })), pageInfo: { hasNextPage: newest.length > 50 } },
         children: { nodes: issues.filter((c) => c.parent === i.id).slice(0, 100).map((c) => ({ id: c.id, identifier: c.identifier, title: c.title, state: { name: c.state }, assignee: c.assignee ? { name: c.assignee } : null })) },
       } });
@@ -189,6 +188,11 @@ else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? J
       find(v.id).labels.push(v.label.slice(6));
       find(v.id).history.push({ createdAt: new Date().toISOString(), actor: { name: RUNNER }, addedLabelIds: [v.label] });
       return data({ issueAddLabel: { success: true } });
+    }
+    if (op === 'Parent') {
+      const i = find(v.id);
+      const children = issues.filter((c) => c.parent === i.id && c.title === v.title).map((c) => ({ identifier: c.identifier }));
+      return data({ issue: { team: { id: `team-${i.team}` }, project: i.project ? { id: i.project } : null, children: { nodes: children.slice(0, 1) } } });
     }
     if (op === 'SubIssue') {
       // Like Linear, a new issue is in the team's default state and gets only the fields the input names.
