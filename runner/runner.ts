@@ -526,8 +526,9 @@ function startMessage(ctx: Ctx, w: Work, events: Event[], running: Work[]) {
  * Pi runs until the lead calls `subagent_done`.
  * The launch script drops every Pi variable the tmux server holds from another session, and reads the tokens itself,
  * so they never land on disk. It mirrors both into the tmux session, so windows the lead's subagents open match it.
+ * A token command that fails writes its name, exit code and stderr, never its output, to `failed`, and the script exits.
  */
-function envScript(ctx: Ctx, w: Work, name: string) {
+function envScript(ctx: Ctx, w: Work, name: string, failed: string) {
   const keep = KEEP_ENV.filter((env) => process.env[env]);
   const tmuxEnv = `${sh(bin('tmux'))} set-environment -t ${sh(session(name))}`;
   const tokens = [['LINEAR_TOKEN', ctx.config.linearTokenCommand], ...(ctx.config.ghTokenCommand ? [['GH_TOKEN', ctx.config.ghTokenCommand]] : [])];
@@ -538,7 +539,9 @@ function envScript(ctx: Ctx, w: Work, name: string) {
     '# The tmux server keeps the environment of whoever started it. Drop Pi and cmux variables from another session.',
     `for v in $(env | sed -n 's/^\\(PI_[A-Za-z0-9_]*\\)=.*/\\1/p; s/^\\(PSTACK_[A-Za-z0-9_]*\\)=.*/\\1/p; s/^\\(CMUX_[A-Za-z0-9_]*\\)=.*/\\1/p'); do unset "$v"; ${tmuxEnv} -r "$v"; done`,
     ...keep.map((env) => `export ${env}=${sh(process.env[env]!)}`),
-    ...tokens.flatMap(([env, command]) => [`${env}=$(${command}) || exit 1`, `export ${env}`]),
+    `failed() { s=$?; { printf '%s exited %s\\n' "$1" "$s"; tail -c 4000 ${sh(`${failed}.stderr`)}; } > ${sh(failed)}; exit 1; }`,
+    ...tokens.flatMap(([env, command]) => [`${env}=$({ ${command}; } 2>${sh(`${failed}.stderr`)}) || failed ${sh(`the ${env} command \`${command}\``)}`, `export ${env}`]),
+    `rm -f ${sh(`${failed}.stderr`)}`,
     ...[...keep, ...tokens.map(([env]) => env)].map((env) => `${tmuxEnv} ${env} "$${env}"`),
   ];
 }
@@ -549,11 +552,11 @@ async function launch(ctx: Ctx, w: Work, events: Event[], running: Work[]) {
   put(rf(w, 'input.md'), startMessage(ctx, w, events, running));
   // The heartbeat reads the ticket from here, so it needs no Linear call and survives a runner restart.
   put(rf(w, 'work.json'), JSON.stringify(w));
-  for (const file of ['takeover', 'held', 'started', 'passed', 'stall.json']) rmSync(rf(w, file), { force: true });
+  for (const file of ['takeover', 'held', 'started', 'passed', 'stall.json', START_FAILED]) rmSync(rf(w, file), { force: true });
   const pi = (...extra: string[]) => [bin('pi'), '--session-id', sessionId(w), '-e', SUBAGENT_DONE,
     '--model', w.models.lead, '--thinking', ctx.config.thinking, '--append-system-prompt', path.join(PROMPTS, 'lead.md'), ...extra].map(sh).join(' ');
   put(rf(w, 'lead.sh'), [
-    ...envScript(ctx, w, w.key),
+    ...envScript(ctx, w, w.key, rf(w, START_FAILED)),
     `PI_SUBAGENT_ID=${sh(w.key)} ${pi(`@${rf(w, 'input.md')}`)}`,
     '# A person who touched .runner/takeover keeps the session, with no stall nudges, until they quit Pi.',
     `if [ -f .runner/takeover ]; then mv .runner/takeover .runner/held; ${pi()}; rm -f .runner/held; fi`,
@@ -674,7 +677,7 @@ async function investigate(ctx: Ctx, w: Work, quiet: number) {
   ].join('\n'));
   const script = rf(w, 'stall.sh');
   put(script, [
-    ...envScript(ctx, w, `${w.key}-stall`),
+    ...envScript(ctx, w, `${w.key}-stall`, rf(w, 'stall-start-failed')),
     '# Run from .runner so this session logs to its own folder, never the lead\'s heartbeat.',
     `cd ${sh(rf(w, ''))} || exit 1`,
     [bin('pi'), '-p', '--model', w.models.lead, '--thinking', ctx.config.thinking, '--append-system-prompt', path.join(PROMPTS, 'stall.md'), `@${rf(w, 'stall-input.md')}`].map(sh).join(' '),
@@ -684,10 +687,22 @@ async function investigate(ctx: Ctx, w: Work, quiet: number) {
   await must(bin('tmux'), ['new-session', '-d', '-s', `${w.key}-stall`, '-x', '200', '-y', '50', '-c', rf(w, ''), `sh ${sh(script)}`], w.dir);
 }
 
+/** `lead.sh` writes this when a step before Pi fails: what failed and its exit code, then its stderr. A start deletes it. */
+const START_FAILED = 'start-failed';
+
+/** Why the last start stopped before Pi ran, with the failed step's stderr, or null when Pi started. */
+function startFailure(w: Work): { why: string; stderr: string } | null {
+  const text = readOr(rf(w, START_FAILED));
+  if (text === null) return null;
+  const [step, ...stderr] = text.split('\n');
+  return { why: `lead.sh stopped before Pi started: ${step}. Its stderr is in ${rf(w, START_FAILED)}`, stderr: tail(stderr.join('\n'), 20).trim() };
+}
+
 /** The runner's ask when the lead stopped or could not start. Assigned first: a failed assign posts nothing, and an assigned ticket waits. */
-async function ask(ctx: Ctx, w: Work, why: string) {
+async function ask(ctx: Ctx, w: Work, why: string, detail = '') {
   await ctx.linear.assign(w.id, true);
   await ctx.linear.comment(w.id, [`**Needs Alex:** ${why}. The ticket is still open and delegated to the runner.`,
+    ...(detail ? [`\`\`\`text\n${detail}\n\`\`\``] : []),
     `Read the ticket and its PRs. Comment what it should do; your comment starts the lead again.`,
     `To stop the work instead, mark ${w.key} Done or Canceled, or clear its delegate.`,
   ].join('\n\n'));
@@ -813,7 +828,12 @@ async function poll(ctx: Ctx, dryRun: boolean, say: (line: string) => void, opts
         note(w, move.events);
         await react(ctx, move.events);
       }
-      if (move.kind === 'ask') { await ask(ctx, w, lost ?? 'the lead stopped with nothing handed in'); continue; }
+      if (move.kind === 'ask') {
+        const failed = lost ? null : startFailure(w);
+        if (failed) console.error(`${w.key}: ${failed.why}\n${failed.stderr}`);
+        await ask(ctx, w, lost ?? failed?.why ?? 'the lead stopped with nothing handed in', failed?.stderr);
+        continue;
+      }
       const reason = startBlock({
         running: running.length, maxLeads: config.maxLeads, freeMemory: free, minFreeMemory: config.minFreeMemoryPercent,
       });
