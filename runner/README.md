@@ -123,8 +123,8 @@ ticket.ts comment <file> [ID]  post a comment on the ticket, or a reply in the t
 ticket.ts sub-issue <title> <file>  file a sub-issue in the ticket's team and project, with the file as its
                             description, not delegated and not assigned; print its key. A sub-issue with that
                             title already filed prints its key and files none, so a rerun after a crash is safe
-ticket.ts done [KEY]        move the ticket, or one of its sub-issues, to Done
-ticket.ts cancel <KEY> <file>  comment the reason on one of the ticket's sub-issues, then move it to Canceled
+ticket.ts done [KEY]        move the ticket, or one of its sub-issues, to Done and unassign it
+ticket.ts cancel <KEY> <file>  comment the reason on one of the ticket's sub-issues, then move it to Canceled and unassign it
 ticket.ts ask <file>        assign the ticket to askAssignee, then post the ask as a comment
 ```
 
