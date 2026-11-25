@@ -118,6 +118,7 @@ The lead reaches Linear only through [ticket.ts](ticket.ts), run in its worktree
 
 ```text
 ticket.ts show              the ticket, its assignee, its sub-issues, and its comments oldest first, in local time
+ticket.ts show <KEY>        the same for one of the ticket's sub-issues, so a sub-lead can read its own
 ticket.ts comment <file> [ID]  post a comment on the ticket, or a reply in the thread of comment ID
 ticket.ts sub-issue <title> <file>  file a sub-issue in the ticket's team and project, with the file as its
                             description, not delegated and not assigned; print its key. A sub-issue with that

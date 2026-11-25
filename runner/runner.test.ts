@@ -509,7 +509,7 @@ test('ticket checks its arguments and its file before it calls Linear', async ()
   writeFileSync(empty, '\n');
   const before = t.ops.length;
   for (const argv of [[], ['show', 'ALE-50', 'x'], ['comment'], ['done', 'ALE-50', 'x'], ['ask'], ['ask', 'a', 'b'], ['comment', 'a', 'b', 'c'], ['close'], ['sub-issue', 'Title'], ['sub-issue', ' ', '-'], ['cancel', 'ALE-50']]) {
-    await assert.rejects(t.ticket(t.dirOf(1), ...argv), /^Error: usage: ticket show\n/, argv.join(' '));
+    await assert.rejects(t.ticket(t.dirOf(1), ...argv), /^Error: usage: ticket show \[SUB-ISSUE KEY\]\n/, argv.join(' '));
   }
   await assert.rejects(t.ticket(t.dirOf(1), 'comment', empty), /empty\.md is empty/);
   await assert.rejects(t.ticket(t.dirOf(1), 'ask', empty), /empty\.md is empty/, 'an empty ask assigns no one');
@@ -524,7 +524,7 @@ test('the ticket CLI prints usage with exit 64, and an error with exit 1', () =>
   const run = (...args: string[]) => spawnSync(cli, args, { cwd: os.tmpdir(), encoding: 'utf8', env: { ...process.env, JOB_RUNNER_CONFIG: '/nonexistent' } });
   const usage = run('ask');
   assert.deepEqual([usage.status, usage.stdout], [64, '']);
-  assert.match(usage.stderr, /^usage: ticket show\n/);
+  assert.match(usage.stderr, /^usage: ticket show \[SUB-ISSUE KEY\]\n/);
   const outside = run('show');
   assert.equal(outside.status, 1);
   assert.match(outside.stderr, /^ticket: no \.runner\/work\.json in /);
