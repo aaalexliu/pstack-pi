@@ -14,7 +14,7 @@ type FakeComment = { id: string; body: string; url?: string; createdAt: string; 
 type FakeChange = { createdAt: string; actor?: { name: string } | null; botActor?: { name: string } | null; attachment?: { sourceType: string }; toState?: { name: string }; toDelegate?: { name: string }; toAssignee?: { name: string }; fromAssignee?: { name: string }; addedLabelIds?: string[]; toTitle?: string };
 type FakeIssue = {
   id: string; identifier: string; title: string; description: string; url: string; createdAt: string;
-  team: string; state: string; delegate: string | null; assignee: string | null; parent: string | null; labels: string[]; comments: FakeComment[];
+  team: string; project?: string | null; state: string; delegate: string | null; assignee: string | null; parent: string | null; labels: string[]; comments: FakeComment[];
   history: FakeChange[];
 };
 
@@ -180,7 +180,7 @@ else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? J
       return data({ issue: {
         identifier: i.identifier, title: i.title, url: i.url, description: i.description, state: { name: i.state }, assignee: i.assignee ? { name: i.assignee } : null,
         comments: { nodes: newest.slice(0, 50).map((c) => ({ id: c.id, createdAt: c.createdAt, body: c.body, user: c.user, botActor: c.botActor ?? null })), pageInfo: { hasNextPage: newest.length > 50 } },
-        children: { nodes: issues.filter((c) => c.parent === i.id).map((c) => ({ id: c.id, identifier: c.identifier, title: c.title, state: { name: c.state }, assignee: c.assignee ? { name: c.assignee } : null })) },
+        children: { nodes: issues.filter((c) => c.parent === i.id).slice(0, 100).map((c) => ({ id: c.id, identifier: c.identifier, title: c.title, state: { name: c.state }, assignee: c.assignee ? { name: c.assignee } : null })) },
       } });
     }
     if (op === 'Label') return data({ issueLabels: { nodes: ['pstack-pi', 'Firstmate', 'Papercut'].includes(v.name) ? [{ id: `label-${v.name}`, team: { key: 'ALE' } }, { id: 'other-team', team: { key: 'OTH' } }] : [] } });
@@ -188,6 +188,19 @@ else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? J
       find(v.id).labels.push(v.label.slice(6));
       find(v.id).history.push({ createdAt: new Date().toISOString(), actor: { name: RUNNER }, addedLabelIds: [v.label] });
       return data({ issueAddLabel: { success: true } });
+    }
+    if (op === 'Parent') {
+      const i = find(v.id);
+      const children = issues.filter((c) => c.parent === i.id && c.title === v.title).map((c) => ({ identifier: c.identifier }));
+      return data({ issue: { team: { id: `team-${i.team}` }, project: i.project ? { id: i.project } : null, children: { nodes: children.slice(0, 1) } } });
+    }
+    if (op === 'SubIssue') {
+      // Like Linear, a new issue is in the team's default state and gets only the fields the input names.
+      const n = issues.length + 100;
+      const { teamId, projectId, parentId, title, description, ...rest } = v.input;
+      assert.deepEqual(rest, {}, 'no assignee, delegate or other field');
+      issues.push(issue(n, { team: teamId.slice(5), project: projectId ?? null, parent: parentId, title, description, state: 'Backlog', delegate: null, labels: [], createdAt: new Date().toISOString(), history: [] }));
+      return data({ issueCreate: { success: true, issue: { identifier: `ALE-${n}` } } });
     }
     if (op === 'Update') {
       if (v.input.stateId) find(v.id).state = v.input.stateId.slice(6);
@@ -263,6 +276,7 @@ else if (args[0] === 'list-sessions') { const tags = fs.existsSync(tagsFile) ? J
     /** The asks on a ticket: comments that start with `**Needs Alex:**`. */
     asks: (id = 'id-1') => issues.find((i) => i.id === id)!.comments.filter((c) => c.body.startsWith('**Needs Alex:**')),
     addIssue: (x: FakeIssue) => { issues.push(x); },
+    issue: (key: string) => issues.find((i) => i.identifier === key),
     setLive: (...keys: string[]) => writeFileSync(file('live.json'), JSON.stringify(keys)),
     /** Marks sessions as the runner's, as its `set-option @job-runner` does. */
     tag: (...keys: string[]) => writeFileSync(file('tags.json'), JSON.stringify(Object.fromEntries(keys.map((k) => [k, k])))),
@@ -421,6 +435,45 @@ test('ticket done moves the ticket to Done, or closes one of its sub-issues, and
   assert.equal(t.asks().length, 0, 'no ask for a Done ticket');
 });
 
+test('ticket sub-issue files one sub-issue in the ticket\'s team and project, neither delegated nor assigned, and a rerun with the same title files none', async () => {
+  const job = issue(1, { project: 'project-runner' });
+  const t = setup([job]);
+  await t.run('--once');
+  const plan = path.join(t.root, 'plan.md');
+  writeFileSync(plan, 'Goal: add the command.\n\nDone when: its test passes.\n');
+  const key = await t.ticket(t.dirOf(1), 'sub-issue', 'Add the sub-issue command', plan);
+  assert.match(key, /^ALE-\d+$/);
+  const filed = t.issue(key)!;
+  assert.deepEqual([filed.parent, filed.team, filed.project, filed.title, filed.description, filed.delegate, filed.assignee],
+    ['id-1', 'ALE', 'project-runner', 'Add the sub-issue command', 'Goal: add the command.\n\nDone when: its test passes.\n', null, null]);
+  assert.equal(await t.ticket(t.dirOf(1), 'sub-issue', 'Add the sub-issue command', '-'), key, 'a rerun prints the same key');
+  assert.match(await t.ticket(t.dirOf(1), 'show'), new RegExp(`\nSub-issues:\n- ${key} \\(Backlog\\): Add the sub-issue command\n\n`), 'one sub-issue');
+  const other = await t.ticket(t.dirOf(1), 'sub-issue', 'Rename unit', plan);
+  assert.notEqual(other, key);
+  for (let n = 0; n < 100; n++) t.addIssue(issue(300 + n, { parent: 'id-1', delegate: null, labels: [], title: `Piece ${n}` }));
+  const before = t.ops.length;
+  assert.equal(await t.ticket(t.dirOf(1), 'sub-issue', 'Piece 99', plan), 'ALE-399', 'past the first 100 sub-issues too');
+  assert.ok(!t.ops.slice(before).includes('SubIssue'), 'files none');
+  await t.run('--once');
+  assert.equal(t.leads().length, 1, 'filing is no event, and a sub-issue gets no lead of its own');
+});
+
+test('ticket cancel comments the reason on one of the ticket\'s sub-issues, then cancels it', async () => {
+  const job = issue(1);
+  const t = setup([job, issue(2, { delegate: null })]);
+  await t.run('--once');
+  const dropped = issue(50, { parent: 'id-1', delegate: null, labels: [], createdAt: later(), history: [] });
+  t.addIssue(dropped);
+  const reason = path.join(t.root, 'reason.md');
+  writeFileSync(reason, 'Dropped: ALE-51 covers it.\n');
+  assert.equal(await t.ticket(t.dirOf(1), 'cancel', 'ALE-50', reason), 'Commented on ALE-50 and moved it to Canceled.');
+  assert.deepEqual([dropped.state, dropped.comments.map((c) => [c.body, c.user?.name])], ['Canceled', [['Dropped: ALE-51 covers it.\n', RUNNER]]]);
+  for (const key of ['ALE-1', 'ALE-2']) await assert.rejects(t.ticket(t.dirOf(1), 'cancel', key, reason), new RegExp(`${key} is not one of ALE-1's sub-issues`));
+  assert.deepEqual([job.state, t.issue('ALE-2')!.state], ['In Progress', 'Todo'], 'never the ticket or another one');
+  await t.run('--once');
+  assert.equal(t.leads().length, 1, 'a lead\'s own cancel is no event');
+});
+
 test('ticket show prints the ticket, its sub-issues, and its comments oldest first in local time', async () => {
   const job = issue(1, { state: 'In Progress', comments: [
     { id: 'c2', body: 'Second.', createdAt: '2026-01-02T15:00:00Z', user: { name: ALEX } },
@@ -443,11 +496,13 @@ test('ticket checks its arguments and its file before it calls Linear', async ()
   const empty = path.join(t.root, 'empty.md');
   writeFileSync(empty, '\n');
   const before = t.ops.length;
-  for (const argv of [[], ['comment'], ['done', 'ALE-50', 'x'], ['ask'], ['ask', 'a', 'b'], ['comment', 'a', 'b', 'c'], ['close']]) {
+  for (const argv of [[], ['comment'], ['done', 'ALE-50', 'x'], ['ask'], ['ask', 'a', 'b'], ['comment', 'a', 'b', 'c'], ['close'], ['sub-issue', 'Title'], ['sub-issue', ' ', '-'], ['cancel', 'ALE-50']]) {
     await assert.rejects(t.ticket(t.dirOf(1), ...argv), /^Error: usage: ticket show\n/, argv.join(' '));
   }
   await assert.rejects(t.ticket(t.dirOf(1), 'comment', empty), /empty\.md is empty/);
   await assert.rejects(t.ticket(t.dirOf(1), 'ask', empty), /empty\.md is empty/, 'an empty ask assigns no one');
+  await assert.rejects(t.ticket(t.dirOf(1), 'sub-issue', 'Title', empty), /empty\.md is empty/);
+  await assert.rejects(t.ticket(t.dirOf(1), 'cancel', 'ALE-50', empty), /empty\.md is empty/);
   await assert.rejects(t.ticket(t.root, 'show'), /no \.runner\/work\.json in .* or above it/);
   assert.equal(t.ops.length, before, 'no Linear call');
 });

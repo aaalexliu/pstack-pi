@@ -6,7 +6,9 @@ import { configFile, linearClient, loadConfig, type Config, type Work } from './
 
 const USAGE = `usage: ticket show
        ticket comment <file> [COMMENT ID]
+       ticket sub-issue <title> <file>
        ticket done [SUB-ISSUE KEY]
+       ticket cancel <SUB-ISSUE KEY> <file>
        ticket ask <file>
        ticket label <repo label>
 A <file> of - reads standard input.`;
@@ -21,7 +23,7 @@ type Shown = {
 
 /**
  * The ticket the runner started this lead for: `.runner/work.json` in `cwd` or the nearest folder above it. A sub-lead's
- * worktree is the lead's path plus `-<unit>`, so each folder also tries the folders its name extends, longest first.
+ * worktree is the lead's path plus `-<sub-issue key>`, so each folder also tries the folders its name extends, longest first.
  */
 export function findWork(cwd: string): Work {
   for (let dir = path.resolve(cwd); ; dir = path.dirname(dir)) {
@@ -42,7 +44,7 @@ const local = (at: string) => new Date(at).toLocaleString('en-US', { month: 'sho
  */
 export async function ticket(argv: string[], o: { cwd: string; config?: Config; fetchFn?: typeof fetch; stdin?: () => string }): Promise<string> {
   const [command, ...args] = argv;
-  const arity: Record<string, number[]> = { show: [0], comment: [1, 2], done: [0, 1], ask: [1], label: [1] };
+  const arity: Record<string, number[]> = { show: [0], comment: [1, 2], 'sub-issue': [2], done: [0, 1], cancel: [2], ask: [1], label: [1] };
   if (!command || !arity[command]?.includes(args.length)) throw new Usage(USAGE);
   const body = (file: string) => {
     const text = file === '-' ? (o.stdin ?? (() => readFileSync(0, 'utf8')))() : readFileSync(file, 'utf8');
@@ -70,16 +72,38 @@ export async function ticket(argv: string[], o: { cwd: string; config?: Config; 
     await linear.comment(work.id, body(args[0]), args[1]);
     return `Commented on ${work.key}${args[1] ? ` in the thread of ${args[1]}` : ''}.`;
   }
+  if (command === 'sub-issue') {
+    // Idempotent on title: a rerun after a crash prints the sub-issue the first run filed.
+    const [title, description] = [args[0].trim(), body(args[1])];
+    if (!title) throw new Usage(USAGE);
+    const { issue: i } = await linear.gql<{ issue: { team: { id: string }; project: { id: string } | null; children: { nodes: { identifier: string }[] } } }>(
+      'query Parent($id: String!, $title: String!) { issue(id: $id) { team { id } project { id } children(first: 1, filter: { title: { eq: $title } }) { nodes { identifier } } } }',
+      { id: work.id, title },
+    );
+    if (i.children.nodes[0]) return i.children.nodes[0].identifier;
+    const { issueCreate } = await linear.gql<{ issueCreate: { success: boolean; issue: { identifier: string } | null } }>(
+      'mutation SubIssue($input: IssueCreateInput!) { issueCreate(input: $input) { success issue { identifier } } }',
+      { input: { teamId: i.team.id, ...(i.project ? { projectId: i.project.id } : {}), parentId: work.id, title, description } },
+    );
+    if (!issueCreate.success || !issueCreate.issue) throw new Error(`Linear did not file the sub-issue "${title}"`);
+    return issueCreate.issue.identifier;
+  }
+  const child = async (key: string) => {
+    const found = (await read()).children.nodes.find((c) => c.identifier === key);
+    if (!found) throw new Error(`${key} is not ${command === 'done' ? `${work.key} or one of its` : `one of ${work.key}'s`} sub-issues`);
+    return found.id;
+  };
   if (command === 'done') {
     const key = args[0] ?? work.key;
-    let id = work.id;
-    if (key !== work.key) {
-      const child = (await read()).children.nodes.find((c) => c.identifier === key);
-      if (!child) throw new Error(`${key} is not ${work.key} or one of its sub-issues`);
-      id = child.id;
-    }
-    await linear.setState(id, 'Done');
+    await linear.setState(key === work.key ? work.id : await child(key), 'Done');
     return `Moved ${key} to Done.`;
+  }
+  if (command === 'cancel') {
+    const reason = body(args[1]);
+    const id = await child(args[0]);
+    await linear.comment(id, reason);
+    await linear.setState(id, 'Canceled');
+    return `Commented on ${args[0]} and moved it to Canceled.`;
   }
   if (command === 'label') {
     // Only a label the runner maps to a repo: the lead picks it, and the runner then starts a lead in that repo's worktree.

@@ -119,11 +119,15 @@ The lead reaches Linear only through [ticket.ts](ticket.ts), run in its worktree
 ```text
 ticket.ts show              the ticket, its assignee, its sub-issues, and its comments oldest first, in local time
 ticket.ts comment <file> [ID]  post a comment on the ticket, or a reply in the thread of comment ID
+ticket.ts sub-issue <title> <file>  file a sub-issue in the ticket's team and project, with the file as its
+                            description, not delegated and not assigned; print its key. A sub-issue with that
+                            title already filed prints its key and files none, so a rerun after a crash is safe
 ticket.ts done [KEY]        move the ticket, or one of its sub-issues, to Done
+ticket.ts cancel <KEY> <file>  comment the reason on one of the ticket's sub-issues, then move it to Canceled
 ticket.ts ask <file>        assign the ticket to askAssignee, then post the ask as a comment
 ```
 
-It finds its ticket in `.runner/work.json`, which the launch writes, in the folder it runs in or the nearest one above. A sub-lead's worktree is the lead's path plus `-<unit>`, so each folder also tries the folders its name extends. It reads the runner's config and calls Linear through the runner's own client, so it shares the token command, the 429 wait and `assign`. A `<file>` of `-` reads standard input. It checks its arguments and file before it calls Linear, and a usage error exits 64. The fake-Linear tests in `runner.test.ts` cover each command.
+It finds its ticket in `.runner/work.json`, which the launch writes, in the folder it runs in or the nearest one above. A sub-lead's worktree is the lead's path plus `-<sub-issue key>`, so each folder also tries the folders its name extends. It reads the runner's config and calls Linear through the runner's own client, so it shares the token command, the 429 wait and `assign`. A `<file>` of `-` reads standard input. It checks its arguments and file before it calls Linear, and a usage error exits 64. The fake-Linear tests in `runner.test.ts` cover each command.
 
 ### The merge gate lives in the lead prompt
 
