@@ -108,6 +108,8 @@ Run `/pstack` to show the current model config and the exact file path to edit (
 
 `pstack_sessions` has one strict `list` action. It returns at most 100 saved Pi session paths for the current working directory and reports whether it truncated the list. It does not accept a path from the model and does not scan sessions for other projects.
 
+When codemode is active, pstack-pi adds one rule after Pi's own codemode rule: keep each result under `max_output_tokens`, put at most one long file or diff in each result, return only the lines needed, and read the temp file a cut result names instead of rereading. Agents that batched several long files lost the middle of the output and read everything again.
+
 ## Papercuts
 
 The agent calls `pstack_papercut` when friction costs it extra steps, blocks it, or gives it a wrong result, even if it recovers: retries, workarounds, confusing errors, stale docs, slow calls. Before its final response it records friction it missed, one note per distinct problem. It skips routine negative results, expected waits and product bugs. Secrets and raw tool output never belong in a note.

@@ -15,6 +15,7 @@ import { formatTodos, parseTodoAction, reduceTodos, restoreTodos, todoEntryType,
 const potetoSkill = fileURLToPath(new URL('../../skills/poteto-mode/SKILL.md', import.meta.url));
 const potetoSection = 'pstack_poteto_mode';
 const potetoReminder = `Pstack Poteto Mode is active for this session branch. Use pstack_todo for non-trivial work, read the matching playbook, delegate bounded work when it helps, review every change, and verify real behavior. Read ${potetoSkill} before applying the mode.`;
+const codemodeOutputRule = 'Keep each codemode result under its max_output_tokens cap (10,000 by default): put at most one long file or diff in each result, and return only the lines you need. A longer result loses its middle; read the temp file it names instead of rereading the sources.';
 
 function sessionDirectory(cwd: string): string {
   const resolvedCwd = resolve(cwd);
@@ -49,6 +50,7 @@ export default function pstack(pi: ExtensionAPI): void {
     return { action: 'continue' } as const;
   });
   pi.on('before_agent_start', (event) => {
+    (event.systemPromptOptions.toolGuidelines.codemode ??= []).push(codemodeOutputRule);
     if (!mode.enabled) return;
     event.systemPromptOptions.sections[potetoSection] = potetoReminder;
   });
