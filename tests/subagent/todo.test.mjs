@@ -150,11 +150,11 @@ test('registered tool follows session branches and persists only mutations', asy
   await handlers.get('session_start')({}, ctx);
   /** @type {Record<string, string>} */
   let sections = {};
-  assert.equal(await startRun({ sections }), undefined);
+  assert.equal(await startRun({ sections, toolGuidelines: {} }), undefined);
   assert.deepEqual(sections, {});
   assert.deepEqual(await handlers.get('input')({ text: '/skill:other' }, ctx), { action: 'continue' });
   assert.deepEqual(await handlers.get('input')({ text: '/skill:poteto-mode task' }, ctx), { action: 'continue' });
-  assert.equal(await startRun({ sections }), undefined);
+  assert.equal(await startRun({ sections, toolGuidelines: {} }), undefined);
   assert.deepEqual(Object.keys(sections), ['pstack_poteto_mode']);
   assert.match(sections.pstack_poteto_mode, /^Pstack Poteto Mode is active for this session branch\. .*skills\/poteto-mode\/SKILL\.md before applying the mode\.$/);
 
@@ -174,7 +174,32 @@ test('registered tool follows session branches and persists only mutations', asy
   branch = [];
   await handlers.get('session_tree')({}, ctx);
   sections = {};
-  assert.equal(await startRun({ sections }), undefined);
+  assert.equal(await startRun({ sections, toolGuidelines: {} }), undefined);
   assert.deepEqual(sections, {});
   assert.equal((await tool.execute('get', { action: 'get' })).content[0].text, 'No pstack todo items.');
+});
+
+test('codemode rules tell the model to keep each result under the output cap', async () => {
+  /** @type {Map<string, any>} */
+  const handlers = new Map();
+  const pi = {
+    on(/** @type {string} */ name, /** @type {any} */ handler) { handlers.set(name, handler); },
+    registerTool() {},
+    registerCommand() {},
+    appendEntry() {},
+  };
+  pstack(/** @type {any} */ (pi));
+  const ctx = { sessionManager: { getBranch: () => [] } };
+  const piRule = 'Use codemode to batch independent tool calls (Promise.allSettled), chain them, or filter large output, instead of many separate calls.';
+  /** @type {Record<string, string[]>} */
+  const toolGuidelines = { codemode: [piRule], read: ['Use read to examine files instead of cat or sed.'] };
+  await handlers.get('session_start')({}, ctx);
+  await handlers.get('before_agent_start')({ systemPrompt: 'base', systemPromptOptions: { sections: {}, toolGuidelines } }, ctx);
+
+  assert.equal(toolGuidelines.codemode.length, 2);
+  assert.equal(toolGuidelines.codemode[0], piRule);
+  assert.match(toolGuidelines.codemode[1], /^Keep each codemode result under its max_output_tokens cap \(10,000 by default\)/);
+  assert.match(toolGuidelines.codemode[1], /at most one long file or diff in each result/);
+  assert.match(toolGuidelines.codemode[1], /read the temp file it names instead of rereading/);
+  assert.deepEqual(toolGuidelines.read, ['Use read to examine files instead of cat or sed.']);
 });
