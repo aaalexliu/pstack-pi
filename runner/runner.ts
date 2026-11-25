@@ -521,6 +521,9 @@ function startMessage(ctx: Ctx, w: Work, events: Event[], running: Work[]) {
   ].join('\n');
 }
 
+/** GitHub and Linear token prefixes, then any run of 32 or more token characters: a UUID or a path has `-`, `/` or `.` in it. */
+const REDACT = 's/(gh[pousr]_|github_pat_|lin_[a-z]+_)[A-Za-z0-9_]+/\\1[redacted]/g; s/[A-Za-z0-9_+=]{32,}/[redacted]/g';
+
 /**
  * Starts or resumes the lead in a detached tmux session named for the ticket, and saves the start time.
  * Pi runs until the lead calls `subagent_done`.
@@ -532,6 +535,7 @@ function envScript(ctx: Ctx, w: Work, name: string, failed: string) {
   const keep = KEEP_ENV.filter((env) => process.env[env]);
   const tmuxEnv = `${sh(bin('tmux'))} set-environment -t ${sh(session(name))}`;
   const tokens = [['LINEAR_TOKEN', ctx.config.linearTokenCommand], ...(ctx.config.ghTokenCommand ? [['GH_TOKEN', ctx.config.ghTokenCommand]] : [])];
+  const stderr = `${failed}.stderr`;
   return [
     '#!/bin/sh',
     `cd ${sh(w.dir)} || exit 1`,
@@ -539,9 +543,11 @@ function envScript(ctx: Ctx, w: Work, name: string, failed: string) {
     '# The tmux server keeps the environment of whoever started it. Drop Pi and cmux variables from another session.',
     `for v in $(env | sed -n 's/^\\(PI_[A-Za-z0-9_]*\\)=.*/\\1/p; s/^\\(PSTACK_[A-Za-z0-9_]*\\)=.*/\\1/p; s/^\\(CMUX_[A-Za-z0-9_]*\\)=.*/\\1/p'); do unset "$v"; ${tmuxEnv} -r "$v"; done`,
     ...keep.map((env) => `export ${env}=${sh(process.env[env]!)}`),
-    `failed() { s=$?; { printf '%s exited %s\\n' "$1" "$s"; tail -c 4000 ${sh(`${failed}.stderr`)}; } > ${sh(failed)}; exit 1; }`,
-    ...tokens.flatMap(([env, command]) => [`${env}=$({ ${command}; } 2>${sh(`${failed}.stderr`)}) || failed ${sh(`the ${env} command \`${command}\``)}`, `export ${env}`]),
-    `rm -f ${sh(`${failed}.stderr`)}`,
+    // Command output never reaches the file. Stderr does, with token-shaped strings blanked, since a helper may echo one.
+    `failed() { s=$?; { printf '%s exited %s\\n' "$1" "$s"; sed -E ${sh(REDACT)} ${sh(stderr)} | tail -c 4000; } > ${sh(failed)}; rm -f ${sh(stderr)}; exit 1; }`,
+    // The command gets lines of its own, so a trailing `;` or comment in it cannot swallow what follows.
+    ...tokens.flatMap(([env, command]) => [`${env}=$(exec 2>${sh(stderr)}\n${command}\n) || failed ${sh(`the ${env} command \`${command.replace(/\s*\n\s*/g, ' ')}\``)}`, `export ${env}`]),
+    `rm -f ${sh(stderr)}`,
     ...[...keep, ...tokens.map(([env]) => env)].map((env) => `${tmuxEnv} ${env} "$${env}"`),
   ];
 }
@@ -676,6 +682,7 @@ async function investigate(ctx: Ctx, w: Work, quiet: number) {
     `Session logs of the lead and its subagents: ${sessionFolder(w.dir)}.`,
   ].join('\n'));
   const script = rf(w, 'stall.sh');
+  rmSync(rf(w, 'stall-start-failed'), { force: true });
   put(script, [
     ...envScript(ctx, w, `${w.key}-stall`, rf(w, 'stall-start-failed')),
     '# Run from .runner so this session logs to its own folder, never the lead\'s heartbeat.',

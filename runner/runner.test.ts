@@ -318,7 +318,10 @@ test('a token command that fails before Pi starts gets an ask naming the step an
   const job = issue(1);
   const t = setup([job]);
   const ok = path.join(t.root, 'gh-ok');
-  t.config.ghTokenCommand = `printf 'gh-%s' secret; test -f ${ok} || { echo 'no oauth token found for github.com account aaalexliu' >&2; exit 4; }`;
+  // The helper also echoes two secrets to stderr, from the environment so the command text holds neither, and ends in `;` and a comment.
+  process.env.FAKE_GH_SECRET = `ghp_${'a1'.repeat(18)}`;
+  process.env.FAKE_CLIENT_SECRET = '0123456789abcdef'.repeat(2);
+  t.config.ghTokenCommand = `printf 'gh-%s' secret; test -f ${ok} || { echo 'no oauth token found for github.com account aaalexliu' >&2; echo "debug: $FAKE_GH_SECRET $FAKE_CLIENT_SECRET in session 4d13c704-8618-4c91-9987-b20e28fdcf6c" >&2; exit 4; }; # the token helper`;
   t.printed.expectErrors = true;
   await t.run('--once');
   await t.run('--once');
@@ -328,10 +331,13 @@ test('a token command that fails before Pi starts gets an ask naming the step an
   const [ask] = t.asks();
   assert.equal(t.asks().length, 1);
   assert.equal(ask.body.split('\n\n')[0], `**Needs Alex:** lead.sh stopped before Pi started: the GH_TOKEN command \`${t.config.ghTokenCommand}\` exited 4. Its stderr is in ${failed}. The ticket is still open and delegated to the runner.`);
-  assert.equal(ask.body.split('\n\n')[1], '```text\nno oauth token found for github.com account aaalexliu\n```');
+  assert.equal(ask.body.split('\n\n')[1], '```text\nno oauth token found for github.com account aaalexliu\ndebug: ghp_[redacted] [redacted] in session 4d13c704-8618-4c91-9987-b20e28fdcf6c\n```');
   assert.ok(readFileSync(failed, 'utf8').includes('no oauth token found'), 'the stderr stays readable after the pane is gone');
   assert.ok(t.printed.errors.some((e) => e.startsWith('ALE-1: lead.sh stopped before Pi started') && e.includes('no oauth token found')), 'the runner log has it too');
-  for (const text of [ask.body, ...t.printed.errors, readFileSync(failed, 'utf8')]) assert.ok(!text.includes('gh-secret'), 'the token never shows');
+  for (const text of [ask.body, ...t.printed.errors, readFileSync(failed, 'utf8')]) {
+    for (const secret of ['gh-secret', process.env.FAKE_GH_SECRET!.slice(4), process.env.FAKE_CLIENT_SECRET!]) assert.ok(!text.includes(secret), 'no token shows');
+  }
+  assert.deepEqual(readdirSync(path.dirname(failed)).filter((f) => f.includes('stderr')), [], 'the raw stderr is gone');
   writeFileSync(ok, '');
   job.comments.push({ id: 'h1', body: 'Fixed gh, try again.', createdAt: later(), user: { name: ALEX } });
   await t.run('--once');
