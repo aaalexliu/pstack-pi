@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { configFile, linearClient, loadConfig, type Config, type Work } from './runner.ts';
 
-const USAGE = `usage: ticket show
+const USAGE = `usage: ticket show [SUB-ISSUE KEY]
        ticket comment <file> [COMMENT ID]
        ticket sub-issue <title> <file>
        ticket done [SUB-ISSUE KEY]
@@ -44,7 +44,7 @@ const local = (at: string) => new Date(at).toLocaleString('en-US', { month: 'sho
  */
 export async function ticket(argv: string[], o: { cwd: string; config?: Config; fetchFn?: typeof fetch; stdin?: () => string }): Promise<string> {
   const [command, ...args] = argv;
-  const arity: Record<string, number[]> = { show: [0], comment: [1, 2], 'sub-issue': [2], done: [0, 1], cancel: [2], ask: [1], label: [1] };
+  const arity: Record<string, number[]> = { show: [0, 1], comment: [1, 2], 'sub-issue': [2], done: [0, 1], cancel: [2], ask: [1], label: [1] };
   if (!command || !arity[command]?.includes(args.length)) throw new Usage(USAGE);
   const body = (file: string) => {
     const text = file === '-' ? (o.stdin ?? (() => readFileSync(0, 'utf8')))() : readFileSync(file, 'utf8');
@@ -54,12 +54,17 @@ export async function ticket(argv: string[], o: { cwd: string; config?: Config; 
   const work = findWork(o.cwd);
   const config = o.config ?? loadConfig(configFile());
   const linear = linearClient(config, o.fetchFn ?? fetch);
-  const read = async () => (await linear.gql<{ issue: Shown }>(
+  const read = async (id = work.id) => (await linear.gql<{ issue: Shown }>(
     'query Ticket($id: String!) { issue(id: $id) { identifier title url description state { name } assignee { name } comments(first: 50, orderBy: createdAt) { nodes { id createdAt body user { name } botActor { name } } pageInfo { hasNextPage } } children(first: 100) { nodes { id identifier title state { name } assignee { name } } } } }',
-    { id: work.id },
+    { id },
   )).issue;
+  const child = async (key: string) => {
+    const found = (await read()).children.nodes.find((c) => c.identifier === key);
+    if (!found) throw new Error(`${key} is not ${command === 'done' ? `${work.key} or one of its` : `one of ${work.key}'s`} sub-issues`);
+    return found.id;
+  };
   if (command === 'show') {
-    const i = await read();
+    const i = await read(args[0] === undefined ? work.id : await child(args[0]));
     const comments = [...i.comments.nodes].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     return [
       `${i.identifier}: ${i.title} (${i.state.name}, ${i.assignee ? `assigned to ${i.assignee.name}` : 'unassigned'})`, i.url, '', i.description ?? '', '',
@@ -88,11 +93,6 @@ export async function ticket(argv: string[], o: { cwd: string; config?: Config; 
     if (!issueCreate.success || !issueCreate.issue) throw new Error(`Linear did not file the sub-issue "${title}"`);
     return issueCreate.issue.identifier;
   }
-  const child = async (key: string) => {
-    const found = (await read()).children.nodes.find((c) => c.identifier === key);
-    if (!found) throw new Error(`${key} is not ${command === 'done' ? `${work.key} or one of its` : `one of ${work.key}'s`} sub-issues`);
-    return found.id;
-  };
   if (command === 'done') {
     const key = args[0] ?? work.key;
     await linear.setState(key === work.key ? work.id : await child(key), 'Done');
