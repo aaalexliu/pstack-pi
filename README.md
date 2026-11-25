@@ -110,21 +110,21 @@ Run `/pstack` to show the current model config and the exact file path to edit (
 
 ## Papercuts
 
-The agent calls `pstack_papercut` for retries, workarounds, repeated discovery, confusing errors, excessive output, and avoidable delay. Recovered failures and successful but onerous workflows count too, including recurring setup and environment problems. Prompt hints name missing dependencies, unclear flags or schemas, stale paths or docs, repeated searches, truncated output, and avoidable manual steps.
+The agent calls `pstack_papercut` when friction costs it extra steps, blocks it, or gives it a wrong result, even if it recovers: retries, workarounds, confusing errors, stale docs, slow calls. Before its final response it records friction it missed, one note per distinct problem. It skips routine negative results, expected waits and product bugs. Secrets and raw tool output never belong in a note.
 
-Before its final response, the agent checks for missed friction. It records one note per distinct problem in the task, not every retry. It skips routine negative results, expected waits with useful progress, and product bugs unless tooling makes diagnosis or recovery harder. Secrets and raw tool output never belong in a note.
-
-The tool accepts a free-form lowercase `kind`, a concise `note` describing what happened and the extra work it caused, and an optional `evidence` measurement copied from the affected result trailer. A possible improvement helps but is not required. These are agent instructions, not automatic failure logging or a forced follow-up turn.
+The agent fills four fields. `note` says what it was doing, what happened, what it cost, and how it got past it. `culprit` names the one thing whose change would have prevented it: its `type` (`pi-tool`, `command`, `mcp`, `doc`, `config`, `environment`, `self` or `unknown`) and, unless the type is `self` or `unknown`, its `name`, such as `read`, `gh`, or the path of a doc. `impact` is `extra-steps`, `blocked` or `wrong-result`. `fix`, optional, is the change that would have prevented it.
 
 ```json
-{"kind":"tool.output-noisy","note":"cat of a lockfile dumped the whole file into context","evidence":{"tool":"bash","durationMs":24,"outputBytes":51338}}
+{"note":"read returned the old file right after a write, so I reviewed stale code until a second read","culprit":{"type":"pi-tool","name":"read"},"impact":"wrong-result"}
 ```
 
-pstack-pi appends a one-line trailer to every other tool result, for example `[pstack: bash 22ms 80B failed]`. The measurement sits next to the output it describes, so the agent can judge a slow call or a large dump in context and copy the numbers into `evidence`. pstack-pi never decides on its own which call a note is about. Tool inputs and outputs are never copied into the journal.
+pstack-pi stamps the rest, so the agent copies no numbers: `at`, `sessionId`, `callId` (the papercut call's own tool call id, its place in the session log), `cwd`, `repo` (the git root and short head of `cwd`, absent outside a repository), `host` (the machine name without `.local`), `model` (`provider/id`), and `build` (`pstack-pi@<short commit>` of the installed package, or `pstack-pi@<version>` when it is not a git checkout).
 
-A Pi process records each papercut once per session. A second call with the same session, `kind`, and note writes nothing, even in a later turn. Notes match after trimming and collapsing whitespace. A turn records at most 5 papercuts, including calls made from codemode scripts. Calls past the cap write nothing and tell the agent to record only distinct problems. Neither refusal is an error, so the agent has no reason to retry.
+A top-level tool call that takes 10 seconds or more gets a trailer such as `[pstack: took 12s]`, because a model cannot feel time. Faster calls get none, and so do calls nested in another tool, such as a codemode script, so a script can `JSON.parse` a nested result as is. Tool inputs and outputs are never copied into the journal.
 
-Records stay local in private per-session, per-process JSONL files under `<Pi agent dir>/pstack-pi/papercuts/`. Version 2 records add `host`, the machine name without a trailing `.local`, and `model`, the session's `provider/id` when the call ran. Both fields are optional. The reader accepts version 1 and version 2 records and ignores malformed lines and records from newer versions. It also keeps only the earliest record for each session, `kind`, and note, so a burst in an older journal counts once.
+A Pi process records each papercut once per session. A second call with the same session, culprit and note writes nothing, even in a later turn. Notes match after trimming and collapsing whitespace. A turn records at most 5 papercuts, including calls made from codemode scripts. Calls past the cap write nothing and tell the agent to record only distinct problems. Neither refusal is an error, so the agent has no reason to retry.
+
+Records stay local in private per-session, per-process JSONL files under `<Pi agent dir>/pstack-pi/papercuts/`, as version 3. The reader also accepts version 1 and 2 records, which carry a free-form `kind` and an optional `evidence` block in place of `culprit` and `impact`. It ignores malformed lines and records from newer versions, and keeps only the earliest record for each session, culprit (or `kind`) and note, so a burst in an older journal counts once.
 
 | Command | Result |
 | --- | --- |
