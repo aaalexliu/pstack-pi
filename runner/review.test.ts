@@ -10,20 +10,34 @@ const HEAD = 'a'.repeat(40);
 const BASE_TIP = 'b'.repeat(40);
 const MERGE_BASE = 'c'.repeat(40);
 const LEAD = '11111111-2222-3333-4444-555555555555';
-const PR = { url: 'https://github.com/owner/repo/pull/7', number: 7, headRefOid: HEAD, baseRefOid: BASE_TIP };
+const PR = { url: 'https://github.com/owner/repo/pull/7', number: 7, headRefOid: HEAD, baseRefOid: BASE_TIP, body: 'Makes the thing.' };
+const SUB_ISSUES = [
+  { identifier: 'ALE-10', title: 'Make the first half', url: 'https://linear.app/x/issue/ALE-10', description: 'Goal: the first half.', state: { name: 'In Progress', type: 'started' } },
+  { identifier: 'ALE-11', title: 'Make the second half', url: 'https://linear.app/x/issue/ALE-11', description: 'Goal: the second half.', state: { name: 'Todo', type: 'unstarted' } },
+  { identifier: 'ALE-12', title: 'Make a third half', url: 'https://linear.app/x/issue/ALE-12', description: 'Goal: dropped.', state: { name: 'Canceled', type: 'canceled' } },
+];
 
 /**
  * A fake `gh` that serves one PR and its reviews from files, and a fake `pi` reviewer that posts a record the way
  * prompts/review.md says, built from its own --session-id and the facts in its task. STUB_REVIEW bends that record:
- * `must-fix`, `other-head` (it reviewed some other commit), or `none` (it posted nothing).
+ * `must-fix`, `other-head` (it reviewed some other commit), or `none` (it posted nothing). Linear, reached through a
+ * fetch the command loads with --import, serves ALE-9's sub-issues, or a 500 with `linear: 'down'`.
  */
-function setup(stub = 'clean') {
+function setup(stub = 'clean', o: { body?: string; linear?: 'down' } = {}) {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'review-'));
   const file = (name: string) => path.join(dir, name);
   for (const folder of ['bin', 'job-ale-9-thing/.runner', 'job-ale-9-thing-ALE-10/src']) mkdirSync(file(folder), { recursive: true });
-  writeFileSync(file('pr.json'), JSON.stringify(PR));
+  writeFileSync(file('pr.json'), JSON.stringify({ ...PR, body: o.body ?? PR.body }));
   writeFileSync(file('reviews.json'), '[]');
-  writeFileSync(file('job-ale-9-thing/.runner/work.json'), JSON.stringify({ key: 'ALE-9', title: 'Make the thing', url: 'https://linear.app/x/issue/ALE-9', description: 'The ticket body.', models: { lead: 'lead/model', review: 'review/model' } }));
+  writeFileSync(file('job-ale-9-thing/.runner/work.json'), JSON.stringify({ id: 'ale-9-id', key: 'ALE-9', title: 'Make the thing', url: 'https://linear.app/x/issue/ALE-9', description: 'The ticket body.', models: { lead: 'lead/model', review: 'review/model' } }));
+  writeFileSync(file('config.json'), JSON.stringify({ linearTokenCommand: 'echo token', team: 'ALE', runnerUser: 'runner', askAssignee: 'Alex', repos: {}, models: { lead: 'lead/model', review: 'review/model' }, worktreeRoot: dir }));
+  writeFileSync(file('linear.mjs'), `import fs from 'node:fs';
+globalThis.fetch = async (url, init) => {
+  fs.appendFileSync(${JSON.stringify(file('linear.log'))}, JSON.stringify({ url, variables: JSON.parse(init.body).variables }) + '\\n');
+  if (${JSON.stringify(o.linear === 'down')}) return Response.json({ errors: [{ message: 'down' }] }, { status: 500 });
+  return Response.json({ data: { issue: { children: { nodes: ${JSON.stringify(SUB_ISSUES)} } } } });
+};
+`);
   writeFileSync(file('bin/gh'), `#!/usr/bin/env node
 const fs = require('node:fs');
 const args = process.argv.slice(2);
@@ -52,13 +66,17 @@ console.log(record.split('\\n').slice(0, 4).join('\\n'));
   const review = (args: string[], env: Record<string, string | undefined> = {}, cwd = 'job-ale-9-thing') => {
     const r = spawnSync(REVIEW, args, {
       encoding: 'utf8', cwd: file(cwd),
-      env: { ...process.env, PATH: `${file('bin')}:${process.env.PATH}`, JOB_RUNNER_PI: file('bin/pi'), PI_SESSION_ID: LEAD, STUB_REVIEW: stub, ...env },
+      env: {
+        ...process.env, PATH: `${file('bin')}:${process.env.PATH}`, JOB_RUNNER_PI: file('bin/pi'), JOB_RUNNER_CONFIG: file('config.json'),
+        NODE_OPTIONS: `--import ${file('linear.mjs')}`, PI_SESSION_ID: LEAD, STUB_REVIEW: stub, ...env,
+      },
     });
     return { code: r.status, out: r.stdout, err: r.stderr };
   };
   const pi = () => JSON.parse(readFileSync(file('pi.json'), 'utf8')) as string[];
   const records = () => (JSON.parse(readFileSync(file('reviews.json'), 'utf8')) as { body: string }[]).map((r) => r.body);
-  return { review, pi, records };
+  const linearReads = () => { try { return readFileSync(file('linear.log'), 'utf8').trim().split('\n').map((line) => JSON.parse(line)); } catch { return []; } };
+  return { review, pi, records, linearReads };
 }
 
 const field = (body: string, name: string) => body.match(new RegExp(`^${name}: (.*)$`, 'm'))?.[1];
@@ -79,6 +97,33 @@ test('the record names the PR head the command read, the new session and the ask
     '--append-system-prompt', path.join(import.meta.dirname, 'prompts', 'review.md')]);
   assert.match(args.at(-1)!, /^Review PR https:\/\/github.com\/owner\/repo\/pull\/7 for ALE-9, round 1, trigger first\. Head commit: a{40}\. asked_by: 11111111-2222-3333-4444-555555555555\. Goal: Make the thing \(https:\/\/linear.app\/x\/issue\/ALE-9\)\. Follow \S+\/prompts\/review.md\.\n\nThe ticket:\n\nThe ticket body\.$/);
   assert.equal(r.out.trim(), record);
+});
+
+test('a PR that fixes a sub-issue gets it as the goal, with the ticket and its open sibling sub-issues as context only', () => {
+  const t = setup('clean', { body: 'Makes the first half.\n\nFixes [ALE-10](https://linear.app/x/issue/ALE-10)\nPart of [ALE-9](https://linear.app/x/issue/ALE-9)\n' });
+  const r = t.review([PR.url, '--round', '1', '--trigger', 'first']);
+  assert.equal(r.code, 0, r.err);
+  assert.deepEqual(t.linearReads().map((read) => read.variables), [{ id: 'ale-9-id' }]);
+  assert.match(t.pi().at(-1)!, /^Review PR https:\/\/github.com\/owner\/repo\/pull\/7 for ALE-10, part of ALE-9, round 1, trigger first\. Head commit: a{40}\. asked_by: 11111111-2222-3333-4444-555555555555\. Goal: Make the first half \(https:\/\/linear.app\/x\/issue\/ALE-10\)\. Follow \S+\/prompts\/review.md\.\n\nThe goal, the sub-issue this PR fixes:\n\nALE-10 \(In Progress\): Make the first half \(https:\/\/linear.app\/x\/issue\/ALE-10\)\n\nGoal: the first half\.\n\nThe parent ticket, context only: ALE-9: Make the thing \(https:\/\/linear.app\/x\/issue\/ALE-9\)\n\nThe ticket body\.\n\nALE-9's other sub-issues, whose work belongs to other PRs:\n\nALE-11 \(Todo\): Make the second half \(https:\/\/linear.app\/x\/issue\/ALE-11\)\n\nGoal: the second half\.$/);
+});
+
+test('a PR that fixes only the ticket, or no sub-issue of it, is judged against the ticket', () => {
+  for (const [body, note, reads] of [['Makes the thing.', '', 0], ['Fixes ALE-9', '', 0], ['fixes ALE-99\nPart of ALE-9', 'review: ALE-99 is not a sub-issue of ALE-9; the goal is the ticket\n', 1]] as const) {
+    const t = setup('clean', { body });
+    const r = t.review(['7', '--round', '1', '--trigger', 'first']);
+    assert.equal(r.code, 0, r.err);
+    assert.equal(t.linearReads().length, reads, body);
+    assert.match(t.pi().at(-1)!, /^Review PR \S+ for ALE-9, round 1, trigger first\. .* Goal: Make the thing \(https:\/\/linear.app\/x\/issue\/ALE-9\)\. Follow \S+\n\nThe ticket:\n\nThe ticket body\.$/, body);
+    assert.equal(r.err.replace(/^review: review ALE-9 PR 7 round 1, .*\n/m, ''), note, body);
+  }
+});
+
+test('a sub-issue PR whose sub-issues Linear cannot list fails before any reviewer starts', () => {
+  const t = setup('clean', { body: 'Fixes ALE-10', linear: 'down' });
+  const r = t.review(['7', '--round', '1', '--trigger', 'first']);
+  assert.equal(r.code, 1);
+  assert.match(r.err, /^review: could not read ALE-9's sub-issues from Linear: Linear 500/);
+  assert.deepEqual(t.records(), []);
 });
 
 test("a sub-lead's worktree, the lead's path plus -<sub-issue key>, finds the lead's ticket; an unrelated folder does not", () => {
