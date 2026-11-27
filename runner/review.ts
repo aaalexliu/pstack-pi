@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // review.ts <pr> --round <n> --trigger first|fix|rebase
-// Runs one review round of the lead prompt's merge gate. It reads the PR head (and, for a rebase, the base it sits on),
-// takes asked_by from $PI_SESSION_ID, gives the reviewer a new session id, runs it with `pi -p` and prompts/review.md,
+// Runs one review round of the lead prompt's merge gate. It reads the PR head and base (and, for a rebase, the merge base
+// it sits on; for a later round, the head the last record reviewed), takes asked_by from $PI_SESSION_ID, gives the reviewer a new session id, runs it with `pi -p` and prompts/review.md,
 // and waits. Then it finds that session's record on the PR, checks the record names the same head, session, round and
 // asker, and prints it. Exit 0 on `verdict: clean`, 2 on `must-fix`, 1 when the record is missing or wrong, 64 on bad use.
 // The ticket's key, title, description and review model come from the .runner/work.json the runner writes, found as
@@ -62,6 +62,12 @@ try {
   fail((error as Error).message);
 }
 
+/** The runner-review records on the PR, oldest first. */
+function records() {
+  const { reviews } = JSON.parse(run('gh', ['pr', 'view', pr, '--json', 'reviews'])) as { reviews: { body: string }[] };
+  return reviews.map((r) => r.body).filter((body) => body.startsWith('runner-review v1'));
+}
+
 const head = JSON.parse(run('gh', ['pr', 'view', pr, '--json', 'url,number,headRefOid,baseRefOid,body'])) as { url: string; number: number; headRefOid: string; baseRefOid: string; body: string };
 const repo = head.url.match(/github\.com\/([^/]+\/[^/]+)\/pull\//)?.[1] ?? fail(`not a GitHub PR url: ${head.url}`);
 const fullTrigger = trigger === 'rebase'
@@ -90,7 +96,9 @@ const section = (s: SubIssue) => [`${s.identifier} (${s.state.name}): ${s.title}
 
 const sessionId = randomUUID();
 const name = `review ${work.key} PR ${head.number} round ${round}`;
-const facts = `round ${round}, trigger ${fullTrigger}. Head commit: ${head.headRefOid}. asked_by: ${askedBy}.`;
+// The reviewer reads the diff file by file against the base, and a later round starts from the last head reviewed.
+const lastHead = round > 1 ? records().map((body) => fields(body).head).filter(Boolean).at(-1) : undefined;
+const facts = `round ${round}, trigger ${fullTrigger}. Head commit: ${head.headRefOid}. asked_by: ${askedBy}. Base commit: ${head.baseRefOid}.${lastHead ? ` Last reviewed head: ${lastHead}.` : ''}`;
 const task = (goals.length ? [
   `Review PR ${head.url} for ${goals.map((s) => s.identifier).join(' and ')}, part of ${work.key}, ${facts} Goal: ${goals.map((s) => `${s.title} (${s.url})`).join('; ')}. Follow ${REVIEW_PROMPT}.`,
   '',
@@ -116,8 +124,7 @@ const reviewer = spawnSync(process.env.JOB_RUNNER_PI || 'pi',
   { encoding: 'utf8', maxBuffer: 64 << 20, stdio: ['ignore', 'pipe', 'inherit'] });
 const said = () => `The reviewer exited ${reviewer.status ?? reviewer.signal} and said:\n${reviewer.stdout ?? String(reviewer.error)}`;
 
-const reviews = (JSON.parse(run('gh', ['pr', 'view', pr, '--json', 'reviews'])) as { reviews: { body: string }[] }).reviews;
-const record = reviews.map((r) => r.body).filter((body) => body.startsWith('runner-review v1') && fields(body).session_id === sessionId).at(-1);
+const record = records().filter((body) => fields(body).session_id === sessionId).at(-1);
 if (!record) fail(`no runner-review record with session_id ${sessionId} on ${head.url}. ${said()}`);
 const got = fields(record);
 const want = { head: head.headRefOid, round: String(round), trigger: fullTrigger, asked_by: askedBy };
