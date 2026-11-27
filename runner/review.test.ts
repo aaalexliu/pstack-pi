@@ -21,14 +21,14 @@ const SUB_ISSUES = [
  * A fake `gh` that serves one PR and its reviews from files, and a fake `pi` reviewer that posts a record the way
  * prompts/review.md says, built from its own --session-id and the facts in its task. STUB_REVIEW bends that record:
  * `must-fix`, `other-head` (it reviewed some other commit), or `none` (it posted nothing). Linear, reached through a
- * fetch the command loads with --import, serves ALE-9's sub-issues, or a 500 with `linear: 'down'`.
+ * fetch the command loads with --import, serves ALE-9's sub-issues, or a 500 with `linear: 'down'`. `reviews` seeds the PR's earlier reviews.
  */
-function setup(stub = 'clean', o: { body?: string; linear?: 'down' } = {}) {
+function setup(stub = 'clean', o: { body?: string; linear?: 'down'; reviews?: string[] } = {}) {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'review-'));
   const file = (name: string) => path.join(dir, name);
   for (const folder of ['bin', 'job-ale-9-thing/.runner', 'job-ale-9-thing-ALE-10/src']) mkdirSync(file(folder), { recursive: true });
   writeFileSync(file('pr.json'), JSON.stringify({ ...PR, body: o.body ?? PR.body }));
-  writeFileSync(file('reviews.json'), '[]');
+  writeFileSync(file('reviews.json'), JSON.stringify((o.reviews ?? []).map((body) => ({ body }))));
   writeFileSync(file('job-ale-9-thing/.runner/work.json'), JSON.stringify({ id: 'ale-9-id', key: 'ALE-9', title: 'Make the thing', url: 'https://linear.app/x/issue/ALE-9', description: 'The ticket body.', models: { lead: 'lead/model', review: 'review/model' } }));
   writeFileSync(file('config.json'), JSON.stringify({ linearTokenCommand: 'echo token', team: 'ALE', runnerUser: 'runner', askAssignee: 'Alex', repos: {}, models: { lead: 'lead/model', review: 'review/model' }, worktreeRoot: dir }));
   writeFileSync(file('linear.mjs'), `import fs from 'node:fs';
@@ -95,7 +95,7 @@ test('the record names the PR head the command read, the new session and the ask
   assert.equal(field(record, 'session_id'), sessionId);
   assert.deepEqual(args.slice(0, -1), ['-p', '--session-id', sessionId, '--name', 'review ALE-9 PR 7 round 1', '--model', 'review/model',
     '--append-system-prompt', path.join(import.meta.dirname, 'prompts', 'review.md')]);
-  assert.match(args.at(-1)!, /^Review PR https:\/\/github.com\/owner\/repo\/pull\/7 for ALE-9, round 1, trigger first\. Head commit: a{40}\. asked_by: 11111111-2222-3333-4444-555555555555\. Goal: Make the thing \(https:\/\/linear.app\/x\/issue\/ALE-9\)\. Follow \S+\/prompts\/review.md\.\n\nThe ticket:\n\nThe ticket body\.$/);
+  assert.match(args.at(-1)!, /^Review PR https:\/\/github.com\/owner\/repo\/pull\/7 for ALE-9, round 1, trigger first\. Head commit: a{40}\. asked_by: 11111111-2222-3333-4444-555555555555\. Base commit: b{40}\. Goal: Make the thing \(https:\/\/linear.app\/x\/issue\/ALE-9\)\. Follow \S+\/prompts\/review.md\.\n\nThe ticket:\n\nThe ticket body\.$/);
   assert.equal(r.out.trim(), record);
 });
 
@@ -104,7 +104,7 @@ test('a PR that fixes a sub-issue gets it as the goal, with the ticket and its o
   const r = t.review([PR.url, '--round', '1', '--trigger', 'first']);
   assert.equal(r.code, 0, r.err);
   assert.deepEqual(t.linearReads().map((read) => read.variables), [{ id: 'ale-9-id' }]);
-  assert.match(t.pi().at(-1)!, /^Review PR https:\/\/github.com\/owner\/repo\/pull\/7 for ALE-10, part of ALE-9, round 1, trigger first\. Head commit: a{40}\. asked_by: 11111111-2222-3333-4444-555555555555\. Goal: Make the first half \(https:\/\/linear.app\/x\/issue\/ALE-10\)\. Follow \S+\/prompts\/review.md\.\n\nThe goal, the sub-issue this PR fixes:\n\nALE-10 \(In Progress\): Make the first half \(https:\/\/linear.app\/x\/issue\/ALE-10\)\n\nGoal: the first half\.\n\nThe parent ticket, context only: ALE-9: Make the thing \(https:\/\/linear.app\/x\/issue\/ALE-9\)\n\nThe ticket body\.\n\nALE-9's other sub-issues, whose work belongs to other PRs:\n\nALE-11 \(Todo\): Make the second half \(https:\/\/linear.app\/x\/issue\/ALE-11\)\n\nGoal: the second half\.$/);
+  assert.match(t.pi().at(-1)!, /^Review PR https:\/\/github.com\/owner\/repo\/pull\/7 for ALE-10, part of ALE-9, round 1, trigger first\. Head commit: a{40}\. asked_by: 11111111-2222-3333-4444-555555555555\. Base commit: b{40}\. Goal: Make the first half \(https:\/\/linear.app\/x\/issue\/ALE-10\)\. Follow \S+\/prompts\/review.md\.\n\nThe goal, the sub-issue this PR fixes:\n\nALE-10 \(In Progress\): Make the first half \(https:\/\/linear.app\/x\/issue\/ALE-10\)\n\nGoal: the first half\.\n\nThe parent ticket, context only: ALE-9: Make the thing \(https:\/\/linear.app\/x\/issue\/ALE-9\)\n\nThe ticket body\.\n\nALE-9's other sub-issues, whose work belongs to other PRs:\n\nALE-11 \(Todo\): Make the second half \(https:\/\/linear.app\/x\/issue\/ALE-11\)\n\nGoal: the second half\.$/);
 });
 
 test('a PR that fixes only the ticket, or no sub-issue of it, is judged against the ticket', () => {
@@ -142,6 +142,14 @@ test('a rebase round names the merge base it sits on', () => {
   const r = t.review(['7', '--round', '3', '--trigger', 'rebase']);
   assert.equal(r.code, 0, r.err);
   assert.equal(field(t.records()[0], 'trigger'), `rebase onto ${MERGE_BASE}`);
+});
+
+test('a later round names the head the last runner-review record reviewed, so the reviewer can read what changed since', () => {
+  const old = (sha: string) => `runner-review v1\nverdict: must-fix\ncaused_must_fix: 1\nhead: ${sha}\nround: 1\n\n[]`;
+  const t = setup('clean', { reviews: [old('e'.repeat(40)), 'Looks good to me.', old('f'.repeat(40))] });
+  const r = t.review(['7', '--round', '2', '--trigger', 'fix']);
+  assert.equal(r.code, 0, r.err);
+  assert.match(t.pi().at(-1)!, /^Review PR \S+ for ALE-9, round 2, trigger fix\. Head commit: a{40}\. asked_by: \S+\. Base commit: b{40}\. Last reviewed head: f{40}\. Goal:/);
 });
 
 test('a must-fix verdict exits 2 and still prints the record', () => {
