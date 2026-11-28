@@ -8,6 +8,7 @@ import { registerBashHeadTail } from './bash-head-tail.ts';
 import { registerExport } from './export-session.ts';
 import { registerPapercuts } from './papercuts.ts';
 import { registerReadCloseMatches } from './read-close-matches.ts';
+import { registerReadOrder } from './read-order.ts';
 import { registerSearchGuard } from './search-guard.ts';
 import { disabledModeState, enabledModeState, invokesPotetoMode, modeEntryType, restoreMode, type ModeState } from './mode.ts';
 import { formatTodos, parseTodoAction, reduceTodos, restoreTodos, todoEntryType, todoParameters, emptyTodoState, type TodoState } from './todo.ts';
@@ -78,6 +79,7 @@ export default function pstack(pi: ExtensionAPI): void {
   registerBashHeadTail(pi);
   registerPapercuts(pi);
   registerReadCloseMatches(pi);
+  registerReadOrder(pi);
   registerSearchGuard(pi);
   registerExport(pi);
 
